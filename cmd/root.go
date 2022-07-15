@@ -1,0 +1,60 @@
+package cmd
+
+import (
+	"fmt"
+	"os"
+	"path"
+
+	homedir "github.com/mitchellh/go-homedir"
+	"github.com/spf13/cobra"
+
+	"github.com/julien-sobczak/the-notetaker/internal/core"
+)
+
+var rootCmd = &cobra.Command{
+	Use:   "the-notetaker",
+	Short: "The NoteTaker is a file-based note management tool",
+	Long:  `A Powerful and Flexible Note Management Tool using only Markdown files.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		// Do Stuff Here
+	},
+}
+
+var CollectionDir string
+var Col *core.Collection
+
+func init() {
+	cobra.OnInitialize(initConfig)
+	rootCmd.Flags().StringVarP(&CollectionDir, "collection", "c", "", "Collection directory (default is $HOME/notes)")
+}
+
+func initConfig() {
+	if CollectionDir == "" {
+		// Search in home directory
+		home, err := homedir.Dir()
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+
+		CollectionDir = path.Join(home, "notes")
+		if _, err := os.Stat(CollectionDir); os.IsNotExist(err) {
+			fmt.Printf("Default collection %q doesn't exists. Use flag '--collection' to override the default location.", CollectionDir)
+			os.Exit(1)
+		}
+	}
+
+	var err error
+	Col, err = core.NewCollection(CollectionDir)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+}
+
+func Execute() {
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+}
