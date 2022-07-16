@@ -7,3 +7,6 @@ APP_VERSION = $(shell git rev-parse HEAD)
 build:
 	# go build -ldflags "-X \"$(APP_NAME)/cmd.version=$(APP_NAME):$(APP_VERSION)\"" -o build/the-notetaker main.go
 	go build -o build/the-notetaker main.go
+
+test:
+	go test ./... -count=0

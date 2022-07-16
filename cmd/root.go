@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/julien-sobczak/the-notetaker/internal/core"
+	"github.com/julien-sobczak/the-notetaker/internal/zotero"
 )
 
 var rootCmd = &cobra.Command{
@@ -26,6 +27,7 @@ var Col *core.Collection
 func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.Flags().StringVarP(&CollectionDir, "collection", "c", "", "Collection directory (default is $HOME/notes)")
+	// TODO add support for an environment variable to override this flag
 }
 
 func initConfig() {
@@ -45,7 +47,8 @@ func initConfig() {
 	}
 
 	var err error
-	Col, err = core.NewCollection(CollectionDir)
+	zoteroManager := zotero.NewReferenceManager()
+	Col, err = core.NewCollection(CollectionDir, zoteroManager)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)

@@ -1,5 +1,12 @@
 package core
 
+import (
+	"log"
+	"strings"
+
+	"gopkg.in/yaml.v3"
+)
+
 type NoteKind int64
 
 const (
@@ -26,6 +33,17 @@ type Note struct {
 }
 
 func (n *Note) Save() error {
-	// Persist to disk
+	// TODO Persist to disk
+	var sb strings.Builder
+	sb.WriteString("----")
+	d, err := yaml.Marshal(n.FrontMatter) // FIXME sort fields in a well-defined order: title, author, year, ..., details.
+	if err != nil {
+		return err
+	}
+	sb.WriteString(string(d))
+	sb.WriteString("----")
+	sb.WriteString("")
+	sb.WriteString(n.Content)
+	log.Println(sb.String())
 	return nil
 }
