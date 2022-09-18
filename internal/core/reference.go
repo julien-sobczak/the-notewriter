@@ -43,12 +43,9 @@ var ReferenceTypes = []ReferenceType{
 // Reference represents a single reference.
 type Reference interface {
 	Type() ReferenceType
-	Title() string
-	ShortTitle() string
-	Authors() []string
 	PublicationYear() string
 	Attributes() map[string]interface{} // may differ according the reference type.
-	Bibliography() string // formatted according the Chicago Manual of Style
+	AttributesOrder() []string
 }
 
 // ReferenceManager retrieves the metadata for references.

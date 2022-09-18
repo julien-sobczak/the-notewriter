@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -12,10 +11,45 @@ import (
 	"strings"
 	"time"
 
+	_ "embed"
+
 	"github.com/julien-sobczak/the-notetaker/internal/core"
+	"github.com/manifoldco/promptui"
 )
 
 var primaryCreatorsByType map[string]string
+
+//go:embed schema.json
+var schemaFile []byte
+
+// Retrieved from https://raw.githubusercontent.com/zotero/zotero-schema/master/schema.json
+// Check fhttps://www.zotero.org/support/kb/item_types_and_fields for descriptions
+var schemas map[string]ItemSchema
+
+type Schema struct {
+	Version   int          `json:"version"`
+	ItemTypes []ItemSchema `json:"itemTypes"`
+}
+type ItemSchema struct {
+	Type         string              `json:"itemType"`
+	Fields       []FieldSchema       `json:"fields"`
+	CreatorTypes []CreatorTypeSchema `json:"creatorTypes"`
+}
+type FieldSchema struct {
+	Field     string `json:"field"`
+	BaseField string `json:"baseField"`
+}
+
+type CreatorTypeSchema struct {
+	Type    string `json:"creatorType"`
+	Primary bool   `json:"primary"`
+}
+
+var ignoredFields = map[string]interface{}{
+	"abstractNote":   nil,
+	"callNumber":     nil,
+	"libraryCatalog": nil,
+}
 
 func init() {
 	// See https://github.com/zotero/zotero-schema/blob/master/schema.json for reference
@@ -36,6 +70,18 @@ func init() {
 		"thesis":           "author",
 		"webpage":          "author",
 	}
+
+	var schema Schema
+	err := json.Unmarshal(schemaFile, &schema)
+	if err != nil {
+		fmt.Printf("Unable to read Zotera schema file: %v", err)
+		os.Exit(1)
+	}
+
+	schemas = make(map[string]ItemSchema)
+	for _, typeSchema := range schema.ItemTypes {
+		schemas[typeSchema.Type] = typeSchema
+	}
 }
 
 // Zotero provides reference management using Zotero Translation Server.
@@ -47,6 +93,10 @@ type ZoteroReference struct {
 	// The Zotero schema is defined in the following repository:
 	// https://github.com/zotero/zotero-schema/blob/master/schema.json (11,000 lines).
 	fields map[string]interface{}
+}
+
+func (z ZoteroReference) String() string {
+	return fmt.Sprintf("%s, by %s", z.ShortTitle(), strings.Join(z.Authors(), ", "))
 }
 
 func (r *ZoteroReference) Type() core.ReferenceType {
@@ -87,6 +137,19 @@ func (r *ZoteroReference) Attributes() map[string]interface{} {
 	return result
 }
 
+func (r *ZoteroReference) AttributesOrder() []string {
+	var result []string
+	result = append(result, "creators")
+	itemType, _ := r.fields["itemType"].(string)
+	for _, field := range schemas[itemType].Fields {
+		if _, ok := ignoredFields[field.Field]; ok {
+			continue
+		}
+		result = append(result, field.Field)
+	}
+	return result
+}
+
 func (r *ZoteroReference) Bibliography() string {
 	// TODO implement
 	return r.Title() + " by " + strings.Join(r.Authors(), " ")
@@ -106,9 +169,11 @@ func (z *Zotero) Search(query string) (core.Reference, error) {
 	var pid int
 	// Zotero Translation Server uses the port 1969 by default
 	if IsPortOpen("localhost", 1969) {
+		fmt.Println("Zotero Translation Server is already started")
 		alreadyStarted = true
 	} else {
 		// Start Zotero
+		fmt.Println("Starting Zotero Translation Server...")
 		// Ex: "docker run -d -p 1969:1969 --rm zotero/translation-server"
 		cmd := exec.Command("docker", "run", "-d", "-p", "1969:1969", "--rm", "zotero/translation-server")
 		err := cmd.Start()
@@ -118,10 +183,12 @@ func (z *Zotero) Search(query string) (core.Reference, error) {
 		pid = cmd.Process.Pid
 
 		// Wait for port to be open
-		// TODO refactor
+		// TODO refactor to avoid passive wait
 		startedAt := time.Now()
 		for {
 			if IsPortOpen("localhost", 1969) {
+				// Just to be sure the service is ready
+				time.Sleep(100 * time.Millisecond)
 				break
 			}
 			if time.Since(startedAt).Seconds() > 5 {
@@ -132,6 +199,7 @@ func (z *Zotero) Search(query string) (core.Reference, error) {
 	}
 
 	// Query Zotero
+	// Ex: curl -XPOST http://localhost:1969/search -H 'Content-Type: text/plain' -d '0525538836' | jq .
 	client := &http.Client{}
 	req, err := http.NewRequest(http.MethodPost, "http://localhost:1969/search", strings.NewReader(query))
 	if err != nil {
@@ -156,17 +224,32 @@ func (z *Zotero) Search(query string) (core.Reference, error) {
 		return nil, err
 	}
 
-	// Search for first matching result (ignore some types of reference)
-	var uniqueResult core.Reference
+	var filteredResults []core.Reference
 	for _, result := range results {
 		typeRaw := result["itemType"].(string)
 		_, ok := primaryCreatorsByType[typeRaw]
+		if !ok {
+			// Ignore esoteric sources
+			continue
+		}
 		if ok {
-			uniqueResult = &ZoteroReference{
+			zoteroReference := &ZoteroReference{
 				fields: result,
 			}
-			break
+			filteredResults = append(filteredResults, zoteroReference)
 		}
+	}
+
+	prompt := promptui.Select{
+		Label: "Select",
+		Items: filteredResults,
+	}
+
+	indexResult, _, err := prompt.Run()
+
+	if err != nil {
+		fmt.Printf("Prompt failed: %v\n", err)
+		os.Exit(1)
 	}
 
 	// Stop Zotero only if started by the CLI 0787960756
@@ -174,7 +257,7 @@ func (z *Zotero) Search(query string) (core.Reference, error) {
 		tryKillProcess(pid)
 	}
 
-	return uniqueResult, nil
+	return filteredResults[indexResult], nil
 }
 
 func IsCmdDefined(cmdName string) bool {
@@ -201,7 +284,7 @@ func tryKillProcess(pid int) {
 	p := os.Process{Pid: pid}
 	err := p.Kill()
 	if err != nil {
-		log.Printf("Unable to kill background process: %v", err.Error())
+		fmt.Printf("Unable to kill background process: %v", err.Error())
 	}
 	// Ignore if the command cannot be stopped
 }

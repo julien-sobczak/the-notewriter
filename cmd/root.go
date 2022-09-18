@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/julien-sobczak/the-notetaker/internal/core"
+	"github.com/julien-sobczak/the-notetaker/internal/wikipedia"
 	"github.com/julien-sobczak/the-notetaker/internal/zotero"
 )
 
@@ -48,7 +49,8 @@ func initConfig() {
 
 	var err error
 	zoteroManager := zotero.NewReferenceManager()
-	Col, err = core.NewCollection(CollectionDir, zoteroManager)
+	wikipediaManager := wikipedia.NewReferenceManager()
+	Col, err = core.NewCollection(CollectionDir, zoteroManager, wikipediaManager)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
