@@ -26,7 +26,7 @@ func NewCollection(path string, bookManager ReferenceManager, personManager Refe
 	return c, nil
 }
 
-func (c *Collection) createNewReferenceNote(identifier string, kind string) (*Note, error) {
+func (c *Collection) createNewReferenceFile(identifier string, kind string) (*File, error) {
 	var reference Reference
 	var err error
 
@@ -40,17 +40,16 @@ func (c *Collection) createNewReferenceNote(identifier string, kind string) (*No
 		return nil, err
 	}
 
-	return &Note{
-		ID:               "XXX", // TODO add stable ID on notes?
-		Kind:             KindReference,
-		FrontMatter:      reference.Attributes(),
-		FrontMatterOrder: reference.AttributesOrder(),
-		Content:          "",
+	return &File{
+		ID:         "XXX", // TODO add stable ID on notes?
+		Kind:       KindReference,
+		Attributes: reference.Attributes(),
+		Content:    "",
 	}, nil
 }
 
-func (c *Collection) AddNewReferenceNote(identifier string, kind string) error {
-	note, err := c.createNewReferenceNote(identifier, kind)
+func (c *Collection) AddNewReferenceFile(identifier string, kind string) error {
+	note, err := c.createNewReferenceFile(identifier, kind)
 	if err != nil {
 		return err
 	}

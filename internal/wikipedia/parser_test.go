@@ -105,6 +105,9 @@ func TestParserWithInfobox(t *testing.T) {
 	}
 	t.Log("\n---\n" + string(bytes) + "---")
 	t.Fail()
+
+	// TODO finish test
+	// TODO convert struct to options for promptui + output FrontMatter
 }
 
 func TestStripLinks(t *testing.T) {

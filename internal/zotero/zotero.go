@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
@@ -13,11 +14,64 @@ import (
 
 	_ "embed"
 
+	"github.com/AlecAivazis/survey/v2"
+	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/julien-sobczak/the-notetaker/internal/core"
-	"github.com/manifoldco/promptui"
+	sopts "go.nhat.io/surveyexpect/options"
 )
 
-var primaryCreatorsByType map[string]string
+type ReferenceType string
+
+const (
+	// See https://github.com/zotero/zotero-schema/blob/master/schema.json for inspiration
+	TypeArtwork          ReferenceType = "artwork"
+	TypeAudioRecording   ReferenceType = "audioRecording"
+	TypeBlogPost         ReferenceType = "blogPost"
+	TypeBook             ReferenceType = "book"
+	TypeBookSection      ReferenceType = "bookSection"
+	TypeConferencePaper  ReferenceType = "conferencePaper"
+	TypeDocument         ReferenceType = "document"
+	TypeFilm             ReferenceType = "film"
+	TypeJournalArticle   ReferenceType = "journalArticle"
+	TypeMagazineArticle  ReferenceType = "magazineArticle"
+	TypeLetter           ReferenceType = "letter"
+	TypeNewspaperArticle ReferenceType = "newspaperArticle"
+	TypePodcast          ReferenceType = "podcast"
+	TypeThesis           ReferenceType = "thesis"
+	TypeWebpage          ReferenceType = "webpage"
+)
+
+// List of supported types for references
+var ReferenceTypes = []ReferenceType{
+	TypeArtwork,
+	TypeAudioRecording,
+	TypeBlogPost,
+	TypeBook,
+	TypeBookSection,
+	TypeConferencePaper,
+	TypeDocument,
+	TypeFilm,
+	TypeJournalArticle,
+	TypeMagazineArticle,
+	TypeLetter,
+	TypeNewspaperArticle,
+	TypePodcast,
+	TypeThesis,
+	TypeWebpage,
+}
+
+func isSupportedType(itemType ReferenceType) bool {
+	for _, supportedItemType := range ReferenceTypes {
+		if supportedItemType == itemType {
+			return true
+		}
+	}
+	return false
+}
+
+//
+// Schema management
+//
 
 //go:embed schema.json
 var schemaFile []byte
@@ -52,25 +106,7 @@ var ignoredFields = map[string]interface{}{
 }
 
 func init() {
-	// See https://github.com/zotero/zotero-schema/blob/master/schema.json for reference
-	primaryCreatorsByType = map[string]string{
-		"artwork":          "artist",
-		"audioRecording":   "performer",
-		"blogPost":         "author",
-		"book":             "author",
-		"bookSection":      "author",
-		"conferencePaper":  "author",
-		"document":         "author",
-		"film":             "director",
-		"journalArticle":   "author",
-		"magazineArticle":  "author",
-		"letter":           "author",
-		"newspaperArticle": "author",
-		"podcast":          "podcaster",
-		"thesis":           "author",
-		"webpage":          "author",
-	}
-
+	// Parse the schema file
 	var schema Schema
 	err := json.Unmarshal(schemaFile, &schema)
 	if err != nil {
@@ -84,10 +120,9 @@ func init() {
 	}
 }
 
-// Zotero provides reference management using Zotero Translation Server.
-// See https://github.com/zotero/translation-server
-type Zotero struct {
-}
+//
+// Reference Note
+//
 
 type ZoteroReference struct {
 	// The Zotero schema is defined in the following repository:
@@ -99,26 +134,68 @@ func (z ZoteroReference) String() string {
 	return fmt.Sprintf("%s, by %s", z.ShortTitle(), strings.Join(z.Authors(), ", "))
 }
 
-func (r *ZoteroReference) Type() core.ReferenceType {
-	return core.ReferenceType(r.fields["itemType"].(string))
-}
+func (z *ZoteroReference) Attributes() core.AttributeList {
+	var attributes []*core.Attribute
 
-func (r *ZoteroReference) Title() string {
-	return r.fields["title"].(string)
+	attributes = append(attributes, &core.Attribute{
+		Name:          "creators",
+		Value:         z.fields["creators"],
+		OriginalValue: z.fields["creators"],
+	})
+
+	itemType, _ := z.fields["itemType"].(string)
+	for _, field := range schemas[itemType].Fields {
+		// ignore some fields
+		if _, ok := ignoredFields[field.Field]; ok {
+			continue
+		}
+		if value, ok := z.fields[field.Field]; ok {
+			// Ignore null fields
+			if value != nil {
+				attributes = append(attributes, &core.Attribute{
+					Name:          field.Field,
+					Value:         value,
+					OriginalValue: value,
+				})
+			}
+		}
+
+	}
+
+	return attributes
 }
 
 func (r *ZoteroReference) ShortTitle() string {
 	if val, ok := r.fields["shortTitle"]; ok {
 		return val.(string)
 	}
+	return r.Title()
+}
+
+func (r *ZoteroReference) Title() string {
 	return r.fields["title"].(string)
+}
+
+func (r *ZoteroReference) schema() ItemSchema {
+	itemType, _ := r.fields["itemType"].(string)
+	return schemas[itemType]
+}
+
+func (r *ZoteroReference) primaryCreatorType() string {
+	schema := r.schema()
+	for _, creatorType := range schema.CreatorTypes {
+		if creatorType.Primary {
+			return creatorType.Type
+		}
+	}
+	return ""
 }
 
 func (r *ZoteroReference) Authors() []string {
 	var result []string
 	for _, creatorRaw := range r.fields["creators"].([]interface{}) {
 		creator := creatorRaw.(map[string]interface{})
-		if creator["creatorType"] == primaryCreatorsByType[string(r.Type())] {
+		if creator["creatorType"] == r.primaryCreatorType() {
 			result = append(result, fmt.Sprintf("%s %s", creator["firstName"].(string), creator["lastName"].(string)))
 		}
 	}
@@ -129,34 +206,29 @@ func (r *ZoteroReference) PublicationYear() string {
 	return r.fields["date"].(string)
 }
 
-func (r *ZoteroReference) Attributes() map[string]interface{} {
-	result := make(map[string]interface{})
-	for key, value := range r.fields {
-		result[key] = value
-	}
-	return result
-}
-
-func (r *ZoteroReference) AttributesOrder() []string {
-	var result []string
-	result = append(result, "creators")
-	itemType, _ := r.fields["itemType"].(string)
-	for _, field := range schemas[itemType].Fields {
-		if _, ok := ignoredFields[field.Field]; ok {
-			continue
-		}
-		result = append(result, field.Field)
-	}
-	return result
-}
-
 func (r *ZoteroReference) Bibliography() string {
 	// TODO implement
 	return r.Title() + " by " + strings.Join(r.Authors(), " ")
 }
 
+//
+// Reference Manager
+//
+
+// Zotero provides reference management using Zotero Translation Server.
+// See https://github.com/zotero/translation-server
+type Zotero struct {
+	// Override in tests to use a mock server
+	BaseURL string
+	// Override in tests to capture in/out
+	Stdio *terminal.Stdio
+}
+
 func NewReferenceManager() *Zotero {
-	return &Zotero{}
+	return &Zotero{
+		// Zotero Translation Server uses the port 1969 by default
+		BaseURL: "http://localhost:1969",
+	}
 }
 
 func (z *Zotero) Search(query string) (core.Reference, error) {
@@ -167,41 +239,19 @@ func (z *Zotero) Search(query string) (core.Reference, error) {
 	// Ensure Zotero Translation Server is running
 	alreadyStarted := false
 	var pid int
-	// Zotero Translation Server uses the port 1969 by default
-	if IsPortOpen("localhost", 1969) {
+
+	if z.IsPortOpen() {
 		fmt.Println("Zotero Translation Server is already started")
 		alreadyStarted = true
 	} else {
 		// Start Zotero
-		fmt.Println("Starting Zotero Translation Server...")
-		// Ex: "docker run -d -p 1969:1969 --rm zotero/translation-server"
-		cmd := exec.Command("docker", "run", "-d", "-p", "1969:1969", "--rm", "zotero/translation-server")
-		err := cmd.Start()
-		if err != nil {
-			return nil, err
-		}
-		pid = cmd.Process.Pid
-
-		// Wait for port to be open
-		// TODO refactor to avoid passive wait
-		startedAt := time.Now()
-		for {
-			if IsPortOpen("localhost", 1969) {
-				// Just to be sure the service is ready
-				time.Sleep(100 * time.Millisecond)
-				break
-			}
-			if time.Since(startedAt).Seconds() > 5 {
-				break
-			}
-			time.Sleep(1 * time.Second)
-		}
+		z.startServerLocally()
 	}
 
 	// Query Zotero
 	// Ex: curl -XPOST http://localhost:1969/search -H 'Content-Type: text/plain' -d '0525538836' | jq .
 	client := &http.Client{}
-	req, err := http.NewRequest(http.MethodPost, "http://localhost:1969/search", strings.NewReader(query))
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/search", z.BaseURL), strings.NewReader(query))
 	if err != nil {
 		return nil, err
 	}
@@ -224,40 +274,72 @@ func (z *Zotero) Search(query string) (core.Reference, error) {
 		return nil, err
 	}
 
-	var filteredResults []core.Reference
+	var filteredResults []*ZoteroReference
 	for _, result := range results {
-		typeRaw := result["itemType"].(string)
-		_, ok := primaryCreatorsByType[typeRaw]
-		if !ok {
+		itemTypeRaw := result["itemType"].(string)
+		if !isSupportedType(ReferenceType(itemTypeRaw)) {
 			// Ignore esoteric sources
 			continue
 		}
-		if ok {
-			zoteroReference := &ZoteroReference{
-				fields: result,
-			}
-			filteredResults = append(filteredResults, zoteroReference)
+		zoteroReference := &ZoteroReference{
+			fields: result,
 		}
+		filteredResults = append(filteredResults, zoteroReference)
 	}
 
-	prompt := promptui.Select{
-		Label: "Select",
-		Items: filteredResults,
+	var options []string
+	referencesByOption := make(map[string]core.Reference)
+	for _, reference := range filteredResults {
+		options = append(options, reference.String())
+		referencesByOption[reference.String()] = reference
 	}
 
-	indexResult, _, err := prompt.Run()
-
-	if err != nil {
-		fmt.Printf("Prompt failed: %v\n", err)
-		os.Exit(1)
+	var answer string
+	prompt := &survey.Select{
+		Message: "Which reference?",
+		Options: options,
 	}
+	var surveyOpts []survey.AskOpt
+	surveyOpts = append(surveyOpts, survey.WithValidator(survey.Required))
+	if z.Stdio != nil {
+		surveyOpts = append(surveyOpts, sopts.WithStdio(*z.Stdio))
+	}
+	survey.AskOne(prompt, &answer, surveyOpts...)
+	answerReference := referencesByOption[answer]
 
 	// Stop Zotero only if started by the CLI 0787960756
 	if !alreadyStarted {
 		tryKillProcess(pid)
 	}
 
-	return filteredResults[indexResult], nil
+	return answerReference, nil
+}
+
+func (z *Zotero) startServerLocally() error {
+	fmt.Println("Starting Zotero Translation Server...")
+	// Ex: "docker run -d -p 1969:1969 --rm zotero/translation-server"
+	cmd := exec.Command("docker", "run", "-d", "-p", "1969:1969", "--rm", "zotero/translation-server")
+	err := cmd.Start()
+	if err != nil {
+		return err
+	}
+	_ = cmd.Process.Pid
+
+	// Wait for port to be open
+	// TODO refactor to avoid passive wait
+	startedAt := time.Now()
+	for {
+		if z.IsPortOpen() {
+			// Just to be sure the service is ready
+			time.Sleep(100 * time.Millisecond)
+			break
+		}
+		if time.Since(startedAt).Seconds() > 5 {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+	return nil
 }
 
 func IsCmdDefined(cmdName string) bool {
@@ -265,8 +347,13 @@ func IsCmdDefined(cmdName string) bool {
 	return err == nil
 }
 
-func IsPortOpen(host string, port int) bool {
-	target := fmt.Sprintf("%s:%d", host, port)
+func (z *Zotero) IsPortOpen() bool {
+	u, err := url.Parse(z.BaseURL)
+	if err != nil {
+		return false
+	}
+
+	target := fmt.Sprintf("%s:%s", u.Hostname(), u.Port())
 	conn, err := net.DialTimeout("tcp", target, 1*time.Second)
 	if err != nil {
 		return false

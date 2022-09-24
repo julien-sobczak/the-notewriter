@@ -5,17 +5,13 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/julien-sobczak/the-notetaker/internal/core"
 )
 
 type Infobox struct {
 	Name       string
-	Attributes []Attribute
-}
-
-type Attribute struct {
-	Key      string
-	Wikitext string
-	Value    interface{}
+	Attributes core.AttributeList
 }
 
 var regexBirthDate = regexp.MustCompile(`^(?i){{birth[- ]date\|`)
@@ -97,10 +93,10 @@ func parseWikitext(txt string) *Infobox {
 
 				parsedValue = parseAttributeValue(wikiValue)
 				if parsedValue != nil {
-					infobox.Attributes = append(infobox.Attributes, Attribute{
-						Key:      key,
-						Wikitext: wikiValue,
-						Value:    parsedValue,
+					infobox.Attributes = append(infobox.Attributes, &core.Attribute{
+						Name:          key,
+						OriginalValue: wikiValue,
+						Value:         parsedValue,
 					})
 				} else {
 					fmt.Printf("Ignoring unknown syntax for atttribute %q: %s", key, wikiValue)

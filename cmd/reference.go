@@ -31,7 +31,7 @@ var newReferenceCmd = &cobra.Command{
 		if len(args) > 1 {
 			fmt.Println("Too many arguments. You can only have one which is an identifier")
 		} else {
-			err := Col.AddNewReferenceNote(args[0], referenceKind)
+			err := Col.AddNewReferenceFile(args[0], referenceKind)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)

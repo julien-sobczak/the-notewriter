@@ -1,13 +1,78 @@
-package core_test
+package core
 
 import (
+	"log"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
 	"gopkg.in/yaml.v3"
 )
 
-func TestYamlNode(t *testing.T) {
+func TestCompactYAML(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "Basic syntax",
+			input: `
+parent:
+  - key1: value1
+    key2: value2
+`,
+			expected: `
+parent:
+- key1: value1
+  key2: value2
+`,
+		},
+		{
+			name: "Inner syntax",
+			input: `
+parent:
+  child:
+    - key1: value1
+      key2: value2
+`,
+			expected: `
+parent:
+  child:
+  - key1: value1
+    key2: value2
+`,
+		},
+		{
+			name: "Other properties behind",
+			input: `
+parent:
+  child1:
+    - key1: value1
+      key2: value2
+  child2: value3
+`,
+			expected: `
+parent:
+  child1:
+  - key1: value1
+    key2: value2
+  child2: value3
+`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := CompactYAML(tt.input)
+			if actual != tt.expected {
+				t.Errorf("Difference found. Got: \n%v", actual)
+			}
+		})
+	}
+}
+
+// Learning tests to apprehend the yaml.v3 library when working with yaml.Node
+
+func ExampleCompactYAML_withScalars() {
 	config := &yaml.Node{
 		Kind: yaml.DocumentNode,
 		Content: []*yaml.Node{
@@ -42,13 +107,13 @@ func TestYamlNode(t *testing.T) {
 
 	bytes, err := yaml.Marshal(config)
 	if err != nil {
-		t.Fatalf("Unable to marshall: %v", err)
+		log.Fatalf("Unable to marshall: %v", err)
 	}
 
-	t.Log("\n---\n" + string(bytes) + "---")
+	log.Printf("\n---\n" + string(bytes) + "---")
 }
 
-func TestYamlNodeWithObject(t *testing.T) {
+func ExampleCompactYAML_withObject() {
 	type Person struct {
 		Name string
 		Age  int
@@ -60,11 +125,11 @@ func TestYamlNodeWithObject(t *testing.T) {
 	var meNode yaml.Node
 	data, err := yaml.Marshal(&me)
 	if err != nil {
-		t.Fatal(err)
+		log.Fatal(err)
 	}
 	err = yaml.Unmarshal(data, &meNode)
 	if err != nil {
-		t.Fatal(err)
+		log.Fatal(err)
 	}
 
 	config := &yaml.Node{
@@ -86,14 +151,13 @@ func TestYamlNodeWithObject(t *testing.T) {
 
 	bytes, err := yaml.Marshal(config)
 	if err != nil {
-		t.Fatalf("Unable to marshall: %v", err)
+		log.Fatalf("Unable to marshall: %v", err)
 	}
 
-	t.Log("\n---\n" + string(bytes) + "---")
+	log.Println("\n---\n" + string(bytes) + "---")
 }
 
-func TestDump(t *testing.T) {
-	t.Skip()
+func ExampleCompactYAML_dump() {
 	doc := `
 creator:
   name: Julien
@@ -104,10 +168,9 @@ creator:
 	var node yaml.Node
 	err := yaml.Unmarshal([]byte(doc), &node)
 	if err != nil {
-		t.Fatal(err)
+		log.Fatal(err)
 	}
 	spew.Dump(node)
-	t.Fail()
 
 	// (yaml.Node) {
 	// 	Kind: DocumentNode,

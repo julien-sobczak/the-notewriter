@@ -3,20 +3,46 @@ package wikipedia
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/julien-sobczak/the-notetaker/internal/core"
+	sopts "go.nhat.io/surveyexpect/options"
 )
 
-// Wikipedia provides reference management using Wikipedia API.
-type Wikipedia struct {
+// WikipediaReference satisfies the Reference interface
+// and retrieves metadata using the Wikipedia API.
+type WikipediaReference struct {
+	PageID     int
+	PageTitle  string
+	URL        string
+	attributes core.AttributeList
 }
 
-func NewReferenceManager() *Wikipedia {
-	return &Wikipedia{}
+func (r *WikipediaReference) Attributes() core.AttributeList {
+	var results []*core.Attribute
+	results = append(results, &core.Attribute{
+		Name:          "name",
+		Value:         r.PageTitle,
+		OriginalValue: r.PageTitle,
+	})
+	results = append(results, &core.Attribute{
+		Name:          "pageId",
+		Value:         r.PageID,
+		OriginalValue: r.PageID,
+	})
+	results = append(results, &core.Attribute{
+		Name:          "url",
+		Value:         r.URL,
+		OriginalValue: r.URL,
+	})
+	results = append(results, r.attributes...)
+	return results
 }
 
 // Module query structure
@@ -40,44 +66,55 @@ type ParseResponse struct {
 type Parse struct {
 	Title  string      `json:"title"`
 	PageID int         `json:"pageid"`
-	Text   interface{} `json:"text"`
+	Text   interface{} `json:"wikitext"`
 }
 
 func (p Parse) RawText() string {
 	return p.Text.(map[string]interface{})["*"].(string)
 }
 
+// Wikipedia provides reference management using Wikipedia API.
+type Wikipedia struct {
+	// Override in tests to use a mock server
+	BaseURL string
+	// Override in tests to capture in/out
+	Stdio *terminal.Stdio
+}
+
+func NewReferenceManager() *Wikipedia {
+	return &Wikipedia{
+		BaseURL: "https://en.wikipedia.org",
+	}
+}
+
 func (w *Wikipedia) Search(query string) (core.Reference, error) {
 
 	// Search for Wikipedia pages
-	response := search(query)
+	queryResponse := w.search(query)
 
 	// Ask user to choose a page to continue
-	pageID := askPageID(response)
+	pageID := w.askPageID(queryResponse)
 
 	// Retrieve Wikipedia page content
-	pageContent := get(pageID)
+	pageResponse := w.get(pageID)
 
 	// Load the HTML document
-	infobox := parseWikitext(pageContent)
+	infobox := parseWikitext(pageResponse.Parse.RawText())
 
-	// Ask user to choose the attributes to keep
-	var options []string
-	for _, attribute := range infobox.Attributes {
-		options = append(options, attribute.Key+": "+truncateText(fmt.Sprintf("%v", attribute.Value), 30)) // TODO format value for terminal
-	}
-	answers := []string{}
-	prompt := &survey.MultiSelect{
-		Message: "Which attributes?",
-		Options: options,
-	}
-	survey.AskOne(prompt, &answers)
+	// Ask user to choose the most relevant attributes
+	attributes := w.askAttributes(infobox)
 
-	return nil, nil
+	result := &WikipediaReference{
+		PageID:     pageID,
+		PageTitle:  pageResponse.Parse.Title,
+		URL:        WikipediaURL(pageID, pageResponse.Parse.Title),
+		attributes: attributes,
+	}
+	return result, nil
 }
 
-func search(query string) QueryResponse {
-	requestURL := fmt.Sprintf("https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=%s&utf8=&format=json", url.QueryEscape(query))
+func (w *Wikipedia) search(query string) QueryResponse {
+	requestURL := fmt.Sprintf("%s/w/api.php?action=query&list=search&srsearch=%s&utf8=&format=json", w.BaseURL, url.QueryEscape(query))
 	res, err := http.Get(requestURL)
 	if err != nil {
 		fmt.Printf("Error making HTTP request: %s\n", err)
@@ -90,14 +127,14 @@ func search(query string) QueryResponse {
 	var response QueryResponse
 	err = json.NewDecoder(res.Body).Decode(&response)
 	if err != nil {
-		fmt.Printf("Error unmarshalling JSON response: %s\n", err)
+		fmt.Printf("Error unmarshalling query JSON response: %s\n", err)
 		os.Exit(1)
 	}
 	return response
 }
 
-func get(pageID int) string {
-	requestURL := fmt.Sprintf("https://en.wikipedia.org/w/api.php?action=parse&contentmodel=text&pageid=%d&prop=wikitext&format=json", pageID)
+func (w *Wikipedia) get(pageID int) *ParseResponse {
+	requestURL := fmt.Sprintf("%s/w/api.php?action=parse&contentmodel=text&pageid=%d&prop=wikitext&format=json", w.BaseURL, pageID)
 	resp, err := http.Get(requestURL)
 	if err != nil {
 		fmt.Printf("Error making HTTP request: %s\n", err)
@@ -108,16 +145,25 @@ func get(pageID int) string {
 		os.Exit(1)
 	}
 
-	var response ParseResponse
-	err = json.NewDecoder(resp.Body).Decode(&response)
+	defer resp.Body.Close()
+
+	b, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Printf("Error unmarshalling JSON response: %s\n", err)
 		os.Exit(1)
 	}
-	return response.Parse.RawText()
+	// Debug:
+	// fmt.Println(string(b))
+
+	var response ParseResponse
+	err = json.NewDecoder(strings.NewReader(string(b))).Decode(&response)
+	if err != nil {
+		fmt.Printf("Error unmarshalling parse JSON response: %s\n", err)
+		os.Exit(1)
+	}
+	return &response
 }
 
-func askPageID(response QueryResponse) int {
+func (w *Wikipedia) askPageID(response QueryResponse) int {
 	pageIDs := make(map[string]int)
 	var options []string
 	for _, result := range response.Query.Search {
@@ -130,11 +176,48 @@ func askPageID(response QueryResponse) int {
 		Message: "Which page?",
 		Options: options,
 	}
-	survey.AskOne(prompt, &answer, survey.WithValidator(survey.Required))
+	var surveyOpts []survey.AskOpt
+	surveyOpts = append(surveyOpts, survey.WithValidator(survey.Required))
+	if w.Stdio != nil {
+		surveyOpts = append(surveyOpts, sopts.WithStdio(*w.Stdio))
+	}
+	survey.AskOne(prompt, &answer, surveyOpts...)
 	return pageIDs[answer]
 }
 
+func (w *Wikipedia) askAttributes(infobox *Infobox) core.AttributeList {
+	var options []string
+	answersIndices := make(map[string]int)
+	for i, attribute := range infobox.Attributes {
+		// TODO format value for terminal
+		optionText := attribute.Name + ": " + truncateText(fmt.Sprintf("%v", attribute.Value), 30)
+		options = append(options, optionText)
+		answersIndices[optionText] = i
+	}
+	answers := []string{}
+	prompt := &survey.MultiSelect{
+		Message: "Which attributes?",
+		Options: options,
+	}
+	var surveyOpts []survey.AskOpt
+	if w.Stdio != nil {
+		surveyOpts = append(surveyOpts, sopts.WithStdio(*w.Stdio))
+	}
+	survey.AskOne(prompt, &answers, surveyOpts...)
+
+	var selection []*core.Attribute
+	for _, answer := range answers {
+		selection = append(selection, infobox.Attributes[answersIndices[answer]])
+	}
+	return selection
+}
+
 /* Helpers */
+
+// Wikipedia generates the Wikipedia URL from the page ID and title.
+func WikipediaURL(pageId int, pageTitle string) string {
+	return fmt.Sprintf("https://en.wikipedia.org/wiki/%s", strings.ReplaceAll(pageTitle, " ", "_"))
+}
 
 func truncateText(s string, max int) string {
 	if max > len(s) {
