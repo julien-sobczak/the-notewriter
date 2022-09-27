@@ -18,14 +18,12 @@ func TestAttributeListFrontMatterString(t *testing.T) {
 			"Scalar values",
 			AttributeList{
 				&Attribute{
-					Name:          "key1",
-					Value:         "value1",
-					OriginalValue: "'value1'",
+					Key:   "key1",
+					Value: "value1",
 				},
 				&Attribute{
-					Name:          "key2",
-					Value:         2,
-					OriginalValue: "two",
+					Key:   "key2",
+					Value: 2,
 				},
 			},
 			`
@@ -40,4 +38,35 @@ key2: 2`,
 			assert.Equal(t, strings.TrimSpace(tt.expected), strings.TrimSpace(actual))
 		})
 	}
+}
+
+func TestNewAttributeListFromString(t *testing.T) {
+	content := `---
+id: "Note-20220928-1413"
+tags: [text, inspiration]
+reference: [[other-note.md]]
+url: http://www.google.com
+cited:
+  - [[very-interesting-note.md]]
+  - A New Note System
+---
+
+This is a basic multi-line
+note saying nothing interesing.
+
+`
+
+	attributes, err := NewAttributeListFromString(content)
+	require.NoError(t, err)
+	require.Equal(t, 5, len(attributes))
+}
+
+func TestFile(t *testing.T) {
+	f := NewFile()
+	f.AddAttribute("tags", []string{"toto"})
+	f.GetAttribute("tags")
+	f.FrontMatterString()
+
+	f := NewFileFromPath("toto.md")
+
 }

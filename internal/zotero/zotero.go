@@ -138,9 +138,8 @@ func (z *ZoteroReference) Attributes() core.AttributeList {
 	var attributes []*core.Attribute
 
 	attributes = append(attributes, &core.Attribute{
-		Name:          "creators",
-		Value:         z.fields["creators"],
-		OriginalValue: z.fields["creators"],
+		Key:   "creators",
+		Value: z.fields["creators"],
 	})
 
 	itemType, _ := z.fields["itemType"].(string)
@@ -153,9 +152,8 @@ func (z *ZoteroReference) Attributes() core.AttributeList {
 			// Ignore null fields
 			if value != nil {
 				attributes = append(attributes, &core.Attribute{
-					Name:          field.Field,
-					Value:         value,
-					OriginalValue: value,
+					Key:   field.Field,
+					Value: value,
 				})
 			}
 		}

@@ -94,9 +94,8 @@ func parseWikitext(txt string) *Infobox {
 				parsedValue = parseAttributeValue(wikiValue)
 				if parsedValue != nil {
 					infobox.Attributes = append(infobox.Attributes, &core.Attribute{
-						Name:          key,
-						OriginalValue: wikiValue,
-						Value:         parsedValue,
+						Key:   key,
+						Value: parsedValue,
 					})
 				} else {
 					fmt.Printf("Ignoring unknown syntax for atttribute %q: %s", key, wikiValue)

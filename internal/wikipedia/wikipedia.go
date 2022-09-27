@@ -27,19 +27,16 @@ type WikipediaReference struct {
 func (r *WikipediaReference) Attributes() core.AttributeList {
 	var results []*core.Attribute
 	results = append(results, &core.Attribute{
-		Name:          "name",
-		Value:         r.PageTitle,
-		OriginalValue: r.PageTitle,
+		Key:   "name",
+		Value: r.PageTitle,
 	})
 	results = append(results, &core.Attribute{
-		Name:          "pageId",
-		Value:         r.PageID,
-		OriginalValue: r.PageID,
+		Key:   "pageId",
+		Value: r.PageID,
 	})
 	results = append(results, &core.Attribute{
-		Name:          "url",
-		Value:         r.URL,
-		OriginalValue: r.URL,
+		Key:   "url",
+		Value: r.URL,
 	})
 	results = append(results, r.attributes...)
 	return results
@@ -190,7 +187,7 @@ func (w *Wikipedia) askAttributes(infobox *Infobox) core.AttributeList {
 	answersIndices := make(map[string]int)
 	for i, attribute := range infobox.Attributes {
 		// TODO format value for terminal
-		optionText := attribute.Name + ": " + truncateText(fmt.Sprintf("%v", attribute.Value), 30)
+		optionText := attribute.Key + ": " + truncateText(fmt.Sprintf("%v", attribute.Value), 30)
 		options = append(options, optionText)
 		answersIndices[optionText] = i
 	}

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 )
@@ -9,6 +10,7 @@ const ReferenceKindBook = "book"
 const ReferenceKindAuthor = "author"
 
 type Collection struct {
+	db            *sql.DB
 	path          string
 	bookManager   ReferenceManager
 	personManager ReferenceManager
@@ -18,7 +20,12 @@ func NewCollection(path string, bookManager ReferenceManager, personManager Refe
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return nil, fmt.Errorf("collection %q doesn't exists", path)
 	}
+	db, err := sql.Open("sqlite3", "database.db")
+	if err != nil {
+		return nil, err
+	}
 	c := &Collection{
+		db:            db,
 		path:          path,
 		bookManager:   bookManager,
 		personManager: personManager,
@@ -41,8 +48,6 @@ func (c *Collection) createNewReferenceFile(identifier string, kind string) (*Fi
 	}
 
 	return &File{
-		ID:         "XXX", // TODO add stable ID on notes?
-		Kind:       KindReference,
 		Attributes: reference.Attributes(),
 		Content:    "",
 	}, nil
@@ -54,4 +59,8 @@ func (c *Collection) AddNewReferenceFile(identifier string, kind string) error {
 		return err
 	}
 	return note.Save()
+}
+
+func (c *Collection) Close() {
+	c.db.Close()
 }
