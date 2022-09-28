@@ -16,8 +16,8 @@ CREATE TABLE file (
     deleted_at TEXT,
 
     -- Last modification of local file on disk
-    mtime TEXT NOT NULL,
-)
+    mtime TEXT NOT NULL
+);
 
 CREATE TABLE note (
     id INTEGER PRIMRAY KEY,
@@ -58,12 +58,12 @@ CREATE TABLE note (
     deleted_at TEXT,
 
     FOREIGN KEY(file_id) REFERENCES file(id) ON DELETE CASCADE ON UPDATE CASCADE
-)
+);
 
-CREATE VIRTUAL TABLE note_fts USING FTS5(id UNINDEXED, kind UNINDEXED, content_text)
+CREATE VIRTUAL TABLE note_fts USING FTS5(id UNINDEXED, kind UNINDEXED, content_text);
 -- TODO add other fields? Contentless table?
 
-CREATE TABLE media {
+CREATE TABLE media (
     id INTEGER PRIMARY KEY,
 
     -- Relative path
@@ -85,16 +85,16 @@ CREATE TABLE media {
     hash TEXT NOT NULL,
 
     -- How many notes references this file
-    references INT DEFAULT 0,
+    links INTEGER NOT NULL DEFAULT 0,
     -- Size of the file
-    size INT NOT NULL,
+    size INTEGER NOT NULL,
     -- These attributes can be used to find unused and/or large files
 
     -- Timestamps to track changes
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT
-}
+);
 
 CREATE TABLE link (
     id INTEGER PRIMARY KEY,
@@ -161,7 +161,7 @@ CREATE TABLE flashcard (
     --    a the number of reps left today
     --    b the number of reps left till graduation
     --    for example: '2004' means 2 reps left today and 4 reps till graduation
-    left INTEGER NOT NULL DEFAULT 0
+    left INTEGER NOT NULL DEFAULT 0,
 
     -- Fields in Markdown (best for editing)
     front_markdown TEXT NOT NULL,

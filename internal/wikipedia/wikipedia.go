@@ -21,20 +21,20 @@ type WikipediaReference struct {
 	PageID     int
 	PageTitle  string
 	URL        string
-	attributes core.AttributeList
+	attributes []core.Attribute
 }
 
-func (r *WikipediaReference) Attributes() core.AttributeList {
-	var results []*core.Attribute
-	results = append(results, &core.Attribute{
+func (r *WikipediaReference) Attributes() []core.Attribute {
+	var results []core.Attribute
+	results = append(results, core.Attribute{
 		Key:   "name",
 		Value: r.PageTitle,
 	})
-	results = append(results, &core.Attribute{
+	results = append(results, core.Attribute{
 		Key:   "pageId",
 		Value: r.PageID,
 	})
-	results = append(results, &core.Attribute{
+	results = append(results, core.Attribute{
 		Key:   "url",
 		Value: r.URL,
 	})
@@ -182,7 +182,7 @@ func (w *Wikipedia) askPageID(response QueryResponse) int {
 	return pageIDs[answer]
 }
 
-func (w *Wikipedia) askAttributes(infobox *Infobox) core.AttributeList {
+func (w *Wikipedia) askAttributes(infobox *Infobox) []core.Attribute {
 	var options []string
 	answersIndices := make(map[string]int)
 	for i, attribute := range infobox.Attributes {
@@ -202,7 +202,7 @@ func (w *Wikipedia) askAttributes(infobox *Infobox) core.AttributeList {
 	}
 	survey.AskOne(prompt, &answers, surveyOpts...)
 
-	var selection []*core.Attribute
+	var selection []core.Attribute
 	for _, answer := range answers {
 		selection = append(selection, infobox.Attributes[answersIndices[answer]])
 	}

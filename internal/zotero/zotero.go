@@ -134,10 +134,10 @@ func (z ZoteroReference) String() string {
 	return fmt.Sprintf("%s, by %s", z.ShortTitle(), strings.Join(z.Authors(), ", "))
 }
 
-func (z *ZoteroReference) Attributes() core.AttributeList {
-	var attributes []*core.Attribute
+func (z *ZoteroReference) Attributes() []core.Attribute {
+	var attributes []core.Attribute
 
-	attributes = append(attributes, &core.Attribute{
+	attributes = append(attributes, core.Attribute{
 		Key:   "creators",
 		Value: z.fields["creators"],
 	})
@@ -151,7 +151,7 @@ func (z *ZoteroReference) Attributes() core.AttributeList {
 		if value, ok := z.fields[field.Field]; ok {
 			// Ignore null fields
 			if value != nil {
-				attributes = append(attributes, &core.Attribute{
+				attributes = append(attributes, core.Attribute{
 					Key:   field.Field,
 					Value: value,
 				})

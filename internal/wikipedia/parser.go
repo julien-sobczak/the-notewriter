@@ -11,7 +11,7 @@ import (
 
 type Infobox struct {
 	Name       string
-	Attributes core.AttributeList
+	Attributes []core.Attribute
 }
 
 var regexBirthDate = regexp.MustCompile(`^(?i){{birth[- ]date\|`)
@@ -93,7 +93,7 @@ func parseWikitext(txt string) *Infobox {
 
 				parsedValue = parseAttributeValue(wikiValue)
 				if parsedValue != nil {
-					infobox.Attributes = append(infobox.Attributes, &core.Attribute{
+					infobox.Attributes = append(infobox.Attributes, core.Attribute{
 						Key:   key,
 						Value: parsedValue,
 					})

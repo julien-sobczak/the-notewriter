@@ -22,7 +22,6 @@ type File struct {
 
 	// The FrontMatter for the note file
 	frontMatter *yaml.Node
-	Attributes  AttributeList
 
 	// TODO create a method GetNotes()
 	Content string
@@ -32,64 +31,82 @@ type File struct {
 	DeletedAt *time.Time
 }
 
-type Attribute struct {
-	Key       string
-	Value     interface{}
-	KeyNode   *yaml.Node
-	ValueNode *yaml.Node
-}
-
-type AttributeList []*Attribute
-
-func (l AttributeList) FrontMatterString() (string, error) {
+func (f *File) FrontMatterString() (string, error) {
 	var buf bytes.Buffer
 	bufEncoder := yaml.NewEncoder(&buf)
 	bufEncoder.SetIndent(Indent)
-	node, err := l.FrontMatterYAML()
+	err := bufEncoder.Encode(f.frontMatter)
 	if err != nil {
 		return "", err
 	}
-	bufEncoder.Encode(node)
 	return CompactYAML(buf.String()), nil
 }
 
-func (l AttributeList) FrontMatterYAML() (*yaml.Node, error) {
-	var frontMatterContent []*yaml.Node
-	for _, attribute := range l {
-		fieldName := attribute.Key
-		value := attribute.Value
-
-		var fieldNode yaml.Node
-		fieldDoc, err := yaml.Marshal(value)
-		if err != nil {
-			return nil, err
+func (f *File) GetAttribute(key string) interface{} {
+	if f.frontMatter == nil {
+		return nil
+	}
+	for i := 0; i < len(f.frontMatter.Content); i++ {
+		keyNode := f.frontMatter.Content[i*2]
+		valueNode := f.frontMatter.Content[i*2+1]
+		if keyNode.Value != key {
+			continue
 		}
-		err = yaml.Unmarshal(fieldDoc, &fieldNode)
-		if err != nil {
-			return nil, err
+		return toSafeYAMLValue(valueNode)
+	}
+
+	// Not found
+	return nil
+}
+
+func (f *File) SetAttribute(key string, value interface{}) {
+	if f.frontMatter == nil {
+		var frontMatterContent []*yaml.Node
+		f.frontMatter = &yaml.Node{
+			Kind:    yaml.MappingNode,
+			Content: frontMatterContent,
+		}
+	}
+
+	found := false
+	for i := 0; i < len(f.frontMatter.Content)/2; i++ {
+		keyNode := f.frontMatter.Content[i*2]
+		valueNode := f.frontMatter.Content[i*2+1]
+		if keyNode.Value != key {
+			continue
 		}
 
-		frontMatterContent = append(frontMatterContent, &yaml.Node{
+		found = true
+
+		newValueNode := toSafeYAMLNode(value)
+		if newValueNode.Kind == yaml.ScalarNode {
+			valueNode.Value = newValueNode.Value
+		} else if newValueNode.Kind == yaml.DocumentNode {
+			valueNode.Content = newValueNode.Content[0].Content
+		} else {
+			valueNode.Content = newValueNode.Content
+		}
+	}
+
+	if !found {
+		f.frontMatter.Content = append(f.frontMatter.Content, &yaml.Node{
 			Kind:  yaml.ScalarNode,
-			Value: fieldName,
+			Value: key,
 		})
-		switch fieldNode.Kind {
+		newValueNode := toSafeYAMLNode(value)
+		switch newValueNode.Kind {
 		case yaml.DocumentNode:
-			frontMatterContent = append(frontMatterContent, fieldNode.Content[0])
+			f.frontMatter.Content = append(f.frontMatter.Content, newValueNode.Content[0])
 		case yaml.ScalarNode:
-			frontMatterContent = append(frontMatterContent, &fieldNode)
+			f.frontMatter.Content = append(f.frontMatter.Content, newValueNode)
 		default:
-			fmt.Printf("Unexcepted type %v\n", fieldNode.Kind)
+			fmt.Printf("Unexcepted type %v\n", newValueNode.Kind)
 			os.Exit(1)
 		}
 	}
-	frontMatter := &yaml.Node{
-		Kind:    yaml.MappingNode,
-		Content: frontMatterContent,
-	}
-	return frontMatter, nil
 }
 
+/*
 func NewAttributeListFromString(rawYAML string) (AttributeList, error) {
 	var node yaml.Node
 	err := yaml.Unmarshal([]byte(rawYAML), &node)
@@ -116,6 +133,19 @@ func NewAttributeListFromString(rawYAML string) (AttributeList, error) {
 
 	var result AttributeList
 	return result, nil
+}
+*/
+
+func NewEmptyFile() *File {
+	return &File{}
+}
+
+func NewFileFromAttributes(attributes []Attribute) *File {
+	file := &File{}
+	for _, attribute := range attributes {
+		file.SetAttribute(attribute.Key, attribute.Value)
+	}
+	return file
 }
 
 func NewFileFromPath(filepath string) (*File, error) {
@@ -148,12 +178,13 @@ func NewFileFromPath(filepath string) (*File, error) {
 		}
 	}
 
-	attributes, err := NewAttributeListFromString(rawFrontMatter.String())
+	var frontMatter yaml.Node
+	err = yaml.Unmarshal(rawFrontMatter.Bytes(), &frontMatter)
 	if err != nil {
 		return nil, err
 	}
 
-	return &File{
+	file := &File{
 		// We ignore if the file already exists in database
 		ID:        0,
 		CreatedAt: nil,
@@ -162,8 +193,10 @@ func NewFileFromPath(filepath string) (*File, error) {
 		// Reread the file
 		RelativePath: filepath,
 		Content:      strings.TrimSpace(rawContent.String()),
-		Attributes:   attributes,
-	}, nil
+		frontMatter:  frontMatter.Content[0],
+	}
+
+	return file, nil
 }
 
 func (f *File) GetNotes() []*Note {
@@ -173,7 +206,7 @@ func (f *File) GetNotes() []*Note {
 
 func (f *File) Save() error {
 	// TODO Persist to disk
-	frontMatter, err := f.Attributes.FrontMatterString()
+	frontMatter, err := f.FrontMatterString()
 	if err != nil {
 		return err
 	}

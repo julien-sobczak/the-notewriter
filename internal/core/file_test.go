@@ -1,6 +1,7 @@
 package core
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -8,20 +9,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAttributeListFrontMatterString(t *testing.T) {
+func TestFrontMatterString(t *testing.T) {
 	var tests = []struct {
-		name     string        // name
-		input    AttributeList // input
-		expected string        // expected result
+		name     string      // name
+		input    []Attribute // input
+		expected string      // expected result
 	}{
 		{
 			"Scalar values",
-			AttributeList{
-				&Attribute{
+			[]Attribute{
+				{
 					Key:   "key1",
 					Value: "value1",
 				},
-				&Attribute{
+				{
 					Key:   "key2",
 					Value: 2,
 				},
@@ -33,13 +34,15 @@ key2: 2`,
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actual, err := tt.input.FrontMatterString()
+			file := NewFileFromAttributes(tt.input)
+			actual, err := file.FrontMatterString()
 			require.NoError(t, err)
 			assert.Equal(t, strings.TrimSpace(tt.expected), strings.TrimSpace(actual))
 		})
 	}
 }
 
+/*
 func TestNewAttributeListFromString(t *testing.T) {
 	content := `---
 id: "Note-20220928-1413"
@@ -60,13 +63,61 @@ note saying nothing interesing.
 	require.NoError(t, err)
 	require.Equal(t, 5, len(attributes))
 }
+*/
 
-func TestFile(t *testing.T) {
-	f := NewFile()
-	f.AddAttribute("tags", []string{"toto"})
-	f.GetAttribute("tags")
-	f.FrontMatterString()
+func TestNewFile(t *testing.T) {
+	f := NewEmptyFile()
+	f.SetAttribute("tags", []string{"toto"})
 
-	f := NewFileFromPath("toto.md")
+	assert.Equal(t, []interface{}{"toto"}, f.GetAttribute("tags"))
 
+	actual, err := f.FrontMatterString()
+	require.NoError(t, err)
+	expected := `
+tags:
+- toto`
+	assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
+}
+
+func TestNewFileFromPath(t *testing.T) {
+	fc, err := os.CreateTemp("", "sample.md")
+	require.NoError(t, err)
+	defer os.Remove(fc.Name())
+
+	_, err = fc.Write([]byte(`
+---
+tags: [favorite, inspiration]
+---
+
+Blabla`))
+	require.NoError(t, err)
+	fc.Close()
+
+	// Init the file
+	f, err := NewFileFromPath(fc.Name())
+	require.NoError(t, err)
+
+	// Check initial content
+	assertFrontMatterEqual(t, `tags: [favorite, inspiration]`, f)
+
+	// Override an attribute
+	f.SetAttribute("tags", []string{"ancient"})
+	assertFrontMatterEqual(t, `tags: [ancient]`, f)
+
+	// Add an attribute
+	f.SetAttribute("extras", map[string]string{"key1": "value1", "key2": "value2"})
+	assertFrontMatterEqual(t, `
+tags: [ancient]
+extras:
+  key1: value1
+  key2: value2
+`, f)
+}
+
+/* Test Helpers */
+
+func assertFrontMatterEqual(t *testing.T, expected string, file *File) {
+	actual, err := file.FrontMatterString()
+	require.NoError(t, err)
+	assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
 }

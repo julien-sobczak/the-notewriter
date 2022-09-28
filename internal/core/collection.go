@@ -47,10 +47,7 @@ func (c *Collection) createNewReferenceFile(identifier string, kind string) (*Fi
 		return nil, err
 	}
 
-	return &File{
-		Attributes: reference.Attributes(),
-		Content:    "",
-	}, nil
+	return NewFileFromAttributes(reference.Attributes()), nil
 }
 
 func (c *Collection) AddNewReferenceFile(identifier string, kind string) error {

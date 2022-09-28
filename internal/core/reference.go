@@ -1,8 +1,13 @@
 package core
 
+type Attribute struct {
+	Key   string
+	Value interface{}
+}
+
 // Reference represents a single reference.
 type Reference interface {
-	Attributes() AttributeList // differa according the reference kind.
+	Attributes() []Attribute // differs according the reference kind.
 }
 
 // ReferenceManager retrieves the metadata for references.

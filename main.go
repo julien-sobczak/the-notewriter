@@ -34,7 +34,7 @@ func init() {
 		log.Fatalf("Error while initializing migrations: %v", err)
 	}
 	err = m.Up() // Create/Update table schema_migrations
-	if err != migrate.ErrNoChange {
+	if err != nil && err != migrate.ErrNoChange {
 		log.Fatalf("Error while running migrations: %v", err)
 	}
 }

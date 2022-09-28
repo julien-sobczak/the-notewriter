@@ -8,8 +8,9 @@ import (
 	"testing"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/AlecAivazis/survey/v2/core"
+	score "github.com/AlecAivazis/survey/v2/core"
 	"github.com/AlecAivazis/survey/v2/terminal"
+	"github.com/julien-sobczak/the-notetaker/internal/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.nhat.io/surveyexpect"
@@ -18,12 +19,12 @@ import (
 
 func init() {
 	// disable color output for all prompts to simplify testing
-	core.DisableColor = true
+	score.DisableColor = true
 }
 
 func TestSearch(t *testing.T) {
 	// Ex: https://en.wikipedia.org/wiki/Nelson_Mandela
-	
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/w/api.php" && r.URL.Query().Get("action") == "query" {
 			// Ex: https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=Nelson%20Mandela&utf8=&format=json
@@ -104,7 +105,8 @@ func TestSearch(t *testing.T) {
 
 		reference, err := manager.Search("Nelson Mandela")
 		require.NoError(t, err)
-		frontMatter, err := reference.Attributes().FrontMatterString()
+		file := core.NewFileFromAttributes(reference.Attributes())
+		frontMatter, err := file.FrontMatterString()
 		require.NoError(t, err)
 		assert.Equal(t,
 			strings.TrimSpace(`
