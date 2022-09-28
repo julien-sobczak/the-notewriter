@@ -81,7 +81,7 @@ CREATE TABLE media (
     -- Content last modification date
     mtime TEXT NOT NULL,
 
-    -- MDR5 checksum
+    -- Checksum
     hash TEXT NOT NULL,
 
     -- How many notes references this file
@@ -110,6 +110,11 @@ CREATE TABLE link (
 
     goName TEXT,
 
+    -- Timestamps to track changes
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT,
+
     FOREIGN KEY(note_id) REFERENCES note(id) ON DELETE CASCADE ON UPDATE CASCADE
     -- TODO add filepath? line? absolute path?
 );
@@ -124,9 +129,6 @@ CREATE TABLE flashcard (
 
     -- Comma separated list of tags
     tags TEXT DEFAULT '',
-
-    -- Timestamp of the creation date in second
-    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
 
     -- 0=new, 1=learning, 2=review, 3=relearning
     "type" INTEGER NOT NULL DEFAULT 0,
@@ -174,6 +176,11 @@ CREATE TABLE flashcard (
     -- Fields in raw text (best for indexing)
     front_text TEXT NOT NULL,
     back_text TEXT NOT NULL,
+
+    -- Timestamps to track changes
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT,
 
     FOREIGN KEY(note_id) REFERENCES note(id) ON DELETE CASCADE ON UPDATE CASCADE
 );

@@ -99,6 +99,7 @@ Blabla`))
 
 	// Check initial content
 	assertFrontMatterEqual(t, `tags: [favorite, inspiration]`, f)
+	assertContentEqual(t, `Blabla`, f)
 
 	// Override an attribute
 	f.SetAttribute("tags", []string{"ancient"})
@@ -119,5 +120,14 @@ extras:
 func assertFrontMatterEqual(t *testing.T, expected string, file *File) {
 	actual, err := file.FrontMatterString()
 	require.NoError(t, err)
+	assertTrimEqual(t, expected, actual)
+}
+
+func assertContentEqual(t *testing.T, expected string, file *File) {
+	actual := file.Content
+	assertTrimEqual(t, expected, actual)
+}
+
+func assertTrimEqual(t *testing.T, expected string, actual string) {
 	assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
 }

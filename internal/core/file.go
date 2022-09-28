@@ -15,7 +15,7 @@ const Indent int = 2
 
 type File struct {
 	// A unique identifier among all files
-	ID int
+	ID int64
 
 	// A relative path to the collection directory
 	RelativePath string
