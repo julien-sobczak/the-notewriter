@@ -115,6 +115,39 @@ extras:
 `, f)
 }
 
+
+func TestPreserveComments(t *testing.T) {
+	fc, err := os.CreateTemp("", "sample.md")
+	require.NoError(t, err)
+	defer os.Remove(fc.Name())
+
+	_, err = fc.Write([]byte(`
+---
+# Front-Matter
+tags: [favorite, inspiration] # Custom tags
+# published: true
+---
+`))
+	require.NoError(t, err)
+	fc.Close()
+
+	// Init the file
+	f, err := NewFileFromPath(fc.Name())
+	require.NoError(t, err)
+
+	// Change attributes
+	f.SetAttribute("tags", []string{"ancient"})
+	f.SetAttribute("new", 10)
+	assertFrontMatterEqual(t, `
+# Front-Matter
+tags: [ancient] # Custom tags
+# published: true
+
+new: 10
+`, f)
+	// FIXME debug why an additional newline
+}
+
 /* Test Helpers */
 
 func assertFrontMatterEqual(t *testing.T, expected string, file *File) {
