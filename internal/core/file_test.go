@@ -42,29 +42,6 @@ key2: 2`,
 	}
 }
 
-/*
-func TestNewAttributeListFromString(t *testing.T) {
-	content := `---
-id: "Note-20220928-1413"
-tags: [text, inspiration]
-reference: [[other-note.md]]
-url: http://www.google.com
-cited:
-  - [[very-interesting-note.md]]
-  - A New Note System
----
-
-This is a basic multi-line
-note saying nothing interesing.
-
-`
-
-	attributes, err := NewAttributeListFromString(content)
-	require.NoError(t, err)
-	require.Equal(t, 5, len(attributes))
-}
-*/
-
 func TestNewFile(t *testing.T) {
 	f := NewEmptyFile()
 	f.SetAttribute("tags", []string{"toto"})
@@ -116,7 +93,7 @@ extras:
 }
 
 
-func TestPreserveComments(t *testing.T) {
+func TestPreserveCommentsInFrontMatter(t *testing.T) {
 	fc, err := os.CreateTemp("", "sample.md")
 	require.NoError(t, err)
 	defer os.Remove(fc.Name())
@@ -147,6 +124,9 @@ new: 10
 `, f)
 	// FIXME debug why an additional newline
 }
+
+
+
 
 /* Test Helpers */
 

@@ -25,6 +25,7 @@ type File struct {
 
 	// TODO create a method GetNotes()
 	Content string
+	notes   []*Note
 
 	CreatedAt *time.Time
 	UpdatedAt *time.Time
@@ -106,35 +107,75 @@ func (f *File) SetAttribute(key string, value interface{}) {
 	}
 }
 
-/*
-func NewAttributeListFromString(rawYAML string) (AttributeList, error) {
-	var node yaml.Node
-	err := yaml.Unmarshal([]byte(rawYAML), &node)
-	if err != nil {
-		return nil, err
+func (f *File) GetAttributes() map[string]interface{} {
+	if f.frontMatter == nil {
+		return nil
 	}
 
-	if node.Kind != yaml.DocumentNode {
-		return nil, fmt.Errorf("unexcepted YAML structure %v", node.Kind)
+	result := make(map[string]interface{})
+	for i := 0; i < len(f.frontMatter.Content); i++ {
+		keyNode := f.frontMatter.Content[i*2]
+		valueNode := f.frontMatter.Content[i*2+1]
+		result[keyNode.Value] = toSafeYAMLValue(valueNode)
 	}
 
-	mappingNode := node.Content[0]
-
-	if mappingNode.Kind != yaml.MappingNode {
-		return nil, fmt.Errorf("unexcepted YAML structure %v", mappingNode.Kind)
-	}
-
-	for i := 0; i < len(mappingNode.Content)/2; i++ {
-		// if attributeNode.K
-		keyNode := mappingNode.Content[i*2]
-		valueNode := mappingNode.Content[i*2+1]
-		fmt.Printf("%v: %v\n", keyNode.Value, valueNode.Value)
-	}
-
-	var result AttributeList
-	return result, nil
+	return result
 }
-*/
+
+func (f *File) GetNotes() []*Note {
+	if f.notes != nil {
+		return f.notes
+	}
+
+	var notes []*Note
+
+	var currentNote bytes.Buffer
+	var currentNoteTitle string
+	var currentLevel int
+	var lineNumber int
+	var linesCountInCurrentNote int
+
+	for _, line := range strings.Split(strings.TrimSuffix(f.Content, "\n"), "\n") {
+		lineNumber++
+		if ok, text, level := isHeading(line); ok { // New section = new potential note?
+			ok, kind := isSupportedNote(text)
+			if !ok {
+				// Just a subsection, not a new note
+				continue
+			}
+
+			// Close previous note
+			if linesCountInCurrentNote > 0 {
+				note := NewNote(f, kind, currentNoteTitle, currentNote.String(), lineNumber)
+				notes = append(notes, note)
+				// Reset
+				currentNote.Reset()
+				currentNoteTitle = ""
+				currentLevel = 0
+				lineNumber = 0
+				linesCountInCurrentNote = 0
+			}
+
+			// Start new note
+			if kind != KindFree && level > currentLevel {
+				currentNote.WriteString(line)
+				linesCountInCurrentNote++
+			}
+		} else {
+			// Do not bother to append the line if no note is started
+			if linesCountInCurrentNote > 0 {
+				currentNote.WriteString(line)
+				linesCountInCurrentNote++
+			}
+		}
+
+	}
+
+	if len(notes) > 0 {
+		f.notes = notes
+	}
+	return f.notes
+}
 
 func NewEmptyFile() *File {
 	return &File{}
@@ -199,11 +240,6 @@ func NewFileFromPath(filepath string) (*File, error) {
 	return file, nil
 }
 
-func (f *File) GetNotes() []*Note {
-	// TODO implement
-	return nil
-}
-
 func (f *File) Save() error {
 	// TODO Persist to disk
 	frontMatter, err := f.FrontMatterString()
@@ -217,4 +253,42 @@ func (f *File) Save() error {
 	sb.WriteString(f.Content)
 	fmt.Println(sb.String())
 	return nil
+}
+
+// isHeading returns if a givne line is a Markdown heading and its level.
+func isHeading(line string) (bool, string, int) {
+	if !strings.HasPrefix(line, "#") {
+		return false, "", 0
+	}
+	if strings.HasPrefix(line, "###### ") {
+		return true, strings.TrimPrefix(line, "###### "), 6
+	} else if strings.HasPrefix(line, "##### ") {
+		return true, strings.TrimPrefix(line, "##### "), 5
+	} else if strings.HasPrefix(line, "#### ") {
+		return true, strings.TrimPrefix(line, "#### "), 4
+	} else if strings.HasPrefix(line, "### ") {
+		return true, strings.TrimPrefix(line, "### "), 3
+	} else if strings.HasPrefix(line, "## ") {
+		return true, strings.TrimPrefix(line, "## "), 2
+	} else if strings.HasPrefix(line, "# ") {
+		return true, strings.TrimPrefix(line, "# "), 1
+	}
+
+	return false, "", 0
+}
+
+func isSupportedNote(text string) (bool, NoteKind) {
+	if regexNote.MatchString(text) {
+		return true, KindNote
+	}
+	if regexCheatsheet.MatchString(text) {
+		return true, KindCheatsheet
+	}
+	if regexFlashcard.MatchString(text) {
+		return true, KindFlashcard
+	}
+	if regexQuote.MatchString(text) {
+		return true, KindQuote
+	}
+	return false, KindFree
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"embed"
+	"fmt"
 	"log"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -33,6 +34,7 @@ func init() {
 	if err != nil {
 		log.Fatalf("Error while initializing migrations: %v", err)
 	}
+
 	err = m.Up() // Create/Update table schema_migrations
 	if err != nil && err != migrate.ErrNoChange {
 		log.Fatalf("Error while running migrations: %v", err)
@@ -40,5 +42,6 @@ func init() {
 }
 
 func main() {
+	fmt.Println("The NoteTaker")
 	cmd.Execute()
 }
