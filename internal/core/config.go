@@ -1,0 +1,220 @@
+package core
+
+import (
+	"bufio"
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+
+	"github.com/pelletier/go-toml/v2"
+)
+
+// How many parent directories to traverse before considering a directory as not a nt repository
+const maxDepth = 10
+
+// Default .nt/config content
+const DefaultConfig = `
+[core]
+extensions=["md", "markdown"]
+
+[search.quotes]
+q="-#ignore @kind:quote"
+name="Favorite Quotes"
+`
+
+// Default .ntignore content
+const DefaultIgnore = `
+build/
+README.md
+`
+
+var (
+	// Lazy-load configuration and ensure a single read
+	once            sync.Once
+	configSingleton *Config
+)
+
+// Note: Fields must be public for toml package to unmarshall
+type ConfigFile struct {
+	Core struct {
+		Extensions []string
+	}
+	Search map[string]struct {
+		Q    string
+		Name string
+	}
+}
+
+type IgnoreFile struct {
+	Entries []GlobPath
+}
+
+type GlobPath string
+
+type Config struct {
+	// Absolute top directory containing the .nt sub-directory
+	RootDirectory string
+
+	// .nt/config content
+	ConfigFile ConfigFile
+
+	// .ntignore content
+	IgnoreFile IgnoreFile
+}
+
+func CurrentConfig() *Config {
+	once.Do(func() {
+		path, err := os.Getwd()
+		if err != nil {
+			log.Fatalf("Unable to determine current directory: %v", err)
+		}
+		configSingleton, err = ReadConfigFromDirectory(path)
+		if err != nil {
+			log.Fatalf("Unable to read current configuration: %v", err)
+		}
+	})
+	return configSingleton
+}
+
+func ReadConfigFromDirectory(path string) (*Config, error) {
+	rootPath := path
+	i := 0 // Safeguard to not go up too far
+	for {
+		i++
+		if i > maxDepth {
+			return nil, nil
+		}
+		ntPath := filepath.Join(rootPath, ".nt")
+		_, err := os.Stat(ntPath)
+		if os.IsNotExist(err) {
+			if len(strings.Split(rootPath, string(os.PathSeparator))) <= 2 {
+				// Root directory detected
+				log.Printf("No .nt directory found. Aborting before root directory.")
+				fmt.Print("returning...")
+				return nil, nil
+			}
+			rootPath = filepath.Clean(filepath.Join(rootPath, ".."))
+		} else if err != nil {
+			return nil, fmt.Errorf("error while searching for configuration directory: %v", err)
+		} else {
+			break
+		}
+	}
+
+	// Check for .nt/config
+	ntConfigPath := filepath.Join(rootPath, ".nt", "config")
+	_, err := os.Stat(ntConfigPath)
+	var configFile *ConfigFile
+	if os.IsNotExist(err) {
+		configFile, err = parseConfigFile(DefaultConfig)
+		if err != nil {
+			return nil, fmt.Errorf("default configuration is broken: %v", err)
+		}
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to check for .nt/config file: %v", err)
+	} else {
+		content, err := os.ReadFile(ntConfigPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read .nt/config file: %v", err)
+		}
+		configFile, err = parseConfigFile(string(content))
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse .nt/config file: %v", err)
+		}
+	}
+
+	// Check for .ntignore
+	ntignorePath := filepath.Join(rootPath, ".ntignore")
+	_, err = os.Stat(ntignorePath)
+	var ignoreFile *IgnoreFile
+	if os.IsNotExist(err) {
+		ignoreFile, err = parseIgnoreFile(DefaultIgnore)
+		if err != nil {
+			return nil, fmt.Errorf("default configuration is broken: %v", err)
+		}
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to check for .ntignore file: %v", err)
+	} else {
+		content, err := os.ReadFile(ntignorePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read .ntignore file: %v", err)
+		}
+		ignoreFile, err = parseIgnoreFile(string(content))
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse .ntignore file: %v", err)
+		}
+	}
+
+	return &Config{
+		RootDirectory: rootPath,
+		ConfigFile:    *configFile,
+		IgnoreFile:    *ignoreFile,
+	}, nil
+}
+
+func parseConfigFile(content string) (*ConfigFile, error) {
+	r := strings.NewReader(content)
+	d := toml.NewDecoder(r)
+	d.DisallowUnknownFields()
+	var result ConfigFile
+	err := d.Decode(&result)
+	return &result, err
+}
+
+func parseIgnoreFile(content string) (*IgnoreFile, error) {
+	var result IgnoreFile
+	scanner := bufio.NewScanner(strings.NewReader(content))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "#") {
+			// ignore comment
+			continue
+		}
+		var entry = GlobPath(line)
+		result.Entries = append(result.Entries, entry)
+	}
+	return &result, nil
+}
+
+func InitConfigFromDirectory(path string) (*Config, error) {
+	currentConfig, err := ReadConfigFromDirectory(path)
+	if err != nil {
+		return nil, err
+	}
+	if currentConfig != nil {
+		// Do not override current configuration
+		return nil, fmt.Errorf("current configuration detected")
+	}
+
+	// Create .nt directory
+	ntPath := filepath.Join(path, ".nt")
+	err = os.Mkdir(ntPath, 0755)
+	if err != nil {
+		return nil, err
+	}
+
+	// Init .nt/config file
+	ntConfigPath := filepath.Join(ntPath, "config")
+	err = os.WriteFile(ntConfigPath, []byte(DefaultConfig), 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	// Init .ntignore file
+	ntIgnorePath := filepath.Join(path, ".ntignore")
+	_, err = os.Stat(ntIgnorePath)
+	if os.IsNotExist(err) { // Do not override existing file!
+		err = os.WriteFile(ntIgnorePath, []byte(DefaultIgnore), 0644)
+		if err != nil {
+			return nil, err
+		}
+	} else if err != nil {
+		return nil, err
+	}
+
+	// Reread configuration
+	return ReadConfigFromDirectory(path)
+}

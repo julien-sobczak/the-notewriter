@@ -16,7 +16,7 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "the-notetaker",
+	Use:   "nt",
 	Short: "The NoteTaker is a file-based note management tool",
 	Long:  `A Powerful and Flexible Note Management Tool using only Markdown files.`,
 	Run: func(cmd *cobra.Command, args []string) {

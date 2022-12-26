@@ -3,7 +3,6 @@ package core
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 	"time"
@@ -190,7 +189,7 @@ func NewFileFromAttributes(attributes []Attribute) *File {
 }
 
 func NewFileFromPath(filepath string) (*File, error) {
-	contentBytes, err := ioutil.ReadFile(filepath)
+	contentBytes, err := os.ReadFile(filepath)
 	if err != nil {
 		return nil, err
 	}
