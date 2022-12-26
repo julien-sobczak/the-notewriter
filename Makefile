@@ -9,4 +9,4 @@ build:
 	go build --tags "fts5" -o build/nt main.go
 
 test:
-	go test --tags "fts5" ./... -count=0
+	go test ./... -count=1
