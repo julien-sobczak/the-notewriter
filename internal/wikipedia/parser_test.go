@@ -3,8 +3,8 @@ package wikipedia
 import (
 	"testing"
 
+	"github.com/julien-sobczak/the-notetaker/internal/core"
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/yaml.v3"
 )
 
 func TestParserWithInfobox(t *testing.T) {
@@ -94,20 +94,52 @@ func TestParserWithInfobox(t *testing.T) {
 }}
 }}
 `
-	infobox := parseWikitext(nelsonMandelaInfobox)
-	if len(infobox.Attributes) == 0 {
-		t.Fail()
+	actual := parseWikitext(nelsonMandelaInfobox)
+	expected := &Infobox{
+		Name: "",
+		Attributes: []core.Attribute{
+			{Key: "honorific_prefix", Value: "His Excellency"},
+			{Key: "image", Value: "Nelson Mandela 1994.jpg"},
+			{Key: "alt", Value: "Portrait photograph of a 76-year-old President Mandela"},
+			{Key: "caption", Value: "Mandela in Washington, D.C., 1994"},
+			{Key: "order", Value: "1st"},
+			{Key: "office", Value: "President of South Africa"},
+			{Key: "term_start", Value: "1994-05-10"},
+			{Key: "term_end", Value: "1999-06-14"},
+			{Key: "deputy", Value: []interface{}{"Thabo Mbeki", "F. W. de Klerk"}},
+			{Key: "successor", Value: "Thabo Mbeki"},
+			{Key: "order3", Value: "11th"},
+			{Key: "office3", Value: "President of the African National Congress"},
+			{Key: "deputy3", Value: []interface{}{"Walter Sisulu", "Thabo Mbeki"}},
+			{Key: "term_end3", Value: "1997-12-20"},
+			{Key: "predecessor3", Value: "Oliver Tambo"},
+			{Key: "successor3", Value: "Thabo Mbeki"},
+			{Key: "order4", Value: "4th"},
+			{Key: "office4", Value: "Deputy President of the African National Congress"},
+			{Key: "term_start4", Value: "1985-06-25"},
+			{Key: "term_end4", Value: "1991-07-06"},
+			{Key: "predecessor4", Value: "Oliver Tambo"},
+			{Key: "successor4", Value: "Walter Sisulu"},
+			{Key: "order2", Value: "19th"},
+			{Key: "office2", Value: "Secretary-General of the Non-Aligned Movement"},
+			{Key: "term_start2", Value: "1998-09-02"},
+			{Key: "term_end2", Value: "1999-06-14"},
+			{Key: "predecessor2", Value: "Andr\\u00e9s Pastrana Arango"},
+			{Key: "successor2", Value: "Thabo Mbeki"},
+			{Key: "birth_name", Value: "Rolihlahla Mandela"},
+			{Key: "birth_date", Value: "1918-07-18"},
+			{Key: "birth_place", Value: "Mvezo, Union of South Africa"},
+			{Key: "death_date", Value: "2013-12-05"},
+			{Key: "death_place", Value: "Johannesburg, South Africa"},
+			{Key: "resting_place", Value: "Mandela Graveyard, {{avoid wrap|Qunu, Eastern Cape}}"},
+			{Key: "party", Value: "African National Congress"},
+			{Key: "otherparty", Value: "South African Communist"},
+			{Key: "spouse", Value: []interface{}(nil)},
+			{Key: "alma_mater", Value: []interface{}{"University of Fort Hare", "University of London", "University of South Africa", "University of the Witwatersrand"}},
+			{Key: "notableworks", Value: "Long Walk to Freedom"},
+		},
 	}
-
-	bytes, err := yaml.Marshal(infobox.Attributes)
-	if err != nil {
-		t.Fatalf("Unable to marshall: %v", err)
-	}
-	t.Log("\n---\n" + string(bytes) + "---")
-	t.Fail()
-
-	// TODO finish test
-	// TODO convert struct to options for promptui + output FrontMatter
+	assert.Equal(t, expected, actual)
 }
 
 func TestStripLinks(t *testing.T) {
@@ -144,7 +176,7 @@ func TestParseAttributeValue(t *testing.T) {
 		{
 			"string",
 			"10 May 1994",
-			"10 May 1994",
+			"1994-05-10",
 		},
 
 		{
@@ -177,7 +209,7 @@ func TestParseAttributeValue(t *testing.T) {
 * Thabo Mbeki
 * F. W. de Klerk
 }}`,
-			[]string{"Thabo Mbeki", "F. W. de Klerk"},
+			[]interface{}{"Thabo Mbeki", "F. W. de Klerk"},
 		},
 
 		{
@@ -328,5 +360,4 @@ func TestParseAttributeValue(t *testing.T) {
 			assert.Equal(t, tt.expected, actual)
 		})
 	}
-
 }

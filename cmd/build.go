@@ -19,6 +19,7 @@ var buildCmd = &cobra.Command{
 	Short: "Build database",
 	Long:  `Parse files and refresh the database.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		CheckConfig()
 		err := Col.Build(outputDirectory)
 		if err != nil {
 			fmt.Println(err)

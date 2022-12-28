@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"embed"
-	"fmt"
 	"log"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -42,6 +41,5 @@ func init() {
 }
 
 func main() {
-	fmt.Println("The NoteTaker")
 	cmd.Execute()
 }

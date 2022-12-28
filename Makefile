@@ -10,3 +10,7 @@ build:
 
 test:
 	go test ./... -count=1
+
+# Development-only target
+build-example:
+	env NT_HOME="./example" go run main.go build

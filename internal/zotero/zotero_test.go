@@ -139,5 +139,7 @@ func TestZoteroReferenceOnBook(t *testing.T) {
 	assert.Equal(t, "The five dysfunctions of a team", ref.ShortTitle())
 	assert.Equal(t, []string{"Patrick Lencioni"}, ref.Authors())
 	assert.Equal(t, "2002", ref.PublicationYear())
-	assert.Contains(t, ref.Attributes(), "ISBN")
+	assert.Equal(t, "9780787960759", ref.GetAttributeValue("ISBN"))
 }
+
+// TODO complete with more tests

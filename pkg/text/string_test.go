@@ -1,9 +1,9 @@
-package markdown_test
+package text_test
 
 import (
 	"testing"
 
-	"github.com/julien-sobczak/the-notetaker/pkg/markdown"
+	"github.com/julien-sobczak/the-notetaker/pkg/text"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -69,8 +69,47 @@ C
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actual := markdown.SquashBlankLines(tt.input)
+			actual := text.SquashBlankLines(tt.input)
 			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestIsBlank(t *testing.T) {
+	var tests = []struct {
+		name  string
+		input string
+		blank bool
+	}{
+
+		{
+			name:  "Empty",
+			input: "",
+			blank: true,
+		},
+
+		{
+			name:  "Only spaces",
+			input: "   ",
+			blank: true,
+		},
+
+		{
+			name:  "Leading spaces",
+			input: " Not blank",
+			blank: false,
+		},
+
+		{
+			name:  "EOL",
+			input: "\n",
+			blank: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := text.IsBlank(tt.input)
+			assert.Equal(t, actual, tt.blank)
 		})
 	}
 }

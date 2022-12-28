@@ -3,7 +3,11 @@ package core
 import (
 	"database/sql"
 	"fmt"
+	"io/fs"
 	"log"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -13,8 +17,53 @@ type BuildResult struct {
 
 func (c *Collection) Build(outputDirectory string) error {
 
-	populateData(c.db)
-	queryNotes(c.db, "tutorial")
+	config := CurrentConfig()
+
+	filepath.WalkDir(config.RootDirectory, func(path string, info fs.DirEntry, err error) error {
+
+		dirname := filepath.Base(path)
+		if dirname == ".nt" {
+			return fs.SkipDir
+		}
+
+		relpath := strings.TrimPrefix(path, config.RootDirectory+"/")
+
+		if info.IsDir() && !config.IgnoreFile.Include(relpath) {
+			return fs.SkipDir
+		}
+
+		if !config.IgnoreFile.Include(relpath) {
+			// Nothing to do
+			return nil
+		}
+
+		// We look for only specific extension
+		if !config.ConfigFile.SupportExtension(relpath) {
+			// Nothing to do
+			return nil
+		}
+
+		// Ignore certain file modes like symlinks
+		fileInfo, err := os.Lstat(path) // NB: os.Stat follows symlinks
+		if err != nil {
+			// Ignore the file
+			fmt.Fprintf(os.Stderr, "Unable to stat file %q: %v\n", path, err)
+			os.Exit(1)
+		}
+		if !fileInfo.Mode().IsRegular() {
+			// Exclude any file with a mode bit set (device, socket, named pipe, ...)
+			// See https://pkg.go.dev/io/fs#FileMode
+			return nil
+		}
+
+		// Process file
+		log.Println(relpath) // TODO emit notif for tests? + Parse file
+
+		return nil
+	})
+
+	//populateData(c.db)
+	//queryNotes(c.db, "tutorial")
 
 	return nil
 }

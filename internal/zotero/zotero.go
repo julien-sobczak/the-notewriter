@@ -20,6 +20,8 @@ import (
 	sopts "go.nhat.io/surveyexpect/options"
 )
 
+// TODO document this file
+
 type ReferenceType string
 
 const (
@@ -144,6 +146,7 @@ func (z *ZoteroReference) Attributes() []core.Attribute {
 
 	itemType, _ := z.fields["itemType"].(string)
 	for _, field := range schemas[itemType].Fields {
+		fmt.Println(field) // FIXME remove
 		// ignore some fields
 		if _, ok := ignoredFields[field.Field]; ok {
 			continue
@@ -157,10 +160,18 @@ func (z *ZoteroReference) Attributes() []core.Attribute {
 				})
 			}
 		}
-
 	}
 
 	return attributes
+}
+
+func (z *ZoteroReference) GetAttributeValue(key string) interface{} {
+	for _, attribute := range z.Attributes() {
+		if attribute.Key == key {
+			return attribute.Value
+		}
+	}
+	return nil
 }
 
 func (r *ZoteroReference) ShortTitle() string {

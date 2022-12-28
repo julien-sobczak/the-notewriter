@@ -72,3 +72,7 @@ func Execute() {
 		Col.Close()
 	}()
 }
+
+func CheckConfig() {
+	core.CurrentConfig()
+}

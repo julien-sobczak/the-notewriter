@@ -3,7 +3,6 @@ package core
 import (
 	"bufio"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -48,11 +47,42 @@ type ConfigFile struct {
 	}
 }
 
+// SupportExtension checks if the given file extension must be considered.
+func (f *ConfigFile) SupportExtension(path string) bool {
+	ext := strings.TrimPrefix(filepath.Ext(path), ".") // ".md" => "md"
+	for _, extension := range f.Core.Extensions {
+		if strings.EqualFold(extension, ext) { // case-insensitive
+			return true
+		}
+	}
+	return false
+}
+
 type IgnoreFile struct {
 	Entries []GlobPath
 }
 
+func (f *IgnoreFile) Include(path string) bool {
+	for _, entry := range f.Entries {
+		if entry.Match(path) {
+			return false
+		}
+	}
+	return true
+}
+
 type GlobPath string
+
+func (g GlobPath) Match(path string) bool {
+	// TODO Go standard library doesn't support the same Git syntax (ex: ** is missing).
+	// Compare https://git-scm.com/docs/gitignore with https://go.dev/src/path/filepath/match.go
+	match, err := filepath.Match(string(g), path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Invalid glob pattern %q: %v\n", string(g), err)
+		os.Exit(1)
+	}
+	return match
+}
 
 type Config struct {
 	// Absolute top directory containing the .nt sub-directory
@@ -67,18 +97,49 @@ type Config struct {
 
 func CurrentConfig() *Config {
 	once.Do(func() {
-		path, err := os.Getwd()
+		var err error
+		configSingleton, err = ReadConfigFromDirectory(currentHome())
 		if err != nil {
-			log.Fatalf("Unable to determine current directory: %v", err)
+			fmt.Fprintf(os.Stderr, "Unable to read current configuration: %v\n", err)
+			os.Exit(1)
 		}
-		configSingleton, err = ReadConfigFromDirectory(path)
-		if err != nil {
-			log.Fatalf("Unable to read current configuration: %v", err)
+		if configSingleton == nil {
+			fmt.Fprintln(os.Stderr, "fatal: not a NoteTaker repository (or any of the parent directories): .nt")
+			os.Exit(1)
 		}
 	})
 	return configSingleton
 }
 
+func currentHome() string {
+	// Supports overriding the root directory mainly for testing purposes.
+	// For example, when developing the CLI, it's convenient to try command
+	// without installing the binary. Ex:
+	//
+	//   $ env NT_HOME ./examples go run main.go build
+	if path, ok := os.LookupEnv("NT_HOME"); ok {
+		abspath, err := filepath.Abs(path)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Failed to evaluate $NT_HOME")
+			os.Exit(1)
+		}
+		if _, err := os.Stat(abspath); os.IsNotExist(err) {
+			fmt.Fprintln(os.Stderr, "Path in $NT_HOME undefined")
+			os.Exit(1)
+		}
+		return abspath
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to determine current directory: %v\n", err)
+		os.Exit(1)
+	}
+	return cwd
+}
+
+// ReadConfigFromDirectory loads the configuration by searching for a .nt directory in the given directory
+// or any parent directories. It fails if a directory already exists.
 func ReadConfigFromDirectory(path string) (*Config, error) {
 	rootPath := path
 	i := 0 // Safeguard to not go up too far
@@ -92,8 +153,6 @@ func ReadConfigFromDirectory(path string) (*Config, error) {
 		if os.IsNotExist(err) {
 			if len(strings.Split(rootPath, string(os.PathSeparator))) <= 2 {
 				// Root directory detected
-				log.Printf("No .nt directory found. Aborting before root directory.")
-				fmt.Print("returning...")
 				return nil, nil
 			}
 			rootPath = filepath.Clean(filepath.Join(rootPath, ".."))
@@ -179,6 +238,7 @@ func parseIgnoreFile(content string) (*IgnoreFile, error) {
 	return &result, nil
 }
 
+// InitConfigFromDirectory creates the .nt configuration directory with default files including .ntignore.
 func InitConfigFromDirectory(path string) (*Config, error) {
 	currentConfig, err := ReadConfigFromDirectory(path)
 	if err != nil {

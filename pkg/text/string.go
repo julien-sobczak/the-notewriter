@@ -1,4 +1,4 @@
-package markdown
+package text
 
 import (
 	"bufio"
@@ -27,4 +27,9 @@ func SquashBlankLines(text string) string {
 	}
 
 	return result.String()
+}
+
+// IsBlank returns is a text is blank.
+func IsBlank(text string) bool {
+	return len(strings.TrimSpace(text)) == 0
 }

@@ -1,5 +1,0 @@
-`#markdown`
-
-**Bold** text
-
-`#cheat`

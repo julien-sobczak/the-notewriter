@@ -2,14 +2,19 @@ package core
 
 import (
 	"bytes"
+	"crypto/md5"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/julien-sobczak/the-notetaker/pkg/markdown"
 	"gopkg.in/yaml.v3"
 )
 
+// Default indentation in front matter
 const Indent int = 2
 
 type File struct {
@@ -22,15 +27,24 @@ type File struct {
 	// The FrontMatter for the note file
 	frontMatter *yaml.Node
 
-	// TODO create a method GetNotes()
 	Content string
 	notes   []*Note
+
+	// Permission of the file (required to save back)
+	Mode fs.FileMode
+	// Size of the file (can be useful to detect changes)
+	Size int64
+	// Hash of the content (can be useful to detect changes too)
+	Hash string
 
 	CreatedAt *time.Time
 	UpdatedAt *time.Time
 	DeletedAt *time.Time
 }
 
+/* Front Matter */
+
+// FrontMatterString formats the current attributes to the YAML front matter format.
 func (f *File) FrontMatterString() (string, error) {
 	var buf bytes.Buffer
 	bufEncoder := yaml.NewEncoder(&buf)
@@ -42,6 +56,25 @@ func (f *File) FrontMatterString() (string, error) {
 	return CompactYAML(buf.String()), nil
 }
 
+// GetAttributes parses the front matter to extract typed attributes.
+func (f *File) GetAttributes() map[string]interface{} {
+	if f.frontMatter == nil {
+		return nil
+	}
+
+	result := make(map[string]interface{})
+	i := 0
+	for i < len(f.frontMatter.Content)-1 {
+		keyNode := f.frontMatter.Content[i]
+		valueNode := f.frontMatter.Content[i+1]
+		result[keyNode.Value] = toSafeYAMLValue(valueNode)
+		i += 2
+	}
+
+	return result
+}
+
+// GetAttribute extracts a single attribute value at the top.
 func (f *File) GetAttribute(key string) interface{} {
 	if f.frontMatter == nil {
 		return nil
@@ -59,6 +92,7 @@ func (f *File) GetAttribute(key string) interface{} {
 	return nil
 }
 
+// SetAttribute overrides or defines a single attribute.
 func (f *File) SetAttribute(key string, value interface{}) {
 	if f.frontMatter == nil {
 		var frontMatterContent []*yaml.Node
@@ -106,68 +140,110 @@ func (f *File) SetAttribute(key string, value interface{}) {
 	}
 }
 
-func (f *File) GetAttributes() map[string]interface{} {
-	if f.frontMatter == nil {
-		return nil
+// GetTags returns all defined tags.
+func (f *File) GetTags() []string {
+	value := f.GetAttribute("tags")
+	if tag, ok := value.(string); ok {
+		return []string{tag}
 	}
-
-	result := make(map[string]interface{})
-	for i := 0; i < len(f.frontMatter.Content); i++ {
-		keyNode := f.frontMatter.Content[i*2]
-		valueNode := f.frontMatter.Content[i*2+1]
-		result[keyNode.Value] = toSafeYAMLValue(valueNode)
+	if tags, ok := value.([]string); ok {
+		return tags
 	}
-
-	return result
+	if rawTags, ok := value.([]interface{}); ok {
+		var tags []string
+		for _, rawTag := range rawTags {
+			if tag, ok := rawTag.(string); ok {
+				tags = append(tags, tag)
+			}
+		}
+		return tags
+	}
+	return nil
 }
 
+/* Content */
+
+// GetNotes extracts the typed notes present in the file.
 func (f *File) GetNotes() []*Note {
 	if f.notes != nil {
 		return f.notes
 	}
 
+	// All typed notes collected until now
 	var notes []*Note
 
+	// Current line number during the parsing
+	var lineNumber int
+
+	// Keep some information about the current note that
+	// will be added when finding the next one (or end of file)
 	var currentNote bytes.Buffer
 	var currentNoteTitle string
+	var currentLineNumber int
 	var currentLevel int
-	var lineNumber int
-	var linesCountInCurrentNote int
+	var linesCountInCurrentNote int = -1 // 0 = the title has been found
 
-	for _, line := range strings.Split(strings.TrimSuffix(f.Content, "\n"), "\n") {
+	// Keep parent notes to create the hierarchy
+	lastNotePerLevel := make(map[int]*Note)
+	lastNotePerLevel[-1] = nil
+	lastNotePerLevel[0] = nil
+	lastNotePerLevel[1] = nil
+	lastNotePerLevel[2] = nil
+	lastNotePerLevel[3] = nil
+	lastNotePerLevel[4] = nil
+	lastNotePerLevel[5] = nil
+	lastNotePerLevel[6] = nil
+	lastNotePerLevel[7] = nil
+
+	for _, line := range strings.Split(f.Content, "\n") {
 		lineNumber++
-		if ok, text, level := isHeading(line); ok { // New section = new potential note?
-			ok, kind := isSupportedNote(text)
-			if !ok {
-				// Just a subsection, not a new note
+
+		// New section = new potential note?
+		if ok, text, level := markdown.IsHeading(line); ok {
+			ok, _, _ := isSupportedNote(text)
+			if ok || level <= currentLevel {
+
+				// Add previous note
+				if linesCountInCurrentNote > 0 {
+					note := NewNote(f, currentNoteTitle, currentNote.String(), currentLineNumber)
+					note.ParentNote = lastNotePerLevel[currentLevel-1]
+					notes = append(notes, note)
+					lastNotePerLevel[currentLevel] = note
+					// Reset
+					currentNote.Reset()
+					linesCountInCurrentNote = -1
+				}
+			}
+
+			if ok {
+				// New note
+				currentNote.Reset()
+				currentLineNumber = lineNumber
+				currentNoteTitle = text
+				currentLevel = level
+				linesCountInCurrentNote = 0
 				continue
 			}
 
-			// Close previous note
-			if linesCountInCurrentNote > 0 {
-				note := NewNote(f, kind, currentNoteTitle, currentNote.String(), lineNumber)
-				notes = append(notes, note)
-				// Reset
-				currentNote.Reset()
-				currentNoteTitle = ""
-				currentLevel = 0
-				lineNumber = 0
-				linesCountInCurrentNote = 0
-			}
-
-			// Start new note
-			if kind != KindFree && level > currentLevel {
-				currentNote.WriteString(line)
-				linesCountInCurrentNote++
-			}
-		} else {
-			// Do not bother to append the line if no note is started
-			if linesCountInCurrentNote > 0 {
-				currentNote.WriteString(line)
+			// Just a subsection
+			if linesCountInCurrentNote >= 0 {
+				currentNote.WriteString(line + "\n")
 				linesCountInCurrentNote++
 			}
 		}
 
+		// Just another line in note content
+		if linesCountInCurrentNote >= 0 {
+			currentNote.WriteString(line + "\n")
+			linesCountInCurrentNote++
+		}
+	}
+
+	// Add last note
+	if linesCountInCurrentNote > 0 {
+		note := NewNote(f, currentNoteTitle, currentNote.String(), lineNumber)
+		note.ParentNote = lastNotePerLevel[currentLevel-1]
+		notes = append(notes, note)
 	}
 
 	if len(notes) > 0 {
@@ -176,11 +252,27 @@ func (f *File) GetNotes() []*Note {
 	return f.notes
 }
 
+// FindNoteByTitle searches for a given note based on its kind and title.
+func (f *File) FindNoteByKindAndShortTitle(kind NoteKind, shortTitle string) *Note {
+	for _, note := range f.GetNotes() {
+		fmt.Printf("[%v] [%s]", note.Kind, note.ShortTitle) // FIXME remove
+		if note.Kind == kind && note.ShortTitle == shortTitle {
+			return note
+		}
+	}
+	return nil
+}
+
+// TODO add methud GetFlashcards() that uses internally GetNotes()
+
+/* Creation */
+
 func NewEmptyFile() *File {
 	return &File{}
 }
 
 func NewFileFromAttributes(attributes []Attribute) *File {
+	// TODO I doubt this method to be really useful. Delete?
 	file := &File{}
 	for _, attribute := range attributes {
 		file.SetAttribute(attribute.Key, attribute.Value)
@@ -202,11 +294,14 @@ func NewFileFromPath(filepath string) (*File, error) {
 		if strings.HasPrefix(line, "---") {
 			if !frontMatterStarted {
 				frontMatterStarted = true
-				continue
-			} else {
+			} else if !frontMatterEnded {
 				frontMatterEnded = true
-				continue
+			} else {
+				// Flashcard Front/Back line separator
+				rawContent.WriteString(line)
+				rawContent.WriteString("\n")
 			}
+			continue
 		}
 
 		if frontMatterStarted && !frontMatterEnded {
@@ -224,6 +319,11 @@ func NewFileFromPath(filepath string) (*File, error) {
 		return nil, err
 	}
 
+	stat, err := os.Lstat(filepath)
+	if err != nil {
+		return nil, err
+	}
+
 	file := &File{
 		// We ignore if the file already exists in database
 		ID:        0,
@@ -232,6 +332,9 @@ func NewFileFromPath(filepath string) (*File, error) {
 		DeletedAt: nil,
 		// Reread the file
 		RelativePath: filepath,
+		Mode:         stat.Mode(),
+		Size:         stat.Size(),
+		Hash:         hash(contentBytes),
 		Content:      strings.TrimSpace(rawContent.String()),
 		frontMatter:  frontMatter.Content[0],
 	}
@@ -239,8 +342,17 @@ func NewFileFromPath(filepath string) (*File, error) {
 	return file, nil
 }
 
+/* Data Management */
+
+// hash is an utility to determine a MD5 hash (acceptable as not used for security reasons)
+func hash(bytes []byte) string {
+	h := md5.New()
+	h.Write(bytes)
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
 func (f *File) Save() error {
-	// TODO Persist to disk
+	// Persist to disk
 	frontMatter, err := f.FrontMatterString()
 	if err != nil {
 		return err
@@ -250,44 +362,50 @@ func (f *File) Save() error {
 	sb.WriteString(frontMatter)
 	sb.WriteString("---\n")
 	sb.WriteString(f.Content)
-	fmt.Println(sb.String())
+
+	if f.RelativePath == "" {
+		return errors.New("unable to save file as no path is defined")
+	}
+	rawContent := []byte(sb.String())
+	os.WriteFile(f.RelativePath, rawContent, f.Mode)
+
+	// Refresh file-specific attributes
+	stat, err := os.Lstat(f.RelativePath)
+	if err != nil {
+		return err
+	}
+	f.Size = stat.Size()
+	f.Mode = stat.Mode()
+	f.Hash = hash(rawContent)
+
 	return nil
 }
 
-// isHeading returns if a givne line is a Markdown heading and its level.
-func isHeading(line string) (bool, string, int) {
-	if !strings.HasPrefix(line, "#") {
-		return false, "", 0
+func isSupportedNote(text string) (bool, NoteKind, string) {
+	if m := regexReference.FindStringSubmatch(text); m != nil {
+		return true, KindReference, m[1]
 	}
-	if strings.HasPrefix(line, "###### ") {
-		return true, strings.TrimPrefix(line, "###### "), 6
-	} else if strings.HasPrefix(line, "##### ") {
-		return true, strings.TrimPrefix(line, "##### "), 5
-	} else if strings.HasPrefix(line, "#### ") {
-		return true, strings.TrimPrefix(line, "#### "), 4
-	} else if strings.HasPrefix(line, "### ") {
-		return true, strings.TrimPrefix(line, "### "), 3
-	} else if strings.HasPrefix(line, "## ") {
-		return true, strings.TrimPrefix(line, "## "), 2
-	} else if strings.HasPrefix(line, "# ") {
-		return true, strings.TrimPrefix(line, "# "), 1
+	if m := regexNote.FindStringSubmatch(text); m != nil {
+		return true, KindNote, m[1]
 	}
-
-	return false, "", 0
-}
-
-func isSupportedNote(text string) (bool, NoteKind) {
-	if regexNote.MatchString(text) {
-		return true, KindNote
+	if m := regexCheatsheet.FindStringSubmatch(text); m != nil {
+		return true, KindCheatsheet, m[1]
 	}
-	if regexCheatsheet.MatchString(text) {
-		return true, KindCheatsheet
+	if m := regexFlashcard.FindStringSubmatch(text); m != nil {
+		return true, KindFlashcard, m[1]
 	}
-	if regexFlashcard.MatchString(text) {
-		return true, KindFlashcard
+	if m := regexQuote.FindStringSubmatch(text); m != nil {
+		return true, KindQuote, m[1]
 	}
-	if regexQuote.MatchString(text) {
-		return true, KindQuote
+	if m := regexTodo.FindStringSubmatch(text); m != nil {
+		return true, KindTodo, m[1]
 	}
-	return false, KindFree
+	if m := regexArtwork.FindStringSubmatch(text); m != nil {
+		return true, KindArtwork, m[1]
+	}
+	if m := regexSnippet.FindStringSubmatch(text); m != nil {
+		return true, KindArtwork, m[1]
+	}
+	// FIXME what about Journal notes?
+	return false, KindFree, ""
 }
