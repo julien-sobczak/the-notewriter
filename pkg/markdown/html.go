@@ -1,6 +1,12 @@
 package markdown
 
-func ToHTML(markdownText string) string {
-	// TODO
-	return markdownText
+import (
+	"strings"
+
+	"github.com/gomarkdown/markdown"
+)
+
+func ToHTML(md string) string {
+	html := markdown.ToHTML([]byte(md), nil, nil)
+	return strings.TrimSpace(string(html))
 }

@@ -146,7 +146,6 @@ func (z *ZoteroReference) Attributes() []core.Attribute {
 
 	itemType, _ := z.fields["itemType"].(string)
 	for _, field := range schemas[itemType].Fields {
-		fmt.Println(field) // FIXME remove
 		// ignore some fields
 		if _, ok := ignoredFields[field.Field]; ok {
 			continue

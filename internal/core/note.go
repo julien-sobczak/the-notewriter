@@ -116,8 +116,8 @@ func (n *Note) updateContent(rawContent string) {
 	n.Attributes = attributes
 	n.Content = n.expandSyntaxSugar(content)
 	n.ContentMarkdown = markdown.ToMarkdown(n.Content)
-	n.ContentHTML = markdown.ToHTML(n.Content)
-	n.ContentText = markdown.ToText(n.Content)
+	n.ContentHTML = markdown.ToHTML(n.ContentMarkdown) // Use processed md to use <h2>, <h3>, ... whatever the note level
+	n.ContentText = markdown.ToText(n.ContentMarkdown)
 }
 
 func (n *Note) SetParent(parent *Note) {

@@ -255,7 +255,6 @@ func (f *File) GetNotes() []*Note {
 // FindNoteByTitle searches for a given note based on its kind and title.
 func (f *File) FindNoteByKindAndShortTitle(kind NoteKind, shortTitle string) *Note {
 	for _, note := range f.GetNotes() {
-		fmt.Printf("[%v] [%s]", note.Kind, note.ShortTitle) // FIXME remove
 		if note.Kind == kind && note.ShortTitle == shortTitle {
 			return note
 		}
