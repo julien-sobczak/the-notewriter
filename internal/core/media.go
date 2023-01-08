@@ -36,7 +36,7 @@ type Media struct {
 	Size int64
 
 	// Timestamps to track changes
-	CreatedAt *time.Time
-	UpdatedAt *time.Time
-	DeletedAt *time.Time
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt time.Time
 }

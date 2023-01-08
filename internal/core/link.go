@@ -20,7 +20,7 @@ type Link struct {
 	GoName string
 
 	// Timestamps to track changes
-	CreatedAt *time.Time
-	UpdatedAt *time.Time
-	DeletedAt *time.Time
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt time.Time
 }

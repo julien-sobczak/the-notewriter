@@ -1,6 +1,16 @@
 package core
 
-import "time"
+import (
+	"bytes"
+	"strings"
+	"time"
+
+	"github.com/julien-sobczak/the-notetaker/pkg/markdown"
+)
+
+const DefaultEaseFactor = 2.5  // Same as Anki
+const MinEaseFactor = 1.3      // Same as Anki
+const DefaultFirstInterval = 1 // day
 
 type CardType int
 
@@ -24,8 +34,13 @@ const (
 type Flashcard struct {
 	ID int64
 
+	// File
+	FileID int64
+	File   *File // Lazy-loaded
+
 	// Note representing the flashcard
 	NoteID int64
+	Note   *Note // Lazy-loaded
 
 	// List of tags
 	Tags []string
@@ -71,7 +86,60 @@ type Flashcard struct {
 	BackText  string
 
 	// Timestamps to track changes
-	CreatedAt *time.Time
-	UpdatedAt *time.Time
-	DeletedAt *time.Time
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt time.Time
+}
+
+// NewFlashcard initializes a new flashcard.
+func NewFlashcard(f *File, n *Note) *Flashcard {
+	front := true
+	var frontContent bytes.Buffer
+	var backContent bytes.Buffer
+	for _, line := range strings.Split(n.Content, "\n") {
+		if line == "---" {
+			front = false
+			continue
+		}
+		if front {
+			frontContent.WriteString(line)
+			frontContent.WriteString("\n")
+		} else {
+			backContent.WriteString(line)
+			backContent.WriteString("\n")
+		}
+	}
+	// FIXME if front => invalid flashcard
+	frontMarkdown := strings.TrimSpace(frontContent.String())
+	backMarkdown := strings.TrimSpace(backContent.String())
+
+	return &Flashcard{
+		FileID: f.ID,
+		File:   f,
+		NoteID: n.ID,
+		Note:   n,
+		Tags:   n.GetTags(),
+
+		// SRS
+		Type:        CardNew,
+		Queue:       QueueNew,
+		Due:         0,
+		Interval:    DefaultFirstInterval,
+		EaseFactor:  DefaultEaseFactor * 1000,
+		Repetitions: 0, // never reviewed
+		Lapses:      0, // never forgotten
+		Left:        0,
+
+		// Content
+		FrontMarkdown: frontMarkdown,
+		BackMarkdown:  backMarkdown,
+		FrontHTML:     markdown.ToHTML(frontMarkdown),
+		BackHTML:      markdown.ToHTML(backMarkdown),
+		FrontText:     markdown.ToText(frontMarkdown),
+		BackText:      markdown.ToText(backMarkdown),
+
+		// Timestamps
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
 }

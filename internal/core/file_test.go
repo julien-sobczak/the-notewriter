@@ -207,10 +207,44 @@ func TestFileInheritance(t *testing.T) {
 	assert.Equal(t, []string{"productivity", "favorite"}, n.GetTags())
 }
 
+func TestGetFlashcards(t *testing.T) {
+	fc, err := os.CreateTemp("", "sample.md")
+	require.NoError(t, err)
+	defer os.Remove(fc.Name())
+
+	_, err = fc.Write(goldenFileNamed(t, "TestGetNotes.md"))
+	require.NoError(t, err)
+	fc.Close()
+
+	// Init the file
+	f, err := NewFileFromPath(fc.Name())
+	require.NoError(t, err)
+
+	notes := f.GetNotes()
+	flashcards := f.GetFlashcards()
+	require.Len(t, flashcards, 2)
+
+	// Check relations
+	assert.Equal(t, f, flashcards[0].File)
+	assert.Equal(t, notes[0], flashcards[0].Note)
+	assert.Equal(t, notes[2], flashcards[1].Note)
+	// Check content
+	assert.Equal(t, `**What** is _The NoteTaker_?`, flashcards[0].FrontMarkdown)
+	assert.Equal(t, `_The NoteTaker_ is an unobstrusive application to organize all kinds of notes.`, flashcards[0].BackMarkdown)
+	assert.Equal(t, `<p><strong>What</strong> is <em>The NoteTaker</em>?</p>`, flashcards[0].FrontHTML)
+	assert.Equal(t, `<p><em>The NoteTaker</em> is an unobstrusive application to organize all kinds of notes.</p>`, flashcards[0].BackHTML)
+	assert.Equal(t, `What is The NoteTaker?`, flashcards[0].FrontText)
+	assert.Equal(t, `The NoteTaker is an unobstrusive application to organize all kinds of notes.`, flashcards[0].BackText)
+}
+
 /* Test Helpers */
 
 func goldenFile(t *testing.T) []byte {
-	path := filepath.Join("testdata", t.Name()+".md")
+	return goldenFileNamed(t, t.Name()+".md")
+}
+
+func goldenFileNamed(t *testing.T, filename string) []byte {
+	path := filepath.Join("testdata", filename)
 	b, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("failed reading golden file %s: %v", path, err)

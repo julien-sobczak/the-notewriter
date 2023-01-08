@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestToXXX(t *testing.T) {
+func TestToSupportedFormats(t *testing.T) {
 	var tests = []struct {
 		name string // name
 	}{

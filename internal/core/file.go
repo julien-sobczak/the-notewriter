@@ -37,9 +37,9 @@ type File struct {
 	// Hash of the content (can be useful to detect changes too)
 	Hash string
 
-	CreatedAt *time.Time
-	UpdatedAt *time.Time
-	DeletedAt *time.Time
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt time.Time
 }
 
 /* Front Matter */
@@ -262,7 +262,29 @@ func (f *File) FindNoteByKindAndShortTitle(kind NoteKind, shortTitle string) *No
 	return nil
 }
 
-// TODO add methud GetFlashcards() that uses internally GetNotes()
+// GetFlashcards extracts flashcards from the file.
+func (f *File) GetFlashcards() []*Flashcard {
+	var flashcards []*Flashcard
+	for _, note := range f.GetNotes() {
+		if note.Kind == KindFlashcard {
+			flashcard := NewFlashcard(f, note)
+			flashcards = append(flashcards, flashcard)
+		}
+	}
+	return flashcards
+}
+
+// GetMedias extracts medias from the file.
+func (f *File) GetMedias() []*Media {
+	// TODO
+	return nil
+}
+
+// GetLinks extracts special links from the file.
+func (f *File) GetLinks() []*Link {
+	// TODO
+	return nil
+}
 
 /* Creation */
 
@@ -325,10 +347,7 @@ func NewFileFromPath(filepath string) (*File, error) {
 
 	file := &File{
 		// We ignore if the file already exists in database
-		ID:        0,
-		CreatedAt: nil,
-		UpdatedAt: nil,
-		DeletedAt: nil,
+		ID: 0,
 		// Reread the file
 		RelativePath: filepath,
 		Mode:         stat.Mode(),

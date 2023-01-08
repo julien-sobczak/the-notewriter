@@ -74,9 +74,9 @@ type Note struct {
 	ContentText     string
 
 	// Timestamps to track changes
-	CreatedAt *time.Time
-	UpdatedAt *time.Time
-	DeletedAt *time.Time
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt time.Time
 }
 
 func NewNote(f *File, title string, content string, lineNumber int) *Note {
