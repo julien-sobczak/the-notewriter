@@ -1,0 +1,3 @@
+# TestSetUpFromGoldenFile
+
+Hello World!

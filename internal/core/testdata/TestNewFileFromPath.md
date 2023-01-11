@@ -1,0 +1,5 @@
+---
+tags: [favorite, inspiration]
+---
+
+Blabla

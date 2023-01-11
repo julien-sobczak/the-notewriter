@@ -1,6 +1,10 @@
 package core
 
-import "time"
+import (
+	"path/filepath"
+	"strings"
+	"time"
+)
 
 type MediaKind int
 
@@ -8,8 +12,13 @@ const (
 	KindUnknown  MediaKind = 0
 	KindAudio    MediaKind = 1
 	KindPicture  MediaKind = 2
-	KindDocument MediaKind = 3
+	KindVideo    MediaKind = 3
+	KindDocument MediaKind = 4
 )
+
+var AudioExtensions = []string{".mp3", ".wav"}
+var PictureExtensions = []string{".jpeg", ".png", ".gif"}
+var VideoExtensions = []string{".mp4", ".ogg", ".webm"}
 
 type Media struct {
 	ID int64
@@ -39,4 +48,37 @@ type Media struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt time.Time
+}
+
+// DetectMediaKind returns the media kind based on a file path.
+func DetectMediaKind(filename string) MediaKind {
+	ext := filepath.Ext(filename)
+	for _, audioExt := range AudioExtensions {
+		if strings.EqualFold(ext, audioExt) {
+			return KindAudio
+		}
+	}
+	for _, pictureExt := range PictureExtensions {
+		if strings.EqualFold(ext, pictureExt) {
+			return KindPicture
+		}
+	}
+	for _, videoExt := range VideoExtensions {
+		if strings.EqualFold(ext, videoExt) {
+			return KindVideo
+		}
+	}
+	return KindUnknown
+}
+
+// NewMedia initializes a new media.
+func NewMedia(f *File, path string) *Media {
+	m := &Media{
+		Filepath:  path,
+		Kind:      DetectMediaKind(path),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	return m
 }

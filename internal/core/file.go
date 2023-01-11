@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -276,8 +277,22 @@ func (f *File) GetFlashcards() []*Flashcard {
 
 // GetMedias extracts medias from the file.
 func (f *File) GetMedias() []*Media {
-	// TODO
-	return nil
+	var medias []*Media
+
+	filepaths := make(map[string]bool)
+
+	regexMedia := regexp.MustCompile(`!\[(.*?)\]\((\S*?)(?:\s+"(.*?)")?\)`)
+	matches := regexMedia.FindAllStringSubmatch(f.Content, -1)
+	for _, match := range matches {
+		src := match[2]
+		if _, ok := filepaths[src]; ok {
+			continue
+		}
+		media := NewMedia(f, src) // FIXME store relative filepath from collection
+		medias = append(medias, media)
+		filepaths[src] = true
+	}
+	return medias
 }
 
 // GetLinks extracts special links from the file.
@@ -354,7 +369,9 @@ func NewFileFromPath(filepath string) (*File, error) {
 		Size:         stat.Size(),
 		Hash:         hash(contentBytes),
 		Content:      strings.TrimSpace(rawContent.String()),
-		frontMatter:  frontMatter.Content[0],
+	}
+	if frontMatter.Kind > 0 { // Happen when no Front Matter is present
+		file.frontMatter = frontMatter.Content[0]
 	}
 
 	return file, nil

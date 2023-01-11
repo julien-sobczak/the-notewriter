@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	. "github.com/julien-sobczak/the-notetaker/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -59,24 +60,13 @@ tags:
 }
 
 func TestNewFileFromPath(t *testing.T) {
-	fc, err := os.CreateTemp("", "sample.md")
-	require.NoError(t, err)
-	defer os.Remove(fc.Name())
-
-	_, err = fc.Write([]byte(`
----
-tags: [favorite, inspiration]
----
-
-Blabla`))
-	require.NoError(t, err)
-	fc.Close()
+	filename := SetUpFromGoldenFile(t)
 
 	// Init the file
-	f, err := NewFileFromPath(fc.Name())
+	f, err := NewFileFromPath(filename)
 	require.NoError(t, err)
 	assert.Equal(t, int64(46), f.Size)
-	assert.Equal(t, "a1ea96d170c04d93c6ca12d190aa5271", f.Hash)
+	assert.Equal(t, "d610783465f779858b00bc3f8133ebd5", f.Hash)
 
 	// Check initial content
 	assertFrontMatterEqual(t, `tags: [favorite, inspiration]`, f)
@@ -97,7 +87,7 @@ extras:
 
 	// Save the file
 	f.Save()
-	rawContent, err := os.ReadFile(fc.Name())
+	rawContent, err := os.ReadFile(filename)
 	require.NoError(t, err)
 	require.Equal(t, `---
 tags: [ancient]
@@ -145,16 +135,10 @@ new: 10
 }
 
 func TestGetNotes(t *testing.T) {
-	fc, err := os.CreateTemp("", "sample.md")
-	require.NoError(t, err)
-	defer os.Remove(fc.Name())
-
-	_, err = fc.Write(goldenFile(t))
-	require.NoError(t, err)
-	fc.Close()
+	filename := SetUpFromGoldenFile(t)
 
 	// Init the file
-	f, err := NewFileFromPath(fc.Name())
+	f, err := NewFileFromPath(filename)
 	require.NoError(t, err)
 
 	notes := f.GetNotes()
@@ -187,16 +171,10 @@ func TestGetNotes(t *testing.T) {
 }
 
 func TestFileInheritance(t *testing.T) {
-	fc, err := os.CreateTemp("", "sample.md")
-	require.NoError(t, err)
-	defer os.Remove(fc.Name())
-
-	_, err = fc.Write(goldenFile(t))
-	require.NoError(t, err)
-	fc.Close()
+	filename := SetUpFromGoldenFile(t)
 
 	// Init the file
-	f, err := NewFileFromPath(fc.Name())
+	f, err := NewFileFromPath(filename)
 	require.NoError(t, err)
 
 	notes := f.GetNotes()
@@ -208,16 +186,10 @@ func TestFileInheritance(t *testing.T) {
 }
 
 func TestGetFlashcards(t *testing.T) {
-	fc, err := os.CreateTemp("", "sample.md")
-	require.NoError(t, err)
-	defer os.Remove(fc.Name())
-
-	_, err = fc.Write(goldenFileNamed(t, "TestGetNotes.md"))
-	require.NoError(t, err)
-	fc.Close()
+	filename := SetUpFromGoldenFileNamed(t, "TestGetNotes.md")
 
 	// Init the file
-	f, err := NewFileFromPath(fc.Name())
+	f, err := NewFileFromPath(filename)
 	require.NoError(t, err)
 
 	notes := f.GetNotes()
@@ -237,20 +209,18 @@ func TestGetFlashcards(t *testing.T) {
 	assert.Equal(t, `The NoteTaker is an unobstrusive application to organize all kinds of notes.`, flashcards[0].BackText)
 }
 
+func TestGetMedias(t *testing.T) {
+	dirname := SetUpFromGoldenDir(t)
+
+	// Init the file
+	f, err := NewFileFromPath(filepath.Join(dirname, "medias.md"))
+	require.NoError(t, err)
+
+	medias := f.GetMedias()
+	require.Len(t, medias, 4)
+}
+
 /* Test Helpers */
-
-func goldenFile(t *testing.T) []byte {
-	return goldenFileNamed(t, t.Name()+".md")
-}
-
-func goldenFileNamed(t *testing.T, filename string) []byte {
-	path := filepath.Join("testdata", filename)
-	b, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("failed reading golden file %s: %v", path, err)
-	}
-	return b
-}
 
 func assertFrontMatterEqual(t *testing.T, expected string, file *File) {
 	actual, err := file.FrontMatterString()

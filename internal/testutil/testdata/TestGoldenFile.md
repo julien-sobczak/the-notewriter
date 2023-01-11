@@ -1,0 +1,3 @@
+# TestGoldenFile
+
+Hi!
