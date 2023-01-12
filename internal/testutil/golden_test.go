@@ -22,8 +22,8 @@ func TestSetUpFromGoldenDir(t *testing.T) {
 	dirname := SetUpFromGoldenDir(t)
 
 	assertFileContains(t, filepath.Join(dirname, "notes.md"), "# Notes\n\nMy Personal notes\n")
-	requireDirExists(t, filepath.Join(dirname, "medias"))
-	requireFileExists(t, filepath.Join(dirname, "medias/wikimedia.svg"))
+	require.DirExists(t, filepath.Join(dirname, "medias"))
+	require.FileExists(t, filepath.Join(dirname, "medias/wikimedia.svg"))
 	assertFileContains(t, filepath.Join(dirname, "projects/todo.md"), "# TODO\n\n## TODO: Backlog\n\n* [x] Create backlog\n* [ ] Deploy\n")
 }
 
@@ -38,26 +38,6 @@ func TestGoldenFileNamed(t *testing.T) {
 }
 
 /* Test Assertions */
-
-func requireDirExists(t *testing.T, dirname string) {
-	stat, err := os.Stat(dirname)
-	if os.IsNotExist(err) {
-		t.Fatalf("%v doesn't exist", dirname)
-	}
-	if !stat.IsDir() {
-		t.Fatalf("%v isn't a directory", dirname)
-	}
-}
-
-func requireFileExists(t *testing.T, filename string) {
-	stat, err := os.Stat(filename)
-	if os.IsNotExist(err) {
-		t.Fatalf("%v doesn't exist", filename)
-	}
-	if stat.IsDir() {
-		t.Fatalf("%v is a directory", filename)
-	}
-}
 
 func assertFileContains(t *testing.T, filename string, expected string) {
 	actual, err := os.ReadFile(filename)

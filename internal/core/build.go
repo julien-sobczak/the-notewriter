@@ -12,7 +12,7 @@ import (
 )
 
 type BuildResult struct {
-	files []*File
+	Files []*File
 }
 
 func (c *Collection) Build(outputDirectory string) error {
@@ -20,6 +20,9 @@ func (c *Collection) Build(outputDirectory string) error {
 	config := CurrentConfig()
 
 	filepath.WalkDir(config.RootDirectory, func(path string, info fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
 
 		dirname := filepath.Base(path)
 		if dirname == ".nt" {
@@ -62,13 +65,13 @@ func (c *Collection) Build(outputDirectory string) error {
 		return nil
 	})
 
-	//populateData(c.db)
-	//queryNotes(c.db, "tutorial")
+	//PopulateData(c.db)
+	//QueryNotes(c.db, "tutorial")
 
 	return nil
 }
 
-func (c *Collection) update(buildResult *BuildResult) error {
+func (c *Collection) Update(buildResult *BuildResult) error {
 	now := time.Now()
 	fmt.Printf("%v\n", now)
 	// Update all tables and their timestamps
@@ -89,7 +92,7 @@ func (c *Collection) update(buildResult *BuildResult) error {
 	return nil
 }
 
-func populateData(db *sql.DB) {
+func PopulateData(db *sql.DB) {
 	records := `INSERT INTO posts(title, body) VALUES
 ('Learn SQlite FTS5', 'This tutorial teaches you how to perform full-text search in SQLite using FTS5'),
 ('Advanced SQlite Full-text Search', 'Show you some advanced techniques in SQLite full-text searching'),
@@ -104,7 +107,7 @@ func populateData(db *sql.DB) {
 	}
 }
 
-func queryNotes(db *sql.DB, queryTxt string) {
+func QueryNotes(db *sql.DB, queryTxt string) {
 	queryFTS, err := db.Prepare("SELECT id FROM note_fts WHERE kind = 1 and note_fts MATCH ? ORDER BY rank LIMIT 10;")
 	if err != nil {
 		log.Fatal(err)

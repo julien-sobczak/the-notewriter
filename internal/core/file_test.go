@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	. "github.com/julien-sobczak/the-notetaker/internal/testutil"
 	"github.com/stretchr/testify/assert"
@@ -210,14 +211,27 @@ func TestGetFlashcards(t *testing.T) {
 }
 
 func TestGetMedias(t *testing.T) {
-	dirname := SetUpFromGoldenDir(t)
+	dirname := SetUpCollectionFromGoldenDir(t)
 
 	// Init the file
 	f, err := NewFileFromPath(filepath.Join(dirname, "medias.md"))
 	require.NoError(t, err)
 
-	medias := f.GetMedias()
-	require.Len(t, medias, 4)
+	medias, err := f.GetMedias()
+	require.NoError(t, err)
+	require.Len(t, medias, 5)
+
+	// Dead links must be detected
+	assert.False(t, medias[0].Dangling)
+	assert.True(t, medias[1].Dangling) // Link is broken
+
+	// Relative path must be store
+	assert.Equal(t, "medias/leitner_system.svg", medias[0].Filepath)
+
+	// File-specific information about each existing media must be collected
+	assert.Equal(t, "fdfcf70a6207648fd5d54740f0ffa915", medias[0].Hash)
+	assert.WithinDuration(t, time.Date(2023, time.January, 9, 13, 36, 54, 549055256, time.UTC), medias[0].MTime, 1*time.Hour)
+	assert.Equal(t, int64(13177), medias[0].Size)
 }
 
 /* Test Helpers */

@@ -11,7 +11,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
-	"github.com/julien-sobczak/the-notetaker/internal/core"
+	"github.com/julien-sobczak/the-notetaker/internal/reference"
 	sopts "go.nhat.io/surveyexpect/options"
 )
 
@@ -21,20 +21,20 @@ type WikipediaReference struct {
 	PageID     int
 	PageTitle  string
 	URL        string
-	attributes []core.Attribute
+	attributes []reference.Attribute
 }
 
-func (r *WikipediaReference) Attributes() []core.Attribute {
-	var results []core.Attribute
-	results = append(results, core.Attribute{
+func (r *WikipediaReference) Attributes() []reference.Attribute {
+	var results []reference.Attribute
+	results = append(results, reference.Attribute{
 		Key:   "name",
 		Value: r.PageTitle,
 	})
-	results = append(results, core.Attribute{
+	results = append(results, reference.Attribute{
 		Key:   "pageId",
 		Value: r.PageID,
 	})
-	results = append(results, core.Attribute{
+	results = append(results, reference.Attribute{
 		Key:   "url",
 		Value: r.URL,
 	})
@@ -84,7 +84,7 @@ func NewReferenceManager() *Wikipedia {
 	}
 }
 
-func (w *Wikipedia) Search(query string) (core.Reference, error) {
+func (w *Wikipedia) Search(query string) (reference.Reference, error) {
 
 	// Search for Wikipedia pages
 	queryResponse := w.search(query)
@@ -182,7 +182,7 @@ func (w *Wikipedia) askPageID(response QueryResponse) int {
 	return pageIDs[answer]
 }
 
-func (w *Wikipedia) askAttributes(infobox *Infobox) []core.Attribute {
+func (w *Wikipedia) askAttributes(infobox *Infobox) []reference.Attribute {
 	var options []string
 	answersIndices := make(map[string]int)
 	for i, attribute := range infobox.Attributes {
@@ -202,7 +202,7 @@ func (w *Wikipedia) askAttributes(infobox *Infobox) []core.Attribute {
 	}
 	survey.AskOne(prompt, &answers, surveyOpts...)
 
-	var selection []core.Attribute
+	var selection []reference.Attribute
 	for _, answer := range answers {
 		selection = append(selection, infobox.Attributes[answersIndices[answer]])
 	}

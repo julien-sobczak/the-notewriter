@@ -18,6 +18,11 @@ import (
 // Default indentation in front matter
 const Indent int = 2
 
+type Attribute struct {
+	Key   string
+	Value interface{}
+}
+
 type File struct {
 	// A unique identifier among all files
 	ID int64
@@ -37,6 +42,8 @@ type File struct {
 	Size int64
 	// Hash of the content (can be useful to detect changes too)
 	Hash string
+	// Content last modification date
+	MTime time.Time
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -276,7 +283,7 @@ func (f *File) GetFlashcards() []*Flashcard {
 }
 
 // GetMedias extracts medias from the file.
-func (f *File) GetMedias() []*Media {
+func (f *File) GetMedias() ([]*Media, error) {
 	var medias []*Media
 
 	filepaths := make(map[string]bool)
@@ -288,11 +295,15 @@ func (f *File) GetMedias() []*Media {
 		if _, ok := filepaths[src]; ok {
 			continue
 		}
-		media := NewMedia(f, src) // FIXME store relative filepath from collection
+		relpath, err := CurrentCollection().GetRelativePath(f.RelativePath, src)
+		if err != nil {
+			return nil, err
+		}
+		media := NewMedia(f, relpath)
 		medias = append(medias, media)
 		filepaths[src] = true
 	}
-	return medias
+	return medias, nil
 }
 
 // GetLinks extracts special links from the file.
@@ -368,6 +379,7 @@ func NewFileFromPath(filepath string) (*File, error) {
 		Mode:         stat.Mode(),
 		Size:         stat.Size(),
 		Hash:         hash(contentBytes),
+		MTime:        stat.ModTime(),
 		Content:      strings.TrimSpace(rawContent.String()),
 	}
 	if frontMatter.Kind > 0 { // Happen when no Front Matter is present
@@ -379,11 +391,20 @@ func NewFileFromPath(filepath string) (*File, error) {
 
 /* Data Management */
 
-// hash is an utility to determine a MD5 hash (acceptable as not used for security reasons)
+// hash is an utility to determine a MD5 hash (acceptable as not used for security reasons).
 func hash(bytes []byte) string {
 	h := md5.New()
 	h.Write(bytes)
 	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+// hashFromFile reads the file content to determine the hash.
+func hashFromFile(path string) (string, error) {
+	contentBytes, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return hash(contentBytes), nil
 }
 
 func (f *File) Save() error {

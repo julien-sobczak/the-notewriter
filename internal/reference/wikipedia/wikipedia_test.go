@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/AlecAivazis/survey/v2"
 	score "github.com/AlecAivazis/survey/v2/core"
 	"github.com/AlecAivazis/survey/v2/terminal"
-	"github.com/julien-sobczak/the-notetaker/internal/core"
+	"github.com/julien-sobczak/the-notetaker/internal/reference"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.nhat.io/surveyexpect"
@@ -103,20 +102,32 @@ func TestSearch(t *testing.T) {
 		manager.BaseURL = ts.URL
 		manager.Stdio = &stdio
 
-		reference, err := manager.Search("Nelson Mandela")
+		ref, err := manager.Search("Nelson Mandela")
 		require.NoError(t, err)
-		file := core.NewFileFromAttributes(reference.Attributes())
-		frontMatter, err := file.FrontMatterString()
-		require.NoError(t, err)
-		assert.Equal(t,
-			strings.TrimSpace(`
-name: Nelson Mandela
-pageId: 21492751
-url: https://en.wikipedia.org/wiki/Nelson_Mandela
-birth_date: "1918-07-18"
-birth_place: Mvezo, Union of South Africa
-`),
-			strings.TrimSpace(frontMatter))
+		actual := ref.Attributes()
+		expected := []reference.Attribute{
+			{
+				Key:   "name",
+				Value: "Nelson Mandela",
+			},
+			{
+				Key:   "pageId",
+				Value: 21492751,
+			},
+			{
+				Key:   "url",
+				Value: "https://en.wikipedia.org/wiki/Nelson_Mandela",
+			},
+			{
+				Key:   "birth_date",
+				Value: "1918-07-18",
+			},
+			{
+				Key:   "birth_place",
+				Value: "Mvezo, Union of South Africa",
+			},
+		}
+		assert.Equal(t, expected, actual)
 	})
 
 }

@@ -16,7 +16,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
-	"github.com/julien-sobczak/the-notetaker/internal/core"
+	"github.com/julien-sobczak/the-notetaker/internal/reference"
 	sopts "go.nhat.io/surveyexpect/options"
 )
 
@@ -136,10 +136,10 @@ func (z ZoteroReference) String() string {
 	return fmt.Sprintf("%s, by %s", z.ShortTitle(), strings.Join(z.Authors(), ", "))
 }
 
-func (z *ZoteroReference) Attributes() []core.Attribute {
-	var attributes []core.Attribute
+func (z *ZoteroReference) Attributes() []reference.Attribute {
+	var attributes []reference.Attribute
 
-	attributes = append(attributes, core.Attribute{
+	attributes = append(attributes, reference.Attribute{
 		Key:   "creators",
 		Value: z.fields["creators"],
 	})
@@ -153,7 +153,7 @@ func (z *ZoteroReference) Attributes() []core.Attribute {
 		if value, ok := z.fields[field.Field]; ok {
 			// Ignore null fields
 			if value != nil {
-				attributes = append(attributes, core.Attribute{
+				attributes = append(attributes, reference.Attribute{
 					Key:   field.Field,
 					Value: value,
 				})
@@ -239,7 +239,7 @@ func NewReferenceManager() *Zotero {
 	}
 }
 
-func (z *Zotero) Search(query string) (core.Reference, error) {
+func (z *Zotero) Search(query string) (reference.Reference, error) {
 	if !IsCmdDefined("docker") {
 		return nil, fmt.Errorf("'docker' command is required to execute Zotero Translation Server")
 	}
@@ -296,10 +296,10 @@ func (z *Zotero) Search(query string) (core.Reference, error) {
 	}
 
 	var options []string
-	referencesByOption := make(map[string]core.Reference)
-	for _, reference := range filteredResults {
-		options = append(options, reference.String())
-		referencesByOption[reference.String()] = reference
+	referencesByOption := make(map[string]reference.Reference)
+	for _, ref := range filteredResults {
+		options = append(options, ref.String())
+		referencesByOption[ref.String()] = ref
 	}
 
 	var answer string

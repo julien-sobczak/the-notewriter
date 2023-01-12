@@ -3,7 +3,7 @@ package wikipedia
 import (
 	"testing"
 
-	"github.com/julien-sobczak/the-notetaker/internal/core"
+	"github.com/julien-sobczak/the-notetaker/internal/reference"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -97,7 +97,7 @@ func TestParserWithInfobox(t *testing.T) {
 	actual := parseWikitext(nelsonMandelaInfobox)
 	expected := &Infobox{
 		Name: "",
-		Attributes: []core.Attribute{
+		Attributes: []reference.Attribute{
 			{Key: "honorific_prefix", Value: "His Excellency"},
 			{Key: "image", Value: "Nelson Mandela 1994.jpg"},
 			{Key: "alt", Value: "Portrait photograph of a 76-year-old President Mandela"},

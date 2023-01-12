@@ -1,6 +1,8 @@
 package core
 
 import (
+	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -28,6 +30,9 @@ type Media struct {
 
 	// Type of media
 	Kind MediaKind
+
+	// Media exists on disk
+	Dangling bool
 
 	// How many notes references this file
 	Links *int
@@ -79,6 +84,18 @@ func NewMedia(f *File, path string) *Media {
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
+
+	abspath := CurrentCollection().GetAbsolutePath(path)
+	stat, err := os.Stat(abspath)
+	if errors.Is(err, os.ErrNotExist) {
+		m.Dangling = true
+		return m
+	}
+
+	m.Dangling = false
+	m.Size = stat.Size()
+	m.Hash, _ = hashFromFile(abspath)
+	m.MTime = stat.ModTime()
 
 	return m
 }

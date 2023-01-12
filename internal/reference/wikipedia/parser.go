@@ -6,12 +6,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/julien-sobczak/the-notetaker/internal/core"
+	"github.com/julien-sobczak/the-notetaker/internal/reference"
 )
 
 type Infobox struct {
 	Name       string
-	Attributes []core.Attribute
+	Attributes []reference.Attribute
 }
 
 var regexBirthDate = regexp.MustCompile(`^(?i){{birth[- ]date\|`)
@@ -93,7 +93,7 @@ func parseWikitext(txt string) *Infobox {
 
 				parsedValue = parseAttributeValue(wikiValue)
 				if parsedValue != nil {
-					infobox.Attributes = append(infobox.Attributes, core.Attribute{
+					infobox.Attributes = append(infobox.Attributes, reference.Attribute{
 						Key:   key,
 						Value: parsedValue,
 					})

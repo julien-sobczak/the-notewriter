@@ -2,6 +2,7 @@
 
 
 ![Leitner System](./medias/leitner_system.svg)
+![Leitner System](./medias/leitner_system.oops.svg)
 
 ## Reference: Animation
 

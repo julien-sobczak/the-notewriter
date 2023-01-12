@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
+	"github.com/julien-sobczak/the-notetaker/pkg/resync"
 	"github.com/pelletier/go-toml/v2"
 )
 
@@ -32,7 +32,7 @@ README.md
 
 var (
 	// Lazy-load configuration and ensure a single read
-	once            sync.Once
+	configOnce      resync.Once
 	configSingleton *Config
 )
 
@@ -96,7 +96,7 @@ type Config struct {
 }
 
 func CurrentConfig() *Config {
-	once.Do(func() {
+	configOnce.Do(func() {
 		var err error
 		configSingleton, err = ReadConfigFromDirectory(currentHome())
 		if err != nil {

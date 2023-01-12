@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	score "github.com/AlecAivazis/survey/v2/core"
 	"github.com/AlecAivazis/survey/v2/terminal"
-	"github.com/julien-sobczak/the-notetaker/internal/core"
+	"github.com/julien-sobczak/the-notetaker/internal/reference"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.nhat.io/surveyexpect"
@@ -73,26 +72,46 @@ func TestSearch(t *testing.T) {
 		manager.BaseURL = ts.URL
 		manager.Stdio = &stdio
 
-		reference, err := manager.Search("Nelson Mandela")
+		ref, err := manager.Search("Nelson Mandela")
 		require.NoError(t, err)
-		file := core.NewFileFromAttributes(reference.Attributes())
-		require.NoError(t, err)
-		frontMatter, err := file.FrontMatterString()
-		require.NoError(t, err)
-		assert.Equal(t,
-			strings.TrimSpace(`
-creators:
-- creatorType: author
-  firstName: Simon
-  lastName: Sinek
-title: The infinite game
-place: New York
-publisher: Portfolio/Penguin
-date: "2019"
-numPages: "251"
-ISBN: 9780735213500 9780525538837
-`),
-			strings.TrimSpace(frontMatter))
+		actual := ref.Attributes()
+		expected := []reference.Attribute{
+			{
+				Key: "creators",
+				Value: []interface{}{
+					map[string]interface{}{
+						"creatorType": "author",
+						"firstName":   "Simon",
+						"lastName":    "Sinek",
+					},
+				},
+			},
+			{
+				Key:   "title",
+				Value: "The infinite game",
+			},
+			{
+				Key:   "place",
+				Value: "New York",
+			},
+			{
+				Key:   "publisher",
+				Value: "Portfolio/Penguin",
+			},
+			{
+				Key:   "date",
+				Value: "2019",
+			},
+			{
+				Key:   "numPages",
+				Value: "251",
+			},
+			{
+				Key:   "ISBN",
+				Value: "9780735213500 9780525538837",
+			},
+		}
+		assert.Equal(t, expected, actual)
 	})
 
 }
