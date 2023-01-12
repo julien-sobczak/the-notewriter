@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/julien-sobczak/the-notetaker/pkg/markdown"
+	"github.com/julien-sobczak/the-notetaker/pkg/text"
 	"gopkg.in/yaml.v3"
 )
 
@@ -260,11 +260,21 @@ func (f *File) GetNotes() []*Note {
 	return f.notes
 }
 
-// FindNoteByTitle searches for a given note based on its kind and title.
+// FindNoteByKindAndShortTitle searches for a given note based on its kind and title.
 func (f *File) FindNoteByKindAndShortTitle(kind NoteKind, shortTitle string) *Note {
 	for _, note := range f.GetNotes() {
 		if note.Kind == kind && note.ShortTitle == shortTitle {
 			return note
+		}
+	}
+	return nil
+}
+
+// FindFlashcardByTitle searches for a given flashcard based on its title.
+func (f *File) FindFlashcardByTitle(shortTitle string) *Flashcard {
+	for _, flashcard := range f.GetFlashcards() {
+		if flashcard.ShortTitle == shortTitle {
+			return flashcard
 		}
 	}
 	return nil
@@ -284,26 +294,7 @@ func (f *File) GetFlashcards() []*Flashcard {
 
 // GetMedias extracts medias from the file.
 func (f *File) GetMedias() ([]*Media, error) {
-	var medias []*Media
-
-	filepaths := make(map[string]bool)
-
-	regexMedia := regexp.MustCompile(`!\[(.*?)\]\((\S*?)(?:\s+"(.*?)")?\)`)
-	matches := regexMedia.FindAllStringSubmatch(f.Content, -1)
-	for _, match := range matches {
-		src := match[2]
-		if _, ok := filepaths[src]; ok {
-			continue
-		}
-		relpath, err := CurrentCollection().GetRelativePath(f.RelativePath, src)
-		if err != nil {
-			return nil, err
-		}
-		media := NewMedia(f, relpath)
-		medias = append(medias, media)
-		filepaths[src] = true
-	}
-	return medias, nil
+	return extractMediasFromMarkdown(f.RelativePath, f.Content)
 }
 
 // GetLinks extracts special links from the file.
@@ -337,16 +328,17 @@ func NewFileFromPath(filepath string) (*File, error) {
 	var rawContent bytes.Buffer
 	frontMatterStarted := false
 	frontMatterEnded := false
+	bodyStarted := false
 	for _, line := range strings.Split(strings.TrimSuffix(string(contentBytes), "\n"), "\n") {
 		if strings.HasPrefix(line, "---") {
-			if !frontMatterStarted {
-				frontMatterStarted = true
-			} else if !frontMatterEnded {
-				frontMatterEnded = true
-			} else {
+			if bodyStarted {
 				// Flashcard Front/Back line separator
 				rawContent.WriteString(line)
 				rawContent.WriteString("\n")
+			} else if !frontMatterStarted {
+				frontMatterStarted = true
+			} else if !frontMatterEnded {
+				frontMatterEnded = true
 			}
 			continue
 		}
@@ -355,11 +347,15 @@ func NewFileFromPath(filepath string) (*File, error) {
 			rawFrontMatter.WriteString(line)
 			rawFrontMatter.WriteString("\n")
 		} else {
+			if !text.IsBlank(line) {
+				bodyStarted = true
+			}
 			rawContent.WriteString(line)
 			rawContent.WriteString("\n")
 		}
 	}
 
+	fmt.Println(rawFrontMatter.String())
 	var frontMatter yaml.Node
 	err = yaml.Unmarshal(rawFrontMatter.Bytes(), &frontMatter)
 	if err != nil {

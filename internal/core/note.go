@@ -360,5 +360,9 @@ func extractAttributes(content string) (string, map[string]interface{}) {
 	return text.SquashBlankLines(res.String()), attributes
 }
 
+// GetMedias extracts medias from the note.
+func (n *Note) GetMedias() ([]*Media, error) {
+	return extractMediasFromMarkdown(n.File.RelativePath, n.Content)
+}
+
 // TODO add SetParent method and traverse the hierachy to merge attributes/tags
-// TOOD add GetMedias() method to extract medias from notes

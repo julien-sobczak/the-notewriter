@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	. "github.com/julien-sobczak/the-notetaker/internal/testutil"
 	"github.com/stretchr/testify/assert"
@@ -61,7 +60,73 @@ tags:
 }
 
 func TestNewFileFromPath(t *testing.T) {
-	filename := SetUpFromGoldenFile(t)
+	var tests = []struct {
+		name          string // name
+		rawContent    string // input
+		actualContent string // output
+	}{
+
+		{
+			name: "File without Front Matter",
+			rawContent: `# Hello
+
+Hello World!
+`,
+			actualContent: `# Hello
+
+Hello World!
+`,
+		},
+
+		{
+			name: "File with Front Matter",
+			rawContent: `---
+tags: [test]
+---
+
+# Hello
+
+Hello World!
+`,
+			actualContent: `# Hello
+
+Hello World!
+`,
+		},
+
+		{
+			name: "File without Front Matter and Flashcard",
+			rawContent: `# Hello
+
+## Flashcard: Demo
+
+What is the question?
+---
+The answer
+`,
+			actualContent: `# Hello
+
+## Flashcard: Demo
+
+What is the question?
+---
+The answer
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filename := SetUpCollectionFromFileContent(t, "test.md", tt.rawContent)
+			f, err := NewFileFromPath(filename)
+			require.NoError(t, err)
+			assert.Equal(t, strings.TrimSpace(tt.actualContent), strings.TrimSpace(f.Content))
+		})
+	}
+}
+
+func TestEditFileFrontMatter(t *testing.T) {
+	filename := SetUpCollectionFromGoldenFile(t)
 
 	// Init the file
 	f, err := NewFileFromPath(filename)
@@ -217,6 +282,7 @@ func TestGetMedias(t *testing.T) {
 	f, err := NewFileFromPath(filepath.Join(dirname, "medias.md"))
 	require.NoError(t, err)
 
+	// Step 1: Check medias on a file
 	medias, err := f.GetMedias()
 	require.NoError(t, err)
 	require.Len(t, medias, 5)
@@ -230,8 +296,25 @@ func TestGetMedias(t *testing.T) {
 
 	// File-specific information about each existing media must be collected
 	assert.Equal(t, "fdfcf70a6207648fd5d54740f0ffa915", medias[0].Hash)
-	assert.WithinDuration(t, time.Date(2023, time.January, 9, 13, 36, 54, 549055256, time.UTC), medias[0].MTime, 1*time.Hour)
+	assert.NotZero(t, medias[0].MTime)
 	assert.Equal(t, int64(13177), medias[0].Size)
+
+	// Step 2: Check medias on a note
+	note := f.FindNoteByKindAndShortTitle(KindReference, "Animation")
+	require.NotNil(t, note)
+	medias, err = note.GetMedias()
+	require.NoError(t, err)
+	assert.Len(t, medias, 1)
+	assert.Equal(t, "medias/leitner_system_animation.gif", medias[0].Filepath)
+
+	// Step 3: Check medias on a flashcard
+	flashcard := f.FindFlashcardByTitle("Fishes")
+	require.NotNil(t, flashcard)
+	medias, err = flashcard.GetMedias()
+	require.NoError(t, err)
+	assert.Len(t, medias, 2)
+	assert.Equal(t, "medias/jellyfish.ogm", medias[0].Filepath)
+	assert.Equal(t, "medias/aquarium.webm", medias[1].Filepath)
 }
 
 /* Test Helpers */

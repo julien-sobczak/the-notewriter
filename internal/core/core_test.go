@@ -8,6 +8,27 @@ import (
 	"github.com/julien-sobczak/the-notetaker/internal/testutil"
 )
 
+// SetUpCollectionFromGoldenFile populates a temp directory containing a valid .nt collection and a single file.
+func SetUpCollectionFromGoldenFile(t *testing.T) string {
+	return SetUpCollectionFromGoldenFileNamed(t, t.Name()+".md")
+}
+
+// SetUpCollectionFromGoldenFileNamed populates a temp directory based on the given golden file name.
+func SetUpCollectionFromGoldenFileNamed(t *testing.T, testname string) string {
+	filename := testutil.SetUpFromGoldenFileNamed(t, testname)
+	dirname := filepath.Dir(filename)
+	configureDir(t, dirname)
+	return filename
+}
+
+// SetUpCollectionFromFileContent populates a temp directory based on the given file content.
+func SetUpCollectionFromFileContent(t *testing.T, name, content string) string {
+	filename := testutil.SetUpFromFileContent(t, name, content)
+	dirname := filepath.Dir(filename)
+	configureDir(t, dirname)
+	return filename
+}
+
 // SetUpCollectionFromGoldenDir populates a temp directory containing a valid .nt collection.
 func SetUpCollectionFromGoldenDir(t *testing.T) string {
 	return SetUpCollectionFromGoldenDirNamed(t, t.Name())
@@ -16,7 +37,11 @@ func SetUpCollectionFromGoldenDir(t *testing.T) string {
 // SetUpCollectionFromGoldenDir populates a temp directory based on the given golden dir name.
 func SetUpCollectionFromGoldenDirNamed(t *testing.T, testname string) string {
 	dirname := testutil.SetUpFromGoldenDir(t)
+	configureDir(t, dirname)
+	return dirname
+}
 
+func configureDir(t *testing.T, dirname string) {
 	ntDir := filepath.Join(dirname, ".nt")
 	if _, err := os.Stat(ntDir); os.IsNotExist(err) {
 		// Create a default configuration if not exists for CurrentConfig() to work
@@ -34,6 +59,4 @@ extensions=["md", "markdown"]`), os.ModePerm); err != nil {
 		os.Unsetenv("NT_HOME")
 		Reset()
 	})
-
-	return dirname
 }

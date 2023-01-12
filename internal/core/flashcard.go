@@ -34,6 +34,8 @@ const (
 type Flashcard struct {
 	ID int64
 
+	ShortTitle string
+
 	// File
 	FileID int64
 	File   *File // Lazy-loaded
@@ -114,11 +116,12 @@ func NewFlashcard(f *File, n *Note) *Flashcard {
 	backMarkdown := strings.TrimSpace(backContent.String())
 
 	return &Flashcard{
-		FileID: f.ID,
-		File:   f,
-		NoteID: n.ID,
-		Note:   n,
-		Tags:   n.GetTags(),
+		ShortTitle: n.ShortTitle,
+		FileID:     f.ID,
+		File:       f,
+		NoteID:     n.ID,
+		Note:       n,
+		Tags:       n.GetTags(),
 
 		// SRS
 		Type:        CardNew,
@@ -142,4 +145,9 @@ func NewFlashcard(f *File, n *Note) *Flashcard {
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
+}
+
+// GetMedias extracts medias from the flashcard.
+func (f *Flashcard) GetMedias() ([]*Media, error) {
+	return extractMediasFromMarkdown(f.File.RelativePath, f.FrontMarkdown+f.BackMarkdown)
 }

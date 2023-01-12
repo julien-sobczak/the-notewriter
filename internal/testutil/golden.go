@@ -36,6 +36,19 @@ func SetUpFromGoldenFileNamed(t *testing.T, filename string) string {
 	return fileOut
 }
 
+// SetUpFromFileContent createa a temp file based on the given file content.
+func SetUpFromFileContent(t *testing.T, filename string, content string) string {
+	dir := t.TempDir()
+
+	fileOut := filepath.Join(dir, filename)
+	err := os.WriteFile(fileOut, []byte(content), 0755)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return fileOut
+}
+
 // SetUpFromGoldenDir populates a temp directory based on the given test name.
 func SetUpFromGoldenDir(t *testing.T) string {
 	return SetUpFromGoldenDirNamed(t, t.Name())

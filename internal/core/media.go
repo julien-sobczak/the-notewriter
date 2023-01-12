@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -77,7 +78,7 @@ func DetectMediaKind(filename string) MediaKind {
 }
 
 // NewMedia initializes a new media.
-func NewMedia(f *File, path string) *Media {
+func NewMedia(path string) *Media {
 	m := &Media{
 		Filepath:  path,
 		Kind:      DetectMediaKind(path),
@@ -98,4 +99,28 @@ func NewMedia(f *File, path string) *Media {
 	m.MTime = stat.ModTime()
 
 	return m
+}
+
+// extractMediasFromMarkdown search for medias from a markdown document (can be a file, a note, a flashcard, etc.).
+func extractMediasFromMarkdown(fileRelativePath string, content string) ([]*Media, error) {
+	var medias []*Media
+
+	filepaths := make(map[string]bool)
+
+	regexMedia := regexp.MustCompile(`!\[(.*?)\]\((\S*?)(?:\s+"(.*?)")?\)`)
+	matches := regexMedia.FindAllStringSubmatch(content, -1)
+	for _, match := range matches {
+		src := match[2]
+		if _, ok := filepaths[src]; ok {
+			continue
+		}
+		relpath, err := CurrentCollection().GetRelativePath(fileRelativePath, src)
+		if err != nil {
+			return nil, err
+		}
+		media := NewMedia(relpath)
+		medias = append(medias, media)
+		filepaths[src] = true
+	}
+	return medias, nil
 }
