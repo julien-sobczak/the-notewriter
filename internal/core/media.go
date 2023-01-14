@@ -1,6 +1,7 @@
 package core
 
 import (
+	"database/sql"
 	"errors"
 	"os"
 	"path/filepath"
@@ -123,4 +124,14 @@ func extractMediasFromMarkdown(fileRelativePath string, content string) ([]*Medi
 		filepaths[src] = true
 	}
 	return medias, nil
+}
+
+func (m *Media) Save() error {
+	// TODO
+	return nil
+}
+
+func (m *Media) SaveWithTx(tx *sql.Tx) error {
+	// TODO
+	return nil
 }

@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"database/sql"
 	"strings"
 	"time"
 
@@ -150,4 +151,14 @@ func NewFlashcard(f *File, n *Note) *Flashcard {
 // GetMedias extracts medias from the flashcard.
 func (f *Flashcard) GetMedias() ([]*Media, error) {
 	return extractMediasFromMarkdown(f.File.RelativePath, f.FrontMarkdown+f.BackMarkdown)
+}
+
+func (f *Flashcard) Save() error {
+	// TODO
+	return nil
+}
+
+func (f *Flashcard) SaveWithTx(tx *sql.Tx) error {
+	// TODO
+	return nil
 }

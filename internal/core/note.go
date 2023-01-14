@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"database/sql"
 	"fmt"
 	"regexp"
 	"strings"
@@ -366,3 +367,13 @@ func (n *Note) GetMedias() ([]*Media, error) {
 }
 
 // TODO add SetParent method and traverse the hierachy to merge attributes/tags
+
+func (n *Note) Save() error {
+	// TODO
+	return nil
+}
+
+func (n *Note) SaveWithTx(tx *sql.Tx) error {
+	// TODO
+	return nil
+}

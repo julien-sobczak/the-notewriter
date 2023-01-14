@@ -2,7 +2,9 @@ package core
 
 import (
 	"bytes"
+	"context"
 	"crypto/md5"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -355,7 +357,6 @@ func NewFileFromPath(filepath string) (*File, error) {
 		}
 	}
 
-	fmt.Println(rawFrontMatter.String())
 	var frontMatter yaml.Node
 	err = yaml.Unmarshal(rawFrontMatter.Bytes(), &frontMatter)
 	if err != nil {
@@ -403,7 +404,7 @@ func hashFromFile(path string) (string, error) {
 	return hash(contentBytes), nil
 }
 
-func (f *File) Save() error {
+func (f *File) SaveOnDisk() error {
 	// Persist to disk
 	frontMatter, err := f.FrontMatterString()
 	if err != nil {
@@ -430,6 +431,111 @@ func (f *File) Save() error {
 	f.Mode = stat.Mode()
 	f.Hash = hash(rawContent)
 
+	return nil
+}
+
+func (f *File) SaveDB() error {
+	db := CurrentDB().Client()
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+
+	defer tx.Rollback()
+
+	// Save the file
+	query := `
+INSERT INTO file(id, filepath, front_matter, content, created_at, updated_at, deleted_at, mtime)
+VALUES (NULL, ?, ?, ?, ?, ?, ?, ?);
+`
+	frontMatter, err := f.FrontMatterString()
+	if err != nil {
+		return err
+	}
+	res, err := tx.Exec(query, f.RelativePath, frontMatter, f.Content, timeToSQL(f.CreatedAt), timeToSQL(f.UpdatedAt), timeToSQL(f.DeletedAt), timeToSQL(f.MTime))
+	if err != nil {
+		return err
+	}
+
+	var id int64
+	if id, err = res.LastInsertId(); err != nil {
+		return err
+	}
+	f.ID = id
+
+	// Save the notes
+	for _, note := range f.GetNotes() {
+		note.SaveWithTx(tx)
+	}
+
+	// Ssve the flashcards
+	for _, flashcard := range f.GetFlashcards() {
+		flashcard.SaveWithTx(tx)
+	}
+
+	// Save the medias
+	medias, err := f.GetMedias()
+	if err != nil {
+		return err
+	}
+	for _, media := range medias {
+		media.SaveWithTx(tx)
+	}
+
+	// Save the links
+	for _, link := range f.GetLinks() {
+		link.SaveWithTx(tx)
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func LoadFileByPath(relativePath string) (*File, error) {
+	db := CurrentDB().Client()
+	var f File
+
+	var rawFrontMatter string
+	var createdAt string
+	var updatedAt string
+	var deletedAt string
+	var mTime string
+
+	// Query for a value based on a single row.
+	if err := db.QueryRow("SELECT id, filepath, front_matter, content, created_at, updated_at, deleted_at, mtime from file where filepath = ?", relativePath).
+		Scan(&f.ID, &f.RelativePath, &rawFrontMatter, &f.Content, &createdAt, &updatedAt, &deletedAt, &mTime); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("unknown file %v", relativePath)
+		}
+		return nil, err
+	}
+
+	var frontMatter yaml.Node
+	err := yaml.Unmarshal([]byte(rawFrontMatter), &frontMatter)
+	if err != nil {
+		return nil, err
+	}
+
+	f.frontMatter = &frontMatter
+	f.CreatedAt = timeFromSQL(createdAt)
+	f.UpdatedAt = timeFromSQL(updatedAt)
+	f.DeletedAt = timeFromSQL(deletedAt)
+	f.MTime = timeFromSQL(mTime)
+
+	return &f, nil
+}
+
+func (f *File) Save() error {
+	if err := f.SaveOnDisk(); err != nil {
+		return err
+	}
+	if err := f.SaveDB(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -460,4 +566,23 @@ func isSupportedNote(text string) (bool, NoteKind, string) {
 	}
 	// FIXME what about Journal notes?
 	return false, KindFree, ""
+}
+
+/* SQL */
+
+// Move to another package
+
+func timeToSQL(date time.Time) string {
+	if date.IsZero() {
+		return ""
+	}
+	return date.Format("2006-01-02T15:04:05")
+}
+
+func timeFromSQL(dateStr string) time.Time {
+	date, err := time.Parse(dateStr, "2006-01-02T15:04:05")
+	if err != nil {
+		return time.Time{}
+	}
+	return date
 }

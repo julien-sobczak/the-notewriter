@@ -9,7 +9,7 @@ build:
 	go build --tags "fts5" -o build/nt main.go
 
 test:
-	go test ./... -count=1
+	go test --tags "fts5" ./... -count=1
 
 # Development-only target
 build-example:

@@ -45,6 +45,12 @@ CREATE TABLE note (
     -- Line number (1-based index) of the note section title
     "line" INTEGER NOT NULL,
 
+    -- Title including the kind but not the Markdown heading characters
+    title TEXT NOT NULL,
+
+    -- Same as title without the kind
+    short_title TEXT NOT NULL,
+
     -- Content in Markdown format (best for editing)
     content_markdown TEXT NOT NULL,
     -- Content in HTML format (best for rendering)
@@ -60,8 +66,21 @@ CREATE TABLE note (
     FOREIGN KEY(file_id) REFERENCES file(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
-CREATE VIRTUAL TABLE note_fts USING FTS5(id UNINDEXED, kind UNINDEXED, content_text);
+CREATE VIRTUAL TABLE note_fts USING FTS5(id UNINDEXED, kind UNINDEXED, short_title, content_text);
 -- TODO add other fields? Contentless table?
+
+create trigger note_after_insert after insert on note begin
+  insert into note_fts (id, kind, short_title, content_text) values (new.id, new.kind, new.short_title, new.content_text);
+end;
+
+create trigger note_fts_after_update after update on note begin
+  insert into note_fts (note_fts, id, kind, short_title, content_text) values('delete', old.id, old.kind, old.short_title, old.content_text);
+  insert into note_fts (id, kind, short_title, content_text) values (new.id, new.kind, new.short_title, new.content_text);
+end;
+
+create trigger note_fts_after_delete after delete on note begin
+  insert into note_fts (note_fts, id, kind, short_title, content_text) values('delete', old.id, old.kind, old.short_title, old.content_text);
+end;
 
 CREATE TABLE media (
     id INTEGER PRIMARY KEY,

@@ -82,11 +82,11 @@ func (c *Collection) createNewReferenceFile(identifier string, kind string) (*Fi
 }
 
 func (c *Collection) AddNewReferenceFile(identifier string, kind string) error {
-	note, err := c.createNewReferenceFile(identifier, kind)
+	f, err := c.createNewReferenceFile(identifier, kind)
 	if err != nil {
 		return err
 	}
-	return note.Save()
+	return f.SaveOnDisk()
 }
 
 func (c *Collection) Close() {
@@ -101,4 +101,10 @@ func (c *Collection) GetRelativePath(referencePath string, srcPath string) (stri
 // GetAbsolutePath converts a relative path from the collection to an absoluate path on disk.
 func (c *Collection) GetAbsolutePath(relativePath string) string {
 	return filepath.Join(c.Path, relativePath)
+}
+
+func (c *Collection) Save() error {
+	// TODD
+	// walk the file system to find stale files
+	return nil
 }

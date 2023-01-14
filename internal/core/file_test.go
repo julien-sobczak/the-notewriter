@@ -152,7 +152,7 @@ extras:
 `, f)
 
 	// Save the file
-	f.Save()
+	f.SaveOnDisk()
 	rawContent, err := os.ReadFile(filename)
 	require.NoError(t, err)
 	require.Equal(t, `---
@@ -315,6 +315,26 @@ func TestGetMedias(t *testing.T) {
 	assert.Len(t, medias, 2)
 	assert.Equal(t, "medias/jellyfish.ogm", medias[0].Filepath)
 	assert.Equal(t, "medias/aquarium.webm", medias[1].Filepath)
+}
+
+func TestFileSave(t *testing.T) {
+	filename := SetUpCollectionFromFileContent(t, "content.md", `---
+tags: [test]
+---
+# Content
+
+Hello`)
+
+	// Init the file
+	f, err := NewFileFromPath(filename)
+	require.NoError(t, err)
+
+	err = f.Save()
+	require.NoError(t, err)
+
+	f, err = LoadFileByPath(f.RelativePath)
+	require.NoError(t, err)
+	assert.Equal(t, "# Content\n\nHello", f.Content)
 }
 
 /* Test Helpers */

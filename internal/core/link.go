@@ -1,6 +1,9 @@
 package core
 
-import "time"
+import (
+	"database/sql"
+	"time"
+)
 
 type Link struct {
 	ID int64
@@ -23,4 +26,14 @@ type Link struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt time.Time
+}
+
+func (l *Link) Save() error {
+	// TODO
+	return nil
+}
+
+func (l *Link) SaveWithTx(tx *sql.Tx) error {
+	// TODO
+	return nil
 }
