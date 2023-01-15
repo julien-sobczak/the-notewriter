@@ -47,9 +47,10 @@ type File struct {
 	// Content last modification date
 	MTime time.Time
 
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	DeletedAt     time.Time
+	LastCheckedAt time.Time
 }
 
 /* Front Matter */
@@ -434,25 +435,37 @@ func (f *File) SaveOnDisk() error {
 	return nil
 }
 
-func (f *File) SaveDB() error {
+func (f *File) Save() error {
 	db := CurrentDB().Client()
 	tx, err := db.BeginTx(context.Background(), nil)
 	if err != nil {
 		return err
 	}
-
 	defer tx.Rollback()
 
-	// Save the file
+	err = f.SaveWithTx(tx)
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (f *File) SaveWithTx(tx *sql.Tx) error {
 	query := `
-INSERT INTO file(id, filepath, front_matter, content, created_at, updated_at, deleted_at, mtime)
-VALUES (NULL, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO file(id, relative_path, front_matter, content, created_at, updated_at, deleted_at, last_checked_at, mtime, size, hashsum, mode)
+VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 `
 	frontMatter, err := f.FrontMatterString()
 	if err != nil {
 		return err
 	}
-	res, err := tx.Exec(query, f.RelativePath, frontMatter, f.Content, timeToSQL(f.CreatedAt), timeToSQL(f.UpdatedAt), timeToSQL(f.DeletedAt), timeToSQL(f.MTime))
+	res, err := tx.Exec(query, f.RelativePath, frontMatter, f.Content, timeToSQL(f.CreatedAt), timeToSQL(f.UpdatedAt), timeToSQL(f.DeletedAt), timeToSQL(f.LastCheckedAt), timeToSQL(f.MTime), f.Size, f.Hash, f.Mode)
 	if err != nil {
 		return err
 	}
@@ -465,12 +478,16 @@ VALUES (NULL, ?, ?, ?, ?, ?, ?, ?);
 
 	// Save the notes
 	for _, note := range f.GetNotes() {
-		note.SaveWithTx(tx)
+		if err := note.SaveWithTx(tx); err != nil {
+			return err
+		}
 	}
 
 	// Ssve the flashcards
 	for _, flashcard := range f.GetFlashcards() {
-		flashcard.SaveWithTx(tx)
+		if err := flashcard.SaveWithTx(tx); err != nil {
+			return err
+		}
 	}
 
 	// Save the medias
@@ -479,17 +496,16 @@ VALUES (NULL, ?, ?, ?, ?, ?, ?, ?);
 		return err
 	}
 	for _, media := range medias {
-		media.SaveWithTx(tx)
+		if err := media.SaveWithTx(tx); err != nil {
+			return err
+		}
 	}
 
 	// Save the links
 	for _, link := range f.GetLinks() {
-		link.SaveWithTx(tx)
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return err
+		if err := link.SaveWithTx(tx); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -503,11 +519,28 @@ func LoadFileByPath(relativePath string) (*File, error) {
 	var createdAt string
 	var updatedAt string
 	var deletedAt string
+	var lastCheckedAt string
 	var mTime string
 
 	// Query for a value based on a single row.
-	if err := db.QueryRow("SELECT id, filepath, front_matter, content, created_at, updated_at, deleted_at, mtime from file where filepath = ?", relativePath).
-		Scan(&f.ID, &f.RelativePath, &rawFrontMatter, &f.Content, &createdAt, &updatedAt, &deletedAt, &mTime); err != nil {
+	if err := db.QueryRow(`
+		SELECT
+			id,
+			relative_path,
+			front_matter,
+			content,
+			created_at,
+			updated_at,
+			deleted_at,
+			last_checked_at,
+			mtime,
+			size,
+			hashsum,
+			mode
+		FROM file
+		WHERE relative_path = ?`,
+		relativePath).
+		Scan(&f.ID, &f.RelativePath, &rawFrontMatter, &f.Content, &createdAt, &updatedAt, &deletedAt, &lastCheckedAt, &mTime, &f.Size, &f.Hash, &f.Mode); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("unknown file %v", relativePath)
 		}
@@ -524,19 +557,10 @@ func LoadFileByPath(relativePath string) (*File, error) {
 	f.CreatedAt = timeFromSQL(createdAt)
 	f.UpdatedAt = timeFromSQL(updatedAt)
 	f.DeletedAt = timeFromSQL(deletedAt)
+	f.LastCheckedAt = timeFromSQL(lastCheckedAt)
 	f.MTime = timeFromSQL(mTime)
 
 	return &f, nil
-}
-
-func (f *File) Save() error {
-	if err := f.SaveOnDisk(); err != nil {
-		return err
-	}
-	if err := f.SaveDB(); err != nil {
-		return err
-	}
-	return nil
 }
 
 func isSupportedNote(text string) (bool, NoteKind, string) {

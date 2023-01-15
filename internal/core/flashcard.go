@@ -2,7 +2,9 @@ package core
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
+	"fmt"
 	"strings"
 	"time"
 
@@ -35,6 +37,7 @@ const (
 type Flashcard struct {
 	ID int64
 
+	// Short title of the note (denormalized field)
 	ShortTitle string
 
 	// File
@@ -89,9 +92,10 @@ type Flashcard struct {
 	BackText  string
 
 	// Timestamps to track changes
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	DeletedAt     time.Time
+	LastCheckedAt time.Time
 }
 
 // NewFlashcard initializes a new flashcard.
@@ -154,11 +158,168 @@ func (f *Flashcard) GetMedias() ([]*Media, error) {
 }
 
 func (f *Flashcard) Save() error {
-	// TODO
+	db := CurrentDB().Client()
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = f.SaveWithTx(tx)
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func (f *Flashcard) SaveWithTx(tx *sql.Tx) error {
-	// TODO
+	query := `
+		INSERT INTO flashcard(
+			id,
+			file_id,
+			note_id,
+			short_title,
+			tags,
+			"type",
+			queue,
+			due,
+			ivl,
+			ease_factor,
+			repetitions,
+			lapses,
+			left,
+			front_markdown,
+			back_markdown,
+			front_html,
+			back_html,
+			front_text,
+			back_text,
+			created_at,
+			updated_at,
+			deleted_at,
+			last_checked_at
+		)
+		VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		`
+	res, err := tx.Exec(query,
+		f.FileID,
+		f.NoteID,
+		f.ShortTitle,
+		strings.Join(f.Tags, ","),
+		f.Type,
+		f.Queue,
+		f.Due,
+		f.Interval,
+		f.EaseFactor,
+		f.Repetitions,
+		f.Lapses,
+		f.Left,
+		f.FrontMarkdown,
+		f.BackMarkdown,
+		f.FrontHTML,
+		f.BackHTML,
+		f.FrontText,
+		f.BackText,
+		timeToSQL(f.CreatedAt),
+		timeToSQL(f.UpdatedAt),
+		timeToSQL(f.DeletedAt),
+		timeToSQL(f.LastCheckedAt))
+	if err != nil {
+		return err
+	}
+
+	var id int64
+	if id, err = res.LastInsertId(); err != nil {
+		return err
+	}
+	f.ID = id
+
 	return nil
 }
+
+func LoadFlashcardByID(id int64) (*Flashcard, error) {
+	db := CurrentDB().Client()
+
+	var f Flashcard
+	var tagsRaw string
+	var createdAt string
+	var updatedAt string
+	var deletedAt string
+	var lastCheckedAt string
+
+	// Query for a value based on a single row.
+	if err := db.QueryRow(`
+		SELECT
+			id,
+			file_id,
+			note_id,
+			short_title,
+			tags,
+			"type",
+			queue,
+			due,
+			ivl,
+			ease_factor,
+			repetitions,
+			lapses,
+			left,
+			front_markdown,
+			back_markdown,
+			front_html,
+			back_html,
+			front_text,
+			back_text,
+			created_at,
+			updated_at,
+			deleted_at,
+			last_checked_at
+			FROM file
+		WHERE id = ?`, id).
+		Scan(
+			&f.ID,
+			&f.FileID,
+			&f.NoteID,
+			&f.ShortTitle,
+			&tagsRaw,
+			&f.Type,
+			&f.Queue,
+			&f.Due,
+			&f.Interval,
+			&f.EaseFactor,
+			&f.Repetitions,
+			&f.Lapses,
+			&f.Left,
+			&f.FrontMarkdown,
+			&f.BackMarkdown,
+			&f.FrontHTML,
+			&f.BackHTML,
+			&f.FrontText,
+			&f.BackText,
+			&createdAt,
+			&updatedAt,
+			&deletedAt,
+			&lastCheckedAt,
+		); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("unknown flashcard %v", id)
+		}
+		return nil, err
+	}
+
+	f.Tags = strings.Split(tagsRaw, ",")
+	f.CreatedAt = timeFromSQL(createdAt)
+	f.UpdatedAt = timeFromSQL(updatedAt)
+	f.DeletedAt = timeFromSQL(deletedAt)
+	f.LastCheckedAt = timeFromSQL(lastCheckedAt)
+
+	return &f, nil
+}
+
+// TODO Add FindFlashcardByShortTitle
+// TODO Add FindFlashcardByHash

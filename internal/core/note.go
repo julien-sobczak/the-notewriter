@@ -2,7 +2,9 @@ package core
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/julien-sobczak/the-notetaker/pkg/markdown"
 	"github.com/julien-sobczak/the-notetaker/pkg/text"
+	"gopkg.in/yaml.v3"
 )
 
 type NoteKind int
@@ -69,15 +72,17 @@ type Note struct {
 
 	// Content in various formats (best for editing, rendering, writing, etc.)
 	RawContent      string
+	Hash            string
 	Content         string // Same as RawContent without tags, attributes, etc.
 	ContentMarkdown string
 	ContentHTML     string
 	ContentText     string
 
 	// Timestamps to track changes
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	DeletedAt     time.Time
+	LastCheckedAt time.Time
 }
 
 func NewNote(f *File, title string, content string, lineNumber int) *Note {
@@ -103,7 +108,8 @@ func NewNote(f *File, title string, content string, lineNumber int) *Note {
 }
 
 func (n *Note) updateContent(rawContent string) {
-	n.RawContent = rawContent
+	n.RawContent = strings.TrimSpace(rawContent)
+	n.Hash = hash([]byte(n.RawContent))
 
 	var tags []string
 	var attributes map[string]interface{}
@@ -366,14 +372,216 @@ func (n *Note) GetMedias() ([]*Media, error) {
 	return extractMediasFromMarkdown(n.File.RelativePath, n.Content)
 }
 
+// GetReminders extracts reminders from the note.
+func (n *Note) GetReminders() ([]*Reminder, error) {
+	// TODO
+	return nil, nil
+}
+
 // TODO add SetParent method and traverse the hierachy to merge attributes/tags
 
 func (n *Note) Save() error {
-	// TODO
+	db := CurrentDB().Client()
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = n.SaveWithTx(tx)
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func (n *Note) SaveWithTx(tx *sql.Tx) error {
-	// TODO
+	// There is no common interface between sql.DB and sql.Txt
+	// See https://github.com/golang/go/issues/14468
+
+	query := `
+		INSERT INTO note(
+			id,
+			file_id,
+			note_id,
+			kind,
+			relative_path,
+			title,
+			short_title,
+			attributes_yaml,
+			attributes_json,
+			tags,
+			"line",
+			content_raw,
+			hashsum,
+			content_markdown,
+			content_html,
+			content_text,
+			created_at,
+			updated_at,
+			deleted_at,
+			last_checked_at)
+		VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+	`
+
+	attributesYAML, err := n.AttributesYAML()
+	if err != nil {
+		return err
+	}
+	attributesJSON, err := n.AttributesJSON()
+	if err != nil {
+		return err
+	}
+
+	res, err := tx.Exec(query,
+		n.ID,
+		n.FileID,
+		n.ParentNoteID,
+		n.Kind,
+		n.RelativePath,
+		n.Title,
+		n.ShortTitle,
+		attributesYAML,
+		attributesJSON,
+		strings.Join(n.Tags, ","),
+		n.Line,
+		n.Content,
+		n.Hash,
+		n.ContentMarkdown,
+		n.ContentHTML,
+		n.ContentText,
+		timeToSQL(n.CreatedAt),
+		timeToSQL(n.UpdatedAt),
+		timeToSQL(n.DeletedAt),
+		timeToSQL(n.LastCheckedAt),
+	)
+	if err != nil {
+		return err
+	}
+
+	var id int64
+	if id, err = res.LastInsertId(); err != nil {
+		return err
+	}
+	n.ID = id
+
+	// Save reminders
+	reminders, err := n.GetReminders()
+	if err != nil {
+		return err
+	}
+	for _, reminder := range reminders {
+		if err := reminder.SaveWithTx(tx); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
+
+func (n *Note) AttributesJSON() (string, error) {
+	var buf bytes.Buffer
+	bufEncoder := json.NewEncoder(&buf)
+	err := bufEncoder.Encode(n.Attributes)
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+func (n *Note) AttributesYAML() (string, error) {
+	var buf bytes.Buffer
+	bufEncoder := yaml.NewEncoder(&buf)
+	bufEncoder.SetIndent(Indent)
+	err := bufEncoder.Encode(n.Attributes)
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+func LoadNoteByID(id int64) (*Note, error) {
+	db := CurrentDB().Client()
+
+	var n Note
+	var createdAt string
+	var updatedAt string
+	var deletedAt string
+	var lastCheckedAt string
+	var tagsRaw string
+	var attributesRaw string
+
+	// Query for a value based on a single row.
+	if err := db.QueryRow(`
+		SELECT
+			id,
+			file_id,
+			note_id,
+			kind,
+			relative_path,
+			title,
+			short_title,
+			attributes_yaml,
+			tags,
+			"line",
+			content_raw,
+			hashsum,
+			content_markdown,
+			content_html,
+			content_text,
+			created_at,
+			updated_at,
+			deleted_at,
+			last_checked_at
+		FROM note
+		WHERE id = ?`, id).
+		Scan(
+			&n.ID,
+			&n.FileID,
+			&n.ParentNoteID,
+			&n.Kind,
+			&n.RelativePath,
+			&n.Title,
+			&n.ShortTitle,
+			&attributesRaw,
+			&tagsRaw,
+			&n.Line,
+			&n.Content,
+			&n.ContentMarkdown,
+			&n.ContentHTML,
+			&n.ContentText,
+			&createdAt,
+			&updatedAt,
+			&deletedAt,
+			&lastCheckedAt,
+		); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("unknown note %v", id)
+		}
+		return nil, err
+	}
+
+	var attributes map[string]interface{}
+	err := yaml.Unmarshal([]byte(attributesRaw), &attributes)
+	if err != nil {
+		return nil, err
+	}
+
+	n.Attributes = attributes
+	n.Tags = strings.Split(tagsRaw, ",")
+	n.CreatedAt = timeFromSQL(createdAt)
+	n.UpdatedAt = timeFromSQL(updatedAt)
+	n.DeletedAt = timeFromSQL(deletedAt)
+	n.LastCheckedAt = timeFromSQL(lastCheckedAt)
+
+	return &n, nil
+}
+
+// TODO Add FindNoteByShortTitle
+// TODO Add FindNoteByHash

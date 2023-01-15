@@ -1,8 +1,17 @@
+CREATE TABLE collection (
+    id INTEGER PRIMARY KEY,
+
+    -- Timestamps to track changes
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    last_checked_at TEXT
+);
+
 CREATE TABLE file (
     id INTEGER PRIMARY KEY,
 
     -- Relative file path to the file
-    filepath TEXT NOT NULL,
+    relative_path TEXT NOT NULL,
 
     -- JSON document representing the Front Matter
     front_matter TEXT NOT NULL,
@@ -14,9 +23,13 @@ CREATE TABLE file (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT,
+    last_checked_at TEXT,
 
     -- Last modification of local file on disk
-    mtime TEXT NOT NULL
+    mtime TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    hashsum TEXT NOT NULL,
+    mode INTEGER NOT NULL
 );
 
 CREATE TABLE note (
@@ -25,25 +38,24 @@ CREATE TABLE note (
     -- File containing the note
     file_id INTEGER NOT NULL,
 
+    -- Optional parent note containing the note
+    note_id INTEGER,
+
     -- Type of note:
-    --    1 Note
-    --    2 Flashcard
-    --    3 Cheatsheet
-    --    4 Quote
-    --    5 Journal
+    --    0 Free (not persisted for now)
+    --    1 Reference
+    --    2 Note
+    --    3 Flashcard
+    --    4 Cheatsheet
+    --    5 Quote
+    --    6 Journal
+    --    7 TODO
+    --    8 Artwork
+    --    9 Snippet
     kind INTEGER NOT NULL,
 
-    -- The filepath of the file containing the note (denormalized field)
-    filepath TEXT NOT NULL,
-
-    -- Merged Front Matter containing file attributes + note-specific attributes
-    front_matter TEXT NOT NULL,
-
-    -- Comma-separated list of tags
-    tags TEXT NOT NULL,
-
-    -- Line number (1-based index) of the note section title
-    "line" INTEGER NOT NULL,
+    -- The relative path of the file containing the note (denormalized field)
+    relative_path TEXT NOT NULL,
 
     -- Title including the kind but not the Markdown heading characters
     title TEXT NOT NULL,
@@ -51,6 +63,20 @@ CREATE TABLE note (
     -- Same as title without the kind
     short_title TEXT NOT NULL,
 
+    -- Merged attributes
+    attributes_yaml TEXT NOT NULL,
+    attributes_json TEXT NOT NULL,
+
+    -- Comma-separated list of tags
+    tags TEXT NOT NULL,
+
+    -- Line number (1-based index) of the note section title
+    "line" INTEGER NOT NULL,
+
+    -- Content without post-prcessing (including tags, attributes, ...)
+    content_raw TEXT NOT NULL,
+    -- Hash of content_raw
+    hashsum TEXT NOT NULL,
     -- Content in Markdown format (best for editing)
     content_markdown TEXT NOT NULL,
     -- Content in HTML format (best for rendering)
@@ -62,8 +88,10 @@ CREATE TABLE note (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT,
+    last_checked_at TEXT,
 
-    FOREIGN KEY(file_id) REFERENCES file(id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY(file_id) REFERENCES file(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY(note_id) REFERENCES note(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE VIRTUAL TABLE note_fts USING FTS5(id UNINDEXED, kind UNINDEXED, short_title, content_text);
@@ -86,13 +114,18 @@ CREATE TABLE media (
     id INTEGER PRIMARY KEY,
 
     -- Relative path
-    filepath TEXT NOT NULL,
+    relative_path TEXT NOT NULL,
 
     -- Type of media
+    --    0 unknown
     --    1 audio
     --    2 picture
-    --    3 document
+    --    3 video
+    --    4 document
     kind INTEGER NOT NULL,
+
+    -- Media not present on disk
+    dangling INTEGER NOT NULL DEFAULT 0,
 
     -- Extension
     extension TEXT NOT NULL,
@@ -101,18 +134,23 @@ CREATE TABLE media (
     mtime TEXT NOT NULL,
 
     -- Checksum
-    hash TEXT NOT NULL,
+    hashsum TEXT NOT NULL,
 
     -- How many notes references this file
     links INTEGER NOT NULL DEFAULT 0,
+
     -- Size of the file
     size INTEGER NOT NULL,
     -- These attributes can be used to find unused and/or large files
 
+    -- Permission of the file
+    mode INTEGER NOT NULL,
+
     -- Timestamps to track changes
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    deleted_at TEXT
+    deleted_at TEXT,
+    last_checked_at TEXT
 );
 
 CREATE TABLE link (
@@ -127,12 +165,13 @@ CREATE TABLE link (
 
     title TEXT,
 
-    goName TEXT,
+    go_name TEXT,
 
     -- Timestamps to track changes
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT,
+    last_checked_at TEXT,
 
     FOREIGN KEY(note_id) REFERENCES note(id) ON DELETE CASCADE ON UPDATE CASCADE
     -- TODO add filepath? line? absolute path?
@@ -141,10 +180,16 @@ CREATE TABLE link (
 -- insert into link(1, 'Link 2', 'https://docs.npmjs.com', 'Tutorial to creating Node.js', 'node/module', 'skills/node.md')
 
 CREATE TABLE flashcard (
-	id INTEGER PRIMARY KEY,
+	  id INTEGER PRIMARY KEY,
+
+    -- File representing the flashcard
+    file_id INTEGER NOT NULL,
 
     -- Note representing the flashcard
     note_id INTEGER NOT NULL,
+
+    -- Note short title
+    short_title TEXT NOT NULL,
 
     -- Comma separated list of tags
     tags TEXT DEFAULT '',
@@ -170,10 +215,10 @@ CREATE TABLE flashcard (
     ivl INTEGER NOT NULL DEFAULT 0,
 
     -- The ease factor in permille (ex: 2500 = the interval will be multiplied by 2.5 the next time you press "Good").
-    factor INTEGER NOT NULL DEFAULT 0,
+    ease_factor INTEGER NOT NULL DEFAULT 0,
 
     -- The number of reviews.
-    reps INTEGER NOT NULL DEFAULT 0,
+    repetitions INTEGER NOT NULL DEFAULT 0,
 
     -- The number of times the card went from a "was answered correctly" to "was answered incorrectly" state.
     lapses INTEGER NOT NULL DEFAULT 0,
@@ -200,9 +245,42 @@ CREATE TABLE flashcard (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT,
+    last_checked_at TEXT,
 
+    FOREIGN KEY(file_id) REFERENCES file(id) ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY(note_id) REFERENCES note(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 -- TODO add custom template name?
 
 
+CREATE TABLE reminder (
+	  id INTEGER PRIMARY KEY,
+
+    -- File representing the flashcard
+    file_id INTEGER NOT NULL,
+
+    -- Note representing the flashcard
+    note_id INTEGER NOT NULL,
+
+    -- Description
+    description_raw TEXT NOT NULL,
+    description_markdown TEXT NOT NULL,
+    description_html TEXT NOT NULL,
+    description_text TEXT NOT NULL,
+
+    -- Tag value containig the formula to determine the next occurence
+    tag TEXT NOT NULL,
+
+    -- Timestamps to track progress
+    last_performed_at TEXT,
+    next_performed_at TEXT NOT NULL,
+
+    -- Timestamps to track changes
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT,
+    last_checked_at TEXT,
+
+    FOREIGN KEY(file_id) REFERENCES file(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY(note_id) REFERENCES note(id) ON DELETE CASCADE ON UPDATE CASCADE
+);

@@ -1,9 +1,13 @@
 package core
 
 import (
+	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/julien-sobczak/the-notetaker/internal/reference"
 	"github.com/julien-sobczak/the-notetaker/internal/reference/wikipedia"
@@ -21,9 +25,15 @@ var (
 )
 
 type Collection struct {
+	ID int64
+
 	Path          string
 	bookManager   reference.Manager
 	personManager reference.Manager
+
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	LastCheckedAt time.Time
 }
 
 func CurrentCollection() *Collection {
@@ -104,7 +114,84 @@ func (c *Collection) GetAbsolutePath(relativePath string) string {
 }
 
 func (c *Collection) Save() error {
-	// TODD
-	// walk the file system to find stale files
+	db := CurrentDB().Client()
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = c.SaveWithTx(tx)
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
 	return nil
+}
+
+func (c *Collection) SaveWithTx(tx *sql.Tx) error {
+	// walk the file system to find stale files
+
+	// Update the collection
+	query := `
+		INSERT INTO collection(
+			id,
+			created_at,
+			updated_at,
+			last_checked_at)
+		VALUES (NULL, ?, ?, ?);
+	`
+
+	res, err := tx.Exec(query,
+		c.ID,
+		timeToSQL(c.CreatedAt),
+		timeToSQL(c.UpdatedAt),
+		timeToSQL(c.LastCheckedAt),
+	)
+	if err != nil {
+		return err
+	}
+
+	var id int64
+	if id, err = res.LastInsertId(); err != nil {
+		return err
+	}
+	c.ID = id
+
+	return nil
+}
+
+func LoadCollection() (*Collection, error) {
+	db := CurrentDB().Client()
+
+	var c Collection
+	var createdAt string
+	var updatedAt string
+	var lastCheckedAt string
+
+	// Query for a value based on a single row.
+	if err := db.QueryRow(`
+		SELECT
+			id,
+			created_at,
+			updated_at,
+			last_checked_at
+		FROM file`).
+		Scan(&c.ID, &createdAt, &updatedAt, &lastCheckedAt); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, errors.New("unknown collection")
+		}
+		return nil, err
+	}
+
+	c.CreatedAt = timeFromSQL(createdAt)
+	c.UpdatedAt = timeFromSQL(updatedAt)
+	c.LastCheckedAt = timeFromSQL(lastCheckedAt)
+
+	return &c, nil
 }

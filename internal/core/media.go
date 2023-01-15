@@ -1,8 +1,11 @@
 package core
 
 import (
+	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -28,7 +31,7 @@ type Media struct {
 	ID int64
 
 	// Relative path
-	Filepath string
+	RelativePath string
 
 	// Type of media
 	Kind MediaKind
@@ -51,10 +54,14 @@ type Media struct {
 	// 	Size of the file
 	Size int64
 
+	// Permission of the file
+	Mode fs.FileMode
+
 	// Timestamps to track changes
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	DeletedAt     time.Time
+	LastCheckedAt time.Time
 }
 
 // DetectMediaKind returns the media kind based on a file path.
@@ -81,10 +88,10 @@ func DetectMediaKind(filename string) MediaKind {
 // NewMedia initializes a new media.
 func NewMedia(path string) *Media {
 	m := &Media{
-		Filepath:  path,
-		Kind:      DetectMediaKind(path),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		RelativePath: path,
+		Kind:         DetectMediaKind(path),
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
 	}
 
 	abspath := CurrentCollection().GetAbsolutePath(path)
@@ -98,6 +105,7 @@ func NewMedia(path string) *Media {
 	m.Size = stat.Size()
 	m.Hash, _ = hashFromFile(abspath)
 	m.MTime = stat.ModTime()
+	m.Mode = stat.Mode()
 
 	return m
 }
@@ -127,11 +135,133 @@ func extractMediasFromMarkdown(fileRelativePath string, content string) ([]*Medi
 }
 
 func (m *Media) Save() error {
-	// TODO
+	db := CurrentDB().Client()
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = m.SaveWithTx(tx)
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func (m *Media) SaveWithTx(tx *sql.Tx) error {
-	// TODO
+	query := `
+		INSERT INTO XXX(
+			id,
+			relative_path,
+			kind,
+			dangling,
+			extension,
+			mtime,
+			hashsum,
+			links,
+			size,
+			mode,
+			created_at,
+			updated_at,
+			deleted_at,
+			last_checked_at
+		)
+		VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+	`
+	res, err := tx.Exec(query,
+		m.RelativePath,
+		m.Kind,
+		m.Dangling,
+		m.Extension,
+		timeToSQL(m.MTime),
+		m.Hash,
+		m.Links,
+		m.Size,
+		m.Mode,
+		timeToSQL(m.CreatedAt),
+		timeToSQL(m.UpdatedAt),
+		timeToSQL(m.DeletedAt),
+		timeToSQL(m.LastCheckedAt),
+	)
+	if err != nil {
+		return err
+	}
+
+	var id int64
+	if id, err = res.LastInsertId(); err != nil {
+		return err
+	}
+	m.ID = id
+
 	return nil
 }
+
+func LoadMediaByID(id int64) (*Media, error) {
+	db := CurrentDB().Client()
+	var m Media
+
+	var createdAt string
+	var updatedAt string
+	var deletedAt string
+	var lastCheckedAt string
+	var mTime string
+
+	// Query for a value based on a single row.
+	if err := db.QueryRow(`
+		SELECT
+			id,
+			relative_path,
+			kind,
+			dangling,
+			extension,
+			mtime,
+			hashsum,
+			links,
+			size,
+			mode,
+			created_at,
+			updated_at,
+			deleted_at,
+			last_checked_at
+		FROM media
+		WHERE id = ?`, id).
+		Scan(
+			&m.ID,
+			&m.RelativePath,
+			&m.Kind,
+			&m.Dangling,
+			&m.Extension,
+			&mTime,
+			&m.Hash,
+			&m.Links,
+			&m.Size,
+			&m.Mode,
+			&createdAt,
+			&updatedAt,
+			&deletedAt,
+			&lastCheckedAt,
+		); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("unknown media %v", id)
+		}
+		return nil, err
+	}
+
+	m.CreatedAt = timeFromSQL(createdAt)
+	m.UpdatedAt = timeFromSQL(updatedAt)
+	m.DeletedAt = timeFromSQL(deletedAt)
+	m.LastCheckedAt = timeFromSQL(lastCheckedAt)
+	m.MTime = timeFromSQL(mTime)
+
+	return &m, nil
+}
+
+// TODO Add FindMediaByRelativePath
+// TODO Add FindMediaByHash

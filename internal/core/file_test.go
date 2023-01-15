@@ -292,7 +292,7 @@ func TestGetMedias(t *testing.T) {
 	assert.True(t, medias[1].Dangling) // Link is broken
 
 	// Relative path must be store
-	assert.Equal(t, "medias/leitner_system.svg", medias[0].Filepath)
+	assert.Equal(t, "medias/leitner_system.svg", medias[0].RelativePath)
 
 	// File-specific information about each existing media must be collected
 	assert.Equal(t, "fdfcf70a6207648fd5d54740f0ffa915", medias[0].Hash)
@@ -305,7 +305,7 @@ func TestGetMedias(t *testing.T) {
 	medias, err = note.GetMedias()
 	require.NoError(t, err)
 	assert.Len(t, medias, 1)
-	assert.Equal(t, "medias/leitner_system_animation.gif", medias[0].Filepath)
+	assert.Equal(t, "medias/leitner_system_animation.gif", medias[0].RelativePath)
 
 	// Step 3: Check medias on a flashcard
 	flashcard := f.FindFlashcardByTitle("Fishes")
@@ -313,8 +313,8 @@ func TestGetMedias(t *testing.T) {
 	medias, err = flashcard.GetMedias()
 	require.NoError(t, err)
 	assert.Len(t, medias, 2)
-	assert.Equal(t, "medias/jellyfish.ogm", medias[0].Filepath)
-	assert.Equal(t, "medias/aquarium.webm", medias[1].Filepath)
+	assert.Equal(t, "medias/jellyfish.ogm", medias[0].RelativePath)
+	assert.Equal(t, "medias/aquarium.webm", medias[1].RelativePath)
 }
 
 func TestFileSave(t *testing.T) {
