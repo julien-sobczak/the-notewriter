@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/julien-sobczak/the-notetaker/pkg/markdown"
 )
 
@@ -179,6 +180,18 @@ func (f *Flashcard) Save() error {
 }
 
 func (f *Flashcard) SaveWithTx(tx *sql.Tx) error {
+	now := clock.Now()
+	f.UpdatedAt = now
+	f.LastCheckedAt = now
+
+	if f.ID != 0 {
+		return f.UpdateWithTx(tx)
+	} else {
+		return f.InsertWithTx(tx)
+	}
+}
+
+func (f *Flashcard) InsertWithTx(tx *sql.Tx) error {
 	query := `
 		INSERT INTO flashcard(
 			id,
@@ -241,6 +254,60 @@ func (f *Flashcard) SaveWithTx(tx *sql.Tx) error {
 	f.ID = id
 
 	return nil
+}
+
+func (f *Flashcard) UpdateWithTx(tx *sql.Tx) error {
+	query := `
+		UPDATE flashcard
+		SET
+			file_id = ?,
+			note_id = ?,
+			short_title = ?,
+			tags = ?,
+			"type" = ?,
+			queue = ?,
+			due = ?,
+			ivl = ?,
+			ease_factor = ?,
+			repetitions = ?,
+			lapses = ?,
+			left = ?,
+			front_markdown = ?,
+			back_markdown = ?,
+			front_html = ?,
+			back_html = ?,
+			front_text = ?,
+			back_text = ?,
+			updated_at = ?,
+			deleted_at = ?,
+			last_checked_at = ?
+		WHERE id = ?;
+		`
+	_, err := tx.Exec(query,
+		f.FileID,
+		f.NoteID,
+		f.ShortTitle,
+		strings.Join(f.Tags, ","),
+		f.Type,
+		f.Queue,
+		f.Due,
+		f.Interval,
+		f.EaseFactor,
+		f.Repetitions,
+		f.Lapses,
+		f.Left,
+		f.FrontMarkdown,
+		f.BackMarkdown,
+		f.FrontHTML,
+		f.BackHTML,
+		f.FrontText,
+		f.BackText,
+		timeToSQL(f.UpdatedAt),
+		timeToSQL(f.DeletedAt),
+		timeToSQL(f.LastCheckedAt),
+		f.ID)
+
+	return err
 }
 
 func LoadFlashcardByID(id int64) (*Flashcard, error) {

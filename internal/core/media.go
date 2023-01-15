@@ -156,6 +156,7 @@ func (m *Media) Save() error {
 }
 
 func (m *Media) SaveWithTx(tx *sql.Tx) error {
+	// TODO UPDATE if ID is defined
 	query := `
 		INSERT INTO XXX(
 			id,

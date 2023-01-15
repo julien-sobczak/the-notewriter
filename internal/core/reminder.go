@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
+
+	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 )
 
 type Reminder struct {
@@ -65,9 +67,18 @@ func (r *Reminder) Save() error {
 }
 
 func (r *Reminder) SaveWithTx(tx *sql.Tx) error {
-	// There is no common interface between sql.DB and sql.Txt
-	// See https://github.com/golang/go/issues/14468
+	now := clock.Now()
+	r.UpdatedAt = now
+	r.LastCheckedAt = now
 
+	if r.ID != 0 {
+		return r.UpdateWithTx(tx)
+	} else {
+		return r.InsertWithTx(tx)
+	}
+}
+
+func (r *Reminder) InsertWithTx(tx *sql.Tx) error {
 	query := `
 		INSERT INTO reminder(
 			id,
@@ -113,6 +124,44 @@ func (r *Reminder) SaveWithTx(tx *sql.Tx) error {
 	r.ID = id
 
 	return nil
+}
+
+func (r *Reminder) UpdateWithTx(tx *sql.Tx) error {
+	query := `
+		UPDATE reminder
+		SET
+			file_id = ?,
+			note_id = ?,
+			description_raw = ?,
+			description_markdown = ?,
+			description_html = ?,
+			description_text = ?,
+			tag = ?,
+			last_performed_at = ?,
+			next_performed_at = ?,
+			updated_at = ?,
+			deleted_at = ?,
+			last_checked_at = ?
+		)
+		WHERE id = ?;
+	`
+	_, err := tx.Exec(query,
+		r.FileID,
+		r.NoteID,
+		r.DescriptionRaw,
+		r.DescriptionMarkdown,
+		r.DescriptionHTML,
+		r.DescriptionText,
+		r.Tag,
+		timeToSQL(r.LastCheckedAt),
+		timeToSQL(r.NextPerformedAt),
+		timeToSQL(r.UpdatedAt),
+		timeToSQL(r.DeletedAt),
+		timeToSQL(r.LastCheckedAt),
+		r.ID,
+	)
+
+	return err
 }
 
 func LoadReminderByID(id int64) (*Reminder, error) {

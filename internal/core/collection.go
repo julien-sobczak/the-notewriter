@@ -12,6 +12,7 @@ import (
 	"github.com/julien-sobczak/the-notetaker/internal/reference"
 	"github.com/julien-sobczak/the-notetaker/internal/reference/wikipedia"
 	"github.com/julien-sobczak/the-notetaker/internal/reference/zotero"
+	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/julien-sobczak/the-notetaker/pkg/resync"
 )
 
@@ -135,9 +136,20 @@ func (c *Collection) Save() error {
 }
 
 func (c *Collection) SaveWithTx(tx *sql.Tx) error {
-	// walk the file system to find stale files
+	// TODO walk the file system to find stale files
 
-	// Update the collection
+	now := clock.Now()
+	c.UpdatedAt = now
+	c.LastCheckedAt = now
+
+	if c.ID != 0 {
+		return c.UpdateWithTx(tx)
+	} else {
+		return c.InsertWithTx(tx)
+	}
+}
+
+func (c *Collection) InsertWithTx(tx *sql.Tx) error {
 	query := `
 		INSERT INTO collection(
 			id,
@@ -166,7 +178,33 @@ func (c *Collection) SaveWithTx(tx *sql.Tx) error {
 	return nil
 }
 
+func (c *Collection) UpdateWithTx(tx *sql.Tx) error {
+	query := `
+		UPDATE collection
+		SET
+			updated_at = ?,
+			last_checked_at = ?
+		WHERE id = ?;
+	`
+
+	_, err := tx.Exec(query,
+		timeToSQL(c.UpdatedAt),
+		timeToSQL(c.LastCheckedAt),
+		c.ID,
+	)
+	return err
+}
+
 func LoadCollection() (*Collection, error) {
+	c, err := querySingleCollection("")
+	if err == sql.ErrNoRows {
+		return nil, errors.New("unknown collection")
+	}
+
+	return c, nil
+}
+
+func querySingleCollection(whereClause string, args ...any) (*Collection, error) {
 	db := CurrentDB().Client()
 
 	var c Collection
@@ -175,17 +213,16 @@ func LoadCollection() (*Collection, error) {
 	var lastCheckedAt string
 
 	// Query for a value based on a single row.
-	if err := db.QueryRow(`
+	if err := db.QueryRow(fmt.Sprintf(`
 		SELECT
 			id,
 			created_at,
 			updated_at,
 			last_checked_at
-		FROM file`).
+		FROM file
+		%s;`, whereClause), args).
 		Scan(&c.ID, &createdAt, &updatedAt, &lastCheckedAt); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, errors.New("unknown collection")
-		}
+
 		return nil, err
 	}
 

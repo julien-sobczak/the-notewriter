@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/julien-sobczak/the-notetaker/pkg/markdown"
 	"github.com/julien-sobczak/the-notetaker/pkg/text"
 	"gopkg.in/yaml.v3"
@@ -457,24 +458,19 @@ func (f *File) Save() error {
 }
 
 func (f *File) SaveWithTx(tx *sql.Tx) error {
-	query := `
-INSERT INTO file(id, relative_path, front_matter, content, created_at, updated_at, deleted_at, last_checked_at, mtime, size, hashsum, mode)
-VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-`
-	frontMatter, err := f.FrontMatterString()
-	if err != nil {
-		return err
-	}
-	res, err := tx.Exec(query, f.RelativePath, frontMatter, f.Content, timeToSQL(f.CreatedAt), timeToSQL(f.UpdatedAt), timeToSQL(f.DeletedAt), timeToSQL(f.LastCheckedAt), timeToSQL(f.MTime), f.Size, f.Hash, f.Mode)
-	if err != nil {
-		return err
-	}
+	now := clock.Now()
+	f.UpdatedAt = now
+	f.LastCheckedAt = now
 
-	var id int64
-	if id, err = res.LastInsertId(); err != nil {
-		return err
+	if f.ID != 0 {
+		if err := f.UpdateWithTx(tx); err != nil {
+			return err
+		}
+	} else {
+		if err := f.InsertWithTx(tx); err != nil {
+			return err
+		}
 	}
-	f.ID = id
 
 	// Save the notes
 	for _, note := range f.GetNotes() {
@@ -509,6 +505,79 @@ VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	}
 
 	return nil
+}
+
+func (f *File) InsertWithTx(tx *sql.Tx) error {
+	query := `
+		INSERT INTO file(
+			id,
+			relative_path,
+			front_matter,
+			content,
+			created_at,
+			updated_at,
+			deleted_at,
+			last_checked_at,
+			mtime,
+			size,
+			hashsum,
+			mode
+		)
+		VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+	`
+	frontMatter, err := f.FrontMatterString()
+	if err != nil {
+		return err
+	}
+	res, err := tx.Exec(query, f.RelativePath, frontMatter, f.Content, timeToSQL(f.CreatedAt), timeToSQL(f.UpdatedAt), timeToSQL(f.DeletedAt), timeToSQL(f.LastCheckedAt), timeToSQL(f.MTime), f.Size, f.Hash, f.Mode)
+	if err != nil {
+		return err
+	}
+
+	var id int64
+	if id, err = res.LastInsertId(); err != nil {
+		return err
+	}
+	f.ID = id
+
+	return nil
+}
+
+func (f *File) UpdateWithTx(tx *sql.Tx) error {
+	query := `
+		UPDATE file
+		SET
+			relative_path = ?
+			front_matter = ?
+			content = ?
+			updated_at = ?
+			deleted_at = ?
+			last_checked_at = ?
+			mtime = ?
+			size = ?
+			hashsum = ?
+			mode = ?
+		)
+		WHERE id = ?;
+	`
+	frontMatter, err := f.FrontMatterString()
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(query,
+		f.RelativePath,
+		frontMatter,
+		f.Content,
+		timeToSQL(f.UpdatedAt),
+		timeToSQL(f.DeletedAt),
+		timeToSQL(f.LastCheckedAt),
+		timeToSQL(f.MTime),
+		f.Size,
+		f.Hash,
+		f.Mode,
+		f.ID,
+	)
+	return err
 }
 
 func LoadFileByPath(relativePath string) (*File, error) {
@@ -562,6 +631,9 @@ func LoadFileByPath(relativePath string) (*File, error) {
 
 	return &f, nil
 }
+
+// LoadFileByID()
+// LoadFilesByRelativePathPrefix()
 
 func isSupportedNote(text string) (bool, NoteKind, string) {
 	if m := regexReference.FindStringSubmatch(text); m != nil {

@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
+
+	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 )
 
 type Link struct {
@@ -53,8 +55,18 @@ func (l *Link) Save() error {
 }
 
 func (l *Link) SaveWithTx(tx *sql.Tx) error {
-	// TODO
+	now := clock.Now()
+	l.UpdatedAt = now
+	l.LastCheckedAt = now
 
+	if l.ID != 0 {
+		return l.UpdateWithTx(tx)
+	} else {
+		return l.InsertWithTx(tx)
+	}
+}
+
+func (l *Link) InsertWithTx(tx *sql.Tx) error {
 	query := `
 		INSERT INTO link(
 			id,
@@ -91,6 +103,36 @@ func (l *Link) SaveWithTx(tx *sql.Tx) error {
 	}
 	l.ID = id
 	return nil
+}
+
+func (l *Link) UpdateWithTx(tx *sql.Tx) error {
+	query := `
+		UPDATE link
+		SET
+			note_id = ?,
+			"text" = ?,
+			url = ?,
+			title = ?,
+			go_name = ?,
+			updated_at = ?,
+			deleted_at = ?,
+			last_checked_at = ?
+		)
+		WHERE id = ?;
+		`
+	_, err := tx.Exec(query,
+		l.NoteID,
+		l.Text,
+		l.URL,
+		l.Title,
+		l.GoName,
+		timeToSQL(l.UpdatedAt),
+		timeToSQL(l.DeletedAt),
+		timeToSQL(l.LastCheckedAt),
+		l.ID,
+	)
+
+	return err
 }
 
 func LoadLinkByID(id int64) (*Link, error) {

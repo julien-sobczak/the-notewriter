@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/julien-sobczak/the-notetaker/pkg/markdown"
 	"github.com/julien-sobczak/the-notetaker/pkg/text"
 	"gopkg.in/yaml.v3"
@@ -405,6 +406,35 @@ func (n *Note) SaveWithTx(tx *sql.Tx) error {
 	// There is no common interface between sql.DB and sql.Txt
 	// See https://github.com/golang/go/issues/14468
 
+	now := clock.Now()
+	n.UpdatedAt = now
+	n.LastCheckedAt = now
+
+	if n.ID != 0 {
+		if err := n.UpdateWithTx(tx); err != nil {
+			return err
+		}
+	} else {
+		if err := n.InsertWithTx(tx); err != nil {
+			return err
+		}
+	}
+
+	// Save reminders
+	reminders, err := n.GetReminders()
+	if err != nil {
+		return err
+	}
+	for _, reminder := range reminders {
+		if err := reminder.SaveWithTx(tx); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (n *Note) InsertWithTx(tx *sql.Tx) error {
 	query := `
 		INSERT INTO note(
 			id,
@@ -440,7 +470,6 @@ func (n *Note) SaveWithTx(tx *sql.Tx) error {
 	}
 
 	res, err := tx.Exec(query,
-		n.ID,
 		n.FileID,
 		n.ParentNoteID,
 		n.Kind,
@@ -471,18 +500,66 @@ func (n *Note) SaveWithTx(tx *sql.Tx) error {
 	}
 	n.ID = id
 
-	// Save reminders
-	reminders, err := n.GetReminders()
+	return nil
+}
+
+func (n *Note) UpdateWithTx(tx *sql.Tx) error {
+	query := `
+		UPDATE note
+		SET
+			file_id = ?,
+			note_id = ?,
+			kind = ?,
+			relative_path = ?,
+			title = ?,
+			short_title = ?,
+			attributes_yaml = ?,
+			attributes_json = ?,
+			tags = ?,
+			"line" = ?,
+			content_raw = ?,
+			hashsum = ?,
+			content_markdown = ?,
+			content_html = ?,
+			content_text = ?,
+			updated_at = ?,
+			deleted_at = ?,
+			last_checked_at = ?
+		WHERE id = ?;
+	`
+
+	attributesYAML, err := n.AttributesYAML()
 	if err != nil {
 		return err
 	}
-	for _, reminder := range reminders {
-		if err := reminder.SaveWithTx(tx); err != nil {
-			return err
-		}
+	attributesJSON, err := n.AttributesJSON()
+	if err != nil {
+		return err
 	}
 
-	return nil
+	_, err = tx.Exec(query,
+		n.FileID,
+		n.ParentNoteID,
+		n.Kind,
+		n.RelativePath,
+		n.Title,
+		n.ShortTitle,
+		attributesYAML,
+		attributesJSON,
+		strings.Join(n.Tags, ","),
+		n.Line,
+		n.Content,
+		n.Hash,
+		n.ContentMarkdown,
+		n.ContentHTML,
+		n.ContentText,
+		timeToSQL(n.UpdatedAt),
+		timeToSQL(n.DeletedAt),
+		timeToSQL(n.LastCheckedAt),
+		n.ID,
+	)
+
+	return err
 }
 
 func (n *Note) AttributesJSON() (string, error) {
@@ -583,5 +660,7 @@ func LoadNoteByID(id int64) (*Note, error) {
 	return &n, nil
 }
 
-// TODO Add FindNoteByShortTitle
-// TODO Add FindNoteByHash
+// TODO Add FindNoteByShortTitle()
+// TODO Add FindNoteByHash()
+// TODO Add FindMatchingNotes(title, sum)
+// TODO Add SearchNotes()
