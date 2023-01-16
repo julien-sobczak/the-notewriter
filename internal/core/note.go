@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 	"time"
@@ -283,6 +284,36 @@ func (n Note) String() string {
 	return fmt.Sprintf("[%v] %s", n.Kind, n.Title)
 }
 
+func isSupportedNote(text string) (bool, NoteKind, string) {
+	if m := regexReference.FindStringSubmatch(text); m != nil {
+		return true, KindReference, m[1]
+	}
+	if m := regexNote.FindStringSubmatch(text); m != nil {
+		return true, KindNote, m[1]
+	}
+	if m := regexCheatsheet.FindStringSubmatch(text); m != nil {
+		return true, KindCheatsheet, m[1]
+	}
+	if m := regexFlashcard.FindStringSubmatch(text); m != nil {
+		return true, KindFlashcard, m[1]
+	}
+	if m := regexQuote.FindStringSubmatch(text); m != nil {
+		return true, KindQuote, m[1]
+	}
+	if m := regexTodo.FindStringSubmatch(text); m != nil {
+		return true, KindTodo, m[1]
+	}
+	if m := regexArtwork.FindStringSubmatch(text); m != nil {
+		return true, KindArtwork, m[1]
+	}
+	if m := regexSnippet.FindStringSubmatch(text); m != nil {
+		return true, KindArtwork, m[1]
+	}
+	// FIXME what about Journal notes?
+	return false, KindFree, ""
+}
+
+
 func (n *Note) expandSyntaxSugar(rawContent string) string {
 	if n.Kind == KindQuote {
 		// Turn every text line into a quote
@@ -415,6 +446,7 @@ func (n *Note) SaveWithTx(tx *sql.Tx) error {
 			return err
 		}
 	} else {
+		n.CreatedAt = now
 		if err := n.InsertWithTx(tx); err != nil {
 			return err
 		}
@@ -583,7 +615,58 @@ func (n *Note) AttributesYAML() (string, error) {
 	return buf.String(), nil
 }
 
+// CountNotes returns the total number of notes.
+func CountNotes() (int, error) {
+	db := CurrentDB().Client()
+
+	var count int
+	if err := db.QueryRow(`SELECT count(*) FROM note WHERE deleted_at = ''`).Scan(&count); err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
 func LoadNoteByID(id int64) (*Note, error) {
+	return QueryNote(`WHERE id = ?`, id)
+}
+
+func FindNoteByShortTitle(shortTitle string) (*Note, error) {
+	return QueryNote(`WHERE short_title = ?`, shortTitle)
+}
+
+func FindNoteByHash(hash string) (*Note, error) {
+	return QueryNote(`WHERE hashsum = ?`, hash)
+}
+
+func FindMatchingNotes(shortTitle, hash string) (*Note, error) {
+	return QueryNote(`WHERE shortTitle = ? OR hashsum = ?`, shortTitle, hash)
+}
+
+func SearchNotes(kind NoteKind, q string) ([]*Note, error) {
+	db := CurrentDB().Client()
+	queryFTS, err := db.Prepare("SELECT id FROM note_fts WHERE kind = ? and note_fts MATCH ? ORDER BY rank LIMIT 10;")
+	if err != nil {
+		return nil, err
+	}
+	res, err := queryFTS.Query(kind, q)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer res.Close()
+	var ids []int
+	for res.Next() {
+		var id int
+		res.Scan(&id)
+		ids = append(ids, id)
+	}
+
+	return QueryNotes(`WHERE id IN (?);`, ids)
+}
+
+/* SQL Helpers */
+
+func QueryNote(whereClause string, args ...any) (*Note, error) {
 	db := CurrentDB().Client()
 
 	var n Note
@@ -595,7 +678,7 @@ func LoadNoteByID(id int64) (*Note, error) {
 	var attributesRaw string
 
 	// Query for a value based on a single row.
-	if err := db.QueryRow(`
+	if err := db.QueryRow(fmt.Sprintf(`
 		SELECT
 			id,
 			file_id,
@@ -617,7 +700,7 @@ func LoadNoteByID(id int64) (*Note, error) {
 			deleted_at,
 			last_checked_at
 		FROM note
-		WHERE id = ?`, id).
+		%s;`, whereClause), args...).
 		Scan(
 			&n.ID,
 			&n.FileID,
@@ -638,9 +721,7 @@ func LoadNoteByID(id int64) (*Note, error) {
 			&deletedAt,
 			&lastCheckedAt,
 		); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("unknown note %v", id)
-		}
+
 		return nil, err
 	}
 
@@ -660,7 +741,90 @@ func LoadNoteByID(id int64) (*Note, error) {
 	return &n, nil
 }
 
-// TODO Add FindNoteByShortTitle()
-// TODO Add FindNoteByHash()
-// TODO Add FindMatchingNotes(title, sum)
-// TODO Add SearchNotes()
+func QueryNotes(whereClause string, args ...any) ([]*Note, error) {
+	db := CurrentDB().Client()
+
+	var notes []*Note
+
+	rows, err := db.Query(fmt.Sprintf(`
+		SELECT
+			id,
+			file_id,
+			note_id,
+			kind,
+			relative_path,
+			title,
+			short_title,
+			attributes_yaml,
+			tags,
+			"line",
+			content_raw,
+			hashsum,
+			content_markdown,
+			content_html,
+			content_text,
+			created_at,
+			updated_at,
+			deleted_at,
+			last_checked_at
+		FROM note
+		%s;`, whereClause), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var n Note
+		var createdAt string
+		var updatedAt string
+		var deletedAt string
+		var lastCheckedAt string
+		var tagsRaw string
+		var attributesRaw string
+
+		err = rows.Scan(
+			&n.ID,
+			&n.FileID,
+			&n.ParentNoteID,
+			&n.Kind,
+			&n.RelativePath,
+			&n.Title,
+			&n.ShortTitle,
+			&attributesRaw,
+			&tagsRaw,
+			&n.Line,
+			&n.Content,
+			&n.ContentMarkdown,
+			&n.ContentHTML,
+			&n.ContentText,
+			&createdAt,
+			&updatedAt,
+			&deletedAt,
+			&lastCheckedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		var attributes map[string]interface{}
+		err := yaml.Unmarshal([]byte(attributesRaw), &attributes)
+		if err != nil {
+			return nil, err
+		}
+
+		n.Attributes = attributes
+		n.Tags = strings.Split(tagsRaw, ",")
+		n.CreatedAt = timeFromSQL(createdAt)
+		n.UpdatedAt = timeFromSQL(updatedAt)
+		n.DeletedAt = timeFromSQL(deletedAt)
+		n.LastCheckedAt = timeFromSQL(lastCheckedAt)
+		notes = append(notes, &n)
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	return notes, err
+}

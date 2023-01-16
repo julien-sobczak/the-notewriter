@@ -62,6 +62,7 @@ func (l *Link) SaveWithTx(tx *sql.Tx) error {
 	if l.ID != 0 {
 		return l.UpdateWithTx(tx)
 	} else {
+		l.CreatedAt = now
 		return l.InsertWithTx(tx)
 	}
 }
@@ -135,7 +136,33 @@ func (l *Link) UpdateWithTx(tx *sql.Tx) error {
 	return err
 }
 
+// CountLinks returns the total number of links.
+func CountLinks() (int, error) {
+	db := CurrentDB().Client()
+
+	var count int
+	if err := db.QueryRow(`SELECT count(*) FROM link WHERE deleted_at = ''`).Scan(&count); err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
 func LoadLinkByID(id int64) (*Link, error) {
+	return QueryLink("WHERE id = ?", id)
+}
+
+func FindLinkByGoName(goName string) (*Link, error) {
+	return QueryLink("WHERE go_name = ?", goName)
+}
+
+func FindLinksByText(text string) ([]*Link, error) {
+	return QueryLinks("WHERE text = ?", text)
+}
+
+/* SQL Helpers */
+
+func QueryLink(whereClause string, args ...any) (*Link, error) {
 	db := CurrentDB().Client()
 
 	var l Link
@@ -144,7 +171,8 @@ func LoadLinkByID(id int64) (*Link, error) {
 	var deletedAt string
 	var lastCheckedAt string
 
-	if err := db.QueryRow(`
+	// Query for a value based on a single row.
+	if err := db.QueryRow(fmt.Sprintf(`
 		SELECT
 			id,
 			note_id,
@@ -157,7 +185,7 @@ func LoadLinkByID(id int64) (*Link, error) {
 			deleted_at,
 			last_checked_at
 		FROM link
-		WHERE id = ?`, id).
+		%s;`, whereClause), args...).
 		Scan(
 			&l.ID,
 			&l.NoteID,
@@ -170,9 +198,6 @@ func LoadLinkByID(id int64) (*Link, error) {
 			&deletedAt,
 			&lastCheckedAt,
 		); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("unknown link %v", id)
-		}
 		return nil, err
 	}
 
@@ -184,5 +209,63 @@ func LoadLinkByID(id int64) (*Link, error) {
 	return &l, nil
 }
 
-// TODO Add FindLinkByGoName
-// TODO Add FindLinksByText
+func QueryLinks(whereClause string, args ...any) ([]*Link, error) {
+	db := CurrentDB().Client()
+
+	var links []*Link
+
+	rows, err := db.Query(fmt.Sprintf(`
+		SELECT
+			id,
+			note_id,
+			"text",
+			url,
+			title,
+			go_name,
+			created_at,
+			updated_at,
+			deleted_at,
+			last_checked_at
+		FROM link
+		%s;`, whereClause), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var l Link
+		var createdAt string
+		var updatedAt string
+		var deletedAt string
+		var lastCheckedAt string
+
+		err = rows.Scan(
+			&l.ID,
+			&l.NoteID,
+			&l.Text,
+			&l.URL,
+			&l.Title,
+			&l.GoName,
+			&createdAt,
+			&updatedAt,
+			&deletedAt,
+			&lastCheckedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		l.CreatedAt = timeFromSQL(createdAt)
+		l.UpdatedAt = timeFromSQL(updatedAt)
+		l.DeletedAt = timeFromSQL(deletedAt)
+		l.LastCheckedAt = timeFromSQL(lastCheckedAt)
+		links = append(links, &l)
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	return links, err
+}

@@ -187,6 +187,7 @@ func (f *Flashcard) SaveWithTx(tx *sql.Tx) error {
 	if f.ID != 0 {
 		return f.UpdateWithTx(tx)
 	} else {
+		f.CreatedAt = now
 		return f.InsertWithTx(tx)
 	}
 }
@@ -310,7 +311,33 @@ func (f *Flashcard) UpdateWithTx(tx *sql.Tx) error {
 	return err
 }
 
+// CountFlashcards returns the total number of flashcards.
+func CountFlashcards() (int, error) {
+	db := CurrentDB().Client()
+
+	var count int
+	if err := db.QueryRow(`SELECT count(*) FROM flashcard WHERE deleted_at = ''`).Scan(&count); err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
 func LoadFlashcardByID(id int64) (*Flashcard, error) {
+	return QueryFlashcard(`WHERE id = ?`, id)
+}
+
+func FindFlashcardByShortTitle(shortTitle string) (*Flashcard, error) {
+	return QueryFlashcard(`WHERE short_title = ?`, shortTitle)
+}
+
+func FindFlashcardByHash(hash string) (*Flashcard, error) {
+	return QueryFlashcard(`WHERE hash = ?`, hash)
+}
+
+/* SQL Helpers */
+
+func QueryFlashcard(whereClause string, args ...any) (*Flashcard, error) {
 	db := CurrentDB().Client()
 
 	var f Flashcard
@@ -321,7 +348,7 @@ func LoadFlashcardByID(id int64) (*Flashcard, error) {
 	var lastCheckedAt string
 
 	// Query for a value based on a single row.
-	if err := db.QueryRow(`
+	if err := db.QueryRow(fmt.Sprintf(`
 		SELECT
 			id,
 			file_id,
@@ -346,8 +373,8 @@ func LoadFlashcardByID(id int64) (*Flashcard, error) {
 			updated_at,
 			deleted_at,
 			last_checked_at
-			FROM file
-		WHERE id = ?`, id).
+		FROM flashcard
+		%s;`, whereClause), args...).
 		Scan(
 			&f.ID,
 			&f.FileID,
@@ -373,9 +400,7 @@ func LoadFlashcardByID(id int64) (*Flashcard, error) {
 			&deletedAt,
 			&lastCheckedAt,
 		); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("unknown flashcard %v", id)
-		}
+
 		return nil, err
 	}
 
@@ -388,5 +413,90 @@ func LoadFlashcardByID(id int64) (*Flashcard, error) {
 	return &f, nil
 }
 
-// TODO Add FindFlashcardByShortTitle
-// TODO Add FindFlashcardByHash
+func QueryFlashcards(whereClause string, args ...any) ([]*Flashcard, error) {
+	db := CurrentDB().Client()
+
+	var flashcards []*Flashcard
+
+	rows, err := db.Query(fmt.Sprintf(`
+		SELECT
+			id,
+			file_id,
+			note_id,
+			short_title,
+			tags,
+			"type",
+			queue,
+			due,
+			ivl,
+			ease_factor,
+			repetitions,
+			lapses,
+			left,
+			front_markdown,
+			back_markdown,
+			front_html,
+			back_html,
+			front_text,
+			back_text,
+			created_at,
+			updated_at,
+			deleted_at,
+			last_checked_at
+		FROM flashcard
+		%s;`, whereClause), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var f Flashcard
+		var tagsRaw string
+		var createdAt string
+		var updatedAt string
+		var deletedAt string
+		var lastCheckedAt string
+
+		err = rows.Scan(
+			&f.ID,
+			&f.FileID,
+			&f.NoteID,
+			&f.ShortTitle,
+			&tagsRaw,
+			&f.Type,
+			&f.Queue,
+			&f.Due,
+			&f.Interval,
+			&f.EaseFactor,
+			&f.Repetitions,
+			&f.Lapses,
+			&f.Left,
+			&f.FrontMarkdown,
+			&f.BackMarkdown,
+			&f.FrontHTML,
+			&f.BackHTML,
+			&f.FrontText,
+			&f.BackText,
+			&createdAt,
+			&updatedAt,
+			&deletedAt,
+			&lastCheckedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		f.Tags = strings.Split(tagsRaw, ",")
+		f.CreatedAt = timeFromSQL(createdAt)
+		f.UpdatedAt = timeFromSQL(updatedAt)
+		f.DeletedAt = timeFromSQL(deletedAt)
+		f.LastCheckedAt = timeFromSQL(lastCheckedAt)
+		flashcards = append(flashcards, &f)
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	return flashcards, err
+}

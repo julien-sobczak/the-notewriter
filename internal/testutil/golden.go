@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"log"
 	"os"
 	"path/filepath"
 	"testing"
@@ -61,12 +62,34 @@ func SetUpFromGoldenDirNamed(t *testing.T, testname string) string {
 	dirIn := filepath.Join("testdata", testname)
 	dirOut := filepath.Join(dir, testname)
 
-	// Symlink the golden directory
-	absolutePath, err := filepath.Abs(dirIn)
+	dirIn, err := filepath.Abs(dirIn)
 	if err != nil {
 		t.Fatal(err)
 	}
-	os.Symlink(absolutePath, dirOut)
+
+	stat, err := os.Lstat(dirIn)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// We symlink everything inside the golden directory
+	// But not the directory itself.
+	// (So that test can create files/directories like .nt inside it without
+	// impacting the testdata original directory.)
+	err = os.Mkdir(dirOut, stat.Mode())
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, err := os.ReadDir(dirIn)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, file := range files {
+		src := filepath.Join(dirOut, file.Name())
+		dest := filepath.Join(dirIn, file.Name())
+		os.Symlink(dest, src)
+	}
 
 	return dirOut
 }

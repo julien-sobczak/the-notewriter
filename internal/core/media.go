@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 )
 
 type MediaKind int
@@ -40,7 +42,7 @@ type Media struct {
 	Dangling bool
 
 	// How many notes references this file
-	Links *int
+	Links int
 
 	// File extension in lowercase
 	Extension string
@@ -123,7 +125,7 @@ func extractMediasFromMarkdown(fileRelativePath string, content string) ([]*Medi
 		if _, ok := filepaths[src]; ok {
 			continue
 		}
-		relpath, err := CurrentCollection().GetRelativePath(fileRelativePath, src)
+		relpath, err := CurrentCollection().GetNoteRelativePath(fileRelativePath, src)
 		if err != nil {
 			return nil, err
 		}
@@ -156,9 +158,21 @@ func (m *Media) Save() error {
 }
 
 func (m *Media) SaveWithTx(tx *sql.Tx) error {
-	// TODO UPDATE if ID is defined
+	now := clock.Now()
+	m.UpdatedAt = now
+	m.LastCheckedAt = now
+
+	if m.ID != 0 {
+		return m.UpdateWithTx(tx)
+	} else {
+		m.CreatedAt = now
+		return m.InsertWithTx(tx)
+	}
+}
+
+func (m *Media) InsertWithTx(tx *sql.Tx) error {
 	query := `
-		INSERT INTO XXX(
+		INSERT INTO media(
 			id,
 			relative_path,
 			kind,
@@ -204,10 +218,75 @@ func (m *Media) SaveWithTx(tx *sql.Tx) error {
 	return nil
 }
 
-func LoadMediaByID(id int64) (*Media, error) {
-	db := CurrentDB().Client()
-	var m Media
+func (m *Media) UpdateWithTx(tx *sql.Tx) error {
+	query := `
+		UPDATE media
+		SET
+			relative_path = ?,
+			kind = ?,
+			dangling = ?,
+			extension = ?,
+			mtime = ?,
+			hashsum = ?,
+			links = ?,
+			size = ?,
+			mode = ?,
+			created_at = ?,
+			updated_at = ?,
+			deleted_at = ?,
+			last_checked_at = ?
+		)
+		WHERE id = ?;
+	`
+	_, err := tx.Exec(query,
+		m.RelativePath,
+		m.Kind,
+		m.Dangling,
+		m.Extension,
+		timeToSQL(m.MTime),
+		m.Hash,
+		m.Links,
+		m.Size,
+		m.Mode,
+		timeToSQL(m.UpdatedAt),
+		timeToSQL(m.DeletedAt),
+		timeToSQL(m.LastCheckedAt),
+		m.ID,
+	)
 
+	return err
+}
+
+// CountMedias returns the total number of medias.
+func CountMedias() (int, error) {
+	db := CurrentDB().Client()
+
+	var count int
+	if err := db.QueryRow(`SELECT count(*) FROM media WHERE deleted_at = ''`).Scan(&count); err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
+func LoadMediaByID(id int64) (*Media, error) {
+	return QueryMedia(`WHERE id = ?`, id)
+}
+
+func FindMediaByRelativePath(relativePath string) (*Media, error) {
+	return QueryMedia(`WHERE relative_path = ?`, relativePath)
+}
+
+func FindMediaByHash(hash string) (*Media, error) {
+	return QueryMedia(`WHERE hashsum = ?`, hash)
+}
+
+/* SQL Helpers */
+
+func QueryMedia(whereClause string, args ...any) (*Media, error) {
+	db := CurrentDB().Client()
+
+	var m Media
 	var createdAt string
 	var updatedAt string
 	var deletedAt string
@@ -215,7 +294,7 @@ func LoadMediaByID(id int64) (*Media, error) {
 	var mTime string
 
 	// Query for a value based on a single row.
-	if err := db.QueryRow(`
+	if err := db.QueryRow(fmt.Sprintf(`
 		SELECT
 			id,
 			relative_path,
@@ -232,7 +311,7 @@ func LoadMediaByID(id int64) (*Media, error) {
 			deleted_at,
 			last_checked_at
 		FROM media
-		WHERE id = ?`, id).
+		%s;`, whereClause), args...).
 		Scan(
 			&m.ID,
 			&m.RelativePath,
@@ -249,9 +328,7 @@ func LoadMediaByID(id int64) (*Media, error) {
 			&deletedAt,
 			&lastCheckedAt,
 		); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("unknown media %v", id)
-		}
+
 		return nil, err
 	}
 
@@ -264,5 +341,73 @@ func LoadMediaByID(id int64) (*Media, error) {
 	return &m, nil
 }
 
-// TODO Add FindMediaByRelativePath
-// TODO Add FindMediaByHash
+func QueryMedias(whereClause string, args ...any) ([]*Media, error) {
+	db := CurrentDB().Client()
+
+	var medias []*Media
+
+	rows, err := db.Query(fmt.Sprintf(`
+		SELECT
+			id,
+			relative_path,
+			kind,
+			dangling,
+			extension,
+			mtime,
+			hashsum,
+			links,
+			size,
+			mode,
+			created_at,
+			updated_at,
+			deleted_at,
+			last_checked_at
+		FROM media
+		%s;`, whereClause), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var m Media
+		var createdAt string
+		var updatedAt string
+		var deletedAt string
+		var lastCheckedAt string
+		var mTime string
+
+		err = rows.Scan(
+			&m.ID,
+			&m.RelativePath,
+			&m.Kind,
+			&m.Dangling,
+			&m.Extension,
+			&mTime,
+			&m.Hash,
+			&m.Links,
+			&m.Size,
+			&m.Mode,
+			&createdAt,
+			&updatedAt,
+			&deletedAt,
+			&lastCheckedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		m.CreatedAt = timeFromSQL(createdAt)
+		m.UpdatedAt = timeFromSQL(updatedAt)
+		m.DeletedAt = timeFromSQL(deletedAt)
+		m.LastCheckedAt = timeFromSQL(lastCheckedAt)
+		m.MTime = timeFromSQL(mTime)
+		medias = append(medias, &m)
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	return medias, err
+}

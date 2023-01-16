@@ -5,8 +5,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	. "github.com/julien-sobczak/the-notetaker/internal/testutil"
+	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -318,26 +320,100 @@ func TestGetMedias(t *testing.T) {
 }
 
 func TestFileSave(t *testing.T) {
-	filename := SetUpCollectionFromFileContent(t, "content.md", `---
-tags: [test]
----
-# Content
-
-Hello`)
+	dirname := SetUpCollectionFromGoldenDir(t)
 
 	// Init the file
-	f, err := NewFileFromPath(filename)
+	f, err := NewFileFromPath(filepath.Join(dirname, "go.md"))
 	require.NoError(t, err)
 
+	assertNoFiles(t)
+	clock.Freeze()
 	err = f.Save()
 	require.NoError(t, err)
 
-	f, err = LoadFileByPath(f.RelativePath)
+	require.Equal(t, 1, mustCountFiles(t))
+	require.Equal(t, 3, mustCountNotes(t))
+	require.Equal(t, 1, mustCountMedias(t))
+	require.Equal(t, 1, mustCountFlashcards(t))
+	require.Equal(t, 0, mustCountLinks(t))     // TODO
+	require.Equal(t, 0, mustCountReminders(t)) // TODO
+
+	// Check the file
+	actual, err := LoadFileByPath(f.RelativePath)
 	require.NoError(t, err)
-	assert.Equal(t, "# Content\n\nHello", f.Content)
+	assert.NotEqual(t, 0, actual.ID)
+	assert.Equal(t, "go.md", actual.RelativePath)
+	expectedFrontMatter, err := f.FrontMatterString()
+	assert.NoError(t, err)
+	actualFrontMatter, err := actual.FrontMatterString()
+	assert.NoError(t, err)
+	assert.Equal(t, expectedFrontMatter, actualFrontMatter)
+	assert.Contains(t, actual.Content, "# Go", actual.Content)
+	assert.Equal(t, f.Mode, actual.Mode)
+	assert.Equal(t, f.Size, actual.Size)
+	assert.Equal(t, f.Hash, actual.Hash)
+	assert.Equal(t, f.MTime, actual.MTime)
+	assert.WithinDuration(t, clock.Now(), actual.CreatedAt, 1*time.Second)
+	assert.WithinDuration(t, clock.Now(), actual.UpdatedAt, 1*time.Second)
+	assert.WithinDuration(t, clock.Now(), actual.LastCheckedAt, 1*time.Second)
+
+	// Check the notes
+
+	// Check the flashcard
+
+	// Check the media
+
+	// Check the link
+	// TODO
+
+	// Check the reminder
+	// TODO
+
 }
 
 /* Test Helpers */
+
+func mustCountFiles(t *testing.T) int {
+	count, err := CountFiles()
+	require.NoError(t, err)
+	return count
+}
+
+func mustCountMedias(t *testing.T) int {
+	count, err := CountMedias()
+	require.NoError(t, err)
+	return count
+}
+
+func mustCountNotes(t *testing.T) int {
+	count, err := CountNotes()
+	require.NoError(t, err)
+	return count
+}
+
+func mustCountLinks(t *testing.T) int {
+	count, err := CountLinks()
+	require.NoError(t, err)
+	return count
+}
+
+func mustCountFlashcards(t *testing.T) int {
+	count, err := CountFlashcards()
+	require.NoError(t, err)
+	return count
+}
+
+func mustCountReminders(t *testing.T) int {
+	count, err := CountReminders()
+	require.NoError(t, err)
+	return count
+}
+
+func assertNoFiles(t *testing.T) {
+	count, err := CountFiles()
+	require.NoError(t, err)
+	require.Equal(t, 0, count)
+}
 
 func assertFrontMatterEqual(t *testing.T, expected string, file *File) {
 	actual, err := file.FrontMatterString()

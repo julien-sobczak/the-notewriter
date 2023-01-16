@@ -370,11 +370,16 @@ func NewFileFromPath(filepath string) (*File, error) {
 		return nil, err
 	}
 
+	relativePath, err := CurrentCollection().GetFileRelativePath(filepath)
+	if err != nil {
+		return nil, err
+	}
+
 	file := &File{
 		// We ignore if the file already exists in database
 		ID: 0,
 		// Reread the file
-		RelativePath: filepath,
+		RelativePath: relativePath,
 		Mode:         stat.Mode(),
 		Size:         stat.Size(),
 		Hash:         hash(contentBytes),
@@ -467,6 +472,7 @@ func (f *File) SaveWithTx(tx *sql.Tx) error {
 			return err
 		}
 	} else {
+		f.CreatedAt = now
 		if err := f.InsertWithTx(tx); err != nil {
 			return err
 		}
@@ -529,7 +535,20 @@ func (f *File) InsertWithTx(tx *sql.Tx) error {
 	if err != nil {
 		return err
 	}
-	res, err := tx.Exec(query, f.RelativePath, frontMatter, f.Content, timeToSQL(f.CreatedAt), timeToSQL(f.UpdatedAt), timeToSQL(f.DeletedAt), timeToSQL(f.LastCheckedAt), timeToSQL(f.MTime), f.Size, f.Hash, f.Mode)
+	fmt.Println(timeToSQL(f.CreatedAt))
+	res, err := tx.Exec(query,
+		f.RelativePath,
+		frontMatter,
+		f.Content,
+		timeToSQL(f.CreatedAt),
+		timeToSQL(f.UpdatedAt),
+		timeToSQL(f.DeletedAt),
+		timeToSQL(f.LastCheckedAt),
+		timeToSQL(f.MTime),
+		f.Size,
+		f.Hash,
+		f.Mode,
+	)
 	if err != nil {
 		return err
 	}
@@ -547,15 +566,15 @@ func (f *File) UpdateWithTx(tx *sql.Tx) error {
 	query := `
 		UPDATE file
 		SET
-			relative_path = ?
-			front_matter = ?
-			content = ?
-			updated_at = ?
-			deleted_at = ?
-			last_checked_at = ?
-			mtime = ?
-			size = ?
-			hashsum = ?
+			relative_path = ?,
+			front_matter = ?,
+			content = ?,
+			updated_at = ?,
+			deleted_at = ?,
+			last_checked_at = ?,
+			mtime = ?,
+			size = ?,
+			hashsum = ?,
 			mode = ?
 		)
 		WHERE id = ?;
@@ -581,9 +600,35 @@ func (f *File) UpdateWithTx(tx *sql.Tx) error {
 }
 
 func LoadFileByPath(relativePath string) (*File, error) {
-	db := CurrentDB().Client()
-	var f File
+	return QueryFile(`WHERE relative_path = ?`, relativePath)
+}
 
+func LoadFileByID(id int64) (*File, error) {
+	return QueryFile(`WHERE id = ?`, id)
+}
+
+func LoadFilesByRelativePathPrefix(relativePathPrefix string) ([]*File, error) {
+	return QueryFiles(`WHERE relative_path LIKE ?`, relativePathPrefix+"%")
+}
+
+// CountFiles returns the total number of files.
+func CountFiles() (int, error) {
+	db := CurrentDB().Client()
+
+	var count int
+	if err := db.QueryRow(`SELECT count(*) FROM file WHERE deleted_at = ''`).Scan(&count); err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
+/* SQL Helpers */
+
+func QueryFile(whereClause string, args ...any) (*File, error) {
+	db := CurrentDB().Client()
+
+	var f File
 	var rawFrontMatter string
 	var createdAt string
 	var updatedAt string
@@ -592,7 +637,7 @@ func LoadFileByPath(relativePath string) (*File, error) {
 	var mTime string
 
 	// Query for a value based on a single row.
-	if err := db.QueryRow(`
+	if err := db.QueryRow(fmt.Sprintf(`
 		SELECT
 			id,
 			relative_path,
@@ -607,12 +652,22 @@ func LoadFileByPath(relativePath string) (*File, error) {
 			hashsum,
 			mode
 		FROM file
-		WHERE relative_path = ?`,
-		relativePath).
-		Scan(&f.ID, &f.RelativePath, &rawFrontMatter, &f.Content, &createdAt, &updatedAt, &deletedAt, &lastCheckedAt, &mTime, &f.Size, &f.Hash, &f.Mode); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("unknown file %v", relativePath)
-		}
+		%s;`, whereClause), args...).
+		Scan(
+			&f.ID,
+			&f.RelativePath,
+			&rawFrontMatter,
+			&f.Content,
+			&createdAt,
+			&updatedAt,
+			&deletedAt,
+			&lastCheckedAt,
+			&mTime,
+			&f.Size,
+			&f.Hash,
+			&f.Mode,
+		); err != nil {
+
 		return nil, err
 	}
 
@@ -632,53 +687,78 @@ func LoadFileByPath(relativePath string) (*File, error) {
 	return &f, nil
 }
 
-// LoadFileByID()
-// LoadFilesByRelativePathPrefix()
+func QueryFiles(whereClause string, args ...any) ([]*File, error) {
+	db := CurrentDB().Client()
 
-func isSupportedNote(text string) (bool, NoteKind, string) {
-	if m := regexReference.FindStringSubmatch(text); m != nil {
-		return true, KindReference, m[1]
-	}
-	if m := regexNote.FindStringSubmatch(text); m != nil {
-		return true, KindNote, m[1]
-	}
-	if m := regexCheatsheet.FindStringSubmatch(text); m != nil {
-		return true, KindCheatsheet, m[1]
-	}
-	if m := regexFlashcard.FindStringSubmatch(text); m != nil {
-		return true, KindFlashcard, m[1]
-	}
-	if m := regexQuote.FindStringSubmatch(text); m != nil {
-		return true, KindQuote, m[1]
-	}
-	if m := regexTodo.FindStringSubmatch(text); m != nil {
-		return true, KindTodo, m[1]
-	}
-	if m := regexArtwork.FindStringSubmatch(text); m != nil {
-		return true, KindArtwork, m[1]
-	}
-	if m := regexSnippet.FindStringSubmatch(text); m != nil {
-		return true, KindArtwork, m[1]
-	}
-	// FIXME what about Journal notes?
-	return false, KindFree, ""
-}
+	var files []*File
 
-/* SQL */
-
-// Move to another package
-
-func timeToSQL(date time.Time) string {
-	if date.IsZero() {
-		return ""
-	}
-	return date.Format("2006-01-02T15:04:05")
-}
-
-func timeFromSQL(dateStr string) time.Time {
-	date, err := time.Parse(dateStr, "2006-01-02T15:04:05")
+	rows, err := db.Query(fmt.Sprintf(`
+		SELECT
+			id,
+			relative_path,
+			front_matter,
+			content,
+			created_at,
+			updated_at,
+			deleted_at,
+			last_checked_at,
+			mtime,
+			size,
+			hashsum,
+			mode
+		FROM file
+		%s;`, whereClause), args...)
 	if err != nil {
-		return time.Time{}
+		return nil, err
 	}
-	return date
+	defer rows.Close()
+	for rows.Next() {
+		var f File
+		var rawFrontMatter string
+		var createdAt string
+		var updatedAt string
+		var deletedAt string
+		var lastCheckedAt string
+		var mTime string
+
+		err = rows.Scan(
+			&f.ID,
+			&f.RelativePath,
+			&rawFrontMatter,
+			&f.Content,
+			&createdAt,
+			&updatedAt,
+			&deletedAt,
+			&lastCheckedAt,
+			&mTime,
+			&f.Size,
+			&f.Hash,
+			&f.Mode,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		var frontMatter yaml.Node
+		err := yaml.Unmarshal([]byte(rawFrontMatter), &frontMatter)
+		if err != nil {
+			return nil, err
+		}
+
+		f.frontMatter = &frontMatter
+		f.CreatedAt = timeFromSQL(createdAt)
+		f.UpdatedAt = timeFromSQL(updatedAt)
+		f.DeletedAt = timeFromSQL(deletedAt)
+		f.LastCheckedAt = timeFromSQL(lastCheckedAt)
+		f.MTime = timeFromSQL(mTime)
+
+		files = append(files, &f)
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	return files, err
 }

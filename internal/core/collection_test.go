@@ -40,7 +40,7 @@ func TestCollectionGetRelativePath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			relpath, err := CurrentCollection().GetRelativePath(filepath.Join(dirname, tt.referencePath), tt.noteRelativePath)
+			relpath, err := CurrentCollection().GetNoteRelativePath(filepath.Join(dirname, tt.referencePath), tt.noteRelativePath)
 			require.NoError(t, err)
 			assert.Equal(t, tt.collectionRelativePath, relpath)
 		})

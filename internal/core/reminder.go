@@ -74,6 +74,7 @@ func (r *Reminder) SaveWithTx(tx *sql.Tx) error {
 	if r.ID != 0 {
 		return r.UpdateWithTx(tx)
 	} else {
+		r.CreatedAt = now
 		return r.InsertWithTx(tx)
 	}
 }
@@ -164,7 +165,29 @@ func (r *Reminder) UpdateWithTx(tx *sql.Tx) error {
 	return err
 }
 
+// CountReminders returns the total number of reminders.
+func CountReminders() (int, error) {
+	db := CurrentDB().Client()
+
+	var count int
+	if err := db.QueryRow(`SELECT count(*) FROM reminder WHERE deleted_at = ''`).Scan(&count); err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
 func LoadReminderByID(id int64) (*Reminder, error) {
+	return QueryReminder(`WHERE id = ?`, id)
+}
+
+func FindRemindersByUpcomingDate(deadline time.Time) ([]*Reminder, error) {
+	return QueryReminders(`WHERE next_performed_at > ?`, timeToSQL(deadline))
+}
+
+/* SQL Helpers */
+
+func QueryReminder(whereClause string, args ...any) (*Reminder, error) {
 	db := CurrentDB().Client()
 
 	var r Reminder
@@ -176,7 +199,7 @@ func LoadReminderByID(id int64) (*Reminder, error) {
 	var lastCheckedAt string
 
 	// Query for a value based on a single row.
-	if err := db.QueryRow(`
+	if err := db.QueryRow(fmt.Sprintf(`
 		SELECT
 			id,
 			file_id,
@@ -193,7 +216,7 @@ func LoadReminderByID(id int64) (*Reminder, error) {
 			deleted_at,
 			last_checked_at
 		FROM reminder
-		WHERE id = ?`, id).
+		%s;`, whereClause), args...).
 		Scan(
 			&r.ID,
 			&r.FileID,
@@ -210,9 +233,7 @@ func LoadReminderByID(id int64) (*Reminder, error) {
 			&deletedAt,
 			&lastCheckedAt,
 		); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("unknown reminder %v", id)
-		}
+
 		return nil, err
 	}
 
@@ -226,4 +247,75 @@ func LoadReminderByID(id int64) (*Reminder, error) {
 	return &r, nil
 }
 
-// TODO Add FindRemindersByUpcomingDate
+func QueryReminders(whereClause string, args ...any) ([]*Reminder, error) {
+	db := CurrentDB().Client()
+
+	var reminders []*Reminder
+
+	rows, err := db.Query(fmt.Sprintf(`
+		SELECT
+			id,
+			file_id,
+			note_id,
+			description_raw,
+			description_markdown,
+			description_html,
+			description_text,
+			tag,
+			last_performed_at,
+			next_performed_at,
+			created_at,
+			updated_at,
+			deleted_at,
+			last_checked_at
+		FROM reminder
+		%s;`, whereClause), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var r Reminder
+		var lastPerformedAt string
+		var nextPerformedAt string
+		var createdAt string
+		var updatedAt string
+		var deletedAt string
+		var lastCheckedAt string
+
+		err = rows.Scan(
+			&r.ID,
+			&r.FileID,
+			&r.NoteID,
+			&r.DescriptionRaw,
+			&r.DescriptionMarkdown,
+			&r.DescriptionHTML,
+			&r.DescriptionText,
+			&r.Tag,
+			&lastPerformedAt,
+			&nextPerformedAt,
+			&createdAt,
+			&updatedAt,
+			&deletedAt,
+			&lastCheckedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		r.LastPerformedAt = timeFromSQL(lastPerformedAt)
+		r.NextPerformedAt = timeFromSQL(nextPerformedAt)
+		r.CreatedAt = timeFromSQL(createdAt)
+		r.UpdatedAt = timeFromSQL(updatedAt)
+		r.DeletedAt = timeFromSQL(deletedAt)
+		r.LastCheckedAt = timeFromSQL(lastCheckedAt)
+		reminders = append(reminders, &r)
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	return reminders, err
+}

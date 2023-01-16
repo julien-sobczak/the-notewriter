@@ -104,12 +104,17 @@ func (c *Collection) Close() {
 	CurrentDB().Close()
 }
 
-// GetRelativePath converts a relative path from a note to a relative path from the collection.
-func (c *Collection) GetRelativePath(referencePath string, srcPath string) (string, error) {
-	return filepath.Rel(c.Path, filepath.Join(filepath.Dir(referencePath), srcPath))
+// GetNoteRelativePath converts a relative path from a note to a relative path from the collection.
+func (c *Collection) GetNoteRelativePath(fileRelativePath string, srcPath string) (string, error) {
+	return filepath.Rel(c.Path, filepath.Join(filepath.Dir(c.GetAbsolutePath(fileRelativePath)), srcPath))
 }
 
-// GetAbsolutePath converts a relative path from the collection to an absoluate path on disk.
+// GetFileRelativePath converts a relative path of a file to a relative path from the collection.
+func (c *Collection) GetFileRelativePath(fileAbsolutePath string) (string, error) {
+	return filepath.Rel(c.Path, fileAbsolutePath)
+}
+
+// GetAbsolutePath converts a relative path from the collection to an absolute path on disk.
 func (c *Collection) GetAbsolutePath(relativePath string) string {
 	return filepath.Join(c.Path, relativePath)
 }
@@ -196,7 +201,7 @@ func (c *Collection) UpdateWithTx(tx *sql.Tx) error {
 }
 
 func LoadCollection() (*Collection, error) {
-	c, err := querySingleCollection("")
+	c, err := QueryCollection("")
 	if err == sql.ErrNoRows {
 		return nil, errors.New("unknown collection")
 	}
@@ -204,7 +209,9 @@ func LoadCollection() (*Collection, error) {
 	return c, nil
 }
 
-func querySingleCollection(whereClause string, args ...any) (*Collection, error) {
+/* SQL Helpers */
+
+func QueryCollection(whereClause string, args ...any) (*Collection, error) {
 	db := CurrentDB().Client()
 
 	var c Collection
@@ -220,7 +227,7 @@ func querySingleCollection(whereClause string, args ...any) (*Collection, error)
 			updated_at,
 			last_checked_at
 		FROM file
-		%s;`, whereClause), args).
+		%s;`, whereClause), args...).
 		Scan(&c.ID, &createdAt, &updatedAt, &lastCheckedAt); err != nil {
 
 		return nil, err
@@ -231,4 +238,45 @@ func querySingleCollection(whereClause string, args ...any) (*Collection, error)
 	c.LastCheckedAt = timeFromSQL(lastCheckedAt)
 
 	return &c, nil
+}
+
+func QueryCollections(whereClause string, args ...any) ([]*Collection, error) {
+	db := CurrentDB().Client()
+
+	var collections []*Collection
+
+	rows, err := db.Query(fmt.Sprintf(`
+		SELECT
+			id,
+			created_at,
+			updated_at,
+			last_checked_at
+		FROM file
+		%s;`, whereClause), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var c Collection
+		var createdAt string
+		var updatedAt string
+		var lastCheckedAt string
+
+		err = rows.Scan(&c.ID, &createdAt, &updatedAt, &lastCheckedAt)
+		if err != nil {
+			return nil, err
+		}
+		c.CreatedAt = timeFromSQL(createdAt)
+		c.UpdatedAt = timeFromSQL(updatedAt)
+		c.LastCheckedAt = timeFromSQL(lastCheckedAt)
+		collections = append(collections, &c)
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	return collections, err
 }

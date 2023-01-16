@@ -65,8 +65,8 @@ func (c *Collection) Build(outputDirectory string) error {
 		return nil
 	})
 
-	//PopulateData(c.db)
-	//QueryNotes(c.db, "tutorial")
+	// DemoPopulateData(c.db)
+	// DemoQueryNotes(c.db, "tutorial")
 
 	return nil
 }
@@ -92,7 +92,7 @@ func (c *Collection) Update(buildResult *BuildResult) error {
 	return nil
 }
 
-func PopulateData(db *sql.DB) {
+func DemoPopulateData(db *sql.DB) {
 	records := `INSERT INTO posts(title, body) VALUES
 ('Learn SQlite FTS5', 'This tutorial teaches you how to perform full-text search in SQLite using FTS5'),
 ('Advanced SQlite Full-text Search', 'Show you some advanced techniques in SQLite full-text searching'),
@@ -107,7 +107,7 @@ func PopulateData(db *sql.DB) {
 	}
 }
 
-func QueryNotes(db *sql.DB, queryTxt string) {
+func DemoQueryNotes(db *sql.DB, queryTxt string) {
 	queryFTS, err := db.Prepare("SELECT id FROM note_fts WHERE kind = 1 and note_fts MATCH ? ORDER BY rank LIMIT 10;")
 	if err != nil {
 		log.Fatal(err)
