@@ -314,7 +314,6 @@ func NewEmptyFile() *File {
 }
 
 func NewFileFromAttributes(attributes []Attribute) *File {
-	// TODO I doubt this method to be really useful. Delete?
 	file := &File{}
 	for _, attribute := range attributes {
 		file.SetAttribute(attribute.Key, attribute.Value)
@@ -427,10 +426,11 @@ func (f *File) SaveOnDisk() error {
 		return errors.New("unable to save file as no path is defined")
 	}
 	rawContent := []byte(sb.String())
-	os.WriteFile(f.RelativePath, rawContent, f.Mode)
+	absolutePath := CurrentCollection().GetAbsolutePath(f.RelativePath)
+	os.WriteFile(absolutePath, rawContent, f.Mode)
 
 	// Refresh file-specific attributes
-	stat, err := os.Lstat(f.RelativePath)
+	stat, err := os.Lstat(absolutePath)
 	if err != nil {
 		return err
 	}
@@ -677,7 +677,9 @@ func QueryFile(whereClause string, args ...any) (*File, error) {
 		return nil, err
 	}
 
-	f.frontMatter = &frontMatter
+	if frontMatter.Kind > 0 { // Happen when no Front Matter is present
+		f.frontMatter = frontMatter.Content[0]
+	}
 	f.CreatedAt = timeFromSQL(createdAt)
 	f.UpdatedAt = timeFromSQL(updatedAt)
 	f.DeletedAt = timeFromSQL(deletedAt)
@@ -745,7 +747,9 @@ func QueryFiles(whereClause string, args ...any) ([]*File, error) {
 			return nil, err
 		}
 
-		f.frontMatter = &frontMatter
+		if frontMatter.Kind > 0 { // Happen when no Front Matter is present
+			f.frontMatter = frontMatter.Content[0]
+		}
 		f.CreatedAt = timeFromSQL(createdAt)
 		f.UpdatedAt = timeFromSQL(updatedAt)
 		f.DeletedAt = timeFromSQL(deletedAt)

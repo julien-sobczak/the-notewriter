@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/julien-sobczak/the-notetaker/internal/reference"
@@ -67,7 +68,7 @@ func NewCollection(bookManager reference.Manager, personManager reference.Manage
 	return c, nil
 }
 
-func (c *Collection) createNewReferenceFile(identifier string, kind string) (*File, error) {
+func (c *Collection) CreateNewReferenceFile(identifier string, kind string) (*File, error) {
 	var ref reference.Reference
 	var err error
 
@@ -93,7 +94,7 @@ func (c *Collection) createNewReferenceFile(identifier string, kind string) (*Fi
 }
 
 func (c *Collection) AddNewReferenceFile(identifier string, kind string) error {
-	f, err := c.createNewReferenceFile(identifier, kind)
+	f, err := c.CreateNewReferenceFile(identifier, kind)
 	if err != nil {
 		return err
 	}
@@ -104,7 +105,7 @@ func (c *Collection) Close() {
 	CurrentDB().Close()
 }
 
-// GetNoteRelativePath converts a relative path from a note to a relative path from the collection.
+// GetNoteRelativePath converts a relative path from a note to a relative path from the collection root directory.
 func (c *Collection) GetNoteRelativePath(fileRelativePath string, srcPath string) (string, error) {
 	return filepath.Rel(c.Path, filepath.Join(filepath.Dir(c.GetAbsolutePath(fileRelativePath)), srcPath))
 }
@@ -115,8 +116,11 @@ func (c *Collection) GetFileRelativePath(fileAbsolutePath string) (string, error
 }
 
 // GetAbsolutePath converts a relative path from the collection to an absolute path on disk.
-func (c *Collection) GetAbsolutePath(relativePath string) string {
-	return filepath.Join(c.Path, relativePath)
+func (c *Collection) GetAbsolutePath(path string) string {
+	if strings.HasPrefix(path, c.Path) {
+		return path
+	}
+	return filepath.Join(c.Path, path)
 }
 
 func (c *Collection) Save() error {

@@ -26,6 +26,20 @@ $ nt init
 ```
 
 
+## Debug
+
+### How to debug a unit test using SQLite?
+
+Define a breakpoint. Inspect the collection root directory. Then:
+
+```shell
+# On MacOS if the application is installed
+$ open -a "DB Browser for SQLite" dirname/.nt/database.db
+```
+
+Check tables, then close the application and resume the debugging session.
+
+
 
 ## Usage
 

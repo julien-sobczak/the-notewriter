@@ -143,8 +143,11 @@ func (n *Note) GetFile() *File {
 		return nil
 	}
 	if n.File == nil {
-		// FIXME lazy load from database
-		panic("oops")
+		file, err := LoadFileByID(n.FileID)
+		if err != nil {
+			log.Fatalf("Unable to find file %q: %v", n.FileID, err)
+		}
+		n.File = file
 	}
 	return n.File
 }
@@ -155,8 +158,11 @@ func (n *Note) GetParentNote() *Note {
 		return nil
 	}
 	if n.ParentNote == nil {
-		// FIXME lazy load from database
-		panic("oops")
+		note, err := LoadNoteByID(n.ParentNoteID)
+		if err != nil {
+			log.Fatalf("Unable to note file %q: %v", n.ParentNoteID, err)
+		}
+		n.ParentNote = note
 	}
 	return n.ParentNote
 }
@@ -312,7 +318,6 @@ func isSupportedNote(text string) (bool, NoteKind, string) {
 	// FIXME what about Journal notes?
 	return false, KindFree, ""
 }
-
 
 func (n *Note) expandSyntaxSugar(rawContent string) string {
 	if n.Kind == KindQuote {
@@ -631,8 +636,8 @@ func LoadNoteByID(id int64) (*Note, error) {
 	return QueryNote(`WHERE id = ?`, id)
 }
 
-func FindNoteByShortTitle(shortTitle string) (*Note, error) {
-	return QueryNote(`WHERE short_title = ?`, shortTitle)
+func FindNoteByTitle(title string) (*Note, error) {
+	return QueryNote(`WHERE title = ?`, title)
 }
 
 func FindNoteByHash(hash string) (*Note, error) {
@@ -713,6 +718,7 @@ func QueryNote(whereClause string, args ...any) (*Note, error) {
 			&tagsRaw,
 			&n.Line,
 			&n.Content,
+			&n.Hash,
 			&n.ContentMarkdown,
 			&n.ContentHTML,
 			&n.ContentText,
@@ -794,6 +800,7 @@ func QueryNotes(whereClause string, args ...any) ([]*Note, error) {
 			&tagsRaw,
 			&n.Line,
 			&n.Content,
+			&n.Hash,
 			&n.ContentMarkdown,
 			&n.ContentHTML,
 			&n.ContentText,

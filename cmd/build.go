@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/julien-sobczak/the-notetaker/internal/core"
 	"github.com/spf13/cobra"
 )
 
@@ -20,7 +21,7 @@ var buildCmd = &cobra.Command{
 	Long:  `Parse files and refresh the database.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		CheckConfig()
-		err := Col.Build(outputDirectory)
+		err := core.CurrentCollection().Build(outputDirectory)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

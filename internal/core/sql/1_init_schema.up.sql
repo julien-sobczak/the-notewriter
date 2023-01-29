@@ -33,7 +33,7 @@ CREATE TABLE file (
 );
 
 CREATE TABLE note (
-    id INTEGER PRIMRAY KEY,
+    id INTEGER PRIMARY KEY,
 
     -- File containing the note
     file_id INTEGER NOT NULL,
@@ -95,7 +95,7 @@ CREATE TABLE note (
 );
 
 CREATE VIRTUAL TABLE note_fts USING FTS5(id UNINDEXED, kind UNINDEXED, short_title, content_text);
--- TODO add other fields? Contentless table?
+-- -- TODO add other fields? Contentless table?
 
 create trigger note_after_insert after insert on note begin
   insert into note_fts (id, kind, short_title, content_text) values (new.id, new.kind, new.short_title, new.content_text);

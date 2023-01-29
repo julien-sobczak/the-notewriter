@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/julien-sobczak/the-notetaker/internal/testutil"
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -171,22 +170,15 @@ Blabla`, strings.TrimSpace(string(rawContent)))
 }
 
 func TestPreserveCommentsInFrontMatter(t *testing.T) {
-	fc, err := os.CreateTemp("", "sample.md")
-	require.NoError(t, err)
-	defer os.Remove(fc.Name())
-
-	_, err = fc.Write([]byte(`
----
+	filename := SetUpCollectionFromFileContent(t, "sample.md", `---
 # Front-Matter
 tags: [favorite, inspiration] # Custom tags
 # published: true
 ---
-`))
-	require.NoError(t, err)
-	fc.Close()
+`)
 
 	// Init the file
-	f, err := NewFileFromPath(fc.Name())
+	f, err := NewFileFromPath(filename)
 	require.NoError(t, err)
 
 	// Change attributes
@@ -203,7 +195,7 @@ new: 10
 }
 
 func TestGetNotes(t *testing.T) {
-	filename := SetUpFromGoldenFile(t)
+	filename := SetUpCollectionFromGoldenFile(t)
 
 	// Init the file
 	f, err := NewFileFromPath(filename)
@@ -239,7 +231,7 @@ func TestGetNotes(t *testing.T) {
 }
 
 func TestFileInheritance(t *testing.T) {
-	filename := SetUpFromGoldenFile(t)
+	filename := SetUpCollectionFromGoldenFile(t)
 
 	// Init the file
 	f, err := NewFileFromPath(filename)
@@ -254,7 +246,7 @@ func TestFileInheritance(t *testing.T) {
 }
 
 func TestGetFlashcards(t *testing.T) {
-	filename := SetUpFromGoldenFileNamed(t, "TestGetNotes.md")
+	filename := SetUpCollectionFromGoldenFileNamed(t, "TestGetNotes.md")
 
 	// Init the file
 	f, err := NewFileFromPath(filename)
@@ -348,6 +340,7 @@ func TestFileSave(t *testing.T) {
 	actualFrontMatter, err := actual.FrontMatterString()
 	assert.NoError(t, err)
 	assert.Equal(t, expectedFrontMatter, actualFrontMatter)
+	assert.Equal(t, []string{"go"}, actual.GetTags())
 	assert.Contains(t, actual.Content, "# Go", actual.Content)
 	assert.Equal(t, f.Mode, actual.Mode)
 	assert.Equal(t, f.Size, actual.Size)
@@ -358,8 +351,35 @@ func TestFileSave(t *testing.T) {
 	assert.WithinDuration(t, clock.Now(), actual.LastCheckedAt, 1*time.Second)
 
 	// Check the notes
+	note, err := FindNoteByTitle("Reference: Golang History")
+	require.NoError(t, err)
+	assert.NotEqual(t, 0, note.ID)
+	assert.Equal(t, actual.ID, note.FileID)
+	assert.EqualValues(t, -1, note.ParentNoteID) // 0 = new, -1 = nil
+	assert.Equal(t, KindReference, note.Kind)
+	assert.Equal(t, "Reference: Golang History", note.Title)
+	assert.Equal(t, "Golang History", note.ShortTitle)
+	assert.Equal(t, actual.RelativePath, note.RelativePath)
+	assert.Equal(t, map[string]interface{}{
+		"source": "https://en.wikipedia.org/wiki/Go_(programming_language)",
+	}, note.Attributes)
+	assert.Equal(t, []string{"go", "history"}, note.GetTags())
+	assert.Equal(t, 3, note.Line)
+	assert.Equal(t, "", note.RawContent) // FIXME
+	assert.Equal(t, "d58a84a04615c23cea31a7630969f083", note.Hash)
+	assert.Equal(t, "[Golang](https://go.dev/doc/ \"#goto-go\") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.", note.Content)
+	assert.Equal(t, `[Golang](https://go.dev/doc/ "#goto-go") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.`, note.ContentMarkdown)
+	assert.Equal(t, "<p><a href=\"https://go.dev/doc/\" title=\"#goto-go\">Golang</a> was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.</p>", note.ContentHTML)
+	assert.Equal(t, "Golang was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.", note.ContentText)
+	assert.NotEmpty(t, note.CreatedAt)
+	assert.NotEmpty(t, note.UpdatedAt)
+	assert.Empty(t, note.DeletedAt)
+	assert.NotEmpty(t, note.LastCheckedAt)
 
 	// Check the flashcard
+	flashcard, err := FindFlashcardByShortTitle("Golang Logo")
+	require.NoError(t, err)
+	assert.NotEqual(t, 0, flashcard.ID)
 
 	// Check the media
 

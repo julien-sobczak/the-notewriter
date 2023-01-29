@@ -21,7 +21,6 @@ var rootCmd = &cobra.Command{
 }
 
 var CollectionDir string
-var Col *core.Collection
 
 func init() {
 	rootCmd.Flags().StringVarP(&CollectionDir, "collection", "c", "", "Collection directory (default is $HOME/notes)")
@@ -37,8 +36,8 @@ func Execute() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
-		_ = <-sigs
-		Col.Close()
+		<-sigs
+		core.CurrentCollection().Close()
 	}()
 }
 
