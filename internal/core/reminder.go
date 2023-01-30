@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
+	"github.com/julien-sobczak/the-notetaker/pkg/markdown"
 )
 
 type Reminder struct {
@@ -40,9 +42,53 @@ type Reminder struct {
 	LastCheckedAt time.Time
 }
 
-func NewReminder(description, tag string) *Reminder {
-	// TODO
+// NewReminder instantiates a new reminder.
+func NewReminder(n *Note, descriptionRaw, tag string) (*Reminder, error) {
+	r := &Reminder{
+		ID:             0,
+		FileID:         n.FileID,
+		NoteID:         n.ID,
+		DescriptionRaw: descriptionRaw,
+		Tag:            tag,
+	}
+
+	r.DescriptionMarkdown = markdown.ToMarkdown(r.DescriptionRaw)
+	r.DescriptionHTML = markdown.ToHTML(r.DescriptionMarkdown)
+	r.DescriptionText = markdown.ToText(r.DescriptionMarkdown)
+
+	err := r.Next()
+	if err != nil {
+		return nil, err
+	}
+
+	return r, nil
+}
+
+func (r *Reminder) Next() error {
+	if clock.Now().Before(r.NextPerformedAt) {
+		// already OK
+		return nil
+	}
+
+	expression := strings.TrimPrefix(r.Tag, "#reminder-")
+
+	r.LastPerformedAt = r.NextPerformedAt
+	r.NextPerformedAt = evaluateTimeExpression(expression)[0]
 	return nil
+}
+
+func evaluateTimeExpression(expr string) []time.Time {
+	// TODO implement logic
+	t, err := time.Parse("2006-01", expr)
+	if err != nil {
+		// log.Fatalf("Unable to parse reminder expression: %v", err)
+		return []time.Time{{}}
+	}
+
+	// Step 1: Replace variables
+	// Step 2: Evaluation
+
+	return []time.Time{t}
 }
 
 func (r *Reminder) Save() error {
@@ -107,7 +153,7 @@ func (r *Reminder) InsertWithTx(tx *sql.Tx) error {
 		r.DescriptionHTML,
 		r.DescriptionText,
 		r.Tag,
-		timeToSQL(r.LastCheckedAt),
+		timeToSQL(r.LastPerformedAt),
 		timeToSQL(r.NextPerformedAt),
 		timeToSQL(r.CreatedAt),
 		timeToSQL(r.UpdatedAt),
@@ -154,7 +200,7 @@ func (r *Reminder) UpdateWithTx(tx *sql.Tx) error {
 		r.DescriptionHTML,
 		r.DescriptionText,
 		r.Tag,
-		timeToSQL(r.LastCheckedAt),
+		timeToSQL(r.LastPerformedAt),
 		timeToSQL(r.NextPerformedAt),
 		timeToSQL(r.UpdatedAt),
 		timeToSQL(r.DeletedAt),
@@ -175,6 +221,10 @@ func CountReminders() (int, error) {
 	}
 
 	return count, nil
+}
+
+func FindReminders() ([]*Reminder, error) {
+	return QueryReminders("")
 }
 
 func LoadReminderByID(id int64) (*Reminder, error) {

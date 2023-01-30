@@ -3,8 +3,11 @@ package core
 import (
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewNoteQuote(t *testing.T) {
@@ -209,10 +212,107 @@ Wisdom is making the right choice without all the information.
 		t.Run(tt.name, func(t *testing.T) {
 			file := NewEmptyFile()
 			actual := NewNote(file, tt.name, tt.input, 10)
+			content, _, _ := actual.parseContentRaw()
 			if tt.strict {
-				assert.Equal(t, tt.content, actual.Content)
+				assert.Equal(t, tt.content, content)
 			} else {
-				assert.Equal(t, strings.TrimSpace(tt.content), strings.TrimSpace(actual.Content))
+				assert.Equal(t, strings.TrimSpace(tt.content), strings.TrimSpace(content))
+			}
+		})
+	}
+}
+
+func TestGetLinks(t *testing.T) {
+	var tests = []struct {
+		name     string  // name
+		title    string  // input
+		content  string  // input
+		expected []*Link // output
+	}{
+		{
+			name:  "Different link syntaxes",
+			title: "Cheatsheet: How to create a module?",
+			content: `
+[Link 1](https://docs.npmjs.com "Tutorial to creating Node.js modules")
+[Link 2](https://docs.npmjs.com "Tutorial to creating Node.js modules #go/node/module")
+[Link 3](https://docs.npmjs.com "#go/node/module")
+[Link 4](https://docs.npmjs.com)`,
+			expected: []*Link{
+				{
+					Text:   "Link 2",
+					URL:    "https://docs.npmjs.com",
+					GoName: "node/module",
+					Title:  "Tutorial to creating Node.js modules",
+				},
+				{
+					Text:   "Link 3",
+					URL:    "https://docs.npmjs.com",
+					GoName: "node/module",
+					Title:  "",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			note := NewNote(NewEmptyFile(), tt.title, tt.content, 1)
+			links, err := note.GetLinks()
+			require.NoError(t, err)
+			require.Len(t, links, len(tt.expected))
+			for i, actualLink := range links {
+				expectedLink := tt.expected[i]
+				assert.Equal(t, expectedLink.Text, actualLink.Text)
+				assert.Equal(t, expectedLink.GoName, actualLink.GoName)
+				assert.Equal(t, expectedLink.URL, actualLink.URL)
+				assert.Equal(t, expectedLink.Title, actualLink.Title)
+			}
+		})
+	}
+}
+
+func TestGetReminders(t *testing.T) {
+	clock.FreezeAt(time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
+
+	var tests = []struct {
+		name     string      // name
+		title    string      // input
+		content  string      // input
+		expected []*Reminder // output
+	}{
+		{
+			name:  "Different reminder syntaxes",
+			title: "TODO: Activities",
+			content: "\n" +
+				"* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`\n",
+				// TODO complete with more supported syntaxes
+			expected: []*Reminder{
+				{
+					DescriptionRaw:  "Buy **Lego Christmas** sets to create a village",
+					Tag:             "#reminder-2025-09",
+					NextPerformedAt: time.Date(2025, time.Month(9), 1, 0, 0, 0, 0, time.UTC),
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			note := NewNote(NewEmptyFile(), tt.title, tt.content, 1)
+			reminders, err := note.GetReminders()
+			require.NoError(t, err)
+			require.Len(t, reminders, len(tt.expected))
+			for i, actualReminder := range reminders {
+				expectedReminder := tt.expected[i]
+				if expectedReminder.DescriptionRaw != "" {
+					assert.Equal(t, expectedReminder.DescriptionRaw, actualReminder.DescriptionRaw)
+				}
+				if expectedReminder.Tag != "" {
+					assert.Equal(t, expectedReminder.Tag, actualReminder.Tag)
+				}
+				if !expectedReminder.NextPerformedAt.IsZero() {
+					assert.EqualValues(t, expectedReminder.NextPerformedAt, actualReminder.NextPerformedAt)
+				}
 			}
 		})
 	}

@@ -73,9 +73,8 @@ type Note struct {
 	Line int
 
 	// Content in various formats (best for editing, rendering, writing, etc.)
-	RawContent      string
+	ContentRaw      string
 	Hash            string
-	Content         string // Same as RawContent without tags, attributes, etc.
 	ContentMarkdown string
 	ContentHTML     string
 	ContentText     string
@@ -109,22 +108,28 @@ func NewNote(f *File, title string, content string, lineNumber int) *Note {
 	return n
 }
 
-func (n *Note) updateContent(rawContent string) {
-	n.RawContent = strings.TrimSpace(rawContent)
-	n.Hash = hash([]byte(n.RawContent))
-
+func (n *Note) parseContentRaw() (string, []string, map[string]interface{}) {
 	var tags []string
 	var attributes map[string]interface{}
 	var content string
 
-	content, tags = extractTags(rawContent)
+	content, tags = extractTags(n.ContentRaw)
 	content, attributes = extractAttributes(content)
 	content = strings.TrimSpace(content)
+	content = n.expandSyntaxSugar(content)
+
+	return content, tags, attributes
+}
+
+func (n *Note) updateContent(rawContent string) {
+	n.ContentRaw = strings.TrimSpace(rawContent)
+	n.Hash = hash([]byte(n.ContentRaw))
+
+	content, tags, attributes := n.parseContentRaw()
 
 	n.Tags = tags
 	n.Attributes = attributes
-	n.Content = n.expandSyntaxSugar(content)
-	n.ContentMarkdown = markdown.ToMarkdown(n.Content)
+	n.ContentMarkdown = markdown.ToMarkdown(content)
 	n.ContentHTML = markdown.ToHTML(n.ContentMarkdown) // Use processed md to use <h2>, <h3>, ... whatever the note level
 	n.ContentText = markdown.ToText(n.ContentMarkdown)
 }
@@ -368,11 +373,12 @@ func (n *Note) expandSyntaxSugar(rawContent string) string {
 	return rawContent
 }
 
+// extractTags searches for all tags and remove lines containing only tags.
 func extractTags(content string) (string, []string) {
 	var tags []string
 
-	reTags := regexp.MustCompile("`#(\\w+)`")
-	reOnlyTags := regexp.MustCompile("^(`#\\w+`\\s*)+$")
+	reTags := regexp.MustCompile("`#(\\S+)`")
+	reOnlyTags := regexp.MustCompile("^(`#\\S+`\\s*)+$")
 	var res bytes.Buffer
 	for _, line := range strings.Split(content, "\n") {
 		matches := reTags.FindAllStringSubmatch(line, -1)
@@ -385,6 +391,19 @@ func extractTags(content string) (string, []string) {
 	}
 
 	return text.SquashBlankLines(res.String()), tags
+}
+
+// removeTags removes all tags from a text.
+func removeTags(content string) string {
+	reTags := regexp.MustCompile("`#(\\S+)`")
+	var res bytes.Buffer
+	for _, line := range strings.Split(content, "\n") {
+		newLine := reTags.ReplaceAllLiteralString(line, "")
+		if !text.IsBlank(newLine) {
+			res.WriteString(newLine + "\n")
+		}
+	}
+	return strings.TrimSpace(text.SquashBlankLines(res.String()))
 }
 
 func extractAttributes(content string) (string, map[string]interface{}) {
@@ -406,13 +425,72 @@ func extractAttributes(content string) (string, map[string]interface{}) {
 
 // GetMedias extracts medias from the note.
 func (n *Note) GetMedias() ([]*Media, error) {
-	return extractMediasFromMarkdown(n.File.RelativePath, n.Content)
+	return extractMediasFromMarkdown(n.File.RelativePath, n.ContentRaw)
+}
+
+// GetLinks extracts special links from a note.
+func (n *Note) GetLinks() ([]*Link, error) {
+	var links []*Link
+
+	reLink := regexp.MustCompile(`(?:^|[^!])\[(.*?)\]\("?(http[^\s"]*)"?(?:\s+["'](.*?)["'])?\)`)
+	// Note: Markdown images uses the same syntax as links but precedes the link by !
+	reTitle := regexp.MustCompile(`(?:(.*)\s+)?#go\/(\S+).*`)
+
+	matches := reLink.FindAllStringSubmatch(n.ContentRaw, -1)
+	for _, match := range matches {
+		text := match[1]
+		url := match[2]
+		title := match[3]
+		submatch := reTitle.FindStringSubmatch(title)
+		if submatch == nil {
+			continue
+		}
+		shortTitle := submatch[1]
+		goName := submatch[2]
+
+		links = append(links, &Link{
+			ID:     0,
+			NoteID: n.ID,
+			Text:   text,
+			URL:    url,
+			Title:  shortTitle,
+			GoName: goName,
+		})
+	}
+
+	return links, nil
 }
 
 // GetReminders extracts reminders from the note.
 func (n *Note) GetReminders() ([]*Reminder, error) {
-	// TODO
-	return nil, nil
+	var reminders []*Reminder
+
+	reReminders := regexp.MustCompile("`(#reminder-(\\S+))`")
+	reList := regexp.MustCompile(`^\s*(?:[-+*]|\d+[.])\s+(?:\[.\]\s+)?(.*)\s*$`)
+
+	for _, line := range strings.Split(n.ContentRaw, "\n") {
+		matches := reReminders.FindAllStringSubmatch(line, -1)
+		for _, match := range matches {
+			tag := match[1]
+			_ = match[2] // expression
+
+			description := n.ShortTitle
+
+			submatch := reList.FindStringSubmatch(line)
+			if submatch != nil {
+				// Reminder for a list element
+				description = removeTags(submatch[1]) // Remove tags
+			}
+
+			reminder, err := NewReminder(n, description, tag)
+			if err != nil {
+				return nil, err
+			}
+			reminders = append(reminders, reminder)
+		}
+	}
+
+	return reminders, nil
 }
 
 // TODO add SetParent method and traverse the hierachy to merge attributes/tags
@@ -453,6 +531,17 @@ func (n *Note) SaveWithTx(tx *sql.Tx) error {
 	} else {
 		n.CreatedAt = now
 		if err := n.InsertWithTx(tx); err != nil {
+			return err
+		}
+	}
+
+	// Save the links
+	links, err := n.GetLinks()
+	if err != nil {
+		return err
+	}
+	for _, link := range links {
+		if err := link.SaveWithTx(tx); err != nil {
 			return err
 		}
 	}
@@ -517,7 +606,7 @@ func (n *Note) InsertWithTx(tx *sql.Tx) error {
 		attributesJSON,
 		strings.Join(n.Tags, ","),
 		n.Line,
-		n.Content,
+		n.ContentRaw,
 		n.Hash,
 		n.ContentMarkdown,
 		n.ContentHTML,
@@ -585,7 +674,7 @@ func (n *Note) UpdateWithTx(tx *sql.Tx) error {
 		attributesJSON,
 		strings.Join(n.Tags, ","),
 		n.Line,
-		n.Content,
+		n.ContentRaw,
 		n.Hash,
 		n.ContentMarkdown,
 		n.ContentHTML,
@@ -717,7 +806,7 @@ func QueryNote(whereClause string, args ...any) (*Note, error) {
 			&attributesRaw,
 			&tagsRaw,
 			&n.Line,
-			&n.Content,
+			&n.ContentRaw,
 			&n.Hash,
 			&n.ContentMarkdown,
 			&n.ContentHTML,
@@ -799,7 +888,7 @@ func QueryNotes(whereClause string, args ...any) ([]*Note, error) {
 			&attributesRaw,
 			&tagsRaw,
 			&n.Line,
-			&n.Content,
+			&n.ContentRaw,
 			&n.Hash,
 			&n.ContentMarkdown,
 			&n.ContentHTML,

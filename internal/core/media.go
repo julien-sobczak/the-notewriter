@@ -26,7 +26,7 @@ const (
 )
 
 var AudioExtensions = []string{".mp3", ".wav"}
-var PictureExtensions = []string{".jpeg", ".png", ".gif"}
+var PictureExtensions = []string{".jpeg", ".png", ".gif", ".svg", ".avif"}
 var VideoExtensions = []string{".mp4", ".ogg", ".webm"}
 
 type Media struct {
@@ -92,6 +92,7 @@ func NewMedia(path string) *Media {
 	m := &Media{
 		RelativePath: path,
 		Kind:         DetectMediaKind(path),
+		Extension:    filepath.Ext(path),
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}

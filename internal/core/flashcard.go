@@ -104,7 +104,7 @@ func NewFlashcard(f *File, n *Note) *Flashcard {
 	front := true
 	var frontContent bytes.Buffer
 	var backContent bytes.Buffer
-	for _, line := range strings.Split(n.Content, "\n") {
+	for _, line := range strings.Split(n.ContentMarkdown, "\n") {
 		if line == "---" {
 			front = false
 			continue

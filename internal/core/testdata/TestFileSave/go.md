@@ -11,7 +11,7 @@ tags:
 
 <!-- source: https://en.wikipedia.org/wiki/Go_(programming_language) -->
 
-[Golang](https://go.dev/doc/ "#goto-go") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.
+[Golang](https://go.dev/doc/ "#go/go") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.
 
 
 ## Flashcard: Golang Logo

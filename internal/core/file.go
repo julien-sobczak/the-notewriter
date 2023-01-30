@@ -301,11 +301,6 @@ func (f *File) GetMedias() ([]*Media, error) {
 	return extractMediasFromMarkdown(f.RelativePath, f.Content)
 }
 
-// GetLinks extracts special links from the file.
-func (f *File) GetLinks() []*Link {
-	// TODO
-	return nil
-}
 
 /* Creation */
 
@@ -499,13 +494,6 @@ func (f *File) SaveWithTx(tx *sql.Tx) error {
 	}
 	for _, media := range medias {
 		if err := media.SaveWithTx(tx); err != nil {
-			return err
-		}
-	}
-
-	// Save the links
-	for _, link := range f.GetLinks() {
-		if err := link.SaveWithTx(tx); err != nil {
 			return err
 		}
 	}

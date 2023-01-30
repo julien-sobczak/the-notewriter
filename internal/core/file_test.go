@@ -208,26 +208,26 @@ func TestGetNotes(t *testing.T) {
 	assert.Nil(t, notes[0].ParentNote)
 	assert.Equal(t, 6, notes[0].Line)
 	assert.Equal(t, "Flashcard: About _The NoteTaker_", notes[0].Title)
-	t.Log(notes[0].RawContent)
-	assert.Equal(t, notes[0].RawContent, "**What** is _The NoteTaker_?\n\n---\n\n_The NoteTaker_ is an unobstrusive application to organize all kinds of notes.")
+	t.Log(notes[0].ContentRaw)
+	assert.Equal(t, notes[0].ContentRaw, "**What** is _The NoteTaker_?\n\n---\n\n_The NoteTaker_ is an unobstrusive application to organize all kinds of notes.")
 
 	assert.Equal(t, KindQuote, notes[1].Kind)
 	assert.Nil(t, notes[1].ParentNote)
 	assert.Equal(t, 15, notes[1].Line)
 	assert.Equal(t, "Quote: Gustave Flaubert on Order", notes[1].Title)
-	assert.Equal(t, notes[1].RawContent, "`#favorite` `#life-changing`\n\n<!-- name: Gustave Flaubert -->\n<!-- references: https://fortelabs.com/blog/tiagos-favorite-second-brain-quotes/ -->\n\nBe regular and orderly in your life so that you may be violent and original in your work.")
+	assert.Equal(t, notes[1].ContentRaw, "`#favorite` `#life-changing`\n\n<!-- name: Gustave Flaubert -->\n<!-- references: https://fortelabs.com/blog/tiagos-favorite-second-brain-quotes/ -->\n\nBe regular and orderly in your life so that you may be violent and original in your work.")
 
 	assert.Equal(t, KindFlashcard, notes[2].Kind)
 	assert.Equal(t, notes[1], notes[2].ParentNote)
 	assert.Equal(t, 25, notes[2].Line)
 	assert.Equal(t, "Flashcard: Gustave Flaubert on Order", notes[2].Title)
-	assert.Equal(t, notes[2].RawContent, "`#creativity`\n\n**Why** order is required for creativity?\n\n---\n\n> Be regular and orderly in your life **so that you may be violent and original in your work**.\n> -- Gustave Flaubert")
+	assert.Equal(t, notes[2].ContentRaw, "`#creativity`\n\n**Why** order is required for creativity?\n\n---\n\n> Be regular and orderly in your life **so that you may be violent and original in your work**.\n> -- Gustave Flaubert")
 
 	assert.Equal(t, KindTodo, notes[3].Kind)
 	assert.Nil(t, notes[3].ParentNote)
 	assert.Equal(t, 40, notes[3].Line)
 	assert.Equal(t, "TODO: Backlog", notes[3].Title)
-	assert.Equal(t, notes[3].RawContent, "* [*] Complete examples\n* [ ] Write `README.md`")
+	assert.Equal(t, notes[3].ContentRaw, "* [*] Complete examples\n* [ ] Write `README.md`")
 }
 
 func TestFileInheritance(t *testing.T) {
@@ -327,8 +327,8 @@ func TestFileSave(t *testing.T) {
 	require.Equal(t, 3, mustCountNotes(t))
 	require.Equal(t, 1, mustCountMedias(t))
 	require.Equal(t, 1, mustCountFlashcards(t))
-	require.Equal(t, 0, mustCountLinks(t))     // TODO
-	require.Equal(t, 0, mustCountReminders(t)) // TODO
+	require.Equal(t, 1, mustCountLinks(t))
+	require.Equal(t, 1, mustCountReminders(t))
 
 	// Check the file
 	actual, err := LoadFileByPath(f.RelativePath)
@@ -350,7 +350,7 @@ func TestFileSave(t *testing.T) {
 	assert.WithinDuration(t, clock.Now(), actual.UpdatedAt, 1*time.Second)
 	assert.WithinDuration(t, clock.Now(), actual.LastCheckedAt, 1*time.Second)
 
-	// Check the notes
+	// Check a note
 	note, err := FindNoteByTitle("Reference: Golang History")
 	require.NoError(t, err)
 	assert.NotEqual(t, 0, note.ID)
@@ -365,11 +365,10 @@ func TestFileSave(t *testing.T) {
 	}, note.Attributes)
 	assert.Equal(t, []string{"go", "history"}, note.GetTags())
 	assert.Equal(t, 3, note.Line)
-	assert.Equal(t, "", note.RawContent) // FIXME
-	assert.Equal(t, "d58a84a04615c23cea31a7630969f083", note.Hash)
-	assert.Equal(t, "[Golang](https://go.dev/doc/ \"#goto-go\") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.", note.Content)
-	assert.Equal(t, `[Golang](https://go.dev/doc/ "#goto-go") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.`, note.ContentMarkdown)
-	assert.Equal(t, "<p><a href=\"https://go.dev/doc/\" title=\"#goto-go\">Golang</a> was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.</p>", note.ContentHTML)
+	assert.Equal(t, "`#history`\n\n<!-- source: https://en.wikipedia.org/wiki/Go_(programming_language) -->\n\n[Golang](https://go.dev/doc/ \"#go/go\") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.", note.ContentRaw)
+	assert.Equal(t, "bb406ddcc9f0b212e2329a1e093aa21d", note.Hash)
+	assert.Equal(t, `[Golang](https://go.dev/doc/ "#go/go") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.`, note.ContentMarkdown)
+	assert.Equal(t, "<p><a href=\"https://go.dev/doc/\" title=\"#go/go\">Golang</a> was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.</p>", note.ContentHTML)
 	assert.Equal(t, "Golang was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.", note.ContentText)
 	assert.NotEmpty(t, note.CreatedAt)
 	assert.NotEmpty(t, note.UpdatedAt)
@@ -377,18 +376,91 @@ func TestFileSave(t *testing.T) {
 	assert.NotEmpty(t, note.LastCheckedAt)
 
 	// Check the flashcard
+	flashcardNote, err := FindNoteByTitle("Flashcard: Golang Logo")
+	require.NoError(t, err)
 	flashcard, err := FindFlashcardByShortTitle("Golang Logo")
 	require.NoError(t, err)
 	assert.NotEqual(t, 0, flashcard.ID)
+	assert.Equal(t, "Golang Logo", flashcard.ShortTitle)
+	assert.EqualValues(t, actual.ID, flashcard.FileID)
+	assert.Equal(t, flashcardNote.ID, flashcard.NoteID)
+	assert.Equal(t, []string{"go"}, flashcard.Tags)
+	assert.Equal(t, CardNew, flashcard.Type)
+	assert.Equal(t, QueueNew, flashcard.Queue)
+	assert.EqualValues(t, 0, flashcard.Due)
+	assert.EqualValues(t, 1, flashcard.Interval)
+	assert.Equal(t, 2500, flashcard.EaseFactor)
+	assert.Equal(t, 0, flashcard.Repetitions)
+	assert.Equal(t, 0, flashcard.Lapses)
+	assert.Equal(t, 0, flashcard.Left)
+	assert.Equal(t, "What does the **Golang logo** represent?", flashcard.FrontMarkdown)
+	assert.Equal(t, "A **gopher**.\n\n![Logo](./medias/go.svg)", flashcard.BackMarkdown)
+	assert.Equal(t, "<p>What does the <strong>Golang logo</strong> represent?</p>", flashcard.FrontHTML)
+	assert.Equal(t, "<p>A <strong>gopher</strong>.</p>\n\n<p><img src=\"./medias/go.svg\" alt=\"Logo\" /></p>", flashcard.BackHTML)
+	assert.Equal(t, "What does the Golang logo represent?", flashcard.FrontText)
+	assert.Equal(t, "A gopher.\n\n![Logo](./medias/go.svg)", flashcard.BackText)
+	assert.NotEmpty(t, flashcard.CreatedAt)
+	assert.NotEmpty(t, flashcard.UpdatedAt)
+	assert.Empty(t, flashcard.DeletedAt)
+	assert.NotEmpty(t, flashcard.LastCheckedAt)
 
 	// Check the media
+	media, err := FindMediaByRelativePath("medias/go.svg")
+	require.NoError(t, err)
+	assert.NotEqual(t, 0, media.ID)
+	assert.Equal(t, "medias/go.svg", media.RelativePath)
+	assert.Equal(t, KindPicture, media.Kind)
+	assert.Equal(t, false, media.Dangling)
+	assert.Equal(t, 0, media.Links)
+	assert.Equal(t, ".svg", media.Extension)
+	assert.NotEmpty(t, media.MTime)
+	assert.Equal(t, "974a75814a1339c82cb497ea1ab56383", media.Hash)
+	assert.EqualValues(t, 2288, media.Size)
+	assert.NotEmpty(t, media.Mode)
+	assert.NotEmpty(t, media.CreatedAt)
+	assert.NotEmpty(t, media.UpdatedAt)
+	assert.Empty(t, media.DeletedAt)
+	assert.NotEmpty(t, media.LastCheckedAt)
 
 	// Check the link
-	// TODO
+	links, err := FindLinksByText("Golang")
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	link := links[0]
+	linkNote, err := FindNoteByTitle("Reference: Golang History")
+	require.NoError(t, err)
+	assert.NotEqual(t, 0, link.ID)
+	assert.Equal(t, linkNote.ID, link.NoteID)
+	assert.Equal(t, "Golang", link.Text)
+	assert.Equal(t, "https://go.dev/doc/", link.URL)
+	assert.Equal(t, "", link.Title)
+	assert.Equal(t, "go", link.GoName)
+	assert.NotEmpty(t, link.CreatedAt)
+	assert.NotEmpty(t, link.UpdatedAt)
+	assert.Empty(t, link.DeletedAt)
+	assert.NotEmpty(t, link.LastCheckedAt)
 
 	// Check the reminder
-	// TODO
-
+	reminders, err := FindReminders()
+	require.NoError(t, err)
+	require.Len(t, reminders, 1)
+	reminder := reminders[0]
+	reminderNote, err := FindNoteByTitle("TODO: Conferences")
+	require.NoError(t, err)
+	assert.NotEqual(t, 0, reminder.ID)
+	assert.Equal(t, reminderNote.ID, reminder.NoteID)
+	assert.Equal(t, reminderNote.FileID, reminder.FileID)
+	assert.Equal(t, "[Gophercon Europe](https://gophercon.eu/)", reminder.DescriptionRaw)
+	assert.Equal(t, "[Gophercon Europe](https://gophercon.eu/)", reminder.DescriptionMarkdown)
+	assert.Equal(t, "<p><a href=\"https://gophercon.eu/\">Gophercon Europe</a></p>", reminder.DescriptionHTML)
+	assert.Equal(t, "Gophercon Europe", reminder.DescriptionText)
+	assert.Equal(t, "#reminder-2023-06-26", reminder.Tag)
+	assert.Empty(t, reminder.LastPerformedAt)
+	assert.EqualValues(t, time.Date(2023, 6, 26, 0, 0, 0, 0, time.UTC), reminder.NextPerformedAt) // FIXME
+	assert.NotEmpty(t, reminder.CreatedAt)
+	assert.NotEmpty(t, reminder.UpdatedAt)
+	assert.Empty(t, reminder.DeletedAt)
+	assert.NotEmpty(t, reminder.LastCheckedAt)
 }
 
 /* Test Helpers */
