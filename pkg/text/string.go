@@ -3,6 +3,7 @@ package text
 import (
 	"bufio"
 	"bytes"
+	"strconv"
 	"strings"
 )
 
@@ -29,7 +30,13 @@ func SquashBlankLines(text string) string {
 	return result.String()
 }
 
-// IsBlank returns is a text is blank.
+// IsBlank returns if a text is blank.
 func IsBlank(text string) bool {
 	return len(strings.TrimSpace(text)) == 0
+}
+
+// IsNumber returns if a text is a number.
+func IsNumber(text string) bool {
+	_, err := strconv.Atoi(text)
+	return err == nil
 }

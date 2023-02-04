@@ -273,6 +273,7 @@ func TestGetLinks(t *testing.T) {
 
 func TestGetReminders(t *testing.T) {
 	clock.FreezeAt(time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
+	defer clock.Unfreeze()
 
 	var tests = []struct {
 		name     string      // name
@@ -285,7 +286,7 @@ func TestGetReminders(t *testing.T) {
 			title: "TODO: Activities",
 			content: "\n" +
 				"* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`\n",
-				// TODO complete with more supported syntaxes
+			// TODO complete with more supported syntaxes
 			expected: []*Reminder{
 				{
 					DescriptionRaw:  "Buy **Lego Christmas** sets to create a village",

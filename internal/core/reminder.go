@@ -4,11 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
+	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/julien-sobczak/the-notetaker/pkg/markdown"
+	"github.com/julien-sobczak/the-notetaker/pkg/text"
 )
 
 type Reminder struct {
@@ -72,23 +77,365 @@ func (r *Reminder) Next() error {
 
 	expression := strings.TrimPrefix(r.Tag, "#reminder-")
 
-	r.LastPerformedAt = r.NextPerformedAt
-	r.NextPerformedAt = evaluateTimeExpression(expression)[0]
+	lastPerformedAt := r.NextPerformedAt
+	nextPerformedAt, err := EvaluateTimeExpression(expression)
+	if err != nil {
+		return err
+	}
+	r.LastPerformedAt = lastPerformedAt
+	r.NextPerformedAt = nextPerformedAt
 	return nil
 }
 
-func evaluateTimeExpression(expr string) []time.Time {
-	// TODO implement logic
-	t, err := time.Parse("2006-01", expr)
-	if err != nil {
-		// log.Fatalf("Unable to parse reminder expression: %v", err)
-		return []time.Time{{}}
+func EvaluateTimeExpression(expr string) (time.Time, error) {
+	originalExpr := expr
+	today := clock.Now()
+
+	// Static dates are easier to address
+	var reStaticDate = regexp.MustCompile(`(\d{4})(?:-(\d{2})(?:-(\d{2})))`)
+	if reStaticDate.MatchString(expr) {
+		var year, month, day int
+		match := reStaticDate.FindStringSubmatch(expr)
+		year, _ = strconv.Atoi(match[1])
+		monthStr := match[2]
+		dayStr := match[3]
+		if dayStr == "" {
+			day = 1
+		} else {
+			day, _ = strconv.Atoi(dayStr)
+		}
+		if monthStr == "" {
+			if day < today.Day() {
+				month = int(today.Month()) + 1
+			} else {
+				month = int(today.Month())
+			}
+		} else {
+			month, _ = strconv.Atoi(monthStr)
+		}
+		return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC), nil
 	}
 
-	// Step 1: Replace variables
-	// Step 2: Evaluation
+	yearSpecified := false
+	yearStr := ""
+	monthSpecified := false
+	monthStr := ""
+	daySpecified := false
+	dayStr := ""
 
-	return []time.Time{t}
+	expr = strings.TrimPrefix(expr, "every-") // syntaxic sugar (not useful for the algorithm)
+
+	// Detect year expression
+	match, _ := regexp.MatchString(`^\d{4}-?.*`, expr)
+	if match {
+		yearSpecified = true
+		yearStr = expr[0:4]
+		expr = expr[4:]
+	} else if strings.HasPrefix(expr, "${year}") {
+		yearSpecified = true
+		yearStr = "year"
+		expr = strings.TrimPrefix(expr, "${year}")
+	} else if strings.HasPrefix(expr, "${odd-year}") {
+		yearSpecified = true
+		yearStr = "odd-year"
+		expr = strings.TrimPrefix(expr, "${odd-year}")
+	} else if strings.HasPrefix(expr, "${even-year}") {
+		yearSpecified = true
+		yearStr = "even-year"
+		expr = strings.TrimPrefix(expr, "${even-year}")
+	} else {
+		yearSpecified = false
+	}
+
+	if expr != "" {
+		expr = strings.TrimPrefix(expr, "-")
+
+		// Detect month expression
+		match, _ = regexp.MatchString(`^\d{2}-?.*`, expr)
+		if match {
+			fmt.Println("ici")
+			monthSpecified = true
+			monthStr = expr[0:2]
+			expr = expr[2:]
+		} else if strings.HasPrefix(expr, "${month}") {
+			monthSpecified = true
+			monthStr = "month"
+			expr = strings.TrimPrefix(expr, "${month}")
+		} else if strings.HasPrefix(expr, "${odd-month}") {
+			monthSpecified = true
+			monthStr = "odd-month"
+			expr = strings.TrimPrefix(expr, "${odd-month}")
+		} else if strings.HasPrefix(expr, "${even-month}") {
+			monthSpecified = true
+			monthStr = "even-month"
+			expr = strings.TrimPrefix(expr, "${even-month}")
+		} else {
+			fmt.Println("month not specified")
+			monthSpecified = false
+		}
+
+		if expr != "" {
+			expr = strings.TrimPrefix(expr, "-")
+
+			// Detect day expression
+			match, _ := regexp.MatchString(`^\d{2}-?.*`, expr)
+			if match {
+				daySpecified = true
+				dayStr = expr[0:2]
+				expr = expr[2:]
+			} else if strings.HasPrefix(expr, "${day}") {
+				daySpecified = true
+				dayStr = "day"
+				expr = strings.TrimPrefix(expr, "${day}")
+			} else if strings.HasPrefix(expr, "${monday}") {
+				daySpecified = true
+				dayStr = "monday"
+				expr = strings.TrimPrefix(expr, "${monday}")
+			} else if strings.HasPrefix(expr, "${tuesday}") {
+				daySpecified = true
+				dayStr = "tuesday"
+				expr = strings.TrimPrefix(expr, "${tuesday}")
+			} else if strings.HasPrefix(expr, "${wednesday}") {
+				daySpecified = true
+				dayStr = "wednesday"
+				expr = strings.TrimPrefix(expr, "${wednesday}")
+			} else if strings.HasPrefix(expr, "${thursday}") {
+				daySpecified = true
+				dayStr = "thursday"
+				expr = strings.TrimPrefix(expr, "${thursday}")
+			} else if strings.HasPrefix(expr, "${friday}") {
+				daySpecified = true
+				dayStr = "friday"
+				expr = strings.TrimPrefix(expr, "${friday}")
+			} else if strings.HasPrefix(expr, "${saturday}") {
+				daySpecified = true
+				dayStr = "saturday"
+				expr = strings.TrimPrefix(expr, "${saturday}")
+			} else if strings.HasPrefix(expr, "${sunday}") {
+				daySpecified = true
+				dayStr = "sunday"
+				expr = strings.TrimPrefix(expr, "${sunday}")
+			} else {
+				daySpecified = false
+			}
+		}
+
+	}
+
+	// The reminder must have been completely parsed now
+	if expr != "" {
+		return time.Time{}, fmt.Errorf("unexpected character after the end of reminder expression %q", originalExpr)
+	}
+
+	// We must at least have a year, a month, or a day
+	if !yearSpecified && !monthSpecified && !daySpecified {
+		return time.Time{}, fmt.Errorf("missing date in reminder expression %q", originalExpr)
+	}
+
+	// Generate all possible combinations
+	possibleDates := generateDates(yearStr, monthStr, dayStr)
+
+	// Filter to keep only future dates
+	var possibleFutureDates []time.Time
+	for _, possibleDate := range possibleDates {
+		if possibleDate.After(today) {
+			possibleFutureDates = append(possibleFutureDates, possibleDate)
+		}
+	}
+
+	// Sort to find the next future date
+	sort.Slice(possibleFutureDates, func(i, j int) bool {
+		return possibleFutureDates[i].Before(possibleFutureDates[j])
+	})
+
+	return possibleFutureDates[0], nil
+}
+
+func generateDates(yearExpr, monthExpr, dayExpr string) []time.Time {
+
+	if text.IsNumber(yearExpr) && text.IsNumber(monthExpr) && text.IsNumber(dayExpr) {
+		year, _ := strconv.Atoi(yearExpr)
+		month, _ := strconv.Atoi(monthExpr)
+		day, _ := strconv.Atoi(dayExpr)
+		return []time.Time{time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)}
+	}
+
+	today := clock.Now()
+	var dates []time.Time
+	if !text.IsNumber(yearExpr) {
+		switch yearExpr {
+		case "":
+			fallthrough
+		case "year":
+			// this year or next year
+			dates = append(dates, generateDates(fmt.Sprint(today.Year()), monthExpr, dayExpr)...)
+			dates = append(dates, generateDates(fmt.Sprint(today.Year()+1), monthExpr, dayExpr)...)
+			return dates
+		case "odd-year":
+			if today.Year()%2 == 0 {
+				dates = append(dates, generateDates(fmt.Sprint(today.Year()), monthExpr, dayExpr)...)
+				dates = append(dates, generateDates(fmt.Sprint(today.Year()+2), monthExpr, dayExpr)...)
+			} else {
+				dates = append(dates, generateDates(fmt.Sprint(today.Year()+1), monthExpr, dayExpr)...)
+			}
+			return dates
+		case "even-year":
+			if today.Year()%2 == 1 {
+				dates = append(dates, generateDates(fmt.Sprint(today.Year()), monthExpr, dayExpr)...)
+				dates = append(dates, generateDates(fmt.Sprint(today.Year()+2), monthExpr, dayExpr)...)
+			} else {
+				dates = append(dates, generateDates(fmt.Sprint(today.Year()+1), monthExpr, dayExpr)...)
+			}
+			return dates
+		default:
+			log.Fatalf("Unsupported year expression %q", yearExpr)
+		}
+	}
+
+	year, _ := strconv.Atoi(yearExpr)
+
+	if !text.IsNumber(monthExpr) {
+		switch monthExpr {
+		case "":
+			fallthrough
+		case "month":
+			if today.Year() == year {
+				// this month + next month
+				dates = append(dates, generateDates(yearExpr, fmt.Sprintf("%02d", today.Month()), dayExpr)...)
+				if today.Month() == time.December {
+					dates = append(dates, generateDates(yearExpr, "01", dayExpr)...)
+				} else {
+					dates = append(dates, generateDates(yearExpr, fmt.Sprintf("%02d", today.Month()+1), dayExpr)...)
+				}
+			} else {
+				// First month of a future year
+				dates = append(dates, generateDates(yearExpr, "01", dayExpr)...)
+			}
+			return dates
+		case "odd-month":
+			if today.Year() == year {
+				if today.Month()%2 == 0 {
+					// this month + next odd month
+					dates = append(dates, generateDates(yearExpr, fmt.Sprintf("%02d", today.Month()), dayExpr)...)
+					if today.Month() == time.December {
+						dates = append(dates, generateDates(yearExpr, "02", dayExpr)...)
+					} else {
+						dates = append(dates, generateDates(yearExpr, fmt.Sprintf("%02d", today.Month()+2), dayExpr)...)
+					}
+				} else {
+					// next month (NB: +1 is safe as we know the current month is even)
+					dates = append(dates, generateDates(yearExpr, fmt.Sprintf("%02d", today.Month()+1), dayExpr)...)
+				}
+			} else {
+				// First odd month of a future year
+				dates = append(dates, generateDates(yearExpr, "02", dayExpr)...)
+			}
+			return dates
+		case "even-month":
+			if today.Year() == year {
+				if today.Month()%2 == 1 {
+					// this month + next even month
+					dates = append(dates, generateDates(yearExpr, fmt.Sprintf("%02d", today.Month()), dayExpr)...)
+					if today.Month() == time.November {
+						dates = append(dates, generateDates(yearExpr, "01", dayExpr)...)
+					} else {
+						dates = append(dates, generateDates(yearExpr, fmt.Sprintf("%02d", today.Month()+2), dayExpr)...)
+					}
+				} else {
+					// next month
+					if today.Month() == time.December {
+						dates = append(dates, generateDates(yearExpr, "01", dayExpr)...)
+					} else {
+						dates = append(dates, generateDates(yearExpr, fmt.Sprintf("%02d", today.Month()+1), dayExpr)...)
+					}
+				}
+			} else {
+				// First even month of a future year
+				dates = append(dates, generateDates(yearExpr, "01", dayExpr)...)
+			}
+			return dates
+		default:
+			log.Fatalf("Unsupported month expression %q", monthExpr)
+		}
+	}
+
+	month, _ := strconv.Atoi(monthExpr)
+	currentMonth := time.Month(month)
+	start := time.Date(year, currentMonth, 1, 0, 0, 0, 0, time.UTC)
+
+	// We know that dayExpr is not a number if we reach this block
+	switch dayExpr {
+	case "":
+		fallthrough
+	case "day":
+		if today.Year() == year && today.Month() == time.Month(month) {
+			dates = append(dates, generateDates(yearExpr, monthExpr, fmt.Sprintf("%02d", today.Day()+1))...)
+			dates = append(dates, generateDates(yearExpr, monthExpr, "01")...) // end of month
+		} else {
+			dates = append(dates, generateDates(yearExpr, monthExpr, "01")...)
+		}
+		return dates
+	case "monday":
+		for start.Month() == currentMonth {
+			start = start.AddDate(0, 0, 1)
+			if start.Weekday() == time.Monday {
+				dates = append(dates, start)
+			}
+		}
+		return dates
+	case "tuesday":
+		for start.Month() == currentMonth {
+			start = start.AddDate(0, 0, 1)
+			if start.Weekday() == time.Tuesday {
+				dates = append(dates, start)
+			}
+		}
+		return dates
+	case "wednesday":
+		for start.Month() == currentMonth {
+			start = start.AddDate(0, 0, 1)
+			if start.Weekday() == time.Wednesday {
+				dates = append(dates, start)
+			}
+		}
+		return dates
+	case "thursday":
+		for start.Month() == currentMonth {
+			start = start.AddDate(0, 0, 1)
+			if start.Weekday() == time.Thursday {
+				dates = append(dates, start)
+			}
+		}
+		return dates
+	case "friday":
+		for start.Month() == currentMonth {
+			start = start.AddDate(0, 0, 1)
+			if start.Weekday() == time.Friday {
+				dates = append(dates, start)
+			}
+		}
+		return dates
+	case "saturday":
+		for start.Month() == currentMonth {
+			start = start.AddDate(0, 0, 1)
+			if start.Weekday() == time.Saturday {
+				dates = append(dates, start)
+			}
+		}
+		return dates
+	case "sunday":
+		for start.Month() == currentMonth {
+			start = start.AddDate(0, 0, 1)
+			if start.Weekday() == time.Sunday {
+				dates = append(dates, start)
+			}
+		}
+		return dates
+	default:
+		fmt.Println("Unsupported day expression", yearExpr, monthExpr)
+		log.Fatalf("Unsupported day expression %q", dayExpr)
+	}
+	return dates
 }
 
 func (r *Reminder) Save() error {
