@@ -4,7 +4,10 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	cp "github.com/otiai10/copy"
 )
 
 // SetUpFromGoldenFile creates a temp file based on the golden file of the current test.
@@ -72,10 +75,8 @@ func SetUpFromGoldenDirNamed(t *testing.T, testname string) string {
 		t.Fatal(err)
 	}
 
-	// We symlink everything inside the golden directory
-	// But not the directory itself.
-	// (So that test can create files/directories like .nt inside it without
-	// impacting the testdata original directory.)
+	// We duplicate everything so that test can create files/directories like .nt
+	// inside it without impacting the testdata original directory.)
 	err = os.Mkdir(dirOut, stat.Mode())
 	if err != nil {
 		t.Fatal(err)
@@ -86,9 +87,16 @@ func SetUpFromGoldenDirNamed(t *testing.T, testname string) string {
 	}
 
 	for _, file := range files {
-		src := filepath.Join(dirOut, file.Name())
-		dest := filepath.Join(dirIn, file.Name())
-		os.Symlink(dest, src)
+		src := filepath.Join(dirIn, file.Name())
+		dest := filepath.Join(dirOut, file.Name())
+		err = cp.Copy(src, dest, cp.Options{
+			Skip: func(info os.FileInfo, src, dest string) (bool, error) {
+				return strings.HasSuffix(src, ".git"), nil
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	return dirOut

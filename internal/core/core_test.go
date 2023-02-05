@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/julien-sobczak/the-notetaker/internal/testutil"
+	"github.com/stretchr/testify/require"
 )
 
 // SetUpCollectionFromGoldenFile populates a temp directory containing a valid .nt collection and a single file.
@@ -36,7 +37,7 @@ func SetUpCollectionFromGoldenDir(t *testing.T) string {
 
 // SetUpCollectionFromGoldenDir populates a temp directory based on the given golden dir name.
 func SetUpCollectionFromGoldenDirNamed(t *testing.T, testname string) string {
-	dirname := testutil.SetUpFromGoldenDir(t)
+	dirname := testutil.SetUpFromGoldenDirNamed(t, testname)
 	configureDir(t, dirname)
 	return dirname
 }
@@ -59,4 +60,11 @@ extensions=["md", "markdown"]`), os.ModePerm); err != nil {
 		os.Unsetenv("NT_HOME")
 		Reset()
 	})
+}
+
+/* Test */
+
+func TestSetUpCollectionFromGoldenDirNamed(t *testing.T) {
+	dirname := SetUpCollectionFromGoldenDirNamed(t, "example")
+	require.FileExists(t, filepath.Join(dirname, "thoughts/on-notetaking.md"))
 }

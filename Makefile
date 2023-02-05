@@ -11,6 +11,9 @@ build:
 test:
 	go test --tags "fts5" ./... -count=1
 
+install:
+	go install --tags "fts5"
+
 # Development-only target
 build-example:
 	env NT_HOME="./example" go run main.go build

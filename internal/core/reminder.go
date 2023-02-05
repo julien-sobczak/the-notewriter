@@ -87,11 +87,12 @@ func (r *Reminder) Next() error {
 	return nil
 }
 
+// EvaluateTimeExpression determine the next matching reminder date
 func EvaluateTimeExpression(expr string) (time.Time, error) {
 	originalExpr := expr
 	today := clock.Now()
 
-	// Static dates are easier to address
+	// Static dates are easier to address first
 	var reStaticDate = regexp.MustCompile(`(\d{4})(?:-(\d{2})(?:-(\d{2})))`)
 	if reStaticDate.MatchString(expr) {
 		var year, month, day int
@@ -116,12 +117,14 @@ func EvaluateTimeExpression(expr string) (time.Time, error) {
 		return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC), nil
 	}
 
+	// We have an expression where the year, month, day can be ommitted and where different syntaxes are supported (through variables).
+	// The first step is to determine the different parts to know if we have a year, a month, or day.
 	yearSpecified := false
-	yearStr := ""
+	yearExpr := ""
 	monthSpecified := false
-	monthStr := ""
+	monthExpr := ""
 	daySpecified := false
-	dayStr := ""
+	dayExpr := ""
 
 	expr = strings.TrimPrefix(expr, "every-") // syntaxic sugar (not useful for the algorithm)
 
@@ -129,19 +132,19 @@ func EvaluateTimeExpression(expr string) (time.Time, error) {
 	match, _ := regexp.MatchString(`^\d{4}-?.*`, expr)
 	if match {
 		yearSpecified = true
-		yearStr = expr[0:4]
+		yearExpr = expr[0:4]
 		expr = expr[4:]
 	} else if strings.HasPrefix(expr, "${year}") {
 		yearSpecified = true
-		yearStr = "year"
+		yearExpr = "year"
 		expr = strings.TrimPrefix(expr, "${year}")
 	} else if strings.HasPrefix(expr, "${odd-year}") {
 		yearSpecified = true
-		yearStr = "odd-year"
+		yearExpr = "odd-year"
 		expr = strings.TrimPrefix(expr, "${odd-year}")
 	} else if strings.HasPrefix(expr, "${even-year}") {
 		yearSpecified = true
-		yearStr = "even-year"
+		yearExpr = "even-year"
 		expr = strings.TrimPrefix(expr, "${even-year}")
 	} else {
 		yearSpecified = false
@@ -153,24 +156,22 @@ func EvaluateTimeExpression(expr string) (time.Time, error) {
 		// Detect month expression
 		match, _ = regexp.MatchString(`^\d{2}-?.*`, expr)
 		if match {
-			fmt.Println("ici")
 			monthSpecified = true
-			monthStr = expr[0:2]
+			monthExpr = expr[0:2]
 			expr = expr[2:]
 		} else if strings.HasPrefix(expr, "${month}") {
 			monthSpecified = true
-			monthStr = "month"
+			monthExpr = "month"
 			expr = strings.TrimPrefix(expr, "${month}")
 		} else if strings.HasPrefix(expr, "${odd-month}") {
 			monthSpecified = true
-			monthStr = "odd-month"
+			monthExpr = "odd-month"
 			expr = strings.TrimPrefix(expr, "${odd-month}")
 		} else if strings.HasPrefix(expr, "${even-month}") {
 			monthSpecified = true
-			monthStr = "even-month"
+			monthExpr = "even-month"
 			expr = strings.TrimPrefix(expr, "${even-month}")
 		} else {
-			fmt.Println("month not specified")
 			monthSpecified = false
 		}
 
@@ -181,39 +182,39 @@ func EvaluateTimeExpression(expr string) (time.Time, error) {
 			match, _ := regexp.MatchString(`^\d{2}-?.*`, expr)
 			if match {
 				daySpecified = true
-				dayStr = expr[0:2]
+				dayExpr = expr[0:2]
 				expr = expr[2:]
 			} else if strings.HasPrefix(expr, "${day}") {
 				daySpecified = true
-				dayStr = "day"
+				dayExpr = "day"
 				expr = strings.TrimPrefix(expr, "${day}")
 			} else if strings.HasPrefix(expr, "${monday}") {
 				daySpecified = true
-				dayStr = "monday"
+				dayExpr = "monday"
 				expr = strings.TrimPrefix(expr, "${monday}")
 			} else if strings.HasPrefix(expr, "${tuesday}") {
 				daySpecified = true
-				dayStr = "tuesday"
+				dayExpr = "tuesday"
 				expr = strings.TrimPrefix(expr, "${tuesday}")
 			} else if strings.HasPrefix(expr, "${wednesday}") {
 				daySpecified = true
-				dayStr = "wednesday"
+				dayExpr = "wednesday"
 				expr = strings.TrimPrefix(expr, "${wednesday}")
 			} else if strings.HasPrefix(expr, "${thursday}") {
 				daySpecified = true
-				dayStr = "thursday"
+				dayExpr = "thursday"
 				expr = strings.TrimPrefix(expr, "${thursday}")
 			} else if strings.HasPrefix(expr, "${friday}") {
 				daySpecified = true
-				dayStr = "friday"
+				dayExpr = "friday"
 				expr = strings.TrimPrefix(expr, "${friday}")
 			} else if strings.HasPrefix(expr, "${saturday}") {
 				daySpecified = true
-				dayStr = "saturday"
+				dayExpr = "saturday"
 				expr = strings.TrimPrefix(expr, "${saturday}")
 			} else if strings.HasPrefix(expr, "${sunday}") {
 				daySpecified = true
-				dayStr = "sunday"
+				dayExpr = "sunday"
 				expr = strings.TrimPrefix(expr, "${sunday}")
 			} else {
 				daySpecified = false
@@ -233,7 +234,7 @@ func EvaluateTimeExpression(expr string) (time.Time, error) {
 	}
 
 	// Generate all possible combinations
-	possibleDates := generateDates(yearStr, monthStr, dayStr)
+	possibleDates := generateDates(yearExpr, monthExpr, dayExpr)
 
 	// Filter to keep only future dates
 	var possibleFutureDates []time.Time
@@ -252,7 +253,18 @@ func EvaluateTimeExpression(expr string) (time.Time, error) {
 }
 
 func generateDates(yearExpr, monthExpr, dayExpr string) []time.Time {
+	// Implementation: We generate all potential candidate dates as it's not easy to determine the target value.
+	//
+	// Ex: `reminder-${year}-07-02`
+	// * If today is 2023-07-01, the expected year is 2023
+	// * If today is 2023-08-01, the expected year is 2024
+	// The code doesn't bother and simply return [2023-07-02, 2024-07-02].
+	// The calling code will just have to sort the date and return the first future date.
+	//
+	// The function is recursive. We replace each variable by all possible values before evaluating the new expressions again
+	// until they are no more variables to replace.
 
+	// Base case
 	if text.IsNumber(yearExpr) && text.IsNumber(monthExpr) && text.IsNumber(dayExpr) {
 		year, _ := strconv.Atoi(yearExpr)
 		month, _ := strconv.Atoi(monthExpr)
@@ -432,7 +444,6 @@ func generateDates(yearExpr, monthExpr, dayExpr string) []time.Time {
 		}
 		return dates
 	default:
-		fmt.Println("Unsupported day expression", yearExpr, monthExpr)
 		log.Fatalf("Unsupported day expression %q", dayExpr)
 	}
 	return dates

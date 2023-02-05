@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 type BuildResult struct {
@@ -19,29 +18,29 @@ func (c *Collection) Build(outputDirectory string) error {
 
 	config := CurrentConfig()
 
+	log.Printf("Reading %s...\n", config.RootDirectory)
 	filepath.WalkDir(config.RootDirectory, func(path string, info fs.DirEntry, err error) error {
 		if err != nil {
+			log.Fatal(err) // FIXME not visible in stderr
 			return err
 		}
 
 		dirname := filepath.Base(path)
 		if dirname == ".nt" {
+			return fs.SkipDir // NB fs.SkipDir skip the parent dir when path is a file
+		}
+		if dirname == ".git" {
 			return fs.SkipDir
 		}
 
 		relpath := strings.TrimPrefix(path, config.RootDirectory+"/")
 
-		if info.IsDir() && !config.IgnoreFile.Include(relpath) {
-			return fs.SkipDir
-		}
-
 		if !config.IgnoreFile.Include(relpath) {
-			// Nothing to do
 			return nil
 		}
 
 		// We look for only specific extension
-		if !config.ConfigFile.SupportExtension(relpath) {
+		if !info.IsDir() && !config.ConfigFile.SupportExtension(relpath) {
 			// Nothing to do
 			return nil
 		}
@@ -50,8 +49,7 @@ func (c *Collection) Build(outputDirectory string) error {
 		fileInfo, err := os.Lstat(path) // NB: os.Stat follows symlinks
 		if err != nil {
 			// Ignore the file
-			fmt.Fprintf(os.Stderr, "Unable to stat file %q: %v\n", path, err)
-			os.Exit(1)
+			return nil
 		}
 		if !fileInfo.Mode().IsRegular() {
 			// Exclude any file with a mode bit set (device, socket, named pipe, ...)
@@ -60,7 +58,15 @@ func (c *Collection) Build(outputDirectory string) error {
 		}
 
 		// Process file
-		log.Println(relpath) // TODO emit notif for tests? + Parse file
+		log.Printf("Processing %s...\n", path) // TODO emit notif for tests? + Parse file
+		file, err := NewFileFromPath(path)
+		if err != nil {
+			return err
+		}
+		err = file.Save()
+		if err != nil {
+			return err
+		}
 
 		return nil
 	})
@@ -72,8 +78,6 @@ func (c *Collection) Build(outputDirectory string) error {
 }
 
 func (c *Collection) Update(buildResult *BuildResult) error {
-	now := time.Now()
-	fmt.Printf("%v\n", now)
 	// Update all tables and their timestamps
 	// + generate replication log + packfiles (only if change, a rebuild must not trigger new files)
 	// TODO Mark as stale old records (deleted_at)

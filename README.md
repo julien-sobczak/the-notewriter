@@ -19,7 +19,7 @@ $ go run main.go reference new --kind=author Nelson
 $ go run --tags "fts5" main.go build
 
 # To use a new version locally
-$ go install
+$ make install
 # Copy to %GOPATH/bin
 $ alias nt="the-notetaker"
 $ nt init

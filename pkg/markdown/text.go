@@ -2,7 +2,6 @@ package markdown
 
 import (
 	"bytes"
-	"fmt"
 	"regexp"
 	"strings"
 	"unicode/utf8"
@@ -31,7 +30,6 @@ func ToText(md string) string {
 			case 2:
 				res.WriteString(headingTitle)
 				res.WriteString("\n")
-				fmt.Println(len(headingTitle))
 				for i := 0; i < utf8.RuneCountInString(headingTitle); i++ {
 					res.WriteRune('-')
 				}

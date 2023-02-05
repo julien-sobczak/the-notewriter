@@ -3,6 +3,7 @@ package core
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -65,6 +66,7 @@ type IgnoreFile struct {
 func (f *IgnoreFile) Include(path string) bool {
 	for _, entry := range f.Entries {
 		if entry.Match(path) {
+			log.Printf("Match %s: %s", entry, path) // FIXME remove or debug
 			return false
 		}
 	}

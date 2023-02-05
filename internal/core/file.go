@@ -91,13 +91,14 @@ func (f *File) GetAttribute(key string) interface{} {
 	if f.frontMatter == nil {
 		return nil
 	}
-	for i := 0; i < len(f.frontMatter.Content); i++ {
-		keyNode := f.frontMatter.Content[i*2]
-		valueNode := f.frontMatter.Content[i*2+1]
-		if keyNode.Value != key {
-			continue
+	i := 0
+	for i < len(f.frontMatter.Content)-1 {
+		keyNode := f.frontMatter.Content[i]
+		valueNode := f.frontMatter.Content[i+1]
+		i += 2
+		if keyNode.Value == key {
+			return toSafeYAMLValue(valueNode)
 		}
-		return toSafeYAMLValue(valueNode)
 	}
 
 	// Not found
@@ -300,7 +301,6 @@ func (f *File) GetFlashcards() []*Flashcard {
 func (f *File) GetMedias() ([]*Media, error) {
 	return extractMediasFromMarkdown(f.RelativePath, f.Content)
 }
-
 
 /* Creation */
 
@@ -523,7 +523,6 @@ func (f *File) InsertWithTx(tx *sql.Tx) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(timeToSQL(f.CreatedAt))
 	res, err := tx.Exec(query,
 		f.RelativePath,
 		frontMatter,
