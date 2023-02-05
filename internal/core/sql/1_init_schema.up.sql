@@ -12,6 +12,8 @@ CREATE TABLE file (
 
     -- Relative file path to the file
     relative_path TEXT NOT NULL,
+    -- The full wikilink to this note
+    wikilink TEXT NOT NULL,
 
     -- JSON document representing the Front Matter
     front_matter TEXT NOT NULL,
@@ -56,6 +58,8 @@ CREATE TABLE note (
 
     -- The relative path of the file containing the note (denormalized field)
     relative_path TEXT NOT NULL,
+    -- The full wikilink to this note
+    wikilink TEXT NOT NULL,
 
     -- Title including the kind but not the Markdown heading characters
     title TEXT NOT NULL,

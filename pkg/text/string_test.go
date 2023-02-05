@@ -113,3 +113,48 @@ func TestIsBlank(t *testing.T) {
 		})
 	}
 }
+
+func TestTrimExtension(t *testing.T) {
+	var tests = []struct {
+		name     string // name
+		path     string // input
+		expected string // output
+	}{
+		{
+			name: "Basic filename",
+			path: "README.md",
+			expected: "README",
+		},
+		{
+			name: "Basic directory",
+			path: "medias/",
+			expected: "medias",
+		},
+		{
+			name: "File path",
+			path: "medias/pic.png",
+			expected: "medias/pic",
+		},
+		{
+			name: "Several extensions",
+			path: "medias/pic.png.back",
+			expected: "medias/pic.png",
+		},
+		{
+			name: "md file",
+			path: "note.md",
+			expected: "note",
+		},
+		{
+			name: "markdown file",
+			path: "note.markdown",
+			expected: "note",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := text.TrimExtension(tt.path)
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}

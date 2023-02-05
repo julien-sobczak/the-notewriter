@@ -19,9 +19,10 @@ func TestNewNoteQuote(t *testing.T) {
 		"`#creativity`\n\n<!-- source: Steal Like an Artist -->\n\nWhen people give you advice, they’re really just talking to themselves in the past.", 10)
 
 	assert.Equal(t, "> When people give you advice, they’re really just talking to themselves in the past.\n> -- Austin Kleon", note.ContentMarkdown)
-	// FIXME uncomment
-	// assert.Equal(t, "<blockquote>When people give you advice, they’re really just talking to themselves in the past. — Austin Kleon</blockquote>", note.ContentHTML)
-	// assert.Equal(t, "When people give you advice, they’re really just talking to themselves in the past. — Austin Kleon", note.ContentText)
+	assert.Equal(t, "<blockquote>\n<p>When people give you advice, they’re really just talking to themselves in the past.\n&ndash; Austin Kleon</p>\n</blockquote>", note.ContentHTML)
+	// FIXME https://stackoverflow.com/a/49212532 put the author in <p> outside the blockquote
+	assert.Equal(t, "\"When people give you advice, they’re really just talking to themselves in the past.\n-- Austin Kleon\"", note.ContentText)
+	// FIXME put the author output the quotation marks
 }
 
 func TestMergeTags(t *testing.T) {
@@ -296,7 +297,6 @@ func TestGetReminders(t *testing.T) {
 			},
 		},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			note := NewNote(NewEmptyFile(), tt.title, tt.content, 1)
@@ -315,6 +315,44 @@ func TestGetReminders(t *testing.T) {
 					assert.EqualValues(t, expectedReminder.NextPerformedAt, actualReminder.NextPerformedAt)
 				}
 			}
+		})
+	}
+}
+
+func TestNoteFormat(t *testing.T) {
+	var tests = []struct {
+		name             string // name
+		title            string // input
+		content          string // input
+		expectedJSON     string // output
+		expectedMarkdown string // output
+		expectedHTML     string // output
+		expectedText     string // output
+	}{
+		{
+			name:  "Basic note",
+			title: "TODO: **Activities**",
+			content: "\n" +
+				"* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`\n",
+			expectedJSON:     "{\n \"id\": 0,\n \"relativePath\": \"\",\n \"wikilink\": \"#TODO: **Activities**\",\n \"frontMatter\": null,\n \"tags\": [\n  \"reminder-2025-09\"\n ],\n \"contentRaw\": \"* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`\",\n \"contentMarkdown\": \"* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`\",\n \"contentHTML\": \"\\u003cul\\u003e\\n\\u003cli\\u003e[ ] Buy \\u003cstrong\\u003eLego Christmas\\u003c/strong\\u003e sets to create a village \\u003ccode\\u003e#reminder-2025-09\\u003c/code\\u003e\\u003c/li\\u003e\\n\\u003c/ul\\u003e\",\n \"contentText\": \"* [ ] Buy Lego Christmas sets to create a village `#reminder-2025-09`\"\n}",
+			expectedMarkdown: "# TODO: **Activities**\n\n* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`",
+			expectedHTML:     "<h1><p>TODO: <strong>Activities</strong></p></h1>\n\n<ul>\n<li>[ ] Buy <strong>Lego Christmas</strong> sets to create a village <code>#reminder-2025-09</code></li>\n</ul>",
+			expectedText:     "TODO: Activities\n\n* [ ] Buy Lego Christmas sets to create a village `#reminder-2025-09`",
+			// TODO use backtip for more a readable test
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			note := NewNote(NewEmptyFile(), tt.title, tt.content, 1)
+			actualJSON := note.FormatToJSON()
+			actualMarkdown := note.FormatToMarkdown()
+			actualHTML := note.FormatToHTML()
+			actualText := note.FormatToText()
+			assert.Equal(t, tt.expectedJSON, actualJSON)
+			assert.Equal(t, tt.expectedMarkdown, actualMarkdown)
+			assert.Equal(t, tt.expectedHTML, actualHTML)
+			assert.Equal(t, tt.expectedText, actualText)
 		})
 	}
 }

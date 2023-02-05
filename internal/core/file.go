@@ -32,6 +32,8 @@ type File struct {
 
 	// A relative path to the collection directory
 	RelativePath string
+	// The full wikilink to this file (without the extension)
+	Wikilink string
 
 	// The FrontMatter for the note file
 	frontMatter *yaml.Node
@@ -374,6 +376,7 @@ func NewFileFromPath(filepath string) (*File, error) {
 		ID: 0,
 		// Reread the file
 		RelativePath: relativePath,
+		Wikilink:     text.TrimExtension(relativePath),
 		Mode:         stat.Mode(),
 		Size:         stat.Size(),
 		Hash:         hash(contentBytes),
@@ -506,6 +509,7 @@ func (f *File) InsertWithTx(tx *sql.Tx) error {
 		INSERT INTO file(
 			id,
 			relative_path,
+			wikilink,
 			front_matter,
 			content,
 			created_at,
@@ -517,7 +521,7 @@ func (f *File) InsertWithTx(tx *sql.Tx) error {
 			hashsum,
 			mode
 		)
-		VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 	frontMatter, err := f.FrontMatterString()
 	if err != nil {
@@ -525,6 +529,7 @@ func (f *File) InsertWithTx(tx *sql.Tx) error {
 	}
 	res, err := tx.Exec(query,
 		f.RelativePath,
+		f.Wikilink,
 		frontMatter,
 		f.Content,
 		timeToSQL(f.CreatedAt),
@@ -554,6 +559,7 @@ func (f *File) UpdateWithTx(tx *sql.Tx) error {
 		UPDATE file
 		SET
 			relative_path = ?,
+			wikilink = ?,
 			front_matter = ?,
 			content = ?,
 			updated_at = ?,
@@ -572,6 +578,7 @@ func (f *File) UpdateWithTx(tx *sql.Tx) error {
 	}
 	_, err = tx.Exec(query,
 		f.RelativePath,
+		f.Wikilink,
 		frontMatter,
 		f.Content,
 		timeToSQL(f.UpdatedAt),
@@ -596,6 +603,10 @@ func LoadFileByID(id int64) (*File, error) {
 
 func LoadFilesByRelativePathPrefix(relativePathPrefix string) ([]*File, error) {
 	return QueryFiles(`WHERE relative_path LIKE ?`, relativePathPrefix+"%")
+}
+
+func FindFilesByWikilink(wikilink string) ([]*File, error) {
+	return QueryFiles(`WHERE wikilink LIKE ?`, "%"+wikilink)
 }
 
 // CountFiles returns the total number of files.
@@ -628,6 +639,7 @@ func QueryFile(whereClause string, args ...any) (*File, error) {
 		SELECT
 			id,
 			relative_path,
+			wikilink,
 			front_matter,
 			content,
 			created_at,
@@ -643,6 +655,7 @@ func QueryFile(whereClause string, args ...any) (*File, error) {
 		Scan(
 			&f.ID,
 			&f.RelativePath,
+			&f.Wikilink,
 			&rawFrontMatter,
 			&f.Content,
 			&createdAt,
@@ -685,6 +698,7 @@ func QueryFiles(whereClause string, args ...any) ([]*File, error) {
 		SELECT
 			id,
 			relative_path,
+			wikilink,
 			front_matter,
 			content,
 			created_at,
@@ -713,6 +727,7 @@ func QueryFiles(whereClause string, args ...any) ([]*File, error) {
 		err = rows.Scan(
 			&f.ID,
 			&f.RelativePath,
+			&f.Wikilink,
 			&rawFrontMatter,
 			&f.Content,
 			&createdAt,

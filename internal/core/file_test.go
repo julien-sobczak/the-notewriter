@@ -335,6 +335,7 @@ func TestFileSave(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEqual(t, 0, actual.ID)
 	assert.Equal(t, "go.md", actual.RelativePath)
+	assert.Equal(t, "go", actual.Wikilink)
 	expectedFrontMatter, err := f.FrontMatterString()
 	assert.NoError(t, err)
 	actualFrontMatter, err := actual.FrontMatterString()
@@ -360,6 +361,7 @@ func TestFileSave(t *testing.T) {
 	assert.Equal(t, "Reference: Golang History", note.Title)
 	assert.Equal(t, "Golang History", note.ShortTitle)
 	assert.Equal(t, actual.RelativePath, note.RelativePath)
+	assert.Equal(t, "go#Reference: Golang History", note.Wikilink)
 	assert.Equal(t, map[string]interface{}{
 		"source": "https://en.wikipedia.org/wiki/Go_(programming_language)",
 	}, note.Attributes)

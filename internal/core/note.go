@@ -62,6 +62,8 @@ type Note struct {
 
 	// The filepath of the file containing the note (denormalized field)
 	RelativePath string
+	// The full wikilink to this note (without the extension)
+	Wikilink string
 
 	// Note-specific attributes. Use GetAttributes() to get all merged attributes
 	Attributes map[string]interface{}
@@ -100,6 +102,7 @@ func NewNote(f *File, title string, content string, lineNumber int) *Note {
 		Title:        title,
 		ShortTitle:   shortTitle,
 		RelativePath: f.RelativePath,
+		Wikilink:     f.Wikilink + "#" + strings.TrimSpace(title),
 		Line:         lineNumber,
 	}
 
@@ -568,6 +571,7 @@ func (n *Note) InsertWithTx(tx *sql.Tx) error {
 			note_id,
 			kind,
 			relative_path,
+			wikilink,
 			title,
 			short_title,
 			attributes_yaml,
@@ -583,7 +587,7 @@ func (n *Note) InsertWithTx(tx *sql.Tx) error {
 			updated_at,
 			deleted_at,
 			last_checked_at)
-		VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 
 	attributesYAML, err := n.AttributesYAML()
@@ -600,6 +604,7 @@ func (n *Note) InsertWithTx(tx *sql.Tx) error {
 		n.ParentNoteID,
 		n.Kind,
 		n.RelativePath,
+		n.Wikilink,
 		n.Title,
 		n.ShortTitle,
 		attributesYAML,
@@ -637,6 +642,7 @@ func (n *Note) UpdateWithTx(tx *sql.Tx) error {
 			note_id = ?,
 			kind = ?,
 			relative_path = ?,
+			wikilink = ?,
 			title = ?,
 			short_title = ?,
 			attributes_yaml = ?,
@@ -668,6 +674,7 @@ func (n *Note) UpdateWithTx(tx *sql.Tx) error {
 		n.ParentNoteID,
 		n.Kind,
 		n.RelativePath,
+		n.Wikilink,
 		n.Title,
 		n.ShortTitle,
 		attributesYAML,
@@ -737,6 +744,10 @@ func FindMatchingNotes(shortTitle, hash string) (*Note, error) {
 	return QueryNote(`WHERE shortTitle = ? OR hashsum = ?`, shortTitle, hash)
 }
 
+func FindNotesByWikilink(wikilink string) ([]*Note, error) {
+	return QueryNotes(`WHERE wikilink LIKE ?`, "%"+wikilink)
+}
+
 func SearchNotes(kind NoteKind, q string) ([]*Note, error) {
 	db := CurrentDB().Client()
 	queryFTS, err := db.Prepare("SELECT id FROM note_fts WHERE kind = ? and note_fts MATCH ? ORDER BY rank LIMIT 10;")
@@ -779,6 +790,7 @@ func QueryNote(whereClause string, args ...any) (*Note, error) {
 			note_id,
 			kind,
 			relative_path,
+			wikilink,
 			title,
 			short_title,
 			attributes_yaml,
@@ -801,6 +813,7 @@ func QueryNote(whereClause string, args ...any) (*Note, error) {
 			&n.ParentNoteID,
 			&n.Kind,
 			&n.RelativePath,
+			&n.Wikilink,
 			&n.Title,
 			&n.ShortTitle,
 			&attributesRaw,
@@ -848,6 +861,7 @@ func QueryNotes(whereClause string, args ...any) ([]*Note, error) {
 			note_id,
 			kind,
 			relative_path,
+			wikilink,
 			title,
 			short_title,
 			attributes_yaml,
@@ -883,6 +897,7 @@ func QueryNotes(whereClause string, args ...any) ([]*Note, error) {
 			&n.ParentNoteID,
 			&n.Kind,
 			&n.RelativePath,
+			&n.Wikilink,
 			&n.Title,
 			&n.ShortTitle,
 			&attributesRaw,
@@ -923,4 +938,57 @@ func QueryNotes(whereClause string, args ...any) ([]*Note, error) {
 	}
 
 	return notes, err
+}
+
+/* Format */
+
+func (n *Note) FormatToJSON() string {
+	type NoteRepresentation struct {
+		ID              int64                  `json:"id"`
+		RelativePath    string                 `json:"relativePath"`
+		Wikilink        string                 `json:"wikilink"`
+		FrontMatter     map[string]interface{} `json:"frontMatter"`
+		Tags            []string               `json:"tags"`
+		ContentRaw      string                 `json:"contentRaw"`
+		ContentMarkdown string                 `json:"contentMarkdown"`
+		ContentHTML     string                 `json:"contentHTML"`
+		ContentText     string                 `json:"contentText"`
+	}
+	repr := NoteRepresentation{
+		ID:              n.ID,
+		RelativePath:    n.RelativePath,
+		Wikilink:        n.Wikilink,
+		FrontMatter:     n.GetAttributes(),
+		Tags:            n.GetTags(),
+		ContentRaw:      n.ContentRaw,
+		ContentMarkdown: n.ContentMarkdown,
+		ContentHTML:     n.ContentHTML,
+		ContentText:     n.ContentText,
+	}
+	output, _ := json.MarshalIndent(repr, "", " ")
+	return string(output)
+}
+
+func (n *Note) FormatToMarkdown() string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("# %s\n", n.Title))
+	sb.WriteRune('\n')
+	sb.WriteString(n.ContentMarkdown)
+	return sb.String()
+}
+
+func (n *Note) FormatToHTML() string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("<h1>%s</h1>\n", markdown.ToHTML(n.Title)))
+	sb.WriteRune('\n')
+	sb.WriteString(n.ContentHTML)
+	return sb.String()
+}
+
+func (n *Note) FormatToText() string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("%s\n", markdown.ToText(n.Title)))
+	sb.WriteRune('\n')
+	sb.WriteString(n.ContentText)
+	return sb.String()
 }

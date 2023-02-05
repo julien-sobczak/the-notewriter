@@ -3,6 +3,7 @@ package text
 import (
 	"bufio"
 	"bytes"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -39,4 +40,10 @@ func IsBlank(text string) bool {
 func IsNumber(text string) bool {
 	_, err := strconv.Atoi(text)
 	return err == nil
+}
+
+// TrimExtension removes the extension from a file name or file path.
+func TrimExtension(path string) string {
+	path = strings.TrimSuffix(path, string(filepath.Separator))
+	return strings.TrimSuffix(path, filepath.Ext(path))
 }
