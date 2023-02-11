@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -257,6 +258,7 @@ func TestGetLinks(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// FIXME probably failed due to CurrentConfig().Debug() => CurrentLogger().Debug()
 			note := NewNote(NewEmptyFile(), tt.title, tt.content, 1)
 			links, err := note.GetLinks()
 			require.NoError(t, err)
@@ -355,4 +357,52 @@ func TestNoteFormat(t *testing.T) {
 			assert.Equal(t, tt.expectedText, actualText)
 		})
 	}
+}
+
+func TestNoteFTS(t *testing.T) {
+	SetUpCollectionFromGoldenDir(t)
+
+	db := CurrentDB().Client()
+	CurrentConfig().SetVerboseLevel(VerboseTrace)
+
+	// Insert a note
+	note := NewNote(NewEmptyFile(), "Reference: FTS5", "TODO", 2)
+	tx, err := db.BeginTx(context.Background(), nil)
+	require.NoError(t, err)
+	err = note.InsertWithTx(tx)
+	require.NoError(t, err)
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	// Search the note using a full-text query
+	notes, err := SearchNotes(KindReference, "fts5")
+	require.NoError(t, err)
+	assert.Len(t, notes, 1)
+
+	// Update the note content
+	note.updateContent("full-text")
+	tx, err = db.BeginTx(context.Background(), nil)
+	require.NoError(t, err)
+	err = note.UpdateWithTx(tx)
+	require.NoError(t, err)
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	// Search the note using a full-text query
+	notes, err = SearchNotes(KindReference, "full")
+	require.NoError(t, err)
+	assert.Len(t, notes, 1)
+
+	// Delete the note
+	tx, err = db.BeginTx(context.Background(), nil)
+	require.NoError(t, err)
+	err = note.DeleteWithTx(tx)
+	require.NoError(t, err)
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	// Check the note is no longer
+	notes, err = SearchNotes(KindReference, "full")
+	require.NoError(t, err)
+	assert.Len(t, notes, 0)
 }

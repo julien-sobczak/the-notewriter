@@ -22,6 +22,7 @@ var initCmd = &cobra.Command{
 			fmt.Fprintf(os.Stderr, "Unable to read current working directory: %v", err)
 			os.Exit(1)
 		}
+
 		_, err = core.InitConfigFromDirectory(cwd)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error while initializing configuration: %v", err)

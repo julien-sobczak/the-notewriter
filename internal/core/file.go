@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log"
 	"os"
 	"strings"
 	"time"
@@ -54,6 +55,116 @@ type File struct {
 	UpdatedAt     time.Time
 	DeletedAt     time.Time
 	LastCheckedAt time.Time
+
+	stale bool
+}
+
+func NewOrExistingFile(path string) (*File, error) {
+	relpath, err := CurrentCollection().GetFileRelativePath(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	existingFile, err := LoadFileByPath(relpath)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if existingFile != nil {
+		existingFile.Update()
+		return existingFile, nil
+	}
+
+	return NewFileFromPath(path)
+}
+
+/* Creation */
+
+func NewEmptyFile() *File {
+	return &File{stale: true}
+}
+
+func NewFileFromAttributes(attributes []Attribute) *File {
+	file := &File{stale: true}
+	for _, attribute := range attributes {
+		file.SetAttribute(attribute.Key, attribute.Value)
+	}
+	return file
+}
+
+func NewFileFromPath(filepath string) (*File, error) {
+
+	stat, err := os.Lstat(filepath)
+	if err != nil {
+		return nil, err
+	}
+
+	relativePath, err := CurrentCollection().GetFileRelativePath(filepath)
+	if err != nil {
+		return nil, err
+	}
+
+	contentBytes, frontMatter, contentRaw, err := parseFile(filepath)
+	if err != nil {
+		return nil, err
+	}
+
+	file := &File{
+		// We ignore if the file already exists in database
+		ID: 0,
+		// Reread the file
+		RelativePath: relativePath,
+		Wikilink:     text.TrimExtension(relativePath),
+		Mode:         stat.Mode(),
+		Size:         stat.Size(),
+		Hash:         hash(contentBytes),
+		MTime:        stat.ModTime(),
+		Content:      contentRaw,
+		stale:        true,
+	}
+	if frontMatter.Kind > 0 { // Happen when no Front Matter is present
+		file.frontMatter = frontMatter.Content[0]
+	}
+
+	return file, nil
+}
+
+func (f *File) Update() error {
+	abspath := CurrentCollection().GetAbsolutePath(f.RelativePath)
+	fileInfo, err := os.Lstat(abspath) // NB: os.Stat follows symlinks
+	if err != nil {
+		return err
+	}
+
+	if f.MTime == fileInfo.ModTime() && f.Size == fileInfo.Size() {
+		// No file change
+		return nil
+	}
+
+	f.stale = true
+
+	contentBytes, frontMatter, contentRaw, err := parseFile(abspath)
+	if err != nil {
+		return err
+	}
+
+	f.Mode = fileInfo.Mode()
+	f.Size = fileInfo.Size()
+	f.Hash = hash(contentBytes)
+	f.frontMatter = frontMatter
+	f.MTime = fileInfo.ModTime()
+	f.Content = contentRaw
+
+	return nil
+}
+
+/* State Management */
+
+func (f *File) New() bool {
+	return f.ID == 0
+}
+
+func (f *File) Updated() bool {
+	return f.stale
 }
 
 /* Front Matter */
@@ -256,8 +367,8 @@ func (f *File) GetNotes() []*Note {
 
 	// Add last note
 	if linesCountInCurrentNote > 0 {
-		note := NewNote(f, currentNoteTitle, currentNote.String(), lineNumber)
-		note.ParentNote = lastNotePerLevel[currentLevel-1]
+		note := NewOrExistingNote(f, currentNoteTitle, currentNote.String(), lineNumber)
+		note.ParentNote = lastNotePerLevel[currentLevel-1] // FIXME bug note.ParentNoteID is never defined...
 		notes = append(notes, note)
 	}
 
@@ -291,10 +402,12 @@ func (f *File) FindFlashcardByTitle(shortTitle string) *Flashcard {
 func (f *File) GetFlashcards() []*Flashcard {
 	var flashcards []*Flashcard
 	for _, note := range f.GetNotes() {
-		if note.Kind == KindFlashcard {
-			flashcard := NewFlashcard(f, note)
-			flashcards = append(flashcards, flashcard)
+		if note.Kind != KindFlashcard {
+			continue
 		}
+
+		flashcard := NewOrExistingFlashcard(f, note)
+		flashcards = append(flashcards, flashcard)
 	}
 	return flashcards
 }
@@ -304,24 +417,12 @@ func (f *File) GetMedias() ([]*Media, error) {
 	return extractMediasFromMarkdown(f.RelativePath, f.Content)
 }
 
-/* Creation */
+/* Parsing */
 
-func NewEmptyFile() *File {
-	return &File{}
-}
-
-func NewFileFromAttributes(attributes []Attribute) *File {
-	file := &File{}
-	for _, attribute := range attributes {
-		file.SetAttribute(attribute.Key, attribute.Value)
-	}
-	return file
-}
-
-func NewFileFromPath(filepath string) (*File, error) {
+func parseFile(filepath string) ([]byte, *yaml.Node, string, error) {
 	contentBytes, err := os.ReadFile(filepath)
 	if err != nil {
-		return nil, err
+		return nil, nil, "", err
 	}
 
 	var rawFrontMatter bytes.Buffer
@@ -358,36 +459,10 @@ func NewFileFromPath(filepath string) (*File, error) {
 	var frontMatter yaml.Node
 	err = yaml.Unmarshal(rawFrontMatter.Bytes(), &frontMatter)
 	if err != nil {
-		return nil, err
+		return nil, nil, "", err
 	}
 
-	stat, err := os.Lstat(filepath)
-	if err != nil {
-		return nil, err
-	}
-
-	relativePath, err := CurrentCollection().GetFileRelativePath(filepath)
-	if err != nil {
-		return nil, err
-	}
-
-	file := &File{
-		// We ignore if the file already exists in database
-		ID: 0,
-		// Reread the file
-		RelativePath: relativePath,
-		Wikilink:     text.TrimExtension(relativePath),
-		Mode:         stat.Mode(),
-		Size:         stat.Size(),
-		Hash:         hash(contentBytes),
-		MTime:        stat.ModTime(),
-		Content:      strings.TrimSpace(rawContent.String()),
-	}
-	if frontMatter.Kind > 0 { // Happen when no Front Matter is present
-		file.frontMatter = frontMatter.Content[0]
-	}
-
-	return file, nil
+	return contentBytes, &frontMatter, strings.TrimSpace(rawContent.String()), nil
 }
 
 /* Data Management */
@@ -439,7 +514,69 @@ func (f *File) SaveOnDisk() error {
 	return nil
 }
 
+func (f *File) Check() error {
+	db := CurrentDB().Client()
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = f.CheckWithTx(tx)
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+	return nil
+
+}
+
+func (f *File) CheckWithTx(tx *sql.Tx) error {
+	if CurrentConfig().Debug() {
+		log.Printf("Checking file %s...", f.RelativePath)
+	}
+	f.LastCheckedAt = clock.Now()
+	query := `
+		UPDATE file
+		SET last_checked_at = ?
+		WHERE id = ?;`
+	if _, err := tx.Exec(query, timeToSQL(f.LastCheckedAt), f.ID); err != nil {
+		return err
+	}
+	query = `
+		UPDATE note
+		SET last_checked_at = ?
+		WHERE file_id = ?;`
+	if _, err := tx.Exec(query, timeToSQL(f.LastCheckedAt), f.ID); err != nil {
+		return err
+	}
+	query = `
+		UPDATE flashcard
+		SET last_checked_at = ?
+		WHERE file_id = ?;`
+	if _, err := tx.Exec(query, timeToSQL(f.LastCheckedAt), f.ID); err != nil {
+		return err
+	}
+	query = `
+		UPDATE reminder
+		SET last_checked_at = ?
+		WHERE file_id = ?;`
+	if _, err := tx.Exec(query, timeToSQL(f.LastCheckedAt), f.ID); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (f *File) Save() error {
+	if !f.stale {
+		return f.Check()
+	}
+
 	db := CurrentDB().Client()
 	tx, err := db.BeginTx(context.Background(), nil)
 	if err != nil {
@@ -457,10 +594,16 @@ func (f *File) Save() error {
 		return err
 	}
 
+	f.stale = false
+
 	return nil
 }
 
 func (f *File) SaveWithTx(tx *sql.Tx) error {
+	if !f.stale {
+		return f.CheckWithTx(tx)
+	}
+
 	now := clock.Now()
 	f.UpdatedAt = now
 	f.LastCheckedAt = now
@@ -474,7 +617,16 @@ func (f *File) SaveWithTx(tx *sql.Tx) error {
 		if err := f.InsertWithTx(tx); err != nil {
 			return err
 		}
+
+		// Set ID on related items
+		for _, note := range f.GetNotes() {
+			note.FileID = f.ID
+		}
+		for _, flashcard := range f.GetFlashcards() {
+			flashcard.FileID = f.ID
+		}
 	}
+	f.stale = false
 
 	// Save the notes
 	for _, note := range f.GetNotes() {
@@ -505,6 +657,9 @@ func (f *File) SaveWithTx(tx *sql.Tx) error {
 }
 
 func (f *File) InsertWithTx(tx *sql.Tx) error {
+	if CurrentConfig().Debug() {
+		log.Printf("Inserting file %s...", f.RelativePath)
+	}
 	query := `
 		INSERT INTO file(
 			id,
@@ -555,6 +710,9 @@ func (f *File) InsertWithTx(tx *sql.Tx) error {
 }
 
 func (f *File) UpdateWithTx(tx *sql.Tx) error {
+	if CurrentConfig().Debug() {
+		log.Printf("Updating file %s...", f.RelativePath)
+	}
 	query := `
 		UPDATE file
 		SET
@@ -569,7 +727,6 @@ func (f *File) UpdateWithTx(tx *sql.Tx) error {
 			size = ?,
 			hashsum = ?,
 			mode = ?
-		)
 		WHERE id = ?;
 	`
 	frontMatter, err := f.FrontMatterString()
@@ -593,6 +750,36 @@ func (f *File) UpdateWithTx(tx *sql.Tx) error {
 	return err
 }
 
+func (f *File) Delete() error {
+	db := CurrentDB().Client()
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = f.DeleteWithTx(tx)
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (f *File) DeleteWithTx(tx *sql.Tx) error {
+	if CurrentConfig().Debug() {
+		log.Printf("Deleting file %s...", f.RelativePath)
+	}
+	query := `DELETE FROM file WHERE id = ?;`
+	_, err := tx.Exec(query, f.ID)
+	return err
+}
+
 func LoadFileByPath(relativePath string) (*File, error) {
 	return QueryFile(`WHERE relative_path = ?`, relativePath)
 }
@@ -607,6 +794,10 @@ func LoadFilesByRelativePathPrefix(relativePathPrefix string) ([]*File, error) {
 
 func FindFilesByWikilink(wikilink string) ([]*File, error) {
 	return QueryFiles(`WHERE wikilink LIKE ?`, "%"+wikilink)
+}
+
+func FindFilesLastCheckedBefore(point time.Time) ([]*File, error) {
+	return QueryFiles(`WHERE last_checked_at < ?`, timeToSQL(point))
 }
 
 // CountFiles returns the total number of files.
@@ -667,7 +858,9 @@ func QueryFile(whereClause string, args ...any) (*File, error) {
 			&f.Hash,
 			&f.Mode,
 		); err != nil {
-
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
 		return nil, err
 	}
 

@@ -5,6 +5,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
+	"reflect"
 	"strings"
 	"time"
 
@@ -97,14 +99,122 @@ type Flashcard struct {
 	UpdatedAt     time.Time
 	DeletedAt     time.Time
 	LastCheckedAt time.Time
+
+	stale bool
+}
+
+func NewOrExistingFlashcard(file *File, note *Note) *Flashcard {
+	if note.ID == 0 {
+		return NewFlashcard(file, note)
+	}
+
+	// Flashcard may already exists
+	flashcard, err := LoadFlashcardByNoteID(note.ID)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// or not if the note just have been saved now
+	if flashcard == nil {
+		return NewFlashcard(file, note)
+	}
+	if note.stale {
+		flashcard.Update(file, note)
+	}
+	return flashcard
 }
 
 // NewFlashcard initializes a new flashcard.
-func NewFlashcard(f *File, n *Note) *Flashcard {
+func NewFlashcard(file *File, note *Note) *Flashcard {
+
+	frontMarkdown, backMarkdown := splitFrontBack(note.ContentMarkdown)
+	// FIXME if front => invalid flashcard
+
+	f := &Flashcard{
+		ShortTitle: note.ShortTitle,
+		FileID:     file.ID,
+		File:       file,
+		NoteID:     note.ID,
+		Note:       note,
+		Tags:       note.GetTags(),
+
+		// SRS
+		Type:        CardNew,
+		Queue:       QueueNew,
+		Due:         0,
+		Interval:    DefaultFirstInterval,
+		EaseFactor:  DefaultEaseFactor * 1000,
+		Repetitions: 0, // never reviewed
+		Lapses:      0, // never forgotten
+		Left:        0,
+
+		// Timestamps
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+
+		stale: true,
+	}
+
+	f.updateContent(frontMarkdown, backMarkdown)
+
+	return f
+}
+
+func (f *Flashcard) updateContent(frontMarkdown, backMarkdown string) {
+	f.FrontMarkdown = frontMarkdown
+	f.BackMarkdown = backMarkdown
+	f.FrontHTML = markdown.ToHTML(frontMarkdown)
+	f.BackHTML = markdown.ToHTML(backMarkdown)
+	f.FrontText = markdown.ToText(frontMarkdown)
+	f.BackText = markdown.ToText(backMarkdown)
+}
+
+func (f *Flashcard) Update(file *File, note *Note) {
+	if f.ShortTitle != note.ShortTitle {
+		f.ShortTitle = note.ShortTitle
+		f.stale = true
+	}
+
+	if f.FileID != file.ID {
+		f.FileID = file.ID
+		f.File = file
+		f.stale = true
+	}
+
+	if f.NoteID != note.ID {
+		f.NoteID = note.ID
+		f.Note = note
+		f.stale = true
+	}
+
+	if !reflect.DeepEqual(f.Tags, note.GetTags()) {
+		f.Tags = note.GetTags()
+		f.stale = true
+	}
+
+	frontMarkdown, backMarkdown := splitFrontBack(note.ContentMarkdown)
+	if f.FrontMarkdown != frontMarkdown || f.BackMarkdown != backMarkdown {
+		f.updateContent(frontMarkdown, backMarkdown)
+		f.stale = true
+	}
+}
+
+/* State Management */
+
+func (f *Flashcard) New() bool {
+	return f.ID == 0
+}
+
+func (f *Flashcard) Updated() bool {
+	return f.stale
+}
+
+/* Parsing */
+
+func splitFrontBack(content string) (string, string) {
 	front := true
 	var frontContent bytes.Buffer
 	var backContent bytes.Buffer
-	for _, line := range strings.Split(n.ContentMarkdown, "\n") {
+	for _, line := range strings.Split(content, "\n") {
 		if line == "---" {
 			front = false
 			continue
@@ -117,40 +227,7 @@ func NewFlashcard(f *File, n *Note) *Flashcard {
 			backContent.WriteString("\n")
 		}
 	}
-	// FIXME if front => invalid flashcard
-	frontMarkdown := strings.TrimSpace(frontContent.String())
-	backMarkdown := strings.TrimSpace(backContent.String())
-
-	return &Flashcard{
-		ShortTitle: n.ShortTitle,
-		FileID:     f.ID,
-		File:       f,
-		NoteID:     n.ID,
-		Note:       n,
-		Tags:       n.GetTags(),
-
-		// SRS
-		Type:        CardNew,
-		Queue:       QueueNew,
-		Due:         0,
-		Interval:    DefaultFirstInterval,
-		EaseFactor:  DefaultEaseFactor * 1000,
-		Repetitions: 0, // never reviewed
-		Lapses:      0, // never forgotten
-		Left:        0,
-
-		// Content
-		FrontMarkdown: frontMarkdown,
-		BackMarkdown:  backMarkdown,
-		FrontHTML:     markdown.ToHTML(frontMarkdown),
-		BackHTML:      markdown.ToHTML(backMarkdown),
-		FrontText:     markdown.ToText(frontMarkdown),
-		BackText:      markdown.ToText(backMarkdown),
-
-		// Timestamps
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
+	return strings.TrimSpace(frontContent.String()), strings.TrimSpace(backContent.String())
 }
 
 // GetMedias extracts medias from the flashcard.
@@ -158,7 +235,49 @@ func (f *Flashcard) GetMedias() ([]*Media, error) {
 	return extractMediasFromMarkdown(f.File.RelativePath, f.FrontMarkdown+f.BackMarkdown)
 }
 
+func (f *Flashcard) Check() error {
+	db := CurrentDB().Client()
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = f.CheckWithTx(tx)
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+	return nil
+
+}
+
+func (f *Flashcard) CheckWithTx(tx *sql.Tx) error {
+	if CurrentConfig().Debug() {
+		log.Printf("Checking flashcard %s...", f.ShortTitle)
+	}
+	f.LastCheckedAt = clock.Now()
+	query := `
+		UPDATE flashcard
+		SET last_checked_at = ?
+		WHERE id = ?;`
+	_, err := tx.Exec(query,
+		timeToSQL(f.LastCheckedAt),
+		f.ID,
+	)
+
+	return err
+}
+
 func (f *Flashcard) Save() error {
+	if !f.stale {
+		return f.Check()
+	}
+
 	db := CurrentDB().Client()
 	tx, err := db.BeginTx(context.Background(), nil)
 	if err != nil {
@@ -176,23 +295,40 @@ func (f *Flashcard) Save() error {
 		return err
 	}
 
+	f.stale = false
+
 	return nil
 }
 
 func (f *Flashcard) SaveWithTx(tx *sql.Tx) error {
+	if !f.stale {
+		return f.CheckWithTx(tx)
+	}
+
 	now := clock.Now()
 	f.UpdatedAt = now
 	f.LastCheckedAt = now
 
 	if f.ID != 0 {
-		return f.UpdateWithTx(tx)
+		if err := f.UpdateWithTx(tx); err != nil {
+			return err
+		}
 	} else {
 		f.CreatedAt = now
-		return f.InsertWithTx(tx)
+		if err := f.InsertWithTx(tx); err != nil {
+			return err
+		}
 	}
+
+	f.stale = false
+
+	return nil
 }
 
 func (f *Flashcard) InsertWithTx(tx *sql.Tx) error {
+	if CurrentConfig().Debug() {
+		log.Printf("Inserting file %s...", f.ShortTitle)
+	}
 	query := `
 		INSERT INTO flashcard(
 			id,
@@ -258,6 +394,9 @@ func (f *Flashcard) InsertWithTx(tx *sql.Tx) error {
 }
 
 func (f *Flashcard) UpdateWithTx(tx *sql.Tx) error {
+	if CurrentConfig().Debug() {
+		log.Printf("Updating flashcard %s...", f.ShortTitle)
+	}
 	query := `
 		UPDATE flashcard
 		SET
@@ -311,6 +450,36 @@ func (f *Flashcard) UpdateWithTx(tx *sql.Tx) error {
 	return err
 }
 
+func (f *Flashcard) Delete() error {
+	db := CurrentDB().Client()
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = f.DeleteWithTx(tx)
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (f *Flashcard) DeleteWithTx(tx *sql.Tx) error {
+	if CurrentConfig().Debug() {
+		log.Printf("Deleting flashcard %s...", f.ShortTitle)
+	}
+	query := `DELETE FROM flashcard WHERE id = ?;`
+	_, err := tx.Exec(query, f.ID)
+	return err
+}
+
 // CountFlashcards returns the total number of flashcards.
 func CountFlashcards() (int, error) {
 	db := CurrentDB().Client()
@@ -327,12 +496,20 @@ func LoadFlashcardByID(id int64) (*Flashcard, error) {
 	return QueryFlashcard(`WHERE id = ?`, id)
 }
 
+func LoadFlashcardByNoteID(noteID int64) (*Flashcard, error) {
+	return QueryFlashcard(`WHERE note_id = ?`, noteID)
+}
+
 func FindFlashcardByShortTitle(shortTitle string) (*Flashcard, error) {
 	return QueryFlashcard(`WHERE short_title = ?`, shortTitle)
 }
 
 func FindFlashcardByHash(hash string) (*Flashcard, error) {
 	return QueryFlashcard(`WHERE hash = ?`, hash)
+}
+
+func FindFlashcardsLastCheckedBefore(point time.Time) ([]*Flashcard, error) {
+	return QueryFlashcards(`WHERE last_checked_at < ?`, timeToSQL(point))
 }
 
 /* SQL Helpers */
@@ -400,7 +577,9 @@ func QueryFlashcard(whereClause string, args ...any) (*Flashcard, error) {
 			&deletedAt,
 			&lastCheckedAt,
 		); err != nil {
-
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
 		return nil, err
 	}
 

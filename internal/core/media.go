@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -64,6 +65,8 @@ type Media struct {
 	UpdatedAt     time.Time
 	DeletedAt     time.Time
 	LastCheckedAt time.Time
+
+	stale bool
 }
 
 // DetectMediaKind returns the media kind based on a file path.
@@ -95,6 +98,7 @@ func NewMedia(path string) *Media {
 		Extension:    filepath.Ext(path),
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
+		stale:        true,
 	}
 
 	abspath := CurrentCollection().GetAbsolutePath(path)
@@ -113,10 +117,70 @@ func NewMedia(path string) *Media {
 	return m
 }
 
+func (m *Media) Update() {
+	abspath := CurrentCollection().GetAbsolutePath(m.RelativePath)
+	stat, err := os.Stat(abspath)
+	dangling := errors.Is(err, os.ErrNotExist)
+
+	// Special case when file didn't exist or no longer exist
+	if m.Dangling != dangling {
+		m.Dangling = dangling
+		m.stale = true
+
+		if dangling {
+			m.Size = 0
+			m.Hash = ""
+			m.MTime = time.Time{}
+			m.Mode = 0
+		} else {
+			m.Size = stat.Size()
+			m.Hash, _ = hashFromFile(abspath)
+			m.MTime = stat.ModTime()
+			m.Mode = stat.Mode()
+		}
+		return
+	}
+
+	// Check if file on disk has changed
+	size := stat.Size()
+	if m.Size != size {
+		m.Size = size
+		m.stale = true
+	}
+	hash, _ := hashFromFile(abspath)
+	if m.Hash != hash {
+		m.Hash = hash
+		m.stale = true
+	}
+	mTime := stat.ModTime()
+	if m.MTime != mTime {
+		m.MTime = mTime
+		m.stale = true
+	}
+	mode := stat.Mode()
+	if m.Mode != mode {
+		m.Mode = mode
+		m.stale = true
+	}
+}
+
+/* State Management */
+
+func (m *Media) New() bool {
+	return m.ID == 0
+}
+
+func (m *Media) Updated() bool {
+	return m.stale
+}
+
+/* Parsing */
+
 // extractMediasFromMarkdown search for medias from a markdown document (can be a file, a note, a flashcard, etc.).
 func extractMediasFromMarkdown(fileRelativePath string, content string) ([]*Media, error) {
 	var medias []*Media
 
+	// Avoid returning duplicates if a media is included twice
 	filepaths := make(map[string]bool)
 
 	regexMedia := regexp.MustCompile(`!\[(.*?)\]\((\S*?)(?:\s+"(.*?)")?\)`)
@@ -130,14 +194,70 @@ func extractMediasFromMarkdown(fileRelativePath string, content string) ([]*Medi
 		if err != nil {
 			return nil, err
 		}
-		media := NewMedia(relpath)
+		media := NewOrExistingMedia(relpath)
 		medias = append(medias, media)
 		filepaths[src] = true
 	}
 	return medias, nil
 }
 
+func NewOrExistingMedia(relpath string) *Media {
+	media, err := FindMediaByRelativePath(relpath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if media != nil {
+		media.Update()
+		return media
+	}
+
+	media = NewMedia(relpath)
+	return media
+}
+
+func (m *Media) Check() error {
+	db := CurrentDB().Client()
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = m.CheckWithTx(tx)
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+	return nil
+
+}
+
+func (m *Media) CheckWithTx(tx *sql.Tx) error {
+	if CurrentConfig().Debug() {
+		log.Printf("Checking media %s...", m.RelativePath)
+	}
+	m.LastCheckedAt = clock.Now()
+	query := `
+		UPDATE media
+		SET last_checked_at = ?
+		WHERE id = ?;`
+	_, err := tx.Exec(query,
+		timeToSQL(m.LastCheckedAt),
+		m.ID,
+	)
+
+	return err
+}
+
 func (m *Media) Save() error {
+	if !m.stale {
+		return m.Check()
+	}
+
 	db := CurrentDB().Client()
 	tx, err := db.BeginTx(context.Background(), nil)
 	if err != nil {
@@ -155,23 +275,40 @@ func (m *Media) Save() error {
 		return err
 	}
 
+	m.stale = false
+
 	return nil
 }
 
 func (m *Media) SaveWithTx(tx *sql.Tx) error {
+	if !m.stale {
+		return m.CheckWithTx(tx)
+	}
+
 	now := clock.Now()
 	m.UpdatedAt = now
 	m.LastCheckedAt = now
 
 	if m.ID != 0 {
-		return m.UpdateWithTx(tx)
+		if err := m.UpdateWithTx(tx); err != nil {
+			return err
+		}
 	} else {
 		m.CreatedAt = now
-		return m.InsertWithTx(tx)
+		if err := m.InsertWithTx(tx); err != nil {
+			return err
+		}
 	}
+
+	m.stale = false
+
+	return nil
 }
 
 func (m *Media) InsertWithTx(tx *sql.Tx) error {
+	if CurrentConfig().Debug() {
+		log.Printf("Inserting media %s...", m.RelativePath)
+	}
 	query := `
 		INSERT INTO media(
 			id,
@@ -220,6 +357,9 @@ func (m *Media) InsertWithTx(tx *sql.Tx) error {
 }
 
 func (m *Media) UpdateWithTx(tx *sql.Tx) error {
+	if CurrentConfig().Debug() {
+		log.Printf("Updating media %s...", m.RelativePath)
+	}
 	query := `
 		UPDATE media
 		SET
@@ -236,7 +376,6 @@ func (m *Media) UpdateWithTx(tx *sql.Tx) error {
 			updated_at = ?,
 			deleted_at = ?,
 			last_checked_at = ?
-		)
 		WHERE id = ?;
 	`
 	_, err := tx.Exec(query,
@@ -255,6 +394,36 @@ func (m *Media) UpdateWithTx(tx *sql.Tx) error {
 		m.ID,
 	)
 
+	return err
+}
+
+func (m *Media) Delete() error {
+	db := CurrentDB().Client()
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = m.DeleteWithTx(tx)
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *Media) DeleteWithTx(tx *sql.Tx) error {
+	if CurrentConfig().Debug() {
+		log.Printf("Deleting media %s...", m.RelativePath)
+	}
+	query := `DELETE FROM media WHERE id = ?;`
+	_, err := tx.Exec(query, m.ID)
 	return err
 }
 
@@ -280,6 +449,10 @@ func FindMediaByRelativePath(relativePath string) (*Media, error) {
 
 func FindMediaByHash(hash string) (*Media, error) {
 	return QueryMedia(`WHERE hashsum = ?`, hash)
+}
+
+func FindMediasLastCheckedBefore(point time.Time) ([]*Media, error) {
+	return QueryMedias(`WHERE last_checked_at < ?`, timeToSQL(point))
 }
 
 /* SQL Helpers */
@@ -329,7 +502,9 @@ func QueryMedia(whereClause string, args ...any) (*Media, error) {
 			&deletedAt,
 			&lastCheckedAt,
 		); err != nil {
-
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
 		return nil, err
 	}
 

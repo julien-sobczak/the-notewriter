@@ -11,18 +11,37 @@ import (
 	"github.com/julien-sobczak/the-notetaker/internal/core"
 )
 
+var verboseInfo bool
+var verboseDebug bool
+var verboseTrace bool
+
+var CollectionDir string
+
 var rootCmd = &cobra.Command{
 	Use:   "nt",
 	Short: "The NoteTaker is a file-based note management tool",
 	Long:  `A Powerful and Flexible Note Management Tool using only Markdown files.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// Do Stuff Here
+		CheckConfig()
+
+		// Enable verbose output. The most verbose level wins when multiple flags are passsed.
+		if verboseInfo {
+			core.CurrentConfig().SetVerboseLevel(core.VerboseInfo)
+		}
+		if verboseDebug {
+			core.CurrentConfig().SetVerboseLevel(core.VerboseDebug)
+		}
+		if verboseTrace {
+			core.CurrentConfig().SetVerboseLevel(core.VerboseTrace)
+		}
+
 	},
 }
 
-var CollectionDir string
-
 func init() {
+	rootCmd.Flags().BoolVarP(&verboseInfo, "verbose", "v", false, "enable verbose info output")
+	rootCmd.Flags().BoolVarP(&verboseDebug, "verbose-debug", "vv", false, "enable verbose debug output")
+	rootCmd.Flags().BoolVarP(&verboseTrace, "verbose-trace", "vvv", false, "enable verbose trace output")
 	rootCmd.Flags().StringVarP(&CollectionDir, "collection", "c", "", "Collection directory (default is $HOME/notes)")
 	// TODO add support for an environment variable to override this flag
 }

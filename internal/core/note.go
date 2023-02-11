@@ -86,6 +86,27 @@ type Note struct {
 	UpdatedAt     time.Time
 	DeletedAt     time.Time
 	LastCheckedAt time.Time
+
+	stale bool
+}
+
+func NewOrExistingNote(f *File, title string, content string, lineNumber int) *Note {
+	content = strings.TrimSpace(content)
+
+	note, _ := FindNoteByWikilink(f.RelativePath + "#" + title)
+	if note != nil {
+		note.Update(f, title, content, lineNumber)
+		return note
+	}
+
+	hash := hash([]byte(content))
+	note, _ = FindMatchingNotes(title, hash)
+	if note != nil {
+		note.Update(f, title, content, lineNumber)
+		return note
+	}
+
+	return NewNote(f, title, content, lineNumber)
 }
 
 func NewNote(f *File, title string, content string, lineNumber int) *Note {
@@ -104,12 +125,43 @@ func NewNote(f *File, title string, content string, lineNumber int) *Note {
 		RelativePath: f.RelativePath,
 		Wikilink:     f.Wikilink + "#" + strings.TrimSpace(title),
 		Line:         lineNumber,
+		stale:        true,
 	}
 
 	n.updateContent(rawContent)
 
 	return n
 }
+
+func (n *Note) Update(f *File, title string, content string, lineNumber int) {
+	rawContent := strings.TrimSpace(content)
+
+	if f.ID != n.FileID {
+		n.File = f
+		n.FileID = f.ID
+		n.stale = true
+	}
+	if rawContent != n.ContentRaw {
+		n.updateContent(rawContent)
+		n.stale = true
+	}
+	if lineNumber != n.Line {
+		n.Line = lineNumber
+		n.stale = true
+	}
+}
+
+/* State Management */
+
+func (n *Note) New() bool {
+	return n.ID == 0
+}
+
+func (n *Note) Updated() bool {
+	return n.stale
+}
+
+/* Parsing */
 
 func (n *Note) parseContentRaw() (string, []string, map[string]interface{}) {
 	var tags []string
@@ -451,14 +503,8 @@ func (n *Note) GetLinks() ([]*Link, error) {
 		shortTitle := submatch[1]
 		goName := submatch[2]
 
-		links = append(links, &Link{
-			ID:     0,
-			NoteID: n.ID,
-			Text:   text,
-			URL:    url,
-			Title:  shortTitle,
-			GoName: goName,
-		})
+		link := NewOrExistingLink(n, text, url, shortTitle, goName)
+		links = append(links, link)
 	}
 
 	return links, nil
@@ -485,7 +531,7 @@ func (n *Note) GetReminders() ([]*Reminder, error) {
 				description = removeTags(submatch[1]) // Remove tags
 			}
 
-			reminder, err := NewReminder(n, description, tag)
+			reminder, err := NewOrExistingReminder(n, description, tag)
 			if err != nil {
 				return nil, err
 			}
@@ -498,7 +544,69 @@ func (n *Note) GetReminders() ([]*Reminder, error) {
 
 // TODO add SetParent method and traverse the hierachy to merge attributes/tags
 
+func (n *Note) Check() error {
+	db := CurrentDB().Client()
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = n.CheckWithTx(tx)
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+	return nil
+
+}
+
+func (n *Note) CheckWithTx(tx *sql.Tx) error {
+	if CurrentConfig().Debug() {
+		log.Printf("Checking note %s...", n.Wikilink)
+	}
+	n.LastCheckedAt = clock.Now()
+	query := `
+		UPDATE note
+		SET last_checked_at = ?
+		WHERE id = ?;`
+	if _, err := tx.Exec(query, timeToSQL(n.LastCheckedAt), n.ID); err != nil {
+		return err
+	}
+	query = `
+		UPDATE flashcard
+		SET last_checked_at = ?
+		WHERE note_id = ?;`
+	if _, err := tx.Exec(query, timeToSQL(n.LastCheckedAt), n.ID); err != nil {
+		return err
+	}
+	query = `
+		UPDATE link
+		SET last_checked_at = ?
+		WHERE note_id = ?;`
+	if _, err := tx.Exec(query, timeToSQL(n.LastCheckedAt), n.ID); err != nil {
+		return err
+	}
+	query = `
+		UPDATE reminder
+		SET last_checked_at = ?
+		WHERE note_id = ?;`
+	if _, err := tx.Exec(query, timeToSQL(n.LastCheckedAt), n.ID); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (n *Note) Save() error {
+	if !n.stale {
+		return n.Check()
+	}
+
 	db := CurrentDB().Client()
 	tx, err := db.BeginTx(context.Background(), nil)
 	if err != nil {
@@ -516,10 +624,16 @@ func (n *Note) Save() error {
 		return err
 	}
 
+	n.stale = false
+
 	return nil
 }
 
 func (n *Note) SaveWithTx(tx *sql.Tx) error {
+	if !n.stale {
+		return n.CheckWithTx(tx)
+	}
+
 	// There is no common interface between sql.DB and sql.Txt
 	// See https://github.com/golang/go/issues/14468
 
@@ -536,7 +650,20 @@ func (n *Note) SaveWithTx(tx *sql.Tx) error {
 		if err := n.InsertWithTx(tx); err != nil {
 			return err
 		}
+
+		// Update note ID
+		links, _ := n.GetLinks()
+		for _, link := range links {
+			link.NoteID = n.ID
+		}
+
+		// Save reminders
+		reminders, _ := n.GetReminders()
+		for _, reminder := range reminders {
+			reminder.NoteID = n.ID
+		}
 	}
+	n.stale = false
 
 	// Save the links
 	links, err := n.GetLinks()
@@ -564,6 +691,9 @@ func (n *Note) SaveWithTx(tx *sql.Tx) error {
 }
 
 func (n *Note) InsertWithTx(tx *sql.Tx) error {
+	if CurrentConfig().Debug() {
+		log.Printf("Inserting note %s...", n.Wikilink)
+	}
 	query := `
 		INSERT INTO note(
 			id,
@@ -635,6 +765,9 @@ func (n *Note) InsertWithTx(tx *sql.Tx) error {
 }
 
 func (n *Note) UpdateWithTx(tx *sql.Tx) error {
+	if CurrentConfig().Debug() {
+		log.Printf("Updating note %s...", n.Wikilink)
+	}
 	query := `
 		UPDATE note
 		SET
@@ -695,6 +828,36 @@ func (n *Note) UpdateWithTx(tx *sql.Tx) error {
 	return err
 }
 
+func (n *Note) Delete() error {
+	db := CurrentDB().Client()
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = n.DeleteWithTx(tx)
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (n *Note) DeleteWithTx(tx *sql.Tx) error {
+	if CurrentConfig().Debug() {
+		log.Printf("Deleting note %s...", n.Wikilink)
+	}
+	query := `DELETE FROM note WHERE id = ?;`
+	_, err := tx.Exec(query, n.ID)
+	return err
+}
+
 func (n *Note) AttributesJSON() (string, error) {
 	var buf bytes.Buffer
 	bufEncoder := json.NewEncoder(&buf)
@@ -740,17 +903,25 @@ func FindNoteByHash(hash string) (*Note, error) {
 	return QueryNote(`WHERE hashsum = ?`, hash)
 }
 
-func FindMatchingNotes(shortTitle, hash string) (*Note, error) {
-	return QueryNote(`WHERE shortTitle = ? OR hashsum = ?`, shortTitle, hash)
+func FindMatchingNotes(title, hash string) (*Note, error) {
+	return QueryNote(`WHERE title = ? OR hashsum = ?`, title, hash)
+}
+
+func FindNoteByWikilink(wikilink string) (*Note, error) {
+	return QueryNote(`WHERE wikilink LIKE ?`, "%"+wikilink)
 }
 
 func FindNotesByWikilink(wikilink string) ([]*Note, error) {
 	return QueryNotes(`WHERE wikilink LIKE ?`, "%"+wikilink)
 }
 
+func FindNotesLastCheckedBefore(point time.Time) ([]*Note, error) {
+	return QueryNotes(`WHERE last_checked_at < ?`, timeToSQL(point))
+}
+
 func SearchNotes(kind NoteKind, q string) ([]*Note, error) {
 	db := CurrentDB().Client()
-	queryFTS, err := db.Prepare("SELECT id FROM note_fts WHERE kind = ? and note_fts MATCH ? ORDER BY rank LIMIT 10;")
+	queryFTS, err := db.Prepare("SELECT rowid FROM note_fts WHERE kind = ? and note_fts MATCH ? ORDER BY rank LIMIT 10;")
 	if err != nil {
 		return nil, err
 	}
@@ -759,14 +930,18 @@ func SearchNotes(kind NoteKind, q string) ([]*Note, error) {
 		log.Fatal(err)
 	}
 	defer res.Close()
-	var ids []int
+	var ids []string
 	for res.Next() {
 		var id int
 		res.Scan(&id)
-		ids = append(ids, id)
+		ids = append(ids, fmt.Sprint(id))
+	}
+	if len(ids) == 0 {
+		return nil, nil
 	}
 
-	return QueryNotes(`WHERE id IN (?);`, ids)
+	query := "WHERE id IN (" + strings.Join(ids, ",") + ")"
+	return QueryNotes(query)
 }
 
 /* SQL Helpers */
@@ -829,7 +1004,9 @@ func QueryNote(whereClause string, args ...any) (*Note, error) {
 			&deletedAt,
 			&lastCheckedAt,
 		); err != nil {
-
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
 		return nil, err
 	}
 

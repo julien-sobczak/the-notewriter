@@ -98,20 +98,20 @@ CREATE TABLE note (
     FOREIGN KEY(note_id) REFERENCES note(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
-CREATE VIRTUAL TABLE note_fts USING FTS5(id UNINDEXED, kind UNINDEXED, short_title, content_text);
+CREATE VIRTUAL TABLE note_fts USING FTS5(kind UNINDEXED, short_title, content_text, content='note', content_rowid='id');
 -- -- TODO add other fields? Contentless table?
 
-create trigger note_after_insert after insert on note begin
-  insert into note_fts (id, kind, short_title, content_text) values (new.id, new.kind, new.short_title, new.content_text);
+create trigger note_fts_after_insert after insert on note begin
+  insert into note_fts (rowid, kind, short_title, content_text) values (new.id, new.kind, new.short_title, new.content_text);
 end;
 
 create trigger note_fts_after_update after update on note begin
-  insert into note_fts (note_fts, id, kind, short_title, content_text) values('delete', old.id, old.kind, old.short_title, old.content_text);
-  insert into note_fts (id, kind, short_title, content_text) values (new.id, new.kind, new.short_title, new.content_text);
+  insert into note_fts (note_fts, rowid, kind, short_title, content_text) values('delete', old.id, old.kind, old.short_title, old.content_text);
+  insert into note_fts (rowid, kind, short_title, content_text) values (new.id, new.kind, new.short_title, new.content_text);
 end;
 
 create trigger note_fts_after_delete after delete on note begin
-  insert into note_fts (note_fts, id, kind, short_title, content_text) values('delete', old.id, old.kind, old.short_title, old.content_text);
+  insert into note_fts (note_fts, rowid, kind, short_title, content_text) values('delete', old.id, old.kind, old.short_title, old.content_text);
 end;
 
 CREATE TABLE media (

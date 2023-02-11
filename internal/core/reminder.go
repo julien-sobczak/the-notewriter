@@ -45,21 +45,38 @@ type Reminder struct {
 	UpdatedAt     time.Time
 	DeletedAt     time.Time
 	LastCheckedAt time.Time
+
+	stale bool
+}
+
+func NewOrExistingReminder(note *Note, descriptionRaw, tag string) (*Reminder, error) {
+	descriptionRaw = strings.TrimSpace(descriptionRaw)
+
+	reminders, err := FindRemindersMatching(note.ID, descriptionRaw)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if len(reminders) == 1 {
+		reminder := reminders[0]
+		err = reminder.Update(note, descriptionRaw, tag)
+		return reminder, err
+	}
+	return NewReminder(note, descriptionRaw, tag)
 }
 
 // NewReminder instantiates a new reminder.
-func NewReminder(n *Note, descriptionRaw, tag string) (*Reminder, error) {
+func NewReminder(note *Note, descriptionRaw, tag string) (*Reminder, error) {
+	descriptionRaw = strings.TrimSpace(descriptionRaw)
+
 	r := &Reminder{
-		ID:             0,
-		FileID:         n.FileID,
-		NoteID:         n.ID,
-		DescriptionRaw: descriptionRaw,
-		Tag:            tag,
+		ID:     0,
+		FileID: note.FileID,
+		NoteID: note.ID,
+		Tag:    tag,
+		stale:  true,
 	}
 
-	r.DescriptionMarkdown = markdown.ToMarkdown(r.DescriptionRaw)
-	r.DescriptionHTML = markdown.ToHTML(r.DescriptionMarkdown)
-	r.DescriptionText = markdown.ToText(r.DescriptionMarkdown)
+	r.updateContent(descriptionRaw)
 
 	err := r.Next()
 	if err != nil {
@@ -67,6 +84,49 @@ func NewReminder(n *Note, descriptionRaw, tag string) (*Reminder, error) {
 	}
 
 	return r, nil
+}
+
+func (r *Reminder) updateContent(descriptionRaw string) {
+	r.DescriptionRaw = descriptionRaw
+	r.DescriptionMarkdown = markdown.ToMarkdown(r.DescriptionRaw)
+	r.DescriptionHTML = markdown.ToHTML(r.DescriptionMarkdown)
+	r.DescriptionText = markdown.ToText(r.DescriptionMarkdown)
+}
+
+func (r *Reminder) Update(note *Note, descriptionRaw, tag string) error {
+	if r.FileID != note.FileID {
+		r.FileID = note.FileID
+		r.File = note.File
+		r.stale = true
+	}
+	if r.NoteID != note.ID {
+		r.NoteID = note.ID
+		r.Note = note
+		r.stale = true
+	}
+	if r.DescriptionRaw != descriptionRaw {
+		r.updateContent(descriptionRaw)
+		r.stale = true
+	}
+	if r.Tag != tag {
+		r.Tag = tag
+		r.stale = true
+		err := r.Next()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+/* State Management */
+
+func (r *Reminder) New() bool {
+	return r.ID == 0
+}
+
+func (r *Reminder) Updated() bool {
+	return r.stale
 }
 
 func (r *Reminder) Next() error {
@@ -86,6 +146,8 @@ func (r *Reminder) Next() error {
 	r.NextPerformedAt = nextPerformedAt
 	return nil
 }
+
+/* Parsing */
 
 // EvaluateTimeExpression determine the next matching reminder date
 func EvaluateTimeExpression(expr string) (time.Time, error) {
@@ -449,7 +511,51 @@ func generateDates(yearExpr, monthExpr, dayExpr string) []time.Time {
 	return dates
 }
 
+/* Database Management */
+
+func (r *Reminder) Check() error {
+	db := CurrentDB().Client()
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = r.CheckWithTx(tx)
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+	return nil
+
+}
+
+func (r *Reminder) CheckWithTx(tx *sql.Tx) error {
+	if CurrentConfig().Debug() {
+		log.Printf("Checking reminder %s...", r.DescriptionRaw)
+	}
+	r.LastCheckedAt = clock.Now()
+	query := `
+		UPDATE reminder
+		SET last_checked_at = ?
+		WHERE id = ?;`
+	_, err := tx.Exec(query,
+		timeToSQL(r.LastCheckedAt),
+		r.ID,
+	)
+
+	return err
+}
+
 func (r *Reminder) Save() error {
+	if !r.stale {
+		return r.Check()
+	}
+
 	db := CurrentDB().Client()
 	tx, err := db.BeginTx(context.Background(), nil)
 	if err != nil {
@@ -467,23 +573,40 @@ func (r *Reminder) Save() error {
 		return err
 	}
 
+	r.stale = false
+
 	return nil
 }
 
 func (r *Reminder) SaveWithTx(tx *sql.Tx) error {
+	if !r.stale {
+		return r.CheckWithTx(tx)
+	}
+
 	now := clock.Now()
 	r.UpdatedAt = now
 	r.LastCheckedAt = now
 
 	if r.ID != 0 {
-		return r.UpdateWithTx(tx)
+		if err := r.UpdateWithTx(tx); err != nil {
+			return err
+		}
 	} else {
 		r.CreatedAt = now
-		return r.InsertWithTx(tx)
+		if err := r.InsertWithTx(tx); err != nil {
+			return err
+		}
 	}
+
+	r.stale = false
+
+	return nil
 }
 
 func (r *Reminder) InsertWithTx(tx *sql.Tx) error {
+	if CurrentConfig().Debug() {
+		log.Printf("Inserting reminder %s...", r.DescriptionRaw)
+	}
 	query := `
 		INSERT INTO reminder(
 			id,
@@ -532,6 +655,9 @@ func (r *Reminder) InsertWithTx(tx *sql.Tx) error {
 }
 
 func (r *Reminder) UpdateWithTx(tx *sql.Tx) error {
+	if CurrentConfig().Debug() {
+		log.Printf("Updating reminder %s...", r.DescriptionRaw)
+	}
 	query := `
 		UPDATE reminder
 		SET
@@ -547,7 +673,6 @@ func (r *Reminder) UpdateWithTx(tx *sql.Tx) error {
 			updated_at = ?,
 			deleted_at = ?,
 			last_checked_at = ?
-		)
 		WHERE id = ?;
 	`
 	_, err := tx.Exec(query,
@@ -569,6 +694,36 @@ func (r *Reminder) UpdateWithTx(tx *sql.Tx) error {
 	return err
 }
 
+func (r *Reminder) Delete() error {
+	db := CurrentDB().Client()
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = r.DeleteWithTx(tx)
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *Reminder) DeleteWithTx(tx *sql.Tx) error {
+	if CurrentConfig().Debug() {
+		log.Printf("Deleting reminder %s...", r.DescriptionRaw)
+	}
+	query := `DELETE FROM reminder WHERE id = ?;`
+	_, err := tx.Exec(query, r.ID)
+	return err
+}
+
 // CountReminders returns the total number of reminders.
 func CountReminders() (int, error) {
 	db := CurrentDB().Client()
@@ -585,12 +740,20 @@ func FindReminders() ([]*Reminder, error) {
 	return QueryReminders("")
 }
 
+func FindRemindersMatching(noteID int64, descriptionRaw string) ([]*Reminder, error) {
+	return QueryReminders(`WHERE note_id = ? and description_raw`, noteID, descriptionRaw)
+}
+
 func LoadReminderByID(id int64) (*Reminder, error) {
 	return QueryReminder(`WHERE id = ?`, id)
 }
 
 func FindRemindersByUpcomingDate(deadline time.Time) ([]*Reminder, error) {
 	return QueryReminders(`WHERE next_performed_at > ?`, timeToSQL(deadline))
+}
+
+func FindRemindersLastCheckedBefore(point time.Time) ([]*Reminder, error) {
+	return QueryReminders(`WHERE last_checked_at < ?`, timeToSQL(point))
 }
 
 /* SQL Helpers */
@@ -641,7 +804,9 @@ func QueryReminder(whereClause string, args ...any) (*Reminder, error) {
 			&deletedAt,
 			&lastCheckedAt,
 		); err != nil {
-
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
 		return nil, err
 	}
 
