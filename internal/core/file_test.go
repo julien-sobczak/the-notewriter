@@ -458,7 +458,7 @@ func TestFileSave(t *testing.T) {
 	assert.Equal(t, "Gophercon Europe", reminder.DescriptionText)
 	assert.Equal(t, "#reminder-2023-06-26", reminder.Tag)
 	assert.Empty(t, reminder.LastPerformedAt)
-	assert.EqualValues(t, time.Date(2023, 6, 26, 0, 0, 0, 0, time.UTC), reminder.NextPerformedAt) // FIXME
+	assert.EqualValues(t, time.Date(2023, 6, 26, 0, 0, 0, 0, time.UTC), reminder.NextPerformedAt)
 	assert.NotEmpty(t, reminder.CreatedAt)
 	assert.NotEmpty(t, reminder.UpdatedAt)
 	assert.Empty(t, reminder.DeletedAt)

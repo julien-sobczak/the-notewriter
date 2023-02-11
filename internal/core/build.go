@@ -180,9 +180,7 @@ func (c *Collection) Build(outputDirectory string) (*BuildResult, error) {
 
 	buildTime := clock.Now()
 
-	if config.Info() {
-		log.Printf("Reading %s...\n", config.RootDirectory)
-	}
+	CurrentLogger().Infof("Reading %s...\n", config.RootDirectory)
 	filepath.WalkDir(config.RootDirectory, func(path string, info fs.DirEntry, err error) error {
 		if err != nil {
 			log.Fatal(err) // FIXME not visible in stderr
@@ -225,9 +223,7 @@ func (c *Collection) Build(outputDirectory string) (*BuildResult, error) {
 			return nil
 		}
 
-		if config.Debug() {
-			log.Printf("Processing %s...\n", path) // TODO emit notif for tests? + Parse file
-		}
+		CurrentLogger().Debugf("Processing %s...\n", path) // TODO emit notif for tests? + Parse file
 		file, err := NewOrExistingFile(path)
 		if err != nil {
 			return err

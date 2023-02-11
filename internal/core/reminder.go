@@ -535,9 +535,7 @@ func (r *Reminder) Check() error {
 }
 
 func (r *Reminder) CheckWithTx(tx *sql.Tx) error {
-	if CurrentConfig().Debug() {
-		log.Printf("Checking reminder %s...", r.DescriptionRaw)
-	}
+	CurrentLogger().Debugf("Checking reminder %s...", r.DescriptionRaw)
 	r.LastCheckedAt = clock.Now()
 	query := `
 		UPDATE reminder
@@ -604,9 +602,7 @@ func (r *Reminder) SaveWithTx(tx *sql.Tx) error {
 }
 
 func (r *Reminder) InsertWithTx(tx *sql.Tx) error {
-	if CurrentConfig().Debug() {
-		log.Printf("Inserting reminder %s...", r.DescriptionRaw)
-	}
+	CurrentLogger().Debugf("Inserting reminder %s...", r.DescriptionRaw)
 	query := `
 		INSERT INTO reminder(
 			id,
@@ -655,9 +651,7 @@ func (r *Reminder) InsertWithTx(tx *sql.Tx) error {
 }
 
 func (r *Reminder) UpdateWithTx(tx *sql.Tx) error {
-	if CurrentConfig().Debug() {
-		log.Printf("Updating reminder %s...", r.DescriptionRaw)
-	}
+	CurrentLogger().Debugf("Updating reminder %s...", r.DescriptionRaw)
 	query := `
 		UPDATE reminder
 		SET
@@ -716,9 +710,7 @@ func (r *Reminder) Delete() error {
 }
 
 func (r *Reminder) DeleteWithTx(tx *sql.Tx) error {
-	if CurrentConfig().Debug() {
-		log.Printf("Deleting reminder %s...", r.DescriptionRaw)
-	}
+	CurrentLogger().Debugf("Deleting reminder %s...", r.DescriptionRaw)
 	query := `DELETE FROM reminder WHERE id = ?;`
 	_, err := tx.Exec(query, r.ID)
 	return err

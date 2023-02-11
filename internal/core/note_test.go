@@ -256,9 +256,9 @@ func TestGetLinks(t *testing.T) {
 		},
 	}
 
+	SetUpCollectionFromTempDir(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// FIXME probably failed due to CurrentConfig().Debug() => CurrentLogger().Debug()
 			note := NewNote(NewEmptyFile(), tt.title, tt.content, 1)
 			links, err := note.GetLinks()
 			require.NoError(t, err)
@@ -299,6 +299,8 @@ func TestGetReminders(t *testing.T) {
 			},
 		},
 	}
+
+	SetUpCollectionFromTempDir(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			note := NewNote(NewEmptyFile(), tt.title, tt.content, 1)
@@ -363,7 +365,7 @@ func TestNoteFTS(t *testing.T) {
 	SetUpCollectionFromGoldenDir(t)
 
 	db := CurrentDB().Client()
-	CurrentConfig().SetVerboseLevel(VerboseTrace)
+	CurrentLogger().SetVerboseLevel(VerboseTrace)
 
 	// Insert a note
 	note := NewNote(NewEmptyFile(), "Reference: FTS5", "TODO", 2)

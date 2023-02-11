@@ -26,13 +26,13 @@ var rootCmd = &cobra.Command{
 
 		// Enable verbose output. The most verbose level wins when multiple flags are passsed.
 		if verboseInfo {
-			core.CurrentConfig().SetVerboseLevel(core.VerboseInfo)
+			core.CurrentLogger().SetVerboseLevel(core.VerboseInfo)
 		}
 		if verboseDebug {
-			core.CurrentConfig().SetVerboseLevel(core.VerboseDebug)
+			core.CurrentLogger().SetVerboseLevel(core.VerboseDebug)
 		}
 		if verboseTrace {
-			core.CurrentConfig().SetVerboseLevel(core.VerboseTrace)
+			core.CurrentLogger().SetVerboseLevel(core.VerboseTrace)
 		}
 
 	},

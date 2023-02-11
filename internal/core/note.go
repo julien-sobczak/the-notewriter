@@ -566,9 +566,7 @@ func (n *Note) Check() error {
 }
 
 func (n *Note) CheckWithTx(tx *sql.Tx) error {
-	if CurrentConfig().Debug() {
-		log.Printf("Checking note %s...", n.Wikilink)
-	}
+	CurrentLogger().Debugf("Checking note %s...", n.Wikilink)
 	n.LastCheckedAt = clock.Now()
 	query := `
 		UPDATE note
@@ -691,9 +689,7 @@ func (n *Note) SaveWithTx(tx *sql.Tx) error {
 }
 
 func (n *Note) InsertWithTx(tx *sql.Tx) error {
-	if CurrentConfig().Debug() {
-		log.Printf("Inserting note %s...", n.Wikilink)
-	}
+	CurrentLogger().Debugf("Inserting note %s...", n.Wikilink)
 	query := `
 		INSERT INTO note(
 			id,
@@ -765,9 +761,7 @@ func (n *Note) InsertWithTx(tx *sql.Tx) error {
 }
 
 func (n *Note) UpdateWithTx(tx *sql.Tx) error {
-	if CurrentConfig().Debug() {
-		log.Printf("Updating note %s...", n.Wikilink)
-	}
+	CurrentLogger().Debugf("Updating note %s...", n.Wikilink)
 	query := `
 		UPDATE note
 		SET
@@ -850,9 +844,7 @@ func (n *Note) Delete() error {
 }
 
 func (n *Note) DeleteWithTx(tx *sql.Tx) error {
-	if CurrentConfig().Debug() {
-		log.Printf("Deleting note %s...", n.Wikilink)
-	}
+	CurrentLogger().Debugf("Deleting note %s...", n.Wikilink)
 	query := `DELETE FROM note WHERE id = ?;`
 	_, err := tx.Exec(query, n.ID)
 	return err

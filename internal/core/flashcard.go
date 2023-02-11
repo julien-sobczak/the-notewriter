@@ -257,9 +257,7 @@ func (f *Flashcard) Check() error {
 }
 
 func (f *Flashcard) CheckWithTx(tx *sql.Tx) error {
-	if CurrentConfig().Debug() {
-		log.Printf("Checking flashcard %s...", f.ShortTitle)
-	}
+	CurrentLogger().Debugf("Checking flashcard %s...", f.ShortTitle)
 	f.LastCheckedAt = clock.Now()
 	query := `
 		UPDATE flashcard
@@ -326,9 +324,7 @@ func (f *Flashcard) SaveWithTx(tx *sql.Tx) error {
 }
 
 func (f *Flashcard) InsertWithTx(tx *sql.Tx) error {
-	if CurrentConfig().Debug() {
-		log.Printf("Inserting file %s...", f.ShortTitle)
-	}
+	CurrentLogger().Debugf("Inserting file %s...", f.ShortTitle)
 	query := `
 		INSERT INTO flashcard(
 			id,
@@ -394,9 +390,7 @@ func (f *Flashcard) InsertWithTx(tx *sql.Tx) error {
 }
 
 func (f *Flashcard) UpdateWithTx(tx *sql.Tx) error {
-	if CurrentConfig().Debug() {
-		log.Printf("Updating flashcard %s...", f.ShortTitle)
-	}
+	CurrentLogger().Debugf("Updating flashcard %s...", f.ShortTitle)
 	query := `
 		UPDATE flashcard
 		SET
@@ -472,9 +466,7 @@ func (f *Flashcard) Delete() error {
 }
 
 func (f *Flashcard) DeleteWithTx(tx *sql.Tx) error {
-	if CurrentConfig().Debug() {
-		log.Printf("Deleting flashcard %s...", f.ShortTitle)
-	}
+	CurrentLogger().Debugf("Deleting flashcard %s...", f.ShortTitle)
 	query := `DELETE FROM flashcard WHERE id = ?;`
 	_, err := tx.Exec(query, f.ID)
 	return err

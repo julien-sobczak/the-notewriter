@@ -39,7 +39,6 @@ func TestBuild(t *testing.T) {
 	countReminders := mustCountReminders(t)
 
 	// Rebuild without any changes
-	CurrentConfig().SetVerboseLevel(VerboseTrace) // FIXME remove
 	result, err = CurrentCollection().Build(outputDir)
 	require.NoError(t, err)
 	assertActionOnFile(t, result, "thoughts/on-notetaking", None)

@@ -536,9 +536,7 @@ func (f *File) Check() error {
 }
 
 func (f *File) CheckWithTx(tx *sql.Tx) error {
-	if CurrentConfig().Debug() {
-		log.Printf("Checking file %s...", f.RelativePath)
-	}
+	CurrentLogger().Debugf("Checking file %s...", f.RelativePath)
 	f.LastCheckedAt = clock.Now()
 	query := `
 		UPDATE file
@@ -657,9 +655,7 @@ func (f *File) SaveWithTx(tx *sql.Tx) error {
 }
 
 func (f *File) InsertWithTx(tx *sql.Tx) error {
-	if CurrentConfig().Debug() {
-		log.Printf("Inserting file %s...", f.RelativePath)
-	}
+	CurrentLogger().Debugf("Inserting file %s...", f.RelativePath)
 	query := `
 		INSERT INTO file(
 			id,
@@ -710,9 +706,7 @@ func (f *File) InsertWithTx(tx *sql.Tx) error {
 }
 
 func (f *File) UpdateWithTx(tx *sql.Tx) error {
-	if CurrentConfig().Debug() {
-		log.Printf("Updating file %s...", f.RelativePath)
-	}
+	CurrentLogger().Debugf("Updating file %s...", f.RelativePath)
 	query := `
 		UPDATE file
 		SET
@@ -772,9 +766,7 @@ func (f *File) Delete() error {
 }
 
 func (f *File) DeleteWithTx(tx *sql.Tx) error {
-	if CurrentConfig().Debug() {
-		log.Printf("Deleting file %s...", f.RelativePath)
-	}
+	CurrentLogger().Debugf("Deleting file %s...", f.RelativePath)
 	query := `DELETE FROM file WHERE id = ?;`
 	_, err := tx.Exec(query, f.ID)
 	return err

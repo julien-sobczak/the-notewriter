@@ -3,7 +3,6 @@ package core
 import (
 	"bufio"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,7 +65,6 @@ type IgnoreFile struct {
 func (f *IgnoreFile) Include(path string) bool {
 	for _, entry := range f.Entries {
 		if entry.Match(path) {
-			log.Printf("Match %s: %s", entry, path) // FIXME remove or debug
 			return false
 		}
 	}
@@ -86,15 +84,6 @@ func (g GlobPath) Match(path string) bool {
 	return match
 }
 
-type VerboseLevel int
-
-const (
-	VerboseOff VerboseLevel = iota
-	VerboseInfo
-	VerboseDebug
-	VerboseTrace
-)
-
 type Config struct {
 	// Absolute top directory containing the .nt sub-directory
 	RootDirectory string
@@ -104,9 +93,6 @@ type Config struct {
 
 	// .ntignore content
 	IgnoreFile IgnoreFile
-
-	// Logs verbosity
-	Verbose VerboseLevel
 }
 
 func CurrentConfig() *Config {
@@ -123,24 +109,6 @@ func CurrentConfig() *Config {
 		}
 	})
 	return configSingleton
-}
-
-// SetVerboseLevel overrides the default verbose level
-func (c *Config) SetVerboseLevel(level VerboseLevel) *Config {
-	c.Verbose = level
-	return c
-}
-
-func (c *Config) Info() bool {
-	return c.Verbose >= VerboseInfo
-}
-
-func (c *Config) Debug() bool {
-	return c.Verbose >= VerboseDebug
-}
-
-func (c *Config) Trace() bool {
-	return c.Verbose >= VerboseTrace
 }
 
 func currentHome() string {
@@ -243,7 +211,6 @@ func ReadConfigFromDirectory(path string) (*Config, error) {
 		RootDirectory: rootPath,
 		ConfigFile:    *configFile,
 		IgnoreFile:    *ignoreFile,
-		Verbose:       VerboseOff,
 	}, nil
 }
 

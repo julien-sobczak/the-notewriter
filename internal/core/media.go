@@ -237,9 +237,7 @@ func (m *Media) Check() error {
 }
 
 func (m *Media) CheckWithTx(tx *sql.Tx) error {
-	if CurrentConfig().Debug() {
-		log.Printf("Checking media %s...", m.RelativePath)
-	}
+	CurrentLogger().Debugf("Checking media %s...", m.RelativePath)
 	m.LastCheckedAt = clock.Now()
 	query := `
 		UPDATE media
@@ -306,9 +304,7 @@ func (m *Media) SaveWithTx(tx *sql.Tx) error {
 }
 
 func (m *Media) InsertWithTx(tx *sql.Tx) error {
-	if CurrentConfig().Debug() {
-		log.Printf("Inserting media %s...", m.RelativePath)
-	}
+	CurrentLogger().Debugf("Inserting media %s...", m.RelativePath)
 	query := `
 		INSERT INTO media(
 			id,
@@ -357,9 +353,7 @@ func (m *Media) InsertWithTx(tx *sql.Tx) error {
 }
 
 func (m *Media) UpdateWithTx(tx *sql.Tx) error {
-	if CurrentConfig().Debug() {
-		log.Printf("Updating media %s...", m.RelativePath)
-	}
+	CurrentLogger().Debugf("Updating media %s...", m.RelativePath)
 	query := `
 		UPDATE media
 		SET
@@ -419,9 +413,7 @@ func (m *Media) Delete() error {
 }
 
 func (m *Media) DeleteWithTx(tx *sql.Tx) error {
-	if CurrentConfig().Debug() {
-		log.Printf("Deleting media %s...", m.RelativePath)
-	}
+	CurrentLogger().Debugf("Deleting media %s...", m.RelativePath)
 	query := `DELETE FROM media WHERE id = ?;`
 	_, err := tx.Exec(query, m.ID)
 	return err

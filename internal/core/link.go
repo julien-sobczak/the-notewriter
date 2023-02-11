@@ -121,9 +121,7 @@ func (l *Link) Check() error {
 }
 
 func (l *Link) CheckWithTx(tx *sql.Tx) error {
-	if CurrentConfig().Debug() {
-		log.Printf("Checking link %s...", l.GoName)
-	}
+	CurrentLogger().Debugf("Checking link %s...", l.GoName)
 	l.LastCheckedAt = clock.Now()
 	query := `
 		UPDATE link
@@ -190,9 +188,7 @@ func (l *Link) SaveWithTx(tx *sql.Tx) error {
 }
 
 func (l *Link) InsertWithTx(tx *sql.Tx) error {
-	if CurrentConfig().Debug() {
-		log.Printf("Creating link %s...", l.GoName)
-	}
+	CurrentLogger().Debugf("Creating link %s...", l.GoName)
 	query := `
 		INSERT INTO link(
 			id,
@@ -232,9 +228,7 @@ func (l *Link) InsertWithTx(tx *sql.Tx) error {
 }
 
 func (l *Link) UpdateWithTx(tx *sql.Tx) error {
-	if CurrentConfig().Debug() {
-		log.Printf("Updating link %s...", l.GoName)
-	}
+	CurrentLogger().Debugf("Updating link %s...", l.GoName)
 	query := `
 		UPDATE link
 		SET
@@ -286,9 +280,7 @@ func (l *Link) Delete() error {
 }
 
 func (l *Link) DeleteWithTx(tx *sql.Tx) error {
-	if CurrentConfig().Debug() {
-		log.Printf("Deleting link %s...", l.GoName)
-	}
+	CurrentLogger().Debugf("Deleting link %s...", l.GoName)
 	query := `DELETE FROM link WHERE id = ?;`
 	_, err := tx.Exec(query, l.ID)
 	return err

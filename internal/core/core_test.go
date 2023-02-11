@@ -42,6 +42,13 @@ func SetUpCollectionFromGoldenDirNamed(t *testing.T, testname string) string {
 	return dirname
 }
 
+// SetUpCollectionFromTempDir populates a temp directory containing a valid .nt collection.
+func SetUpCollectionFromTempDir(t *testing.T) string {
+	dirname := t.TempDir()
+	configureDir(t, dirname)
+	return dirname
+}
+
 func configureDir(t *testing.T, dirname string) {
 	ntDir := filepath.Join(dirname, ".nt")
 	if _, err := os.Stat(ntDir); os.IsNotExist(err) {
