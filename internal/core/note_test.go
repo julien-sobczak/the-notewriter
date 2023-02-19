@@ -324,6 +324,8 @@ func TestGetReminders(t *testing.T) {
 }
 
 func TestNoteFormat(t *testing.T) {
+	UseFixedOID("16252dafd6355e678bf8ae44b127f657cd3cdd0e")
+
 	var tests = []struct {
 		name             string // name
 		title            string // input
@@ -338,11 +340,11 @@ func TestNoteFormat(t *testing.T) {
 			title: "TODO: **Activities**",
 			content: "\n" +
 				"* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`\n",
-			expectedJSON:     "{\n \"id\": 0,\n \"relativePath\": \"\",\n \"wikilink\": \"#TODO: **Activities**\",\n \"frontMatter\": null,\n \"tags\": [\n  \"reminder-2025-09\"\n ],\n \"contentRaw\": \"* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`\",\n \"contentMarkdown\": \"* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`\",\n \"contentHTML\": \"\\u003cul\\u003e\\n\\u003cli\\u003e[ ] Buy \\u003cstrong\\u003eLego Christmas\\u003c/strong\\u003e sets to create a village \\u003ccode\\u003e#reminder-2025-09\\u003c/code\\u003e\\u003c/li\\u003e\\n\\u003c/ul\\u003e\",\n \"contentText\": \"* [ ] Buy Lego Christmas sets to create a village `#reminder-2025-09`\"\n}",
+			expectedJSON:     "{\n \"oid\": \"16252dafd6355e678bf8ae44b127f657cd3cdd0e\",\n \"relativePath\": \"\",\n \"wikilink\": \"#TODO: **Activities**\",\n \"frontMatter\": null,\n \"tags\": [\n  \"reminder-2025-09\"\n ],\n \"contentRaw\": \"* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`\",\n \"contentMarkdown\": \"* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`\",\n \"contentHTML\": \"\\u003cul\\u003e\\n\\u003cli\\u003e[ ] Buy \\u003cstrong\\u003eLego Christmas\\u003c/strong\\u003e sets to create a village \\u003ccode\\u003e#reminder-2025-09\\u003c/code\\u003e\\u003c/li\\u003e\\n\\u003c/ul\\u003e\",\n \"contentText\": \"* [ ] Buy Lego Christmas sets to create a village `#reminder-2025-09`\"\n}",
 			expectedMarkdown: "# TODO: **Activities**\n\n* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`",
 			expectedHTML:     "<h1><p>TODO: <strong>Activities</strong></p></h1>\n\n<ul>\n<li>[ ] Buy <strong>Lego Christmas</strong> sets to create a village <code>#reminder-2025-09</code></li>\n</ul>",
 			expectedText:     "TODO: Activities\n\n* [ ] Buy Lego Christmas sets to create a village `#reminder-2025-09`",
-			// TODO use backtip for more a readable test
+			// TODO use backtip for more a readable test?
 		},
 	}
 

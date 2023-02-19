@@ -7,6 +7,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/golang-migrate/migrate/v4 v4.15.2
 	github.com/gomarkdown/markdown v0.0.0-20221013030248-663e2500819c
+	github.com/google/uuid v1.3.0
 	github.com/otiai10/copy v1.9.0
 	github.com/pelletier/go-toml/v2 v2.0.6
 	github.com/spf13/cobra v1.5.0

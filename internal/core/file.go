@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"os"
@@ -29,7 +30,7 @@ type Attribute struct {
 
 type File struct {
 	// A unique identifier among all files
-	ID int64
+	OID string
 
 	// A relative path to the collection directory
 	RelativePath string
@@ -56,6 +57,7 @@ type File struct {
 	DeletedAt     time.Time
 	LastCheckedAt time.Time
 
+	new   bool
 	stale bool
 }
 
@@ -77,14 +79,24 @@ func NewOrExistingFile(path string) (*File, error) {
 	return NewFileFromPath(path)
 }
 
+// NewFileFromObject instantiates a new file from an object file.
+func NewFileFromObject(r io.Reader) *File {
+	// TODO
+	return &File{new: false}
+}
+
 /* Creation */
 
 func NewEmptyFile() *File {
-	return &File{stale: true}
+	return &File{
+		OID:   NewOID(),
+		stale: true,
+		new:   true,
+	}
 }
 
 func NewFileFromAttributes(attributes []Attribute) *File {
-	file := &File{stale: true}
+	file := NewEmptyFile()
 	for _, attribute := range attributes {
 		file.SetAttribute(attribute.Key, attribute.Value)
 	}
@@ -92,7 +104,6 @@ func NewFileFromAttributes(attributes []Attribute) *File {
 }
 
 func NewFileFromPath(filepath string) (*File, error) {
-
 	stat, err := os.Lstat(filepath)
 	if err != nil {
 		return nil, err
@@ -109,9 +120,7 @@ func NewFileFromPath(filepath string) (*File, error) {
 	}
 
 	file := &File{
-		// We ignore if the file already exists in database
-		ID: 0,
-		// Reread the file
+		OID:          NewOID(),
 		RelativePath: relativePath,
 		Wikilink:     text.TrimExtension(relativePath),
 		Mode:         stat.Mode(),
@@ -120,6 +129,7 @@ func NewFileFromPath(filepath string) (*File, error) {
 		MTime:        stat.ModTime(),
 		Content:      contentRaw,
 		stale:        true,
+		new:          true,
 	}
 	if frontMatter.Kind > 0 { // Happen when no Front Matter is present
 		file.frontMatter = frontMatter.Content[0]
@@ -160,7 +170,7 @@ func (f *File) Update() error {
 /* State Management */
 
 func (f *File) New() bool {
-	return f.ID == 0
+	return f.new
 }
 
 func (f *File) Updated() bool {
@@ -541,29 +551,29 @@ func (f *File) CheckWithTx(tx *sql.Tx) error {
 	query := `
 		UPDATE file
 		SET last_checked_at = ?
-		WHERE id = ?;`
-	if _, err := tx.Exec(query, timeToSQL(f.LastCheckedAt), f.ID); err != nil {
+		WHERE oid = ?;`
+	if _, err := tx.Exec(query, timeToSQL(f.LastCheckedAt), f.OID); err != nil {
 		return err
 	}
 	query = `
 		UPDATE note
 		SET last_checked_at = ?
-		WHERE file_id = ?;`
-	if _, err := tx.Exec(query, timeToSQL(f.LastCheckedAt), f.ID); err != nil {
+		WHERE file_oid = ?;`
+	if _, err := tx.Exec(query, timeToSQL(f.LastCheckedAt), f.OID); err != nil {
 		return err
 	}
 	query = `
 		UPDATE flashcard
 		SET last_checked_at = ?
-		WHERE file_id = ?;`
-	if _, err := tx.Exec(query, timeToSQL(f.LastCheckedAt), f.ID); err != nil {
+		WHERE file_oid = ?;`
+	if _, err := tx.Exec(query, timeToSQL(f.LastCheckedAt), f.OID); err != nil {
 		return err
 	}
 	query = `
 		UPDATE reminder
 		SET last_checked_at = ?
-		WHERE file_id = ?;`
-	if _, err := tx.Exec(query, timeToSQL(f.LastCheckedAt), f.ID); err != nil {
+		WHERE file_oid = ?;`
+	if _, err := tx.Exec(query, timeToSQL(f.LastCheckedAt), f.OID); err != nil {
 		return err
 	}
 
@@ -592,6 +602,7 @@ func (f *File) Save() error {
 		return err
 	}
 
+	f.new = false
 	f.stale = false
 
 	return nil
@@ -606,7 +617,7 @@ func (f *File) SaveWithTx(tx *sql.Tx) error {
 	f.UpdatedAt = now
 	f.LastCheckedAt = now
 
-	if f.ID != 0 {
+	if !f.new {
 		if err := f.UpdateWithTx(tx); err != nil {
 			return err
 		}
@@ -618,12 +629,14 @@ func (f *File) SaveWithTx(tx *sql.Tx) error {
 
 		// Set ID on related items
 		for _, note := range f.GetNotes() {
-			note.FileID = f.ID
+			note.FileOID = f.OID
 		}
 		for _, flashcard := range f.GetFlashcards() {
-			flashcard.FileID = f.ID
+			flashcard.FileOID = f.OID
 		}
 	}
+
+	f.new = false
 	f.stale = false
 
 	// Save the notes
@@ -658,7 +671,7 @@ func (f *File) InsertWithTx(tx *sql.Tx) error {
 	CurrentLogger().Debugf("Inserting file %s...", f.RelativePath)
 	query := `
 		INSERT INTO file(
-			id,
+			oid,
 			relative_path,
 			wikilink,
 			front_matter,
@@ -672,13 +685,14 @@ func (f *File) InsertWithTx(tx *sql.Tx) error {
 			hashsum,
 			mode
 		)
-		VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 	frontMatter, err := f.FrontMatterString()
 	if err != nil {
 		return err
 	}
-	res, err := tx.Exec(query,
+	_, err = tx.Exec(query,
+		f.OID,
 		f.RelativePath,
 		f.Wikilink,
 		frontMatter,
@@ -695,12 +709,6 @@ func (f *File) InsertWithTx(tx *sql.Tx) error {
 	if err != nil {
 		return err
 	}
-
-	var id int64
-	if id, err = res.LastInsertId(); err != nil {
-		return err
-	}
-	f.ID = id
 
 	return nil
 }
@@ -721,7 +729,7 @@ func (f *File) UpdateWithTx(tx *sql.Tx) error {
 			size = ?,
 			hashsum = ?,
 			mode = ?
-		WHERE id = ?;
+		WHERE oid = ?;
 	`
 	frontMatter, err := f.FrontMatterString()
 	if err != nil {
@@ -739,7 +747,7 @@ func (f *File) UpdateWithTx(tx *sql.Tx) error {
 		f.Size,
 		f.Hash,
 		f.Mode,
-		f.ID,
+		f.OID,
 	)
 	return err
 }
@@ -767,8 +775,8 @@ func (f *File) Delete() error {
 
 func (f *File) DeleteWithTx(tx *sql.Tx) error {
 	CurrentLogger().Debugf("Deleting file %s...", f.RelativePath)
-	query := `DELETE FROM file WHERE id = ?;`
-	_, err := tx.Exec(query, f.ID)
+	query := `DELETE FROM file WHERE oid = ?;`
+	_, err := tx.Exec(query, f.OID)
 	return err
 }
 
@@ -776,8 +784,8 @@ func LoadFileByPath(relativePath string) (*File, error) {
 	return QueryFile(`WHERE relative_path = ?`, relativePath)
 }
 
-func LoadFileByID(id int64) (*File, error) {
-	return QueryFile(`WHERE id = ?`, id)
+func LoadFileByOID(oid string) (*File, error) {
+	return QueryFile(`WHERE oid = ?`, oid)
 }
 
 func LoadFilesByRelativePathPrefix(relativePathPrefix string) ([]*File, error) {
@@ -820,7 +828,7 @@ func QueryFile(whereClause string, args ...any) (*File, error) {
 	// Query for a value based on a single row.
 	if err := db.QueryRow(fmt.Sprintf(`
 		SELECT
-			id,
+			oid,
 			relative_path,
 			wikilink,
 			front_matter,
@@ -836,7 +844,7 @@ func QueryFile(whereClause string, args ...any) (*File, error) {
 		FROM file
 		%s;`, whereClause), args...).
 		Scan(
-			&f.ID,
+			&f.OID,
 			&f.RelativePath,
 			&f.Wikilink,
 			&rawFrontMatter,
@@ -881,7 +889,7 @@ func QueryFiles(whereClause string, args ...any) ([]*File, error) {
 
 	rows, err := db.Query(fmt.Sprintf(`
 		SELECT
-			id,
+			oid,
 			relative_path,
 			wikilink,
 			front_matter,
@@ -910,7 +918,7 @@ func QueryFiles(whereClause string, args ...any) ([]*File, error) {
 		var mTime string
 
 		err = rows.Scan(
-			&f.ID,
+			&f.OID,
 			&f.RelativePath,
 			&f.Wikilink,
 			&rawFrontMatter,

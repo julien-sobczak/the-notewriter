@@ -27,7 +27,7 @@ var (
 )
 
 type Collection struct {
-	ID int64
+	OID string
 
 	Path          string
 	bookManager   reference.Manager
@@ -36,6 +36,8 @@ type Collection struct {
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	LastCheckedAt time.Time
+
+	new bool
 }
 
 func CurrentCollection() *Collection {
@@ -64,6 +66,7 @@ func NewCollection(bookManager reference.Manager, personManager reference.Manage
 		Path:          absolutePath,
 		bookManager:   bookManager,
 		personManager: personManager,
+		new:           true,
 	}
 	return c, nil
 }
@@ -151,7 +154,7 @@ func (c *Collection) SaveWithTx(tx *sql.Tx) error {
 	c.UpdatedAt = now
 	c.LastCheckedAt = now
 
-	if c.ID != 0 {
+	if !c.new {
 		return c.UpdateWithTx(tx)
 	} else {
 		return c.InsertWithTx(tx)
@@ -161,15 +164,15 @@ func (c *Collection) SaveWithTx(tx *sql.Tx) error {
 func (c *Collection) InsertWithTx(tx *sql.Tx) error {
 	query := `
 		INSERT INTO collection(
-			id,
+			oid,
 			created_at,
 			updated_at,
 			last_checked_at)
-		VALUES (NULL, ?, ?, ?);
+		VALUES (?, ?, ?, ?);
 	`
 
-	res, err := tx.Exec(query,
-		c.ID,
+	_, err := tx.Exec(query,
+		c.OID,
 		timeToSQL(c.CreatedAt),
 		timeToSQL(c.UpdatedAt),
 		timeToSQL(c.LastCheckedAt),
@@ -177,12 +180,6 @@ func (c *Collection) InsertWithTx(tx *sql.Tx) error {
 	if err != nil {
 		return err
 	}
-
-	var id int64
-	if id, err = res.LastInsertId(); err != nil {
-		return err
-	}
-	c.ID = id
 
 	return nil
 }
@@ -193,13 +190,13 @@ func (c *Collection) UpdateWithTx(tx *sql.Tx) error {
 		SET
 			updated_at = ?,
 			last_checked_at = ?
-		WHERE id = ?;
+		WHERE oid = ?;
 	`
 
 	_, err := tx.Exec(query,
 		timeToSQL(c.UpdatedAt),
 		timeToSQL(c.LastCheckedAt),
-		c.ID,
+		c.OID,
 	)
 	return err
 }
@@ -226,13 +223,13 @@ func QueryCollection(whereClause string, args ...any) (*Collection, error) {
 	// Query for a value based on a single row.
 	if err := db.QueryRow(fmt.Sprintf(`
 		SELECT
-			id,
+			oid,
 			created_at,
 			updated_at,
 			last_checked_at
 		FROM file
 		%s;`, whereClause), args...).
-		Scan(&c.ID, &createdAt, &updatedAt, &lastCheckedAt); err != nil {
+		Scan(&c.OID, &createdAt, &updatedAt, &lastCheckedAt); err != nil {
 
 		return nil, err
 	}
@@ -251,7 +248,7 @@ func QueryCollections(whereClause string, args ...any) ([]*Collection, error) {
 
 	rows, err := db.Query(fmt.Sprintf(`
 		SELECT
-			id,
+			oid,
 			created_at,
 			updated_at,
 			last_checked_at
@@ -267,7 +264,7 @@ func QueryCollections(whereClause string, args ...any) ([]*Collection, error) {
 		var updatedAt string
 		var lastCheckedAt string
 
-		err = rows.Scan(&c.ID, &createdAt, &updatedAt, &lastCheckedAt)
+		err = rows.Scan(&c.OID, &createdAt, &updatedAt, &lastCheckedAt)
 		if err != nil {
 			return nil, err
 		}

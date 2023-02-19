@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
 	"log"
 	"regexp"
 	"sort"
@@ -17,15 +18,15 @@ import (
 )
 
 type Reminder struct {
-	ID int64
+	OID string
 
 	// File
-	FileID int64
-	File   *File // Lazy-loaded
+	FileOID string
+	File    *File // Lazy-loaded
 
 	// Note representing the flashcard
-	NoteID int64
-	Note   *Note // Lazy-loaded
+	NoteOID string
+	Note    *Note // Lazy-loaded
 
 	// Description
 	DescriptionRaw      string
@@ -46,13 +47,14 @@ type Reminder struct {
 	DeletedAt     time.Time
 	LastCheckedAt time.Time
 
+	new   bool
 	stale bool
 }
 
 func NewOrExistingReminder(note *Note, descriptionRaw, tag string) (*Reminder, error) {
 	descriptionRaw = strings.TrimSpace(descriptionRaw)
 
-	reminders, err := FindRemindersMatching(note.ID, descriptionRaw)
+	reminders, err := FindRemindersMatching(note.OID, descriptionRaw)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -69,11 +71,12 @@ func NewReminder(note *Note, descriptionRaw, tag string) (*Reminder, error) {
 	descriptionRaw = strings.TrimSpace(descriptionRaw)
 
 	r := &Reminder{
-		ID:     0,
-		FileID: note.FileID,
-		NoteID: note.ID,
-		Tag:    tag,
-		stale:  true,
+		OID:     NewOID(),
+		FileOID: note.FileOID,
+		NoteOID: note.OID,
+		Tag:     tag,
+		stale:   true,
+		new:     true,
 	}
 
 	r.updateContent(descriptionRaw)
@@ -86,6 +89,12 @@ func NewReminder(note *Note, descriptionRaw, tag string) (*Reminder, error) {
 	return r, nil
 }
 
+// NewReminderFromObject instantiates a new reminder from an object file.
+func NewReminderFromObject(r io.Reader) *Reminder {
+	// TODO
+	return &Reminder{new: false}
+}
+
 func (r *Reminder) updateContent(descriptionRaw string) {
 	r.DescriptionRaw = descriptionRaw
 	r.DescriptionMarkdown = markdown.ToMarkdown(r.DescriptionRaw)
@@ -94,13 +103,13 @@ func (r *Reminder) updateContent(descriptionRaw string) {
 }
 
 func (r *Reminder) Update(note *Note, descriptionRaw, tag string) error {
-	if r.FileID != note.FileID {
-		r.FileID = note.FileID
+	if r.FileOID != note.FileOID {
+		r.FileOID = note.FileOID
 		r.File = note.File
 		r.stale = true
 	}
-	if r.NoteID != note.ID {
-		r.NoteID = note.ID
+	if r.NoteOID != note.OID {
+		r.NoteOID = note.OID
 		r.Note = note
 		r.stale = true
 	}
@@ -122,7 +131,7 @@ func (r *Reminder) Update(note *Note, descriptionRaw, tag string) error {
 /* State Management */
 
 func (r *Reminder) New() bool {
-	return r.ID == 0
+	return r.new
 }
 
 func (r *Reminder) Updated() bool {
@@ -540,10 +549,10 @@ func (r *Reminder) CheckWithTx(tx *sql.Tx) error {
 	query := `
 		UPDATE reminder
 		SET last_checked_at = ?
-		WHERE id = ?;`
+		WHERE oid = ?;`
 	_, err := tx.Exec(query,
 		timeToSQL(r.LastCheckedAt),
-		r.ID,
+		r.OID,
 	)
 
 	return err
@@ -571,6 +580,7 @@ func (r *Reminder) Save() error {
 		return err
 	}
 
+	r.new = false
 	r.stale = false
 
 	return nil
@@ -585,7 +595,7 @@ func (r *Reminder) SaveWithTx(tx *sql.Tx) error {
 	r.UpdatedAt = now
 	r.LastCheckedAt = now
 
-	if r.ID != 0 {
+	if !r.new {
 		if err := r.UpdateWithTx(tx); err != nil {
 			return err
 		}
@@ -596,6 +606,7 @@ func (r *Reminder) SaveWithTx(tx *sql.Tx) error {
 		}
 	}
 
+	r.new = false
 	r.stale = false
 
 	return nil
@@ -605,9 +616,9 @@ func (r *Reminder) InsertWithTx(tx *sql.Tx) error {
 	CurrentLogger().Debugf("Inserting reminder %s...", r.DescriptionRaw)
 	query := `
 		INSERT INTO reminder(
-			id,
-			file_id,
-			note_id,
+			oid,
+			file_oid,
+			note_oid,
 			description_raw,
 			description_markdown,
 			description_html,
@@ -620,11 +631,12 @@ func (r *Reminder) InsertWithTx(tx *sql.Tx) error {
 			deleted_at,
 			last_checked_at
 		)
-		VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
-	res, err := tx.Exec(query,
-		r.FileID,
-		r.NoteID,
+	_, err := tx.Exec(query,
+		r.OID,
+		r.FileOID,
+		r.NoteOID,
 		r.DescriptionRaw,
 		r.DescriptionMarkdown,
 		r.DescriptionHTML,
@@ -641,12 +653,6 @@ func (r *Reminder) InsertWithTx(tx *sql.Tx) error {
 		return err
 	}
 
-	var id int64
-	if id, err = res.LastInsertId(); err != nil {
-		return err
-	}
-	r.ID = id
-
 	return nil
 }
 
@@ -655,8 +661,8 @@ func (r *Reminder) UpdateWithTx(tx *sql.Tx) error {
 	query := `
 		UPDATE reminder
 		SET
-			file_id = ?,
-			note_id = ?,
+			file_oid = ?,
+			note_oid = ?,
 			description_raw = ?,
 			description_markdown = ?,
 			description_html = ?,
@@ -667,11 +673,11 @@ func (r *Reminder) UpdateWithTx(tx *sql.Tx) error {
 			updated_at = ?,
 			deleted_at = ?,
 			last_checked_at = ?
-		WHERE id = ?;
+		WHERE oid = ?;
 	`
 	_, err := tx.Exec(query,
-		r.FileID,
-		r.NoteID,
+		r.FileOID,
+		r.NoteOID,
 		r.DescriptionRaw,
 		r.DescriptionMarkdown,
 		r.DescriptionHTML,
@@ -682,7 +688,7 @@ func (r *Reminder) UpdateWithTx(tx *sql.Tx) error {
 		timeToSQL(r.UpdatedAt),
 		timeToSQL(r.DeletedAt),
 		timeToSQL(r.LastCheckedAt),
-		r.ID,
+		r.OID,
 	)
 
 	return err
@@ -711,8 +717,8 @@ func (r *Reminder) Delete() error {
 
 func (r *Reminder) DeleteWithTx(tx *sql.Tx) error {
 	CurrentLogger().Debugf("Deleting reminder %s...", r.DescriptionRaw)
-	query := `DELETE FROM reminder WHERE id = ?;`
-	_, err := tx.Exec(query, r.ID)
+	query := `DELETE FROM reminder WHERE oid = ?;`
+	_, err := tx.Exec(query, r.OID)
 	return err
 }
 
@@ -732,12 +738,12 @@ func FindReminders() ([]*Reminder, error) {
 	return QueryReminders("")
 }
 
-func FindRemindersMatching(noteID int64, descriptionRaw string) ([]*Reminder, error) {
-	return QueryReminders(`WHERE note_id = ? and description_raw`, noteID, descriptionRaw)
+func FindRemindersMatching(noteOID string, descriptionRaw string) ([]*Reminder, error) {
+	return QueryReminders(`WHERE note_oid = ? and description_raw`, noteOID, descriptionRaw)
 }
 
-func LoadReminderByID(id int64) (*Reminder, error) {
-	return QueryReminder(`WHERE id = ?`, id)
+func LoadReminderByOID(oid string) (*Reminder, error) {
+	return QueryReminder(`WHERE oid = ?`, oid)
 }
 
 func FindRemindersByUpcomingDate(deadline time.Time) ([]*Reminder, error) {
@@ -764,9 +770,9 @@ func QueryReminder(whereClause string, args ...any) (*Reminder, error) {
 	// Query for a value based on a single row.
 	if err := db.QueryRow(fmt.Sprintf(`
 		SELECT
-			id,
-			file_id,
-			note_id,
+			oid,
+			file_oid,
+			note_oid,
 			description_raw,
 			description_markdown,
 			description_html,
@@ -781,9 +787,9 @@ func QueryReminder(whereClause string, args ...any) (*Reminder, error) {
 		FROM reminder
 		%s;`, whereClause), args...).
 		Scan(
-			&r.ID,
-			&r.FileID,
-			&r.NoteID,
+			&r.OID,
+			&r.FileOID,
+			&r.NoteOID,
 			&r.DescriptionRaw,
 			&r.DescriptionMarkdown,
 			&r.DescriptionHTML,
@@ -819,9 +825,9 @@ func QueryReminders(whereClause string, args ...any) ([]*Reminder, error) {
 
 	rows, err := db.Query(fmt.Sprintf(`
 		SELECT
-			id,
-			file_id,
-			note_id,
+			oid,
+			file_oid,
+			note_oid,
 			description_raw,
 			description_markdown,
 			description_html,
@@ -849,9 +855,9 @@ func QueryReminders(whereClause string, args ...any) ([]*Reminder, error) {
 		var lastCheckedAt string
 
 		err = rows.Scan(
-			&r.ID,
-			&r.FileID,
-			&r.NoteID,
+			&r.OID,
+			&r.FileOID,
+			&r.NoteOID,
 			&r.DescriptionRaw,
 			&r.DescriptionMarkdown,
 			&r.DescriptionHTML,

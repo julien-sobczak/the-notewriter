@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
 	"log"
 	"time"
 
@@ -11,9 +12,9 @@ import (
 )
 
 type Link struct {
-	ID int64
+	OID string
 
-	NoteID int64
+	NoteOID string
 
 	// The link text
 	Text string
@@ -33,6 +34,7 @@ type Link struct {
 	DeletedAt     time.Time
 	LastCheckedAt time.Time
 
+	new   bool
 	stale bool
 }
 
@@ -50,23 +52,30 @@ func NewOrExistingLink(note *Note, text, url, title, goName string) *Link {
 
 func NewLink(note *Note, text, url, title, goName string) *Link {
 	return &Link{
-		ID:     0,
-		NoteID: note.ID,
-		Text:   text,
-		URL:    url,
-		Title:  title,
-		GoName: goName,
+		OID:     NewOID(),
+		NoteOID: note.OID,
+		Text:    text,
+		URL:     url,
+		Title:   title,
+		GoName:  goName,
 
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 
+		new:   true,
 		stale: true,
 	}
 }
 
+// NewLinkFromObject instantiates a new link from an object file.
+func NewLinkFromObject(r io.Reader) *Link {
+	// TODO
+	return &Link{}
+}
+
 func (l *Link) Update(note *Note, text, url, title, goName string) {
-	if l.NoteID != note.ID {
-		l.NoteID = note.ID
+	if l.NoteOID != note.OID {
+		l.NoteOID = note.OID
 		l.stale = true
 	}
 	if l.Text != text {
@@ -90,7 +99,7 @@ func (l *Link) Update(note *Note, text, url, title, goName string) {
 /* State Management */
 
 func (l *Link) New() bool {
-	return l.ID == 0
+	return l.new
 }
 
 func (l *Link) Updated() bool {
@@ -126,10 +135,10 @@ func (l *Link) CheckWithTx(tx *sql.Tx) error {
 	query := `
 		UPDATE link
 		SET last_checked_at = ?
-		WHERE id = ?;`
+		WHERE oid = ?;`
 	_, err := tx.Exec(query,
 		timeToSQL(l.LastCheckedAt),
-		l.ID,
+		l.OID,
 	)
 
 	return err
@@ -157,6 +166,7 @@ func (l *Link) Save() error {
 		return err
 	}
 
+	l.new = false
 	l.stale = false
 
 	return nil
@@ -171,7 +181,7 @@ func (l *Link) SaveWithTx(tx *sql.Tx) error {
 	l.UpdatedAt = now
 	l.LastCheckedAt = now
 
-	if l.ID != 0 {
+	if !l.new {
 		if err := l.UpdateWithTx(tx); err != nil {
 			return err
 		}
@@ -182,6 +192,7 @@ func (l *Link) SaveWithTx(tx *sql.Tx) error {
 		}
 	}
 
+	l.new = false
 	l.stale = false
 
 	return nil
@@ -191,8 +202,8 @@ func (l *Link) InsertWithTx(tx *sql.Tx) error {
 	CurrentLogger().Debugf("Creating link %s...", l.GoName)
 	query := `
 		INSERT INTO link(
-			id,
-			note_id,
+			oid,
+			note_oid,
 			"text",
 			url,
 			title,
@@ -202,10 +213,11 @@ func (l *Link) InsertWithTx(tx *sql.Tx) error {
 			deleted_at,
 			last_checked_at
 		)
-		VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 		`
-	res, err := tx.Exec(query,
-		l.NoteID,
+	_, err := tx.Exec(query,
+		l.OID,
+		l.NoteOID,
 		l.Text,
 		l.URL,
 		l.Title,
@@ -219,11 +231,6 @@ func (l *Link) InsertWithTx(tx *sql.Tx) error {
 		return err
 	}
 
-	var id int64
-	if id, err = res.LastInsertId(); err != nil {
-		return err
-	}
-	l.ID = id
 	return nil
 }
 
@@ -232,7 +239,7 @@ func (l *Link) UpdateWithTx(tx *sql.Tx) error {
 	query := `
 		UPDATE link
 		SET
-			note_id = ?,
+			note_oid = ?,
 			"text" = ?,
 			url = ?,
 			title = ?,
@@ -241,10 +248,10 @@ func (l *Link) UpdateWithTx(tx *sql.Tx) error {
 			deleted_at = ?,
 			last_checked_at = ?
 		)
-		WHERE id = ?;
+		WHERE oid = ?;
 		`
 	_, err := tx.Exec(query,
-		l.NoteID,
+		l.NoteOID,
 		l.Text,
 		l.URL,
 		l.Title,
@@ -252,7 +259,7 @@ func (l *Link) UpdateWithTx(tx *sql.Tx) error {
 		timeToSQL(l.UpdatedAt),
 		timeToSQL(l.DeletedAt),
 		timeToSQL(l.LastCheckedAt),
-		l.ID,
+		l.OID,
 	)
 
 	return err
@@ -281,8 +288,8 @@ func (l *Link) Delete() error {
 
 func (l *Link) DeleteWithTx(tx *sql.Tx) error {
 	CurrentLogger().Debugf("Deleting link %s...", l.GoName)
-	query := `DELETE FROM link WHERE id = ?;`
-	_, err := tx.Exec(query, l.ID)
+	query := `DELETE FROM link WHERE oid = ?;`
+	_, err := tx.Exec(query, l.OID)
 	return err
 }
 
@@ -298,8 +305,8 @@ func CountLinks() (int, error) {
 	return count, nil
 }
 
-func LoadLinkByID(id int64) (*Link, error) {
-	return QueryLink("WHERE id = ?", id)
+func LoadLinkByOID(oid string) (*Link, error) {
+	return QueryLink("WHERE oid = ?", oid)
 }
 
 func FindLinkByGoName(goName string) (*Link, error) {
@@ -328,8 +335,8 @@ func QueryLink(whereClause string, args ...any) (*Link, error) {
 	// Query for a value based on a single row.
 	if err := db.QueryRow(fmt.Sprintf(`
 		SELECT
-			id,
-			note_id,
+			oid,
+			note_oid,
 			"text",
 			url,
 			title,
@@ -341,8 +348,8 @@ func QueryLink(whereClause string, args ...any) (*Link, error) {
 		FROM link
 		%s;`, whereClause), args...).
 		Scan(
-			&l.ID,
-			&l.NoteID,
+			&l.OID,
+			&l.NoteOID,
 			&l.Text,
 			&l.URL,
 			&l.Title,
@@ -373,8 +380,8 @@ func QueryLinks(whereClause string, args ...any) ([]*Link, error) {
 
 	rows, err := db.Query(fmt.Sprintf(`
 		SELECT
-			id,
-			note_id,
+			oid,
+			note_oid,
 			"text",
 			url,
 			title,
@@ -397,8 +404,8 @@ func QueryLinks(whereClause string, args ...any) ([]*Link, error) {
 		var lastCheckedAt string
 
 		err = rows.Scan(
-			&l.ID,
-			&l.NoteID,
+			&l.OID,
+			&l.NoteOID,
 			&l.Text,
 			&l.URL,
 			&l.Title,

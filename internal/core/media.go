@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"os"
@@ -31,7 +32,7 @@ var PictureExtensions = []string{".jpeg", ".png", ".gif", ".svg", ".avif"}
 var VideoExtensions = []string{".mp4", ".ogg", ".webm"}
 
 type Media struct {
-	ID int64
+	OID string
 
 	// Relative path
 	RelativePath string
@@ -66,6 +67,7 @@ type Media struct {
 	DeletedAt     time.Time
 	LastCheckedAt time.Time
 
+	new   bool
 	stale bool
 }
 
@@ -93,11 +95,13 @@ func DetectMediaKind(filename string) MediaKind {
 // NewMedia initializes a new media.
 func NewMedia(path string) *Media {
 	m := &Media{
+		OID:          NewOID(),
 		RelativePath: path,
 		Kind:         DetectMediaKind(path),
 		Extension:    filepath.Ext(path),
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
+		new:          true,
 		stale:        true,
 	}
 
@@ -115,6 +119,12 @@ func NewMedia(path string) *Media {
 	m.Mode = stat.Mode()
 
 	return m
+}
+
+// NewMediaFromObject instantiates a new media from an object file.
+func NewMediaFromObject(r io.Reader) *Media {
+	// TODO
+	return &Media{}
 }
 
 func (m *Media) Update() {
@@ -167,7 +177,7 @@ func (m *Media) Update() {
 /* State Management */
 
 func (m *Media) New() bool {
-	return m.ID == 0
+	return m.new
 }
 
 func (m *Media) Updated() bool {
@@ -242,10 +252,10 @@ func (m *Media) CheckWithTx(tx *sql.Tx) error {
 	query := `
 		UPDATE media
 		SET last_checked_at = ?
-		WHERE id = ?;`
+		WHERE oid = ?;`
 	_, err := tx.Exec(query,
 		timeToSQL(m.LastCheckedAt),
-		m.ID,
+		m.OID,
 	)
 
 	return err
@@ -273,6 +283,7 @@ func (m *Media) Save() error {
 		return err
 	}
 
+	m.new = false
 	m.stale = false
 
 	return nil
@@ -287,7 +298,7 @@ func (m *Media) SaveWithTx(tx *sql.Tx) error {
 	m.UpdatedAt = now
 	m.LastCheckedAt = now
 
-	if m.ID != 0 {
+	if !m.new {
 		if err := m.UpdateWithTx(tx); err != nil {
 			return err
 		}
@@ -298,6 +309,7 @@ func (m *Media) SaveWithTx(tx *sql.Tx) error {
 		}
 	}
 
+	m.new = false
 	m.stale = false
 
 	return nil
@@ -307,7 +319,7 @@ func (m *Media) InsertWithTx(tx *sql.Tx) error {
 	CurrentLogger().Debugf("Inserting media %s...", m.RelativePath)
 	query := `
 		INSERT INTO media(
-			id,
+			oid,
 			relative_path,
 			kind,
 			dangling,
@@ -322,9 +334,10 @@ func (m *Media) InsertWithTx(tx *sql.Tx) error {
 			deleted_at,
 			last_checked_at
 		)
-		VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
-	res, err := tx.Exec(query,
+	_, err := tx.Exec(query,
+		m.OID,
 		m.RelativePath,
 		m.Kind,
 		m.Dangling,
@@ -342,12 +355,6 @@ func (m *Media) InsertWithTx(tx *sql.Tx) error {
 	if err != nil {
 		return err
 	}
-
-	var id int64
-	if id, err = res.LastInsertId(); err != nil {
-		return err
-	}
-	m.ID = id
 
 	return nil
 }
@@ -370,7 +377,7 @@ func (m *Media) UpdateWithTx(tx *sql.Tx) error {
 			updated_at = ?,
 			deleted_at = ?,
 			last_checked_at = ?
-		WHERE id = ?;
+		WHERE oid = ?;
 	`
 	_, err := tx.Exec(query,
 		m.RelativePath,
@@ -382,10 +389,11 @@ func (m *Media) UpdateWithTx(tx *sql.Tx) error {
 		m.Links,
 		m.Size,
 		m.Mode,
+		timeToSQL(m.CreatedAt),
 		timeToSQL(m.UpdatedAt),
 		timeToSQL(m.DeletedAt),
 		timeToSQL(m.LastCheckedAt),
-		m.ID,
+		m.OID,
 	)
 
 	return err
@@ -414,8 +422,8 @@ func (m *Media) Delete() error {
 
 func (m *Media) DeleteWithTx(tx *sql.Tx) error {
 	CurrentLogger().Debugf("Deleting media %s...", m.RelativePath)
-	query := `DELETE FROM media WHERE id = ?;`
-	_, err := tx.Exec(query, m.ID)
+	query := `DELETE FROM media WHERE oid = ?;`
+	_, err := tx.Exec(query, m.OID)
 	return err
 }
 
@@ -431,8 +439,8 @@ func CountMedias() (int, error) {
 	return count, nil
 }
 
-func LoadMediaByID(id int64) (*Media, error) {
-	return QueryMedia(`WHERE id = ?`, id)
+func LoadMediaByOID(oid string) (*Media, error) {
+	return QueryMedia(`WHERE oid = ?`, oid)
 }
 
 func FindMediaByRelativePath(relativePath string) (*Media, error) {
@@ -462,7 +470,7 @@ func QueryMedia(whereClause string, args ...any) (*Media, error) {
 	// Query for a value based on a single row.
 	if err := db.QueryRow(fmt.Sprintf(`
 		SELECT
-			id,
+			oid,
 			relative_path,
 			kind,
 			dangling,
@@ -479,7 +487,7 @@ func QueryMedia(whereClause string, args ...any) (*Media, error) {
 		FROM media
 		%s;`, whereClause), args...).
 		Scan(
-			&m.ID,
+			&m.OID,
 			&m.RelativePath,
 			&m.Kind,
 			&m.Dangling,
@@ -516,7 +524,7 @@ func QueryMedias(whereClause string, args ...any) ([]*Media, error) {
 
 	rows, err := db.Query(fmt.Sprintf(`
 		SELECT
-			id,
+			oid,
 			relative_path,
 			kind,
 			dangling,
@@ -545,7 +553,7 @@ func QueryMedias(whereClause string, args ...any) ([]*Media, error) {
 		var mTime string
 
 		err = rows.Scan(
-			&m.ID,
+			&m.OID,
 			&m.RelativePath,
 			&m.Kind,
 			&m.Dangling,

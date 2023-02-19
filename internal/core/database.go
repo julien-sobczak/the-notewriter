@@ -74,3 +74,36 @@ func (db *DB) Client() *sql.DB {
 	})
 	return dbSingleton.client
 }
+
+// Add adds new objects to staging area.
+func (d *DB) Add(paths ...string) error {
+	// TODO
+	// Check paths are located inside the root directory
+	// Check for .|file|dir
+	return nil
+}
+
+// Commit creates a new commit object and clear the staging area.
+func (d *DB) Commit() error {
+	// TODO
+	return nil
+}
+
+// Pull retrieves remote objects.
+func (d *DB) Pull() error {
+	// TODO
+	// check refs/origin exists
+	return nil
+}
+
+// Push pushes new objects remotely.
+func (d *DB) Push() error {
+	// TODO
+	// check refs/origin exists
+	return nil
+}
+
+func (d *DB) Restore() error {
+	// TODO
+	return nil
+}

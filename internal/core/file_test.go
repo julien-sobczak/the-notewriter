@@ -333,7 +333,7 @@ func TestFileSave(t *testing.T) {
 	// Check the file
 	actual, err := LoadFileByPath(f.RelativePath)
 	require.NoError(t, err)
-	assert.NotEqual(t, 0, actual.ID)
+	assert.NotEqual(t, "", actual.OID)
 	assert.Equal(t, "go.md", actual.RelativePath)
 	assert.Equal(t, "go", actual.Wikilink)
 	expectedFrontMatter, err := f.FrontMatterString()
@@ -354,9 +354,9 @@ func TestFileSave(t *testing.T) {
 	// Check a note
 	note, err := FindNoteByTitle("Reference: Golang History")
 	require.NoError(t, err)
-	assert.NotEqual(t, 0, note.ID)
-	assert.Equal(t, actual.ID, note.FileID)
-	assert.EqualValues(t, -1, note.ParentNoteID) // 0 = new, -1 = nil
+	assert.NotEqual(t, "", note.OID)
+	assert.Equal(t, actual.OID, note.FileOID)
+	assert.EqualValues(t, "", note.ParentNoteOID) // 0 = new, -1 = nil
 	assert.Equal(t, KindReference, note.Kind)
 	assert.Equal(t, "Reference: Golang History", note.Title)
 	assert.Equal(t, "Golang History", note.ShortTitle)
@@ -382,10 +382,10 @@ func TestFileSave(t *testing.T) {
 	require.NoError(t, err)
 	flashcard, err := FindFlashcardByShortTitle("Golang Logo")
 	require.NoError(t, err)
-	assert.NotEqual(t, 0, flashcard.ID)
+	assert.NotEqual(t, "", flashcard.OID)
 	assert.Equal(t, "Golang Logo", flashcard.ShortTitle)
-	assert.EqualValues(t, actual.ID, flashcard.FileID)
-	assert.Equal(t, flashcardNote.ID, flashcard.NoteID)
+	assert.EqualValues(t, actual.OID, flashcard.FileOID)
+	assert.Equal(t, flashcardNote.OID, flashcard.NoteOID)
 	assert.Equal(t, []string{"go"}, flashcard.Tags)
 	assert.Equal(t, CardNew, flashcard.Type)
 	assert.Equal(t, QueueNew, flashcard.Queue)
@@ -409,7 +409,7 @@ func TestFileSave(t *testing.T) {
 	// Check the media
 	media, err := FindMediaByRelativePath("medias/go.svg")
 	require.NoError(t, err)
-	assert.NotEqual(t, 0, media.ID)
+	assert.NotEqual(t, "", media.OID)
 	assert.Equal(t, "medias/go.svg", media.RelativePath)
 	assert.Equal(t, KindPicture, media.Kind)
 	assert.Equal(t, false, media.Dangling)
@@ -431,8 +431,8 @@ func TestFileSave(t *testing.T) {
 	link := links[0]
 	linkNote, err := FindNoteByTitle("Reference: Golang History")
 	require.NoError(t, err)
-	assert.NotEqual(t, 0, link.ID)
-	assert.Equal(t, linkNote.ID, link.NoteID)
+	assert.NotEqual(t, "", link.OID)
+	assert.Equal(t, linkNote.OID, link.NoteOID)
 	assert.Equal(t, "Golang", link.Text)
 	assert.Equal(t, "https://go.dev/doc/", link.URL)
 	assert.Equal(t, "", link.Title)
@@ -449,9 +449,9 @@ func TestFileSave(t *testing.T) {
 	reminder := reminders[0]
 	reminderNote, err := FindNoteByTitle("TODO: Conferences")
 	require.NoError(t, err)
-	assert.NotEqual(t, 0, reminder.ID)
-	assert.Equal(t, reminderNote.ID, reminder.NoteID)
-	assert.Equal(t, reminderNote.FileID, reminder.FileID)
+	assert.NotEqual(t, "", reminder.OID)
+	assert.Equal(t, reminderNote.OID, reminder.NoteOID)
+	assert.Equal(t, reminderNote.FileOID, reminder.FileOID)
 	assert.Equal(t, "[Gophercon Europe](https://gophercon.eu/)", reminder.DescriptionRaw)
 	assert.Equal(t, "[Gophercon Europe](https://gophercon.eu/)", reminder.DescriptionMarkdown)
 	assert.Equal(t, "<p><a href=\"https://gophercon.eu/\">Gophercon Europe</a></p>", reminder.DescriptionHTML)

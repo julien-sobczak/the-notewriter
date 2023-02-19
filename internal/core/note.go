@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"regexp"
 	"strings"
@@ -42,15 +43,15 @@ var regexArtwork = regexp.MustCompile(`^(?i)Artwork[-:_ ]\s*(.*)$`)
 var regexSnippet = regexp.MustCompile(`^(?i)Snippet[-:_ ]\s*(.*)$`)
 
 type Note struct {
-	ID int64
+	OID string
 
 	// File containing the note
-	FileID int64
-	File   *File // Lazy-loaded
+	FileOID string
+	File    *File // Lazy-loaded
 
-	// ParentNoteID
-	ParentNoteID int64
-	ParentNote   *Note // Lazy-loaded
+	// Parent Note surrounding the note
+	ParentNoteOID string
+	ParentNote    *Note // Lazy-loaded
 
 	// Type of note
 	Kind NoteKind
@@ -87,6 +88,7 @@ type Note struct {
 	DeletedAt     time.Time
 	LastCheckedAt time.Time
 
+	new   bool
 	stale bool
 }
 
@@ -115,17 +117,19 @@ func NewNote(f *File, title string, content string, lineNumber int) *Note {
 	_, kind, shortTitle := isSupportedNote(title)
 
 	n := &Note{
-		FileID:       f.ID,
-		File:         f,
-		ParentNoteID: -1,
-		ParentNote:   nil,
-		Kind:         kind,
-		Title:        title,
-		ShortTitle:   shortTitle,
-		RelativePath: f.RelativePath,
-		Wikilink:     f.Wikilink + "#" + strings.TrimSpace(title),
-		Line:         lineNumber,
-		stale:        true,
+		OID:           NewOID(),
+		FileOID:       f.OID,
+		File:          f,
+		ParentNoteOID: "",
+		ParentNote:    nil,
+		Kind:          kind,
+		Title:         title,
+		ShortTitle:    shortTitle,
+		RelativePath:  f.RelativePath,
+		Wikilink:      f.Wikilink + "#" + strings.TrimSpace(title),
+		Line:          lineNumber,
+		new:           true,
+		stale:         true,
 	}
 
 	n.updateContent(rawContent)
@@ -133,12 +137,18 @@ func NewNote(f *File, title string, content string, lineNumber int) *Note {
 	return n
 }
 
+// NewNoteFromObject instantiates a new note from an object file.
+func NewNoteFromObject(r io.Reader) *Note {
+	// TODO
+	return &Note{new: false}
+}
+
 func (n *Note) Update(f *File, title string, content string, lineNumber int) {
 	rawContent := strings.TrimSpace(content)
 
-	if f.ID != n.FileID {
+	if f.OID != n.FileOID {
 		n.File = f
-		n.FileID = f.ID
+		n.FileOID = f.OID
 		n.stale = true
 	}
 	if rawContent != n.ContentRaw {
@@ -154,7 +164,7 @@ func (n *Note) Update(f *File, title string, content string, lineNumber int) {
 /* State Management */
 
 func (n *Note) New() bool {
-	return n.ID == 0
+	return n.new
 }
 
 func (n *Note) Updated() bool {
@@ -194,18 +204,18 @@ func (n *Note) SetParent(parent *Note) {
 		return
 	}
 	n.ParentNote = parent
-	n.ParentNoteID = parent.ID
+	n.ParentNoteOID = parent.OID
 }
 
 // GetFile returns the containing file, loading it from database if necessary.
 func (n *Note) GetFile() *File {
-	if n.FileID == -1 {
+	if n.FileOID == "" {
 		return nil
 	}
 	if n.File == nil {
-		file, err := LoadFileByID(n.FileID)
+		file, err := LoadFileByOID(n.FileOID)
 		if err != nil {
-			log.Fatalf("Unable to find file %q: %v", n.FileID, err)
+			log.Fatalf("Unable to find file %q: %v", n.FileOID, err)
 		}
 		n.File = file
 	}
@@ -214,13 +224,13 @@ func (n *Note) GetFile() *File {
 
 // GetParentNote returns the parent note, loading it from database if necessary.
 func (n *Note) GetParentNote() *Note {
-	if n.ParentNoteID == -1 {
+	if n.ParentNoteOID == "" {
 		return nil
 	}
 	if n.ParentNote == nil {
-		note, err := LoadNoteByID(n.ParentNoteID)
+		note, err := LoadNoteByOID(n.ParentNoteOID)
 		if err != nil {
-			log.Fatalf("Unable to note file %q: %v", n.ParentNoteID, err)
+			log.Fatalf("Unable to note file %q: %v", n.ParentNoteOID, err)
 		}
 		n.ParentNote = note
 	}
@@ -228,7 +238,7 @@ func (n *Note) GetParentNote() *Note {
 }
 
 func (n *Note) GetAttributes() map[string]interface{} {
-	if n.ParentNoteID == -1 {
+	if n.ParentNoteOID == "" {
 		return mergeAttributes(n.GetFile().GetAttributes(), n.Attributes)
 
 	}
@@ -251,7 +261,7 @@ func (n *Note) GetAttributeString(name, defaultValue string) string {
 }
 
 func (n *Note) GetTags() []string {
-	if n.ParentNoteID == -1 {
+	if n.ParentNoteOID == "" {
 		return mergeTags(n.GetFile().GetTags(), n.Tags)
 	}
 	return mergeTags(n.GetParentNote().GetTags(), n.Tags)
@@ -571,29 +581,29 @@ func (n *Note) CheckWithTx(tx *sql.Tx) error {
 	query := `
 		UPDATE note
 		SET last_checked_at = ?
-		WHERE id = ?;`
-	if _, err := tx.Exec(query, timeToSQL(n.LastCheckedAt), n.ID); err != nil {
+		WHERE oid = ?;`
+	if _, err := tx.Exec(query, timeToSQL(n.LastCheckedAt), n.OID); err != nil {
 		return err
 	}
 	query = `
 		UPDATE flashcard
 		SET last_checked_at = ?
-		WHERE note_id = ?;`
-	if _, err := tx.Exec(query, timeToSQL(n.LastCheckedAt), n.ID); err != nil {
+		WHERE note_oid = ?;`
+	if _, err := tx.Exec(query, timeToSQL(n.LastCheckedAt), n.OID); err != nil {
 		return err
 	}
 	query = `
 		UPDATE link
 		SET last_checked_at = ?
-		WHERE note_id = ?;`
-	if _, err := tx.Exec(query, timeToSQL(n.LastCheckedAt), n.ID); err != nil {
+		WHERE note_oid = ?;`
+	if _, err := tx.Exec(query, timeToSQL(n.LastCheckedAt), n.OID); err != nil {
 		return err
 	}
 	query = `
 		UPDATE reminder
 		SET last_checked_at = ?
-		WHERE note_id = ?;`
-	if _, err := tx.Exec(query, timeToSQL(n.LastCheckedAt), n.ID); err != nil {
+		WHERE note_oid = ?;`
+	if _, err := tx.Exec(query, timeToSQL(n.LastCheckedAt), n.OID); err != nil {
 		return err
 	}
 
@@ -622,6 +632,7 @@ func (n *Note) Save() error {
 		return err
 	}
 
+	n.new = false
 	n.stale = false
 
 	return nil
@@ -639,7 +650,7 @@ func (n *Note) SaveWithTx(tx *sql.Tx) error {
 	n.UpdatedAt = now
 	n.LastCheckedAt = now
 
-	if n.ID != 0 {
+	if !n.new {
 		if err := n.UpdateWithTx(tx); err != nil {
 			return err
 		}
@@ -652,15 +663,17 @@ func (n *Note) SaveWithTx(tx *sql.Tx) error {
 		// Update note ID
 		links, _ := n.GetLinks()
 		for _, link := range links {
-			link.NoteID = n.ID
+			link.NoteOID = n.OID
 		}
 
 		// Save reminders
 		reminders, _ := n.GetReminders()
 		for _, reminder := range reminders {
-			reminder.NoteID = n.ID
+			reminder.NoteOID = n.OID
 		}
 	}
+
+	n.new = false
 	n.stale = false
 
 	// Save the links
@@ -692,9 +705,9 @@ func (n *Note) InsertWithTx(tx *sql.Tx) error {
 	CurrentLogger().Debugf("Inserting note %s...", n.Wikilink)
 	query := `
 		INSERT INTO note(
-			id,
-			file_id,
-			note_id,
+			oid,
+			file_oid,
+			note_oid,
 			kind,
 			relative_path,
 			wikilink,
@@ -713,7 +726,7 @@ func (n *Note) InsertWithTx(tx *sql.Tx) error {
 			updated_at,
 			deleted_at,
 			last_checked_at)
-		VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 
 	attributesYAML, err := n.AttributesYAML()
@@ -725,9 +738,10 @@ func (n *Note) InsertWithTx(tx *sql.Tx) error {
 		return err
 	}
 
-	res, err := tx.Exec(query,
-		n.FileID,
-		n.ParentNoteID,
+	_, err = tx.Exec(query,
+		n.OID,
+		n.FileOID,
+		n.ParentNoteOID,
 		n.Kind,
 		n.RelativePath,
 		n.Wikilink,
@@ -751,12 +765,6 @@ func (n *Note) InsertWithTx(tx *sql.Tx) error {
 		return err
 	}
 
-	var id int64
-	if id, err = res.LastInsertId(); err != nil {
-		return err
-	}
-	n.ID = id
-
 	return nil
 }
 
@@ -765,8 +773,8 @@ func (n *Note) UpdateWithTx(tx *sql.Tx) error {
 	query := `
 		UPDATE note
 		SET
-			file_id = ?,
-			note_id = ?,
+			file_oid = ?,
+			note_oid = ?,
 			kind = ?,
 			relative_path = ?,
 			wikilink = ?,
@@ -784,7 +792,7 @@ func (n *Note) UpdateWithTx(tx *sql.Tx) error {
 			updated_at = ?,
 			deleted_at = ?,
 			last_checked_at = ?
-		WHERE id = ?;
+		WHERE oid = ?;
 	`
 
 	attributesYAML, err := n.AttributesYAML()
@@ -797,8 +805,8 @@ func (n *Note) UpdateWithTx(tx *sql.Tx) error {
 	}
 
 	_, err = tx.Exec(query,
-		n.FileID,
-		n.ParentNoteID,
+		n.FileOID,
+		n.ParentNoteOID,
 		n.Kind,
 		n.RelativePath,
 		n.Wikilink,
@@ -816,7 +824,7 @@ func (n *Note) UpdateWithTx(tx *sql.Tx) error {
 		timeToSQL(n.UpdatedAt),
 		timeToSQL(n.DeletedAt),
 		timeToSQL(n.LastCheckedAt),
-		n.ID,
+		n.OID,
 	)
 
 	return err
@@ -845,8 +853,8 @@ func (n *Note) Delete() error {
 
 func (n *Note) DeleteWithTx(tx *sql.Tx) error {
 	CurrentLogger().Debugf("Deleting note %s...", n.Wikilink)
-	query := `DELETE FROM note WHERE id = ?;`
-	_, err := tx.Exec(query, n.ID)
+	query := `DELETE FROM note WHERE oid = ?;`
+	_, err := tx.Exec(query, n.OID)
 	return err
 }
 
@@ -883,8 +891,8 @@ func CountNotes() (int, error) {
 	return count, nil
 }
 
-func LoadNoteByID(id int64) (*Note, error) {
-	return QueryNote(`WHERE id = ?`, id)
+func LoadNoteByOID(oid string) (*Note, error) {
+	return QueryNote(`WHERE oid = ?`, oid)
 }
 
 func FindNoteByTitle(title string) (*Note, error) {
@@ -932,7 +940,7 @@ func SearchNotes(kind NoteKind, q string) ([]*Note, error) {
 		return nil, nil
 	}
 
-	query := "WHERE id IN (" + strings.Join(ids, ",") + ")"
+	query := "WHERE rowid IN (" + strings.Join(ids, ",") + ")"
 	return QueryNotes(query)
 }
 
@@ -952,9 +960,9 @@ func QueryNote(whereClause string, args ...any) (*Note, error) {
 	// Query for a value based on a single row.
 	if err := db.QueryRow(fmt.Sprintf(`
 		SELECT
-			id,
-			file_id,
-			note_id,
+			oid,
+			file_oid,
+			note_oid,
 			kind,
 			relative_path,
 			wikilink,
@@ -975,9 +983,9 @@ func QueryNote(whereClause string, args ...any) (*Note, error) {
 		FROM note
 		%s;`, whereClause), args...).
 		Scan(
-			&n.ID,
-			&n.FileID,
-			&n.ParentNoteID,
+			&n.OID,
+			&n.FileOID,
+			&n.ParentNoteOID,
 			&n.Kind,
 			&n.RelativePath,
 			&n.Wikilink,
@@ -1025,9 +1033,9 @@ func QueryNotes(whereClause string, args ...any) ([]*Note, error) {
 
 	rows, err := db.Query(fmt.Sprintf(`
 		SELECT
-			id,
-			file_id,
-			note_id,
+			oid,
+			file_oid,
+			note_oid,
 			kind,
 			relative_path,
 			wikilink,
@@ -1061,9 +1069,9 @@ func QueryNotes(whereClause string, args ...any) ([]*Note, error) {
 		var attributesRaw string
 
 		err = rows.Scan(
-			&n.ID,
-			&n.FileID,
-			&n.ParentNoteID,
+			&n.OID,
+			&n.FileOID,
+			&n.ParentNoteOID,
 			&n.Kind,
 			&n.RelativePath,
 			&n.Wikilink,
@@ -1113,7 +1121,7 @@ func QueryNotes(whereClause string, args ...any) ([]*Note, error) {
 
 func (n *Note) FormatToJSON() string {
 	type NoteRepresentation struct {
-		ID              int64                  `json:"id"`
+		OID             string                 `json:"oid"`
 		RelativePath    string                 `json:"relativePath"`
 		Wikilink        string                 `json:"wikilink"`
 		FrontMatter     map[string]interface{} `json:"frontMatter"`
@@ -1124,7 +1132,7 @@ func (n *Note) FormatToJSON() string {
 		ContentText     string                 `json:"contentText"`
 	}
 	repr := NoteRepresentation{
-		ID:              n.ID,
+		OID:             n.OID,
 		RelativePath:    n.RelativePath,
 		Wikilink:        n.Wikilink,
 		FrontMatter:     n.GetAttributes(),

@@ -1,5 +1,5 @@
 CREATE TABLE collection (
-    id INTEGER PRIMARY KEY,
+    oid TEXT PRIMARY KEY,
 
     -- Timestamps to track changes
     created_at TEXT NOT NULL,
@@ -8,7 +8,7 @@ CREATE TABLE collection (
 );
 
 CREATE TABLE file (
-    id INTEGER PRIMARY KEY,
+    oid TEXT PRIMARY KEY,
 
     -- Relative file path to the file
     relative_path TEXT NOT NULL,
@@ -35,13 +35,13 @@ CREATE TABLE file (
 );
 
 CREATE TABLE note (
-    id INTEGER PRIMARY KEY,
+    oid TEXT PRIMARY KEY,
 
     -- File containing the note
-    file_id INTEGER NOT NULL,
+    file_oid TEXT NOT NULL,
 
     -- Optional parent note containing the note
-    note_id INTEGER,
+    note_oid TEXT,
 
     -- Type of note:
     --    0 Free (not persisted for now)
@@ -94,28 +94,28 @@ CREATE TABLE note (
     deleted_at TEXT,
     last_checked_at TEXT,
 
-    FOREIGN KEY(file_id) REFERENCES file(id) ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY(note_id) REFERENCES note(id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY(file_oid) REFERENCES file(oid) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY(note_oid) REFERENCES note(oid) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
-CREATE VIRTUAL TABLE note_fts USING FTS5(kind UNINDEXED, short_title, content_text, content='note', content_rowid='id');
+CREATE VIRTUAL TABLE note_fts USING FTS5(kind UNINDEXED, short_title, content_text, content='note', content_rowid='rowid');
 -- -- TODO add other fields? Contentless table?
 
 create trigger note_fts_after_insert after insert on note begin
-  insert into note_fts (rowid, kind, short_title, content_text) values (new.id, new.kind, new.short_title, new.content_text);
+  insert into note_fts (rowid, kind, short_title, content_text) values (new.rowid, new.kind, new.short_title, new.content_text);
 end;
 
 create trigger note_fts_after_update after update on note begin
-  insert into note_fts (note_fts, rowid, kind, short_title, content_text) values('delete', old.id, old.kind, old.short_title, old.content_text);
-  insert into note_fts (rowid, kind, short_title, content_text) values (new.id, new.kind, new.short_title, new.content_text);
+  insert into note_fts (note_fts, rowid, kind, short_title, content_text) values('delete', old.rowid, old.kind, old.short_title, old.content_text);
+  insert into note_fts (rowid, kind, short_title, content_text) values (new.rowid, new.kind, new.short_title, new.content_text);
 end;
 
 create trigger note_fts_after_delete after delete on note begin
-  insert into note_fts (note_fts, rowid, kind, short_title, content_text) values('delete', old.id, old.kind, old.short_title, old.content_text);
+  insert into note_fts (note_fts, rowid, kind, short_title, content_text) values('delete', old.rowid, old.kind, old.short_title, old.content_text);
 end;
 
 CREATE TABLE media (
-    id INTEGER PRIMARY KEY,
+    oid TEXT PRIMARY KEY,
 
     -- Relative path
     relative_path TEXT NOT NULL,
@@ -158,10 +158,10 @@ CREATE TABLE media (
 );
 
 CREATE TABLE link (
-    id INTEGER PRIMARY KEY,
+    oid TEXT PRIMARY KEY,
 
     -- Note representing the link
-    note_id INTEGER NOT NULL,
+    note_oid TEXT NOT NULL,
 
     "text" TEXT NOT NULL,
 
@@ -177,20 +177,20 @@ CREATE TABLE link (
     deleted_at TEXT,
     last_checked_at TEXT,
 
-    FOREIGN KEY(note_id) REFERENCES note(id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY(note_oid) REFERENCES note(oid) ON DELETE CASCADE ON UPDATE CASCADE
     -- TODO add filepath? line? absolute path?
 );
 -- Ex (skills/node.md): [Link 2](https://docs.npmjs.com "Tutorial to creating Node.js modules #go/node/module")
 -- insert into link(1, 'Link 2', 'https://docs.npmjs.com', 'Tutorial to creating Node.js', 'node/module', 'skills/node.md')
 
 CREATE TABLE flashcard (
-	  id INTEGER PRIMARY KEY,
+	  oid TEXT PRIMARY KEY,
 
     -- File representing the flashcard
-    file_id INTEGER NOT NULL,
+    file_oid TEXT NOT NULL,
 
     -- Note representing the flashcard
-    note_id INTEGER NOT NULL,
+    note_oid TEXT NOT NULL,
 
     -- Note short title
     short_title TEXT NOT NULL,
@@ -210,7 +210,7 @@ CREATE TABLE flashcard (
     queue INTEGER NOT NULL DEFAULT 0,
 
     -- Due is used differently for different card types:
-    --    new: note id or random int
+    --    new: note oid or random int
     --    due: integer day, relative to the collection's creation time
     --    learning: integer timestamp in second
     due INTEGER NOT NULL DEFAULT 0,
@@ -251,20 +251,20 @@ CREATE TABLE flashcard (
     deleted_at TEXT,
     last_checked_at TEXT,
 
-    FOREIGN KEY(file_id) REFERENCES file(id) ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY(note_id) REFERENCES note(id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY(file_oid) REFERENCES file(oid) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY(note_oid) REFERENCES note(oid) ON DELETE CASCADE ON UPDATE CASCADE
 );
 -- TODO add custom template name?
 
 
 CREATE TABLE reminder (
-	  id INTEGER PRIMARY KEY,
+	  oid TEXT PRIMARY KEY,
 
     -- File representing the flashcard
-    file_id INTEGER NOT NULL,
+    file_oid TEXT NOT NULL,
 
     -- Note representing the flashcard
-    note_id INTEGER NOT NULL,
+    note_oid TEXT NOT NULL,
 
     -- Description
     description_raw TEXT NOT NULL,
@@ -285,6 +285,6 @@ CREATE TABLE reminder (
     deleted_at TEXT,
     last_checked_at TEXT,
 
-    FOREIGN KEY(file_id) REFERENCES file(id) ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY(note_id) REFERENCES note(id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY(file_oid) REFERENCES file(oid) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY(note_oid) REFERENCES note(oid) ON DELETE CASCADE ON UPDATE CASCADE
 );

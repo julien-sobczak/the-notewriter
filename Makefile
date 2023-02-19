@@ -9,7 +9,7 @@ build:
 	go build --tags "fts5" -o build/nt main.go
 
 test:
-	go test --tags "fts5" ./... -count=1
+	go test --tags "fts5" ./... -count=1 -v
 
 install:
 	go install --tags "fts5"

@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
 	"log"
 	"reflect"
 	"strings"
@@ -38,18 +39,18 @@ const (
 )
 
 type Flashcard struct {
-	ID int64
+	OID string
 
 	// Short title of the note (denormalized field)
 	ShortTitle string
 
 	// File
-	FileID int64
-	File   *File // Lazy-loaded
+	FileOID string
+	File    *File // Lazy-loaded
 
 	// Note representing the flashcard
-	NoteID int64
-	Note   *Note // Lazy-loaded
+	NoteOID string
+	Note    *Note // Lazy-loaded
 
 	// List of tags
 	Tags []string
@@ -100,16 +101,38 @@ type Flashcard struct {
 	DeletedAt     time.Time
 	LastCheckedAt time.Time
 
+	new   bool
 	stale bool
 }
 
+type Study struct {
+	Answers []*Answer
+}
+
+type Feedback string
+
+const (
+	FeedbackEasy        Feedback = "easy"
+	FeedbackGood        Feedback = "easy"
+	FeedbackAgain       Feedback = "easy"
+	FeedbackHard        Feedback = "easy"
+	FeedbackAssimilated Feedback = "assimilated"
+)
+
+type Answer struct {
+	OID          string
+	Feedback     Feedback
+	DurationInMs int
+	// New EaseFactor? etc.
+}
+
 func NewOrExistingFlashcard(file *File, note *Note) *Flashcard {
-	if note.ID == 0 {
+	if note.new {
 		return NewFlashcard(file, note)
 	}
 
 	// Flashcard may already exists
-	flashcard, err := LoadFlashcardByNoteID(note.ID)
+	flashcard, err := LoadFlashcardByNoteOID(note.OID)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -130,10 +153,11 @@ func NewFlashcard(file *File, note *Note) *Flashcard {
 	// FIXME if front => invalid flashcard
 
 	f := &Flashcard{
+		OID:        NewOID(),
 		ShortTitle: note.ShortTitle,
-		FileID:     file.ID,
+		FileOID:    file.OID,
 		File:       file,
-		NoteID:     note.ID,
+		NoteOID:    note.OID,
 		Note:       note,
 		Tags:       note.GetTags(),
 
@@ -151,12 +175,25 @@ func NewFlashcard(file *File, note *Note) *Flashcard {
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 
+		new:   true,
 		stale: true,
 	}
 
 	f.updateContent(frontMarkdown, backMarkdown)
 
 	return f
+}
+
+// NewFlaschardFromObject instantiates a new note from an object file.
+func NewFlashcardFromObject(r io.Reader) *Flashcard {
+	// TODO
+	return &Flashcard{}
+}
+
+// NewStudyFromObject instantiates a new study from an object file.
+func NewStudyFromObject(r io.Reader) *Study {
+	// TODO
+	return &Study{}
 }
 
 func (f *Flashcard) updateContent(frontMarkdown, backMarkdown string) {
@@ -174,14 +211,14 @@ func (f *Flashcard) Update(file *File, note *Note) {
 		f.stale = true
 	}
 
-	if f.FileID != file.ID {
-		f.FileID = file.ID
+	if f.FileOID != file.OID {
+		f.FileOID = file.OID
 		f.File = file
 		f.stale = true
 	}
 
-	if f.NoteID != note.ID {
-		f.NoteID = note.ID
+	if f.NoteOID != note.OID {
+		f.NoteOID = note.OID
 		f.Note = note
 		f.stale = true
 	}
@@ -201,7 +238,7 @@ func (f *Flashcard) Update(file *File, note *Note) {
 /* State Management */
 
 func (f *Flashcard) New() bool {
-	return f.ID == 0
+	return f.new
 }
 
 func (f *Flashcard) Updated() bool {
@@ -262,10 +299,10 @@ func (f *Flashcard) CheckWithTx(tx *sql.Tx) error {
 	query := `
 		UPDATE flashcard
 		SET last_checked_at = ?
-		WHERE id = ?;`
+		WHERE oid = ?;`
 	_, err := tx.Exec(query,
 		timeToSQL(f.LastCheckedAt),
-		f.ID,
+		f.OID,
 	)
 
 	return err
@@ -293,6 +330,7 @@ func (f *Flashcard) Save() error {
 		return err
 	}
 
+	f.new = false
 	f.stale = false
 
 	return nil
@@ -307,7 +345,7 @@ func (f *Flashcard) SaveWithTx(tx *sql.Tx) error {
 	f.UpdatedAt = now
 	f.LastCheckedAt = now
 
-	if f.ID != 0 {
+	if !f.new {
 		if err := f.UpdateWithTx(tx); err != nil {
 			return err
 		}
@@ -318,6 +356,7 @@ func (f *Flashcard) SaveWithTx(tx *sql.Tx) error {
 		}
 	}
 
+	f.new = false
 	f.stale = false
 
 	return nil
@@ -327,9 +366,9 @@ func (f *Flashcard) InsertWithTx(tx *sql.Tx) error {
 	CurrentLogger().Debugf("Inserting file %s...", f.ShortTitle)
 	query := `
 		INSERT INTO flashcard(
-			id,
-			file_id,
-			note_id,
+			oid,
+			file_oid,
+			note_oid,
 			short_title,
 			tags,
 			"type",
@@ -351,11 +390,12 @@ func (f *Flashcard) InsertWithTx(tx *sql.Tx) error {
 			deleted_at,
 			last_checked_at
 		)
-		VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 		`
-	res, err := tx.Exec(query,
-		f.FileID,
-		f.NoteID,
+	_, err := tx.Exec(query,
+		f.OID,
+		f.FileOID,
+		f.NoteOID,
 		f.ShortTitle,
 		strings.Join(f.Tags, ","),
 		f.Type,
@@ -380,12 +420,6 @@ func (f *Flashcard) InsertWithTx(tx *sql.Tx) error {
 		return err
 	}
 
-	var id int64
-	if id, err = res.LastInsertId(); err != nil {
-		return err
-	}
-	f.ID = id
-
 	return nil
 }
 
@@ -394,8 +428,8 @@ func (f *Flashcard) UpdateWithTx(tx *sql.Tx) error {
 	query := `
 		UPDATE flashcard
 		SET
-			file_id = ?,
-			note_id = ?,
+			file_oid = ?,
+			note_oid = ?,
 			short_title = ?,
 			tags = ?,
 			"type" = ?,
@@ -415,11 +449,11 @@ func (f *Flashcard) UpdateWithTx(tx *sql.Tx) error {
 			updated_at = ?,
 			deleted_at = ?,
 			last_checked_at = ?
-		WHERE id = ?;
+		WHERE oid = ?;
 		`
 	_, err := tx.Exec(query,
-		f.FileID,
-		f.NoteID,
+		f.FileOID,
+		f.NoteOID,
 		f.ShortTitle,
 		strings.Join(f.Tags, ","),
 		f.Type,
@@ -439,7 +473,7 @@ func (f *Flashcard) UpdateWithTx(tx *sql.Tx) error {
 		timeToSQL(f.UpdatedAt),
 		timeToSQL(f.DeletedAt),
 		timeToSQL(f.LastCheckedAt),
-		f.ID)
+		f.OID)
 
 	return err
 }
@@ -467,8 +501,8 @@ func (f *Flashcard) Delete() error {
 
 func (f *Flashcard) DeleteWithTx(tx *sql.Tx) error {
 	CurrentLogger().Debugf("Deleting flashcard %s...", f.ShortTitle)
-	query := `DELETE FROM flashcard WHERE id = ?;`
-	_, err := tx.Exec(query, f.ID)
+	query := `DELETE FROM flashcard WHERE oid = ?;`
+	_, err := tx.Exec(query, f.OID)
 	return err
 }
 
@@ -484,12 +518,12 @@ func CountFlashcards() (int, error) {
 	return count, nil
 }
 
-func LoadFlashcardByID(id int64) (*Flashcard, error) {
-	return QueryFlashcard(`WHERE id = ?`, id)
+func LoadFlashcardByOID(oid string) (*Flashcard, error) {
+	return QueryFlashcard(`WHERE oid = ?`, oid)
 }
 
-func LoadFlashcardByNoteID(noteID int64) (*Flashcard, error) {
-	return QueryFlashcard(`WHERE note_id = ?`, noteID)
+func LoadFlashcardByNoteOID(noteID string) (*Flashcard, error) {
+	return QueryFlashcard(`WHERE note_oid = ?`, noteID)
 }
 
 func FindFlashcardByShortTitle(shortTitle string) (*Flashcard, error) {
@@ -519,9 +553,9 @@ func QueryFlashcard(whereClause string, args ...any) (*Flashcard, error) {
 	// Query for a value based on a single row.
 	if err := db.QueryRow(fmt.Sprintf(`
 		SELECT
-			id,
-			file_id,
-			note_id,
+			oid,
+			file_oid,
+			note_oid,
 			short_title,
 			tags,
 			"type",
@@ -545,9 +579,9 @@ func QueryFlashcard(whereClause string, args ...any) (*Flashcard, error) {
 		FROM flashcard
 		%s;`, whereClause), args...).
 		Scan(
-			&f.ID,
-			&f.FileID,
-			&f.NoteID,
+			&f.OID,
+			&f.FileOID,
+			&f.NoteOID,
 			&f.ShortTitle,
 			&tagsRaw,
 			&f.Type,
@@ -591,9 +625,9 @@ func QueryFlashcards(whereClause string, args ...any) ([]*Flashcard, error) {
 
 	rows, err := db.Query(fmt.Sprintf(`
 		SELECT
-			id,
-			file_id,
-			note_id,
+			oid,
+			file_oid,
+			note_oid,
 			short_title,
 			tags,
 			"type",
@@ -629,9 +663,9 @@ func QueryFlashcards(whereClause string, args ...any) ([]*Flashcard, error) {
 		var lastCheckedAt string
 
 		err = rows.Scan(
-			&f.ID,
-			&f.FileID,
-			&f.NoteID,
+			&f.OID,
+			&f.FileOID,
+			&f.NoteOID,
 			&f.ShortTitle,
 			&tagsRaw,
 			&f.Type,
