@@ -15,6 +15,7 @@ func init() {
 	rootCmd.AddCommand(buildCmd)
 }
 
+// TODO remove deprecated
 var buildCmd = &cobra.Command{
 	Use:   "build",
 	Short: "Build database",

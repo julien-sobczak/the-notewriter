@@ -21,10 +21,12 @@ var (
 	// Lazy-load ensuring a single read
 	dbOnce       resync.Once
 	dbSingleton  *DB
+	dbRemoteOnce resync.Once
 	dbClientOnce resync.Once
 )
 
 type DB struct {
+	origin Remote
 	client *sql.DB
 }
 
@@ -40,6 +42,36 @@ func (db *DB) Close() error {
 		return db.client.Close()
 	}
 	return nil
+}
+
+func (db *DB) Origin() Remote {
+	dbRemoteOnce.Do(func() {
+		config := CurrentConfig()
+		configRemote := config.ConfigFile.Remote
+		if configRemote.Type == "" {
+			return
+		}
+		switch configRemote.Type {
+		case "fs":
+			remote, err := NewFSRemote(configRemote.Dir)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Unable to init FS remote: %v\n", err)
+				os.Exit(1)
+			}
+			db.origin = remote
+		case "s3":
+			remote, err := NewS3RemoteFromCredentials(configRemote.BucketName, configRemote.AccessKey, configRemote.SecretKey)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Unable to init S3 remote: %v\n", err)
+				os.Exit(1)
+			}
+			db.origin = remote
+		default:
+			fmt.Fprintf(os.Stderr, "Unknow remote type %q\n", configRemote.Type)
+			os.Exit(1)
+		}
+	})
+	return db.origin
 }
 
 func (db *DB) Client() *sql.DB {

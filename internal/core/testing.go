@@ -12,6 +12,7 @@ import (
 func Reset() {
 	collectionOnce.Reset()
 	configOnce.Reset()
+	dbRemoteOnce.Reset()
 	dbClientOnce.Reset()
 	dbOnce.Reset()
 	loggerOnce.Reset()

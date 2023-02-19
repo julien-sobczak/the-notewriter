@@ -38,13 +38,25 @@ var (
 
 // Note: Fields must be public for toml package to unmarshall
 type ConfigFile struct {
-	Core struct {
-		Extensions []string
-	}
-	Search map[string]struct {
-		Q    string
-		Name string
-	}
+	Core   ConfigCore
+	Remote ConfigRemote
+	Search map[string]ConfigSearch
+}
+type ConfigCore struct {
+	Extensions []string
+}
+type ConfigRemote struct {
+	Type string // fs or s3
+	// fs-specific attributes
+	Dir string
+	// s3-specific attributes
+	AccessKey  string
+	SecretKey  string
+	BucketName string
+}
+type ConfigSearch struct {
+	Q    string
+	Name string
 }
 
 // SupportExtension checks if the given file extension must be considered.
@@ -56,6 +68,26 @@ func (f *ConfigFile) SupportExtension(path string) bool {
 		}
 	}
 	return false
+}
+
+// ConfigureFSRemote defines a local remote using the file system.
+func (f *ConfigFile) ConfigureFSRemote(dir string) *ConfigFile {
+	f.Remote = ConfigRemote{
+		Type: "fs",
+		Dir:  dir,
+	}
+	return f
+}
+
+// ConfigureS3Remote defines a remote using a S3 backend.
+func (f *ConfigFile) ConfigureS3Remote(bucketName, accessKey, secretKey string) *ConfigFile {
+	f.Remote = ConfigRemote{
+		Type:       "s3",
+		BucketName: bucketName,
+		AccessKey:  accessKey,
+		SecretKey:  secretKey,
+	}
+	return f
 }
 
 type IgnoreFile struct {

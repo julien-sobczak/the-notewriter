@@ -1,8 +1,6 @@
 package core
 
 import (
-	"database/sql"
-	"fmt"
 	"io/fs"
 	"log"
 	"os"
@@ -172,15 +170,11 @@ func (b *BuildResult) setActionOnReminder(reminder *Reminder, action BuildAction
 	b.reminders[reminder.DescriptionRaw] = action
 }
 
-func (c *Collection) Build(outputDirectory string) (*BuildResult, error) {
-
+func (c *Collection) walk(fn func(path string, stat fs.FileInfo) error) {
 	config := CurrentConfig()
 
-	result := NewBuildResult()
-
-	buildTime := clock.Now()
-
 	CurrentLogger().Infof("Reading %s...\n", config.RootDirectory)
+
 	filepath.WalkDir(config.RootDirectory, func(path string, info fs.DirEntry, err error) error {
 		if err != nil {
 			log.Fatal(err) // FIXME not visible in stderr
@@ -223,6 +217,19 @@ func (c *Collection) Build(outputDirectory string) (*BuildResult, error) {
 			return nil
 		}
 
+		if err := fn(path, fileInfo); err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
+func (c *Collection) Build(outputDirectory string) (*BuildResult, error) {
+	result := NewBuildResult()
+	buildTime := clock.Now()
+
+	c.walk(func(path string, stat fs.FileInfo) error {
 		CurrentLogger().Debugf("Processing %s...\n", path) // TODO emit notif for tests? + Parse file
 		file, err := NewOrExistingFile(path)
 		if err != nil {
@@ -234,7 +241,6 @@ func (c *Collection) Build(outputDirectory string) (*BuildResult, error) {
 		if err != nil {
 			return err
 		}
-
 		return nil
 	})
 
@@ -320,54 +326,4 @@ func (c *Collection) Update(buildResult *BuildResult) error {
 	// note.AsText()
 
 	return nil
-}
-
-func DemoPopulateData(db *sql.DB) {
-	records := `INSERT INTO posts(title, body) VALUES
-('Learn SQlite FTS5', 'This tutorial teaches you how to perform full-text search in SQLite using FTS5'),
-('Advanced SQlite Full-text Search', 'Show you some advanced techniques in SQLite full-text searching'),
-('SQLite Tutorial', 'Help you learn SQLite quickly and effectively');`
-	query, err := db.Prepare(records)
-	if err != nil {
-		log.Fatal(err)
-	}
-	_, err = query.Exec()
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-func DemoQueryNotes(db *sql.DB, queryTxt string) {
-	queryFTS, err := db.Prepare("SELECT id FROM note_fts WHERE kind = 1 and note_fts MATCH ? ORDER BY rank LIMIT 10;")
-	if err != nil {
-		log.Fatal(err)
-	}
-	recordFTS, err := queryFTS.Query(queryTxt)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer recordFTS.Close()
-	var ids []int
-	for recordFTS.Next() {
-		var id int
-		recordFTS.Scan(&id)
-		ids = append(ids, id)
-	}
-
-	query, err := db.Prepare("SELECT id, content_markdown FROM note WHERE id IN (?);")
-	if err != nil {
-		log.Fatal(err)
-	}
-	record, err := query.Query(queryTxt, ids)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer record.Close()
-	for record.Next() {
-		var id int
-		var content string
-		record.Scan(&id)
-		record.Scan(&content)
-		fmt.Printf("%d\n%s\n\n", id, content)
-	}
 }
