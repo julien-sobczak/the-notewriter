@@ -14,6 +14,7 @@ func Reset() {
 	configOnce.Reset()
 	dbClientOnce.Reset()
 	dbOnce.Reset()
+	loggerOnce.Reset()
 }
 
 /* Test Helpers */
