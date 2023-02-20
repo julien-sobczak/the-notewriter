@@ -13,6 +13,13 @@ type Remote interface {
 	// Note: File permissions are not important concerning object. MTime, etc. must be stored inside the object definitions if useful.
 }
 
+// Typical files:
+//   ob/jectid // YAML/JSON single object
+//   bl/ob // Binary single blob
+//   index // objectid => YAML/JSON path to commit file
+//   commit-graph // YAML/JSON list of commits id
+// Note: don't use extension to match with Git standard namings
+
 /* FS */
 
 type FSRemote struct {

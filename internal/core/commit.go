@@ -5,9 +5,81 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/julien-sobczak/the-notetaker/pkg/clock"
+	"gopkg.in/yaml.v3"
 )
+
+// CommitGraph represents a .nt/objects/info/commit-graph file.
+// See https://git-scm.com/docs/commit-graph for inspiration.
+type CommitGraph struct {
+	UpdatedAt  time.Time `yaml:"updated_at,omitempty"`
+	CommitOIDs []string  `yaml:"commits,omitempty"`
+}
+
+// NewCommitGraph instantiates a new commit graph.
+func NewCommitGraph() *CommitGraph {
+	return &CommitGraph{
+		UpdatedAt: clock.Now(),
+	}
+}
+
+// ReadCommitGraph instantiates a commit graph from an existing file
+func ReadCommitGraph(r io.Reader) (*CommitGraph, error) {
+	cg := new(CommitGraph)
+	err := yaml.NewDecoder(r).Decode(&cg)
+	if err != nil {
+		return nil, err
+	}
+	return cg, nil
+}
+
+// AppendCommit pushes a new commit.
+func (c *CommitGraph) AppendCommit(childOID, parentOID string) error {
+	var head = ""
+	if len(c.CommitOIDs) > 0 {
+		head = c.CommitOIDs[len(c.CommitOIDs)-1]
+	}
+	if head != parentOID {
+		return fmt.Errorf("invalid head reference %s", head)
+	}
+	c.UpdatedAt = clock.Now()
+	c.CommitOIDs = append(c.CommitOIDs, childOID)
+	return nil
+}
+
+// LastCommits returns all recent commits.
+func (c *CommitGraph) LastCommitsFrom(head string) ([]string, error) {
+	var results []string
+
+	found := false
+	for _, commitOID := range c.CommitOIDs {
+		if found {
+			results = append(results, commitOID)
+		}
+		if commitOID == head {
+			found = true
+		}
+	}
+
+	if !found {
+		return nil, fmt.Errorf("unknown commit %s", head)
+	}
+
+	return results, nil
+}
+
+// Write dumps the commit graph.
+func (c *CommitGraph) Write(w io.Writer) error {
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(data)
+	return err
+}
 
 /* Commit */
 

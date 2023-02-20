@@ -115,6 +115,24 @@ func (d *DB) Add(paths ...string) error {
 	return nil
 }
 
+func (d *DB) AddBlob(raw []byte, blob Blob) error {
+	// TODO where to save blob OID? Must be in objects in commit files. New column? ✅
+	return nil
+}
+func (d *DB) StageObjectAdded(new Object) error {
+	// TODO Must Write .nt/index
+	return nil
+}
+func (d *DB) StageObjectUpdated(new, old Object) error {
+	// TODO
+	return nil
+}
+func (d *DB) StageObjectDeleted(old Object) error {
+	// TODO
+	return nil
+
+}
+
 // Commit creates a new commit object and clear the staging area.
 func (d *DB) Commit() error {
 	// TODO

@@ -55,12 +55,14 @@ func Now() time.Time {
 	return CurrentClock().Now()
 }
 
-func FreezeAt(now time.Time) {
+func FreezeAt(now time.Time) time.Time {
 	clockSingleton = NewTestClockAt(now)
+	return now
 }
 
-func Freeze() {
+func Freeze() time.Time {
 	clockSingleton = NewTestClock()
+	return clockSingleton.Now()
 }
 
 func Unfreeze() {
