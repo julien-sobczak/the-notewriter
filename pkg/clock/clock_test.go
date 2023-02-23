@@ -19,6 +19,7 @@ func TestDefaultClock(t *testing.T) {
 
 func TestTestClock(t *testing.T) {
 	clock.Freeze()
+	defer clock.Unfreeze()
 	t1 := clock.Now()
 	time.Sleep(200 * time.Millisecond)
 	// time is always the same

@@ -30,32 +30,32 @@ type Attribute struct {
 
 type File struct {
 	// A unique identifier among all files
-	OID string
+	OID string `yaml:"oid"`
 
 	// A relative path to the collection directory
-	RelativePath string
+	RelativePath string `yaml:"relative_path"`
 	// The full wikilink to this file (without the extension)
-	Wikilink string
+	Wikilink string `yaml:"wikilink"`
 
 	// The FrontMatter for the note file
-	frontMatter *yaml.Node
+	frontMatter *yaml.Node `yaml:"front_matter"`
 
-	Content string
-	notes   []*Note
+	Content string  `yaml:"content"`
+	notes   []*Note `yaml:"-"`
 
 	// Permission of the file (required to save back)
-	Mode fs.FileMode
+	Mode fs.FileMode `yaml:"mode"`
 	// Size of the file (can be useful to detect changes)
-	Size int64
+	Size int64 `yaml:"size"`
 	// Hash of the content (can be useful to detect changes too)
-	Hash string
+	Hash string `yaml:"hash"`
 	// Content last modification date
-	MTime time.Time
+	MTime time.Time `yaml:"mtime"`
 
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     time.Time
-	LastCheckedAt time.Time
+	CreatedAt     time.Time `yaml:"created_at"`
+	UpdatedAt     time.Time `yaml:"updated_at"`
+	DeletedAt     time.Time `yaml:"-"`
+	LastCheckedAt time.Time `yaml:"-"`
 
 	new   bool
 	stale bool
@@ -137,6 +137,44 @@ func NewFileFromPath(filepath string) (*File, error) {
 
 	return file, nil
 }
+
+/* Object */
+
+func (f *File) Kind() string {
+	return "file"
+}
+
+func (f *File) UniqueOID() string {
+	return f.OID
+}
+
+func (f *File) ModificationTime() time.Time {
+	return f.MTime
+}
+
+func (f *File) Read(r io.Reader) error {
+	err := yaml.NewDecoder(r).Decode(f)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (f *File) Write(w io.Writer) error {
+	data, err := yaml.Marshal(f)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(data)
+	return err
+}
+
+func (f *File) Blobs() []Blob {
+	// Use Media.Blobs() instead
+	return nil
+}
+
+/* Update */
 
 func (f *File) Update() error {
 	abspath := CurrentCollection().GetAbsolutePath(f.RelativePath)
@@ -391,7 +429,7 @@ func (f *File) GetNotes() []*Note {
 // FindNoteByKindAndShortTitle searches for a given note based on its kind and title.
 func (f *File) FindNoteByKindAndShortTitle(kind NoteKind, shortTitle string) *Note {
 	for _, note := range f.GetNotes() {
-		if note.Kind == kind && note.ShortTitle == shortTitle {
+		if note.NoteKind == kind && note.ShortTitle == shortTitle {
 			return note
 		}
 	}
@@ -412,7 +450,7 @@ func (f *File) FindFlashcardByTitle(shortTitle string) *Flashcard {
 func (f *File) GetFlashcards() []*Flashcard {
 	var flashcards []*Flashcard
 	for _, note := range f.GetNotes() {
-		if note.Kind != KindFlashcard {
+		if note.NoteKind != KindFlashcard {
 			continue
 		}
 

@@ -43,50 +43,50 @@ var regexArtwork = regexp.MustCompile(`^(?i)Artwork[-:_ ]\s*(.*)$`)
 var regexSnippet = regexp.MustCompile(`^(?i)Snippet[-:_ ]\s*(.*)$`)
 
 type Note struct {
-	OID string
+	OID string `yaml:"oid"`
 
 	// File containing the note
-	FileOID string
-	File    *File // Lazy-loaded
+	FileOID string `yaml:"file_oid"`
+	File    *File  `yaml:"-"` // Lazy-loaded
 
 	// Parent Note surrounding the note
-	ParentNoteOID string
-	ParentNote    *Note // Lazy-loaded
+	ParentNoteOID string `yaml:"parent_note_oid"`
+	ParentNote    *Note  `yaml:"-"` // Lazy-loaded
 
 	// Type of note
-	Kind NoteKind
+	NoteKind NoteKind `yaml:"kind"`
 
 	// Original title of the note without leading # characters
-	Title string
+	Title string `yaml:"title"`
 	// Short title of the note without the kind prefix
-	ShortTitle string
+	ShortTitle string `yaml:"short_title"`
 
 	// The filepath of the file containing the note (denormalized field)
-	RelativePath string
+	RelativePath string `yaml:"relative_path"`
 	// The full wikilink to this note (without the extension)
-	Wikilink string
+	Wikilink string `yaml:"wikilink"`
 
 	// Note-specific attributes. Use GetAttributes() to get all merged attributes
-	Attributes map[string]interface{}
+	Attributes map[string]interface{} `yaml:"attributes"`
 
 	// Note-specific tags. Use GetTags() to get all merged tags
-	Tags []string
+	Tags []string `yaml:"tags,omitempty"`
 
 	// Line number (1-based index) of the note section title
-	Line int
+	Line int `yaml:"line"`
 
 	// Content in various formats (best for editing, rendering, writing, etc.)
-	ContentRaw      string
-	Hash            string
-	ContentMarkdown string
-	ContentHTML     string
-	ContentText     string
+	ContentRaw      string `yaml:"content_raw"`
+	Hash            string `yaml:"content_hash"`
+	ContentMarkdown string `yaml:"content_markdown"`
+	ContentHTML     string `yaml:"content_html"`
+	ContentText     string `yaml:"content_text"`
 
 	// Timestamps to track changes
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     time.Time
-	LastCheckedAt time.Time
+	CreatedAt     time.Time `yaml:"created_at"`
+	UpdatedAt     time.Time `yaml:"updated_at"`
+	DeletedAt     time.Time `yaml:"-"`
+	LastCheckedAt time.Time `yaml:"-"`
 
 	new   bool
 	stale bool
@@ -122,12 +122,14 @@ func NewNote(f *File, title string, content string, lineNumber int) *Note {
 		File:          f,
 		ParentNoteOID: "",
 		ParentNote:    nil,
-		Kind:          kind,
+		NoteKind:      kind,
 		Title:         title,
 		ShortTitle:    shortTitle,
 		RelativePath:  f.RelativePath,
 		Wikilink:      f.Wikilink + "#" + strings.TrimSpace(title),
 		Line:          lineNumber,
+		CreatedAt:     clock.Now(),
+		UpdatedAt:     clock.Now(),
 		new:           true,
 		stale:         true,
 	}
@@ -142,6 +144,44 @@ func NewNoteFromObject(r io.Reader) *Note {
 	// TODO
 	return &Note{new: false}
 }
+
+/* Object */
+
+func (n *Note) Kind() string {
+	return "note"
+}
+
+func (n *Note) UniqueOID() string {
+	return n.OID
+}
+
+func (n *Note) ModificationTime() time.Time {
+	return n.UpdatedAt
+}
+
+func (n *Note) Read(r io.Reader) error {
+	err := yaml.NewDecoder(r).Decode(n)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (n *Note) Write(w io.Writer) error {
+	data, err := yaml.Marshal(n)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(data)
+	return err
+}
+
+func (n *Note) Blobs() []Blob {
+	// Use Media.Blobs() instead
+	return nil
+}
+
+/* Update */
 
 func (n *Note) Update(f *File, title string, content string, lineNumber int) {
 	rawContent := strings.TrimSpace(content)
@@ -357,7 +397,7 @@ func mergeAttributes(attributes ...map[string]interface{}) map[string]interface{
 }
 
 func (n Note) String() string {
-	return fmt.Sprintf("[%v] %s", n.Kind, n.Title)
+	return fmt.Sprintf("[%v] %s", n.NoteKind, n.Title)
 }
 
 func isSupportedNote(text string) (bool, NoteKind, string) {
@@ -390,7 +430,7 @@ func isSupportedNote(text string) (bool, NoteKind, string) {
 }
 
 func (n *Note) expandSyntaxSugar(rawContent string) string {
-	if n.Kind == KindQuote {
+	if n.NoteKind == KindQuote {
 		// Turn every text line into a quote
 		// Add the attribute name or author in suffix
 		// Ex:
@@ -742,7 +782,7 @@ func (n *Note) InsertWithTx(tx *sql.Tx) error {
 		n.OID,
 		n.FileOID,
 		n.ParentNoteOID,
-		n.Kind,
+		n.NoteKind,
 		n.RelativePath,
 		n.Wikilink,
 		n.Title,
@@ -807,7 +847,7 @@ func (n *Note) UpdateWithTx(tx *sql.Tx) error {
 	_, err = tx.Exec(query,
 		n.FileOID,
 		n.ParentNoteOID,
-		n.Kind,
+		n.NoteKind,
 		n.RelativePath,
 		n.Wikilink,
 		n.Title,
@@ -986,7 +1026,7 @@ func QueryNote(whereClause string, args ...any) (*Note, error) {
 			&n.OID,
 			&n.FileOID,
 			&n.ParentNoteOID,
-			&n.Kind,
+			&n.NoteKind,
 			&n.RelativePath,
 			&n.Wikilink,
 			&n.Title,
@@ -1072,7 +1112,7 @@ func QueryNotes(whereClause string, args ...any) ([]*Note, error) {
 			&n.OID,
 			&n.FileOID,
 			&n.ParentNoteOID,
-			&n.Kind,
+			&n.NoteKind,
 			&n.RelativePath,
 			&n.Wikilink,
 			&n.Title,

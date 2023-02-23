@@ -1,6 +1,8 @@
 package core
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 	"time"
 
@@ -66,7 +68,6 @@ func TestEvaluateTimeExpression(t *testing.T) {
 			expr:     "every-${tuesday}",
 			expected: time.Date(2023, time.Month(7), 4, 0, 0, 0, 0, time.UTC),
 		},
-
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -75,4 +76,51 @@ func TestEvaluateTimeExpression(t *testing.T) {
 			assert.EqualValues(t, tt.expected, actual)
 		})
 	}
+}
+
+func TestReminder(t *testing.T) {
+	// Make tests reproductible
+	UseFixedOID("42d74d967d9b4e989502647ac510777ca1e22f4a")
+	defer ResetOID()
+	clock.FreezeAt(time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
+	defer clock.Unfreeze()
+
+	t.Run("YAML", func(t *testing.T) {
+		noteSrc := NewNote(NewEmptyFile(), "TODO: Backlog", "* [ ] Test `#reminder-2025-09`", 2)
+		reminderSrc, err := NewReminder(noteSrc, "Test", "#reminder-2025-09")
+		require.NoError(t, err)
+
+		// Marshall
+		buf := new(bytes.Buffer)
+		err = reminderSrc.Write(buf)
+		require.NoError(t, err)
+		reminderYAML := buf.String()
+		assert.Equal(t, strings.TrimSpace(`
+oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
+file_oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
+note_oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
+description_raw: Test
+description_markdown: Test
+description_html: <p>Test</p>
+description_text: Test
+tag: '#reminder-2025-09'
+last_performed_at: 0001-01-01T00:00:00Z
+next_performed_at: 2025-09-01T00:00:00Z
+created_at: 2023-01-01T01:12:30Z
+updated_at: 2023-01-01T01:12:30Z
+`), strings.TrimSpace(reminderYAML))
+
+		// Unmarshall
+		reminderDest := new(Reminder)
+		err = reminderDest.Read(buf)
+		require.NoError(t, err)
+
+		// Compare ignore certain attributes
+		reminderSrc.File = nil
+		reminderSrc.Note = nil
+		reminderSrc.new = false
+		reminderSrc.stale = false
+		assert.EqualValues(t, reminderSrc, reminderDest)
+	})
+
 }

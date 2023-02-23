@@ -9,30 +9,31 @@ import (
 	"time"
 
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
+	"gopkg.in/yaml.v3"
 )
 
 type Link struct {
-	OID string
+	OID string `yaml:"oid"`
 
-	NoteOID string
+	NoteOID string `yaml:"note_oid"`
 
 	// The link text
-	Text string
+	Text string `yaml:"text"`
 
 	// The link destination
-	URL string
+	URL string `yaml:"url"`
 
 	// The optional link title
-	Title string
+	Title string `yaml:"title"`
 
 	// The optional GO name
-	GoName string
+	GoName string `yaml:"go_name"`
 
 	// Timestamps to track changes
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     time.Time
-	LastCheckedAt time.Time
+	CreatedAt     time.Time `yaml:"created_at"`
+	UpdatedAt     time.Time `yaml:"updated_at"`
+	DeletedAt     time.Time `yaml:"-"`
+	LastCheckedAt time.Time `yaml:"-"`
 
 	new   bool
 	stale bool
@@ -59,8 +60,8 @@ func NewLink(note *Note, text, url, title, goName string) *Link {
 		Title:   title,
 		GoName:  goName,
 
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt: clock.Now(),
+		UpdatedAt: clock.Now(),
 
 		new:   true,
 		stale: true,
@@ -72,6 +73,44 @@ func NewLinkFromObject(r io.Reader) *Link {
 	// TODO
 	return &Link{}
 }
+
+/* Object */
+
+func (l *Link) Kind() string {
+	return "link"
+}
+
+func (l *Link) UniqueOID() string {
+	return l.OID
+}
+
+func (l *Link) ModificationTime() time.Time {
+	return l.UpdatedAt
+}
+
+func (l *Link) Read(r io.Reader) error {
+	err := yaml.NewDecoder(r).Decode(l)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (l *Link) Write(w io.Writer) error {
+	data, err := yaml.Marshal(l)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(data)
+	return err
+}
+
+func (l *Link) Blobs() []Blob {
+	// Use Media.Blobs() instead
+	return nil
+}
+
+/* Update */
 
 func (l *Link) Update(note *Note, text, url, title, goName string) {
 	if l.NoteOID != note.OID {

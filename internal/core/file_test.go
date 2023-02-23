@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -204,26 +205,26 @@ func TestGetNotes(t *testing.T) {
 	notes := f.GetNotes()
 	require.Len(t, notes, 4)
 
-	assert.Equal(t, KindFlashcard, notes[0].Kind)
+	assert.Equal(t, KindFlashcard, notes[0].NoteKind)
 	assert.Nil(t, notes[0].ParentNote)
 	assert.Equal(t, 6, notes[0].Line)
 	assert.Equal(t, "Flashcard: About _The NoteTaker_", notes[0].Title)
 	t.Log(notes[0].ContentRaw)
 	assert.Equal(t, notes[0].ContentRaw, "**What** is _The NoteTaker_?\n\n---\n\n_The NoteTaker_ is an unobstrusive application to organize all kinds of notes.")
 
-	assert.Equal(t, KindQuote, notes[1].Kind)
+	assert.Equal(t, KindQuote, notes[1].NoteKind)
 	assert.Nil(t, notes[1].ParentNote)
 	assert.Equal(t, 15, notes[1].Line)
 	assert.Equal(t, "Quote: Gustave Flaubert on Order", notes[1].Title)
 	assert.Equal(t, notes[1].ContentRaw, "`#favorite` `#life-changing`\n\n<!-- name: Gustave Flaubert -->\n<!-- references: https://fortelabs.com/blog/tiagos-favorite-second-brain-quotes/ -->\n\nBe regular and orderly in your life so that you may be violent and original in your work.")
 
-	assert.Equal(t, KindFlashcard, notes[2].Kind)
+	assert.Equal(t, KindFlashcard, notes[2].NoteKind)
 	assert.Equal(t, notes[1], notes[2].ParentNote)
 	assert.Equal(t, 25, notes[2].Line)
 	assert.Equal(t, "Flashcard: Gustave Flaubert on Order", notes[2].Title)
 	assert.Equal(t, notes[2].ContentRaw, "`#creativity`\n\n**Why** order is required for creativity?\n\n---\n\n> Be regular and orderly in your life **so that you may be violent and original in your work**.\n> -- Gustave Flaubert")
 
-	assert.Equal(t, KindTodo, notes[3].Kind)
+	assert.Equal(t, KindTodo, notes[3].NoteKind)
 	assert.Nil(t, notes[3].ParentNote)
 	assert.Equal(t, 40, notes[3].Line)
 	assert.Equal(t, "TODO: Backlog", notes[3].Title)
@@ -320,6 +321,7 @@ func TestFileSave(t *testing.T) {
 
 	assertNoFiles(t)
 	clock.Freeze()
+	defer clock.Unfreeze()
 	err = f.Save()
 	require.NoError(t, err)
 
@@ -357,7 +359,7 @@ func TestFileSave(t *testing.T) {
 	assert.NotEqual(t, "", note.OID)
 	assert.Equal(t, actual.OID, note.FileOID)
 	assert.EqualValues(t, "", note.ParentNoteOID) // 0 = new, -1 = nil
-	assert.Equal(t, KindReference, note.Kind)
+	assert.Equal(t, KindReference, note.NoteKind)
 	assert.Equal(t, "Reference: Golang History", note.Title)
 	assert.Equal(t, "Golang History", note.ShortTitle)
 	assert.Equal(t, actual.RelativePath, note.RelativePath)
@@ -411,7 +413,7 @@ func TestFileSave(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEqual(t, "", media.OID)
 	assert.Equal(t, "medias/go.svg", media.RelativePath)
-	assert.Equal(t, KindPicture, media.Kind)
+	assert.Equal(t, KindPicture, media.MediaKind)
 	assert.Equal(t, false, media.Dangling)
 	assert.Equal(t, 0, media.Links)
 	assert.Equal(t, ".svg", media.Extension)
@@ -463,4 +465,75 @@ func TestFileSave(t *testing.T) {
 	assert.NotEmpty(t, reminder.UpdatedAt)
 	assert.Empty(t, reminder.DeletedAt)
 	assert.NotEmpty(t, reminder.LastCheckedAt)
+}
+
+func TestFile(t *testing.T) {
+	// Make tests reproductible
+	UseFixedOID("42d74d967d9b4e989502647ac510777ca1e22f4a")
+	defer ResetOID()
+	clock.FreezeAt(time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
+	defer clock.Unfreeze()
+	dirname := SetUpCollectionFromGoldenDirNamed(t, "TestFileSave")
+
+	t.Run("YAML", func(t *testing.T) {
+		fileSrc, err := NewFileFromPath(filepath.Join(dirname, "go.md"))
+		require.NoError(t, err)
+		fileSrc.MTime = clock.Now()
+
+		// Marshall
+		buf := new(bytes.Buffer)
+		err = fileSrc.Write(buf)
+		require.NoError(t, err)
+		noteYAML := buf.String()
+		assert.Equal(t, strings.TrimSpace(`
+oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
+relative_path: go.md
+wikilink: go
+content: |-
+    # Go
+
+    ## Reference: Golang History
+
+    `+"`"+`#history`+"`"+`
+
+    <!-- source: https://en.wikipedia.org/wiki/Go_(programming_language) -->
+
+    [Golang](https://go.dev/doc/ "#go/go") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.
+
+
+    ## Flashcard: Golang Logo
+
+    What does the **Golang logo** represent?
+
+    ---
+
+    A **gopher**.
+
+    ![Logo](./medias/go.svg)
+
+
+    ## TODO: Conferences
+
+    * [Gophercon Europe](https://gophercon.eu/) `+"`"+`#reminder-2023-06-26`+"`"+`
+mode: 420
+size: 469
+hash: 40bba27f3783ba6f8d94b288c8e1b216
+mtime: 2023-01-01T01:12:30Z
+created_at: 0001-01-01T00:00:00Z
+updated_at: 0001-01-01T00:00:00Z
+`), strings.TrimSpace(noteYAML))
+
+		// Unmarshall
+		fileDest := new(File)
+		err = fileDest.Read(buf)
+		require.NoError(t, err)
+
+		// Compare ignoreing a few attributes
+		fileSrc.frontMatter = nil
+		fileDest.frontMatter = nil
+		fileSrc.new = false
+		fileSrc.stale = false
+		assert.EqualValues(t, fileSrc, fileDest)
+	})
+
 }

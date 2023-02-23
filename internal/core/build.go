@@ -9,32 +9,23 @@ import (
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 )
 
-type BuildAction int
-
-const (
-	None BuildAction = iota
-	Added
-	Updated
-	Deleted
-)
-
 type BuildResult struct {
-	files      map[string]BuildAction
-	notes      map[string]BuildAction
-	flashcards map[string]BuildAction
-	links      map[string]BuildAction
-	reminders  map[string]BuildAction
-	medias     map[string]BuildAction
+	files      map[string]State
+	notes      map[string]State
+	flashcards map[string]State
+	links      map[string]State
+	reminders  map[string]State
+	medias     map[string]State
 }
 
 func NewBuildResult() *BuildResult {
 	return &BuildResult{
-		files:      make(map[string]BuildAction),
-		notes:      make(map[string]BuildAction),
-		flashcards: make(map[string]BuildAction),
-		links:      make(map[string]BuildAction),
-		reminders:  make(map[string]BuildAction),
-		medias:     make(map[string]BuildAction),
+		files:      make(map[string]State),
+		notes:      make(map[string]State),
+		flashcards: make(map[string]State),
+		links:      make(map[string]State),
+		reminders:  make(map[string]State),
+		medias:     make(map[string]State),
 	}
 }
 
@@ -60,12 +51,12 @@ func (b *BuildResult) UpdateFile(file *File) {
 			b.setActionOnMedia(media, Added)
 		}
 	} else if file.Updated() {
-		b.setActionOnFile(file, Updated)
+		b.setActionOnFile(file, Modified)
 		for _, note := range file.GetNotes() {
 			if note.New() {
 				b.setActionOnNote(note, Added)
 			} else if note.Updated() {
-				b.setActionOnNote(note, Updated)
+				b.setActionOnNote(note, Modified)
 			} else {
 				b.setActionOnNote(note, None)
 			}
@@ -74,7 +65,7 @@ func (b *BuildResult) UpdateFile(file *File) {
 				if link.New() {
 					b.setActionOnLink(link, Added)
 				} else if link.Updated() {
-					b.setActionOnLink(link, Updated)
+					b.setActionOnLink(link, Modified)
 				} else {
 					b.setActionOnLink(link, None)
 				}
@@ -84,7 +75,7 @@ func (b *BuildResult) UpdateFile(file *File) {
 				if reminder.New() {
 					b.setActionOnReminder(reminder, Added)
 				} else if reminder.Updated() {
-					b.setActionOnReminder(reminder, Updated)
+					b.setActionOnReminder(reminder, Modified)
 				} else {
 					b.setActionOnReminder(reminder, None)
 				}
@@ -94,7 +85,7 @@ func (b *BuildResult) UpdateFile(file *File) {
 			if flashcard.New() {
 				b.setActionOnFlashcard(flashcard, Added)
 			} else if flashcard.Updated() {
-				b.setActionOnFlashcard(flashcard, Updated)
+				b.setActionOnFlashcard(flashcard, Modified)
 			} else {
 				b.setActionOnFlashcard(flashcard, None)
 			}
@@ -104,7 +95,7 @@ func (b *BuildResult) UpdateFile(file *File) {
 			if media.New() {
 				b.setActionOnMedia(media, Added)
 			} else if media.Updated() {
-				b.setActionOnMedia(media, Updated)
+				b.setActionOnMedia(media, Modified)
 			} else {
 				b.setActionOnMedia(media, None)
 			}
@@ -151,23 +142,23 @@ func (b *BuildResult) DeleteReminder(reminder *Reminder) {
 	b.setActionOnReminder(reminder, Deleted)
 }
 
-func (b *BuildResult) setActionOnFile(file *File, action BuildAction) {
-	b.files[file.Wikilink] = action
+func (b *BuildResult) setActionOnFile(file *File, state State) {
+	b.files[file.Wikilink] = state
 }
-func (b *BuildResult) setActionOnNote(note *Note, action BuildAction) {
-	b.notes[note.Wikilink] = action
+func (b *BuildResult) setActionOnNote(note *Note, state State) {
+	b.notes[note.Wikilink] = state
 }
-func (b *BuildResult) setActionOnFlashcard(flashcard *Flashcard, action BuildAction) {
-	b.flashcards[flashcard.ShortTitle] = action
+func (b *BuildResult) setActionOnFlashcard(flashcard *Flashcard, state State) {
+	b.flashcards[flashcard.ShortTitle] = state
 }
-func (b *BuildResult) setActionOnLink(link *Link, action BuildAction) {
-	b.links[link.GoName] = action
+func (b *BuildResult) setActionOnLink(link *Link, state State) {
+	b.links[link.GoName] = state
 }
-func (b *BuildResult) setActionOnMedia(media *Media, action BuildAction) {
-	b.medias[media.RelativePath] = action
+func (b *BuildResult) setActionOnMedia(media *Media, state State) {
+	b.medias[media.RelativePath] = state
 }
-func (b *BuildResult) setActionOnReminder(reminder *Reminder, action BuildAction) {
-	b.reminders[reminder.DescriptionRaw] = action
+func (b *BuildResult) setActionOnReminder(reminder *Reminder, state State) {
+	b.reminders[reminder.DescriptionRaw] = state
 }
 
 func (c *Collection) walk(fn func(path string, stat fs.FileInfo) error) {

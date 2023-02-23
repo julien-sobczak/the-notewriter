@@ -13,6 +13,7 @@ import (
 
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/julien-sobczak/the-notetaker/pkg/markdown"
+	"gopkg.in/yaml.v3"
 )
 
 const DefaultEaseFactor = 2.5  // Same as Anki
@@ -39,67 +40,67 @@ const (
 )
 
 type Flashcard struct {
-	OID string
+	OID string `yaml:"oid"`
 
 	// Short title of the note (denormalized field)
-	ShortTitle string
+	ShortTitle string `yaml:"short_title"`
 
 	// File
-	FileOID string
-	File    *File // Lazy-loaded
+	FileOID string `yaml:"file_oid"`
+	File    *File  `yaml:"-"` // Lazy-loaded
 
 	// Note representing the flashcard
-	NoteOID string
-	Note    *Note // Lazy-loaded
+	NoteOID string `yaml:"note_oid"`
+	Note    *Note  `yaml:"-"` // Lazy-loaded
 
 	// List of tags
-	Tags []string
+	Tags []string `yaml:"tags,omitempty"`
 
 	// 0=new, 1=learning, 2=review, 3=relearning
-	Type CardType
+	Type CardType `yaml:"type"`
 
 	// Queue types
-	Queue QueueType
+	Queue QueueType `yaml:"queue"`
 
 	// Due is used differently for different card types:
 	//   - new: note id or random int
 	//   - due: integer day, relative to the collection's creation time
 	//   - learning: integer timestamp in second
-	Due int
+	Due int `yaml:"due"`
 
 	// The interval. Negative = seconds, positive = days
-	Interval int
+	Interval int `yaml:"interval"`
 
 	// The ease factor in permille (ex: 2500 = the interval will be multiplied by 2.5 the next time you press "Good").
-	EaseFactor int
+	EaseFactor int `yaml:"ease_factor"`
 
 	// Number of reviews
-	Repetitions int
+	Repetitions int `yaml:"repetitions"`
 
 	// The number of times the card went from a "was answered correctly" to "was answered incorrectly" state.
-	Lapses int
+	Lapses int `yaml:"lapses"`
 
 	// Of the form a*1000+b, with:
 	//   - a the number of reps left today
 	//   - b the number of reps left till graduation
 	// For example: '2004' means 2 reps left today and 4 reps till graduation
-	Left int
+	Left int `yaml:"left"`
 
 	// Fields in Markdown (best for editing)
-	FrontMarkdown string
-	BackMarkdown  string
+	FrontMarkdown string `yaml:"front_markdown"`
+	BackMarkdown  string `yaml:"back_markdown"`
 	// Fields in HTML (best for rendering)
-	FrontHTML string
-	BackHTML  string
+	FrontHTML string `yaml:"front_html"`
+	BackHTML  string `yaml:"back_html"`
 	// Fields in raw text (best for indexing)
-	FrontText string
-	BackText  string
+	FrontText string `yaml:"front_text"`
+	BackText  string `yaml:"back_text"`
 
 	// Timestamps to track changes
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     time.Time
-	LastCheckedAt time.Time
+	CreatedAt     time.Time `yaml:"created_at"`
+	UpdatedAt     time.Time `yaml:"updated_at"`
+	DeletedAt     time.Time `yaml:"-"`
+	LastCheckedAt time.Time `yaml:"-"`
 
 	new   bool
 	stale bool
@@ -172,8 +173,8 @@ func NewFlashcard(file *File, note *Note) *Flashcard {
 		Left:        0,
 
 		// Timestamps
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt: clock.Now(),
+		UpdatedAt: clock.Now(),
 
 		new:   true,
 		stale: true,
@@ -195,6 +196,44 @@ func NewStudyFromObject(r io.Reader) *Study {
 	// TODO
 	return &Study{}
 }
+
+/* Object */
+
+func (f *Flashcard) Kind() string {
+	return "flashcard"
+}
+
+func (f *Flashcard) UniqueOID() string {
+	return f.OID
+}
+
+func (f *Flashcard) ModificationTime() time.Time {
+	return f.UpdatedAt
+}
+
+func (f *Flashcard) Read(r io.Reader) error {
+	err := yaml.NewDecoder(r).Decode(f)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (f *Flashcard) Write(w io.Writer) error {
+	data, err := yaml.Marshal(f)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(data)
+	return err
+}
+
+func (f *Flashcard) Blobs() []Blob {
+	// Use Media.Blobs() instead
+	return nil
+}
+
+/* Update */
 
 func (f *Flashcard) updateContent(frontMarkdown, backMarkdown string) {
 	f.FrontMarkdown = frontMarkdown

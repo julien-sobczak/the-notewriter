@@ -17,6 +17,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/julien-sobczak/the-notetaker/internal/reference"
+	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	sopts "go.nhat.io/surveyexpect/options"
 )
 
@@ -335,7 +336,7 @@ func (z *Zotero) startServerLocally() error {
 
 	// Wait for port to be open
 	// TODO refactor to avoid passive wait
-	startedAt := time.Now()
+	startedAt := clock.Now()
 	for {
 		if z.IsPortOpen() {
 			// Just to be sure the service is ready

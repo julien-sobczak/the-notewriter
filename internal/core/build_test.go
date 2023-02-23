@@ -62,8 +62,8 @@ func TestBuild(t *testing.T) {
 
 /* Custom Assertions */
 
-func assertActionOnFile(t *testing.T, result *BuildResult, fileName string, action BuildAction) {
+func assertActionOnFile(t *testing.T, result *BuildResult, fileName string, state State) {
 	value, ok := result.files[fileName]
 	require.True(t, ok, "file %q unknown", fileName)
-	require.Equal(t, action, value, "mismatch action. Got: %q, Want: %q", value, action)
+	require.Equal(t, state, value, "mismatch action. Got: %q, Want: %q", value, state)
 }

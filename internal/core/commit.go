@@ -1,7 +1,10 @@
 package core
 
 import (
+	"bytes"
+	"compress/zlib"
 	"crypto/sha1"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"strings"
@@ -12,8 +15,184 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// State describes an object status.
+type State string
+
+const (
+	None     State = "none"
+	Added    State = "added"
+	Modified State = "modified"
+	Deleted  State = "deleted"
+	Renamed  State = "renamed"
+)
+
+/* Index */
+
+// Index
+// See https://git-scm.com/docs/index-format for inspiration.
+//
+// The index file is used to determine if an object is new
+// and to quickly locate which the commit file containing the object otherwise.
+// Useful when adding or restoring objects.
+type Index struct {
+	Objects     []*IndexObject          `yaml:"objects"`
+	objectsRef  map[string]*IndexObject `yaml:"-"`
+	StagingArea StagingArea             `yaml:"staging"`
+}
+
+type IndexObject struct {
+	OID   string    `yaml:"oid"`
+	MTime time.Time `yaml:"mtime"`
+	// The commit containing the latest version (empty for uncommitted object)
+	CommitOID string `yaml:"commit_oid"`
+}
+
+type StagingObject struct {
+	CommitObject
+	PreviousCommitOID string `yaml:"previous_commit_oid"`
+}
+
+type StagingArea struct {
+	Added    []*StagingObject `yaml:"added"`
+	Modified []*StagingObject `yaml:"modified"`
+	Deleted  []*StagingObject `yaml:"edited"`
+}
+
+// NewIndex instantiates a new index.
+func NewIndex() *Index {
+	return &Index{
+		objectsRef: make(map[string]*IndexObject),
+	}
+}
+
+// FindCommitContaining returns the commit associated with a given object.
+func (i *Index) FindCommitContaining(objectOID string) (string, bool) {
+	indexFile, ok := i.objectsRef[objectOID]
+	if !ok {
+		return "", false
+	}
+	return indexFile.CommitOID, true
+}
+
+// AppendCommit completes the index with object from a commit.
+func (i *Index) AppendCommit(c *Commit) {
+	for _, objectCommit := range c.Objects {
+		objectFile, ok := i.objectsRef[objectCommit.OID]
+		if ok {
+			// Update index object if updated since
+			if objectFile.MTime.Before(objectCommit.MTime) {
+				objectFile.MTime = objectCommit.MTime
+			}
+		} else {
+			// Save the object into the index
+			objectIndex := &IndexObject{
+				OID:       objectCommit.OID,
+				MTime:     objectCommit.MTime,
+				CommitOID: c.OID,
+			}
+			i.Objects = append(i.Objects, objectIndex)
+			i.objectsRef[objectCommit.OID] = objectIndex
+		}
+	}
+}
+
+// StageObject registers a changed object into the staging area
+func (i *Index) StageObject(obj Object, state State) error {
+	objData, err := NewObjectData(obj)
+	if err != nil {
+		return err
+	}
+
+	// Update index
+	indexObject, ok := i.objectsRef[obj.UniqueOID()]
+	if ok {
+		indexObject.MTime = obj.ModificationTime()
+	} else {
+		indexObject := &IndexObject{
+			OID:       obj.UniqueOID(),
+			MTime:     obj.ModificationTime(),
+			CommitOID: "staging",
+		}
+		i.objectsRef[obj.UniqueOID()] = indexObject
+		i.Objects = append(i.Objects, indexObject)
+	}
+
+	// Update staging area
+	stagingObject := &StagingObject{
+		CommitObject: CommitObject{
+			OID:   obj.UniqueOID(),
+			Kind:  obj.Kind(),
+			State: state,
+			MTime: obj.ModificationTime(),
+			Data:  objData,
+		},
+	}
+	switch state {
+	case Added:
+		i.StagingArea.Added = append(i.StagingArea.Added, stagingObject)
+	case Renamed:
+		fallthrough
+	case Modified:
+		i.StagingArea.Modified = append(i.StagingArea.Modified, stagingObject)
+	case Deleted:
+		i.StagingArea.Deleted = append(i.StagingArea.Deleted, stagingObject)
+	}
+
+	return nil
+}
+
+// CreateCommit generates a new commit from current changes in the staging area.
+func (i *Index) CreateCommitFromStagingArea() *Commit {
+	c := NewCommit()
+
+	for _, o := range i.StagingArea.Added {
+		c.Append(o.OID, o.Kind, o.State, o.MTime, o.Data)
+		i.objectsRef[o.OID].CommitOID = c.OID
+	}
+	for _, o := range i.StagingArea.Modified {
+		c.Append(o.OID, o.Kind, o.State, o.MTime, o.Data)
+		i.objectsRef[o.OID].CommitOID = c.OID
+	}
+	for _, o := range i.StagingArea.Deleted {
+		c.Append(o.OID, o.Kind, o.State, o.MTime, o.Data)
+		i.objectsRef[o.OID].CommitOID = c.OID
+	}
+
+	// Clear the staging area
+	i.StagingArea.Added = nil
+	i.StagingArea.Modified = nil
+	i.StagingArea.Deleted = nil
+
+	return c
+}
+
+// Read read an index from the file.
+func (i *Index) Read(r io.Reader) error {
+	err := yaml.NewDecoder(r).Decode(&i)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// Write dumps the index to a file.
+func (i *Index) Write(w io.Writer) error {
+	data, err := yaml.Marshal(i)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(data)
+	return err
+}
+
+/* Commit Graph */
+
 // CommitGraph represents a .nt/objects/info/commit-graph file.
 // See https://git-scm.com/docs/commit-graph for inspiration.
+//
+// The commit graph is used to quickly finds commit to download
+// and/or diffs between local and remote directories.
+// Useful when pulling or pushing commits.
 type CommitGraph struct {
 	UpdatedAt  time.Time `yaml:"updated_at,omitempty"`
 	CommitOIDs []string  `yaml:"commits,omitempty"`
@@ -26,14 +205,13 @@ func NewCommitGraph() *CommitGraph {
 	}
 }
 
-// ReadCommitGraph instantiates a commit graph from an existing file
-func ReadCommitGraph(r io.Reader) (*CommitGraph, error) {
-	cg := new(CommitGraph)
+// Read instantiates a commit graph from an existing file
+func (cg *CommitGraph) Read(r io.Reader) error {
 	err := yaml.NewDecoder(r).Decode(&cg)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return cg, nil
+	return nil
 }
 
 // AppendCommit pushes a new commit.
@@ -84,13 +262,167 @@ func (c *CommitGraph) Write(w io.Writer) error {
 /* Commit */
 
 type Commit struct {
-	OID string
+	OID     string         `yaml:"oid"`
+	CTime   time.Time      `yaml:"ctime"`
+	Objects []CommitObject `yaml:"objects"`
 }
 
-// NewCommitFromObject instantiates a new commit from an object file.
-func NewCommitFromObject(r io.Reader) *Commit {
-	// TODO
-	return &Commit{}
+type CommitObject struct {
+	OID   string     `yaml:"oid"`
+	Kind  string     `yaml:"kind"`
+	State State      `yaml:"state"` // (A) added, (D) deleted, (M) modified, (R) renamed
+	MTime time.Time  `yaml:"mtime"`
+	Data  ObjectData `yaml:"data"`
+}
+
+// ObjectData serializes any Object to base64 after zlib compression.
+type ObjectData []byte // alias to serialize to YAML easily
+
+// NewObjectData creates a compressed-string representation of the object.
+func NewObjectData(obj Object) (ObjectData, error) {
+	b := new(bytes.Buffer)
+	if err := obj.Write(b); err != nil {
+		return nil, err
+	}
+	in := b.Bytes()
+
+	zb := new(bytes.Buffer)
+	w := zlib.NewWriter(zb)
+	w.Write(in)
+	w.Close()
+	return ObjectData(zb.Bytes()), nil
+}
+
+func (od ObjectData) MarshalYAML() (interface{}, error) {
+	return base64.StdEncoding.EncodeToString(od), nil
+}
+
+func (od *ObjectData) UnmarshalYAML(node *yaml.Node) error {
+	value := node.Value
+	ba, err := base64.StdEncoding.DecodeString(value)
+	if err != nil {
+		return err
+	}
+	*od = ba
+	return nil
+}
+
+func (od ObjectData) Unmarshal(target interface{}) error {
+	if target == nil {
+		return fmt.Errorf("cannot unmarshall in nil target")
+	}
+	src := bytes.NewReader(od)
+	dest := new(bytes.Buffer)
+	r, err := zlib.NewReader(src)
+	if err != nil {
+		return err
+	}
+	io.Copy(dest, r)
+	r.Close()
+
+	if c, ok := target.(*Collection); ok {
+		c.Read(dest)
+		return nil
+	}
+	if f, ok := target.(*File); ok {
+		f.Read(dest)
+		return nil
+	}
+	if n, ok := target.(*Note); ok {
+		n.Read(dest)
+		return nil
+	}
+	if f, ok := target.(*Flashcard); ok {
+		f.Read(dest)
+		return nil
+	}
+	if m, ok := target.(*Media); ok {
+		m.Read(dest)
+		return nil
+	}
+	if l, ok := target.(*Link); ok {
+		l.Read(dest)
+		return nil
+	}
+	if r, ok := target.(*Reminder); ok {
+		r.Read(dest)
+		return nil
+	}
+
+	return fmt.Errorf("unsupported type %T", target)
+}
+
+// NewCommit initializes a new empty commit.
+func NewCommit() *Commit {
+	return &Commit{
+		OID:   NewOID(),
+		CTime: clock.Now(),
+	}
+}
+
+// Append registers a new object inside the commit.
+func (c *Commit) AppendObject(obj Object, state State) error {
+	data, err := NewObjectData(obj)
+	if err != nil {
+		return err
+	}
+	c.Objects = append(c.Objects, CommitObject{
+		OID:   obj.UniqueOID(),
+		Kind:  obj.Kind(),
+		State: state,
+		MTime: obj.ModificationTime(),
+		Data:  data,
+	})
+	return nil
+}
+
+// Append registers a new object inside the commit.
+func (c *Commit) Append(oid string, kind string, state State, mtime time.Time, data ObjectData) {
+	c.Objects = append(c.Objects, CommitObject{
+		OID:   oid,
+		Kind:  kind,
+		State: state,
+		MTime: mtime,
+		Data:  data,
+	})
+}
+
+func (c *Commit) UniqueOID() string {
+	return c.OID
+}
+
+// Read populates a commit from an object file.
+func (c *Commit) Read(r io.Reader) error {
+	err := yaml.NewDecoder(r).Decode(&c)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// Write dumps a commit to an object file.
+func (c *Commit) Write(w io.Writer) error {
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(data)
+	return err
+}
+
+func (c *Commit) Blobs() []Blob {
+	// Blobs are stored outside commits.
+	return nil
+}
+
+// UnmarshallObject extract a single object from a commit.
+func (c *Commit) UnmarshallObject(oid string, target interface{}) error {
+	for _, objEdit := range c.Objects {
+		if objEdit.OID == oid {
+			return objEdit.Data.Unmarshal(target)
+		}
+	}
+	return fmt.Errorf("no object with OID %q", oid)
 }
 
 /* OID */
@@ -190,4 +522,10 @@ func UseFixedOID(oid string) {
 	oidGenerator = &fixedOIDGenerator{
 		oid: oid,
 	}
+}
+
+// ResetOID restores the original unique OID generator.
+// Useful in tests with a defer after overriding the default generator.
+func ResetOID() {
+	oidGenerator = &uniqueOIDGenerator{}
 }

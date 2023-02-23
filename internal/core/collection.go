@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/julien-sobczak/the-notetaker/internal/reference/zotero"
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/julien-sobczak/the-notetaker/pkg/resync"
+	"gopkg.in/yaml.v3"
 )
 
 const ReferenceKindBook = "book"
@@ -27,15 +29,15 @@ var (
 )
 
 type Collection struct {
-	OID string
+	OID string `yaml:"oid"`
 
-	Path          string
+	Path          string `yaml:"path"`
 	bookManager   reference.Manager
 	personManager reference.Manager
 
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	LastCheckedAt time.Time
+	CreatedAt     time.Time `yaml:"created_at"`
+	UpdatedAt     time.Time `yaml:"updated_at"`
+	LastCheckedAt time.Time `yaml:"-"`
 
 	new bool
 }
@@ -63,9 +65,12 @@ func NewCollection(bookManager reference.Manager, personManager reference.Manage
 	}
 
 	c := &Collection{
+		OID:           NewOID(),
 		Path:          absolutePath,
 		bookManager:   bookManager,
 		personManager: personManager,
+		CreatedAt:     clock.Now(),
+		UpdatedAt:     clock.Now(),
 		new:           true,
 	}
 	return c, nil
@@ -95,6 +100,44 @@ func (c *Collection) CreateNewReferenceFile(identifier string, kind string) (*Fi
 
 	return NewFileFromAttributes(attributes), nil
 }
+
+/* Object */
+
+func (c *Collection) Kind() string {
+	return "collection"
+}
+
+func (c *Collection) UniqueOID() string {
+	return c.OID
+}
+
+func (c *Collection) ModificationTime() time.Time {
+	return c.UpdatedAt
+}
+
+func (c *Collection) Read(r io.Reader) error {
+	err := yaml.NewDecoder(r).Decode(c)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Collection) Write(w io.Writer) error {
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(data)
+	return err
+}
+
+func (c *Collection) Blobs() []Blob {
+	// Use Media.Blobs() instead
+	return nil
+}
+
+/* Reference Management */
 
 func (c *Collection) AddNewReferenceFile(identifier string, kind string) error {
 	f, err := c.CreateNewReferenceFile(identifier, kind)

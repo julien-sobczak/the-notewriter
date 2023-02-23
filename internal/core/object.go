@@ -1,5 +1,10 @@
 package core
 
+import (
+	"io"
+	"time"
+)
+
 type Blob struct {
 	// OID to locate the blob file in .nt/objects
 	OID        string
@@ -12,13 +17,17 @@ func (b *Blob) Hash() string {
 	return ""
 }
 
+// Object groups method common to all kinds of managed objects.
+// Useful when creating commits in a generic way where a single commit
+// groups different kinds of objects inside the same object.
 type Object interface {
-	OID() string
-	ToObject() string
+	Kind() string
+	UniqueOID() string
+	ModificationTime() time.Time
+	Read(r io.Reader) error
+	Write(w io.Writer) error
 	Blobs() []Blob // OID size tags
 }
-
-
 
 // Same for other objects
 

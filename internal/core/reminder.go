@@ -15,37 +15,38 @@ import (
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/julien-sobczak/the-notetaker/pkg/markdown"
 	"github.com/julien-sobczak/the-notetaker/pkg/text"
+	"gopkg.in/yaml.v3"
 )
 
 type Reminder struct {
-	OID string
+	OID string `yaml:"oid"`
 
 	// File
-	FileOID string
-	File    *File // Lazy-loaded
+	FileOID string `yaml:"file_oid"`
+	File    *File  `yaml:"-"` // Lazy-loaded
 
 	// Note representing the flashcard
-	NoteOID string
-	Note    *Note // Lazy-loaded
+	NoteOID string `yaml:"note_oid"`
+	Note    *Note  `yaml:"-"` // Lazy-loaded
 
 	// Description
-	DescriptionRaw      string
-	DescriptionMarkdown string
-	DescriptionHTML     string
-	DescriptionText     string
+	DescriptionRaw      string `yaml:"description_raw"`
+	DescriptionMarkdown string `yaml:"description_markdown"`
+	DescriptionHTML     string `yaml:"description_html"`
+	DescriptionText     string `yaml:"description_text"`
 
 	// Tag value containig the formula to determine the next occurence
-	Tag string
+	Tag string `yaml:"tag"`
 
 	// Timestamps to track progress
-	LastPerformedAt time.Time
-	NextPerformedAt time.Time
+	LastPerformedAt time.Time `yaml:"last_performed_at"`
+	NextPerformedAt time.Time `yaml:"next_performed_at"`
 
 	// Timestamps to track changes
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     time.Time
-	LastCheckedAt time.Time
+	CreatedAt     time.Time `yaml:"created_at"`
+	UpdatedAt     time.Time `yaml:"updated_at"`
+	DeletedAt     time.Time `yaml:"-"`
+	LastCheckedAt time.Time `yaml:"-"`
 
 	new   bool
 	stale bool
@@ -71,12 +72,14 @@ func NewReminder(note *Note, descriptionRaw, tag string) (*Reminder, error) {
 	descriptionRaw = strings.TrimSpace(descriptionRaw)
 
 	r := &Reminder{
-		OID:     NewOID(),
-		FileOID: note.FileOID,
-		NoteOID: note.OID,
-		Tag:     tag,
-		stale:   true,
-		new:     true,
+		OID:       NewOID(),
+		FileOID:   note.FileOID,
+		NoteOID:   note.OID,
+		Tag:       tag,
+		CreatedAt: clock.Now(),
+		UpdatedAt: clock.Now(),
+		stale:     true,
+		new:       true,
 	}
 
 	r.updateContent(descriptionRaw)
@@ -94,6 +97,44 @@ func NewReminderFromObject(r io.Reader) *Reminder {
 	// TODO
 	return &Reminder{new: false}
 }
+
+/* Object */
+
+func (r *Reminder) Kind() string {
+	return "reminder"
+}
+
+func (r *Reminder) UniqueOID() string {
+	return r.OID
+}
+
+func (r *Reminder) ModificationTime() time.Time {
+	return r.UpdatedAt
+}
+
+func (n *Reminder) Read(r io.Reader) error {
+	err := yaml.NewDecoder(r).Decode(n)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *Reminder) Write(w io.Writer) error {
+	data, err := yaml.Marshal(r)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(data)
+	return err
+}
+
+func (r *Reminder) Blobs() []Blob {
+	// Use Media.Blobs() instead
+	return nil
+}
+
+/* Update */
 
 func (r *Reminder) updateContent(descriptionRaw string) {
 	r.DescriptionRaw = descriptionRaw

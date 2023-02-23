@@ -3,6 +3,7 @@ package core
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 // reOID matches the Git commit ID format
@@ -37,6 +39,7 @@ func TestCommitGraph(t *testing.T) {
 
 	t.Run("New CommitGraph", func(t *testing.T) {
 		now := clock.FreezeAt(time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
+		defer clock.Unfreeze()
 		cg := NewCommitGraph()
 		assert.Equal(t, now, cg.UpdatedAt)
 
@@ -96,7 +99,8 @@ commits:
 		// Read in
 		in, err = os.Open(in.Name())
 		require.NoError(t, err)
-		cg, err := ReadCommitGraph(in)
+		cg := new(CommitGraph)
+		err = cg.Read(in)
 		in.Close()
 		require.NoError(t, err)
 		assert.Equal(t, []string{"a757e67f5ae2a8df3a4634c96c16af5c8491bea2", "a04d20dec96acfc2f9785802d7e3708721005d5d", "52d614e255d914e2f6022689617da983381c27a3"}, cg.CommitOIDs)
@@ -111,4 +115,154 @@ commits:
 		hashOut, _ := hashFromFile(out.Name())
 		assert.Equal(t, hashIn, hashOut)
 	})
+}
+
+func TestObjectData(t *testing.T) {
+	noteSrc := NewNote(NewEmptyFile(), "TODO: Backlog", "* [ ] Test ObjectData", 2)
+	dataSrc, err := NewObjectData(noteSrc)
+	require.NoError(t, err)
+
+	// Marshall YAML
+	txt, err := yaml.Marshal(dataSrc)
+	require.NoError(t, err)
+	reBase64 := regexp.MustCompile(`^[A-Za-z0-9+=/]*$`)
+	assert.Regexp(t, reBase64, strings.TrimSpace(string(txt)))
+
+	// Unmarshall YAML
+	var dataDest ObjectData
+	err = yaml.Unmarshal(txt, &dataDest)
+	require.NoError(t, err)
+
+	// Unmarshall
+	noteDest := new(Note)
+	err = dataDest.Unmarshal(noteDest)
+	require.NoError(t, err)
+	assert.Equal(t, "TODO: Backlog", noteDest.Title)
+}
+
+func TestCommit(t *testing.T) {
+
+	// Make tests reproductible
+	UseFixedOID("93267c32147a4ab7a1100ce82faab56a99fca1cd")
+	defer ResetOID()
+	clock.FreezeAt(time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
+	defer clock.Unfreeze()
+
+	t.Run("New commit", func(t *testing.T) {
+		dirname := SetUpCollectionFromGoldenDirNamed(t, "TestFileSave")
+
+		f, err := NewFileFromPath(filepath.Join(dirname, "go.md"))
+		require.NoError(t, err)
+
+		cSrc := NewCommit()
+		// add a bunch of objects
+		cSrc.AppendObject(f.GetNotes()[0], Added)
+		cSrc.AppendObject(f.GetFlashcards()[0], Added)
+
+		// Marshmall YAML
+		buf := new(bytes.Buffer)
+		err = cSrc.Write(buf)
+		require.NoError(t, err)
+		cYAML := buf.String()
+		assert.Equal(t, strings.TrimSpace(`
+oid: 93267c32147a4ab7a1100ce82faab56a99fca1cd
+ctime: 2023-01-01T01:12:30Z
+objects:
+    - oid: 93267c32147a4ab7a1100ce82faab56a99fca1cd
+      kind: note
+      state: added
+      mtime: 2023-01-01T01:12:30Z
+      data: eJzEklFr2zAQx9/1KW7uQ1qoY0nOklmkec1gL6P0aWO4Z+ssi9iSkZVmhX344STNGIzCWGGPJ/3vx++k81YrKHK5XNW5FIsVLrBaoRCc1/RBNojV+yUWRVOjqDVrbEfl37UMGMjF0vl47kwStrNOKxAs2tiRgtk9NRTI1aRg6zt0Bj7aMfrwPGNj60Msz8HfL1mgDqN9onLA2Cowft5rdrA721m3UzAz/uoVMsYYbLWPNCoGADD6fZhybYzDqLKM3HxiDaQtzn0w2VRlW19eD8GbgH1vnSkn5h4N3bCI5kxKoT0bdtaRgpzV3sXpFQIeFPxIj6nHq3PqkR3r9bs0/VcJSNPNifb1NO636xeS8XNNT5n2dQbJlfGZ8ckNHHAETaM1jjRUz3DvKwoRtoHsSD2F2+kEPtsd3QI6DZ/IwUPr+2H0DjDC1nvTEVgHkvPV/DJoi2OroKoWfKl1XRcNr6SQJHNZoCBe5IhS6Eu8x7DT/uAUzP6P+OyXeew7Beths0ZoAzV3yR9EEjhu5N2Lz+Ykvc5w89Zm62zYXOQifY+XTX7zvwuEkXSJUYHkMk+5SLl44EIJqXL+he0H/XrgZwAAAP//EyBnoA==
+    - oid: 93267c32147a4ab7a1100ce82faab56a99fca1cd
+      kind: flashcard
+      state: added
+      mtime: 2023-01-01T01:12:30Z
+      data: eJyUkEGP0zAQhe/+FUNPEKmNne5uqZUN2hMXjkhIIBRNk4kTbZox9nQBiR+PGpeqLBKrnjwavTfv8+OhtbBdF3ebZl2Ymw3e4G6Dxmjd0NuiQ9zd3uF22zVomlbFnoPUMshIFt7ziJODD+xYdcNI9XW3JpZrLYIuWgUAsATHSn56sqDVtwMd5qFNzzAJhSccLRhFGKnusBEOFopbrVUgTzLIwFM8ikf0kdJEnRzfLvAk9R7DY8vfJwufehRomSJIT5Blp3+P7DjLIJAPFGmSd2qHzeOF79dyRn2ALHPsewpZtlLz6tWXY2lfX6/yPbUDxtzxKj65N6foXvajhdJXfyeXUQJPrrrIL/PT7gKjzH2VUNKdE0bpq4fzicRzdq9mzx9ZOewdxNDcL57xLQBHuV8c2ReQV7MpEQv9kOdFXWD+U1LSnwtKOC+V0wRCobZGsVDoYr3UZqnNR22sKexaf1YH3/5f8DsAAP//xGXohw==
+`), strings.TrimSpace(cYAML))
+
+		// Unmarshall YAML
+		cDest := new(Commit)
+		err = cDest.Read(buf)
+		require.NoError(t, err)
+		require.Equal(t, "93267c32147a4ab7a1100ce82faab56a99fca1cd", cDest.OID)
+		require.Len(t, cDest.Objects, 2)
+
+		// Unmarshall the note
+		noteDest := new(Note)
+		err = cDest.Objects[0].Data.Unmarshal(noteDest)
+		require.NoError(t, err)
+		assert.Equal(t, "Reference: Golang History", noteDest.Title)
+
+		// Unmarshall the note
+		flashcardDest := new(Flashcard)
+		err = cDest.Objects[1].Data.Unmarshal(flashcardDest)
+		require.NoError(t, err)
+		assert.Equal(t, "Golang Logo", flashcardDest.ShortTitle)
+
+		require.EqualValues(t, cSrc, cDest)
+
+		// Unmarshall a single object by OID
+		noteCopy := new(Note)
+		err = cDest.UnmarshallObject(cDest.Objects[0].OID, noteCopy)
+		require.NoError(t, err)
+		require.EqualValues(t, noteDest, noteCopy)
+	})
+
+}
+
+func TestIndex(t *testing.T) {
+	// Make tests reproductible
+	UseFixedOID("93267c32147a4ab7a1100ce82faab56a99fca1cd") // TODO Use t.Cleanup inside the function to avoid the defer ?
+	defer ResetOID()
+	now := time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC)
+	clock.FreezeAt(now)
+	defer clock.Unfreeze()
+	dirname := SetUpCollectionFromGoldenDirNamed(t, "TestFileSave")
+
+	t.Run("New", func(t *testing.T) {
+		idx := NewIndex()
+
+		f, err := NewFileFromPath(filepath.Join(dirname, "go.md"))
+		require.NoError(t, err)
+
+		c := NewCommit()
+		// Add a bunch of objects
+		noteExample := f.GetNotes()[0]
+		flashcardExample := f.GetFlashcards()[0]
+		c.AppendObject(noteExample, Added)
+		c.AppendObject(flashcardExample, Added)
+
+		// Add the commit
+		idx.AppendCommit(c)
+
+		// Search a commit
+		commitOID, ok := idx.FindCommitContaining(noteExample.OID)
+		require.True(t, ok)
+		assert.Equal(t, c.OID, commitOID)
+
+		// Create a new file
+		err = os.WriteFile(filepath.Join(dirname, "python.md"), []byte(`# Python
+
+## Flashcard: Python's creator
+
+Who invented Python?
+---
+Guido van Rossum
+`), 0644)
+		require.NoError(t, err)
+
+		// Stage the new file
+		f, err = NewFileFromPath(filepath.Join(dirname, "python.md"))
+		require.NoError(t, err)
+		idx.StageObject(f, Added)
+		idx.StageObject(f.GetNotes()[0], Added)
+		idx.StageObject(f.GetFlashcards()[0], Added) // TODO add SubObjects() and State() in Object interface?
+
+		// Create a new commit
+		newCommit := idx.CreateCommitFromStagingArea()
+		assert.NotEmpty(t, newCommit.OID)
+		assert.Equal(t, now, newCommit.CTime)
+		require.Len(t, newCommit.Objects, 3)
+	})
+
 }

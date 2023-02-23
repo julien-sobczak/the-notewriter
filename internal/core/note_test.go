@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"strings"
 	"testing"
@@ -325,6 +326,7 @@ func TestGetReminders(t *testing.T) {
 
 func TestNoteFormat(t *testing.T) {
 	UseFixedOID("16252dafd6355e678bf8ae44b127f657cd3cdd0e")
+	defer ResetOID()
 
 	var tests = []struct {
 		name             string // name
@@ -409,4 +411,54 @@ func TestNoteFTS(t *testing.T) {
 	notes, err = SearchNotes(KindReference, "full")
 	require.NoError(t, err)
 	assert.Len(t, notes, 0)
+}
+
+func TestNote(t *testing.T) {
+	// Make tests reproductible
+	UseFixedOID("42d74d967d9b4e989502647ac510777ca1e22f4a")
+	defer ResetOID()
+	clock.FreezeAt(time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
+	defer clock.Unfreeze()
+
+	t.Run("YAML", func(t *testing.T) {
+		noteSrc := NewNote(NewEmptyFile(), "TODO: Backlog", "* [ ] Test", 2)
+
+		// Marshall
+		buf := new(bytes.Buffer)
+		err := noteSrc.Write(buf)
+		require.NoError(t, err)
+		noteYAML := buf.String()
+		assert.Equal(t, strings.TrimSpace(`
+oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
+file_oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
+parent_note_oid: ""
+kind: 7
+title: 'TODO: Backlog'
+short_title: Backlog
+relative_path: ""
+wikilink: '#TODO: Backlog'
+attributes: {}
+line: 2
+content_raw: '* [ ] Test'
+content_hash: 40c0dbcb392522d74c890ff92bcb3fec
+content_markdown: '* [ ] Test'
+content_html: |-
+    <ul>
+    <li>[ ] Test</li>
+    </ul>
+content_text: '* [ ] Test'
+created_at: 2023-01-01T01:12:30Z
+updated_at: 2023-01-01T01:12:30Z
+`), strings.TrimSpace(noteYAML))
+
+		// Unmarshall
+		noteDest := new(Note)
+		err = noteDest.Read(buf)
+		require.NoError(t, err)
+		noteSrc.File = nil
+		noteSrc.new = false
+		noteSrc.stale = false
+		assert.EqualValues(t, noteSrc, noteDest)
+	})
+
 }

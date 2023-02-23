@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
+	"gopkg.in/yaml.v3"
 )
 
 type MediaKind int
@@ -32,40 +33,42 @@ var PictureExtensions = []string{".jpeg", ".png", ".gif", ".svg", ".avif"}
 var VideoExtensions = []string{".mp4", ".ogg", ".webm"}
 
 type Media struct {
-	OID string
+	OID string `yaml:"oid"`
 
 	// Relative path
-	RelativePath string
+	RelativePath string `yaml:"relative_path"`
 
 	// Type of media
-	Kind MediaKind
+	MediaKind MediaKind `yaml:"kind"`
 
 	// Media exists on disk
-	Dangling bool
+	Dangling bool `yaml:"dangling"`
 
 	// How many notes references this file
-	Links int
+	Links int `yaml:"links"`
 
 	// File extension in lowercase
-	Extension string
+	Extension string `yaml:"extension"`
 
 	// Content last modification date
-	MTime time.Time
+	MTime time.Time `yaml:"mtime"`
 
 	// MD5 Checksum
-	Hash string
+	Hash string `yaml:"hash"`
 
 	// 	Size of the file
-	Size int64
+	Size int64 `yaml:"size"`
 
 	// Permission of the file
-	Mode fs.FileMode
+	Mode fs.FileMode `yaml:"mode"`
+
+	// TODO add blob OIDs?
 
 	// Timestamps to track changes
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     time.Time
-	LastCheckedAt time.Time
+	CreatedAt     time.Time `yaml:"created_at"`
+	UpdatedAt     time.Time `yaml:"updated_at"`
+	DeletedAt     time.Time `yaml:"-"`
+	LastCheckedAt time.Time `yaml:"-"`
 
 	new   bool
 	stale bool
@@ -93,19 +96,19 @@ func DetectMediaKind(filename string) MediaKind {
 }
 
 // NewMedia initializes a new media.
-func NewMedia(path string) *Media {
+func NewMedia(relpath string) *Media {
 	m := &Media{
 		OID:          NewOID(),
-		RelativePath: path,
-		Kind:         DetectMediaKind(path),
-		Extension:    filepath.Ext(path),
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+		RelativePath: relpath,
+		MediaKind:    DetectMediaKind(relpath),
+		Extension:    filepath.Ext(relpath),
+		CreatedAt:    clock.Now(),
+		UpdatedAt:    clock.Now(),
 		new:          true,
 		stale:        true,
 	}
 
-	abspath := CurrentCollection().GetAbsolutePath(path)
+	abspath := CurrentCollection().GetAbsolutePath(relpath)
 	stat, err := os.Stat(abspath)
 	if errors.Is(err, os.ErrNotExist) {
 		m.Dangling = true
@@ -172,6 +175,42 @@ func (m *Media) Update() {
 		m.Mode = mode
 		m.stale = true
 	}
+}
+
+/* Object */
+
+func (m *Media) Kind() string {
+	return "media"
+}
+
+func (m *Media) UniqueOID() string {
+	return m.OID
+}
+
+func (m *Media) ModificationTime() time.Time {
+	return m.UpdatedAt
+}
+
+func (m *Media) Read(r io.Reader) error {
+	err := yaml.NewDecoder(r).Decode(m)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *Media) Write(w io.Writer) error {
+	data, err := yaml.Marshal(m)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(data)
+	return err
+}
+
+func (m *Media) Blobs() []Blob {
+	// TODO implement
+	return nil
 }
 
 /* State Management */
@@ -339,7 +378,7 @@ func (m *Media) InsertWithTx(tx *sql.Tx) error {
 	_, err := tx.Exec(query,
 		m.OID,
 		m.RelativePath,
-		m.Kind,
+		m.MediaKind,
 		m.Dangling,
 		m.Extension,
 		timeToSQL(m.MTime),
@@ -381,7 +420,7 @@ func (m *Media) UpdateWithTx(tx *sql.Tx) error {
 	`
 	_, err := tx.Exec(query,
 		m.RelativePath,
-		m.Kind,
+		m.MediaKind,
 		m.Dangling,
 		m.Extension,
 		timeToSQL(m.MTime),
@@ -489,7 +528,7 @@ func QueryMedia(whereClause string, args ...any) (*Media, error) {
 		Scan(
 			&m.OID,
 			&m.RelativePath,
-			&m.Kind,
+			&m.MediaKind,
 			&m.Dangling,
 			&m.Extension,
 			&mTime,
@@ -555,8 +594,8 @@ func QueryMedias(whereClause string, args ...any) ([]*Media, error) {
 		err = rows.Scan(
 			&m.OID,
 			&m.RelativePath,
-			&m.Kind,
 			&m.Dangling,
+			&m.MediaKind,
 			&m.Extension,
 			&mTime,
 			&m.Hash,
