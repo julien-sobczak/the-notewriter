@@ -85,6 +85,16 @@ func NewIndexFromPath(path string) (*Index, error) {
 	return index, nil
 }
 
+// Save persists the index on disk.
+func (i *Index) Save(path string) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return i.Write(f)
+}
+
 // FindCommitContaining returns the commit associated with a given object.
 func (i *Index) FindCommitContaining(objectOID string) (string, bool) {
 	indexFile, ok := i.objectsRef[objectOID]
@@ -381,7 +391,7 @@ func NewCommit() *Commit {
 }
 
 // Append registers a new object inside the commit.
-func (c *Commit) AppendObject(obj Object, state State) error {
+func (c *Commit) AppendObject(obj Object) error {
 	data, err := NewObjectData(obj)
 	if err != nil {
 		return err
@@ -389,7 +399,7 @@ func (c *Commit) AppendObject(obj Object, state State) error {
 	c.Objects = append(c.Objects, CommitObject{
 		OID:   obj.UniqueOID(),
 		Kind:  obj.Kind(),
-		State: state,
+		State: obj.State(),
 		MTime: obj.ModificationTime(),
 		Data:  data,
 	})

@@ -156,8 +156,8 @@ func TestCommit(t *testing.T) {
 
 		cSrc := NewCommit()
 		// add a bunch of objects
-		cSrc.AppendObject(f.GetNotes()[0], Added)
-		cSrc.AppendObject(f.GetFlashcards()[0], Added)
+		cSrc.AppendObject(f.GetNotes()[0])
+		cSrc.AppendObject(f.GetFlashcards()[0])
 
 		// Marshmall YAML
 		buf := new(bytes.Buffer)
@@ -229,8 +229,8 @@ func TestIndex(t *testing.T) {
 		// Add a bunch of objects
 		noteExample := f.GetNotes()[0]
 		flashcardExample := f.GetFlashcards()[0]
-		c.AppendObject(noteExample, Added)
-		c.AppendObject(flashcardExample, Added)
+		c.AppendObject(noteExample)
+		c.AppendObject(flashcardExample)
 
 		// Add the commit
 		idx.AppendCommit(c)
@@ -264,6 +264,26 @@ Guido van Rossum
 		assert.NotEmpty(t, newCommit.OID)
 		assert.Equal(t, now, newCommit.CTime)
 		require.Len(t, newCommit.Objects, 3)
+	})
+
+	t.Run("Save on disk", func(t *testing.T) {
+		root := SetUpCollectionFromGoldenDirNamed(t, "TestFileSave")
+
+		f, err := NewFileFromPath(filepath.Join(dirname, "go.md"))
+		require.NoError(t, err)
+
+		idx := NewIndex()
+		// add a bunch of objects
+		idx.StageObject(f.GetNotes()[0])
+		idx.StageObject(f.GetFlashcards()[0])
+
+		path := filepath.Join(root, ".nt/index")
+		err = idx.Save(path)
+		require.NoError(t, err)
+
+		idx, err = NewIndexFromPath(path)
+		require.NoError(t, err)
+		assert.Len(t, idx.StagingArea.Added, 2)
 	})
 
 }

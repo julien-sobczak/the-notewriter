@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"log"
@@ -68,14 +69,32 @@ func (c *Collection) walk(path string, fn func(path string, stat fs.FileInfo) er
 
 // Add implements the command `nt add`.`
 func (c *Collection) Add(paths ...string) error {
+	// Any object not updated after this date will be considered as deletions
 	buildTime := clock.Now()
 
 	db := CurrentDB()
 
+	// Keep notes of processed objects to avoid duplication of effort
+	// when some objects like medias are referenced by different notes.
+	traversedObjects := make(map[string]bool)
+
+	// Run all queries inside the same transaction
+	tx, err := db.Client().BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Traverse all given paths
 	for _, path := range paths {
+
 		if path == "." {
-			path = c.Path
+			// Process all files in the root directory
+			path = CurrentConfig().RootDirectory
+		} else if !filepath.IsAbs(path) {
+			path = CurrentCollection().GetAbsolutePath(path)
 		}
+
 		c.walk(path, func(path string, stat fs.FileInfo) error {
 			CurrentLogger().Debugf("Processing %s...\n", path) // TODO emit notif for tests?
 
@@ -89,11 +108,24 @@ func (c *Collection) Add(paths ...string) error {
 					return fmt.Errorf("unable to stage modified object %s: %v", file, err)
 				}
 			}
+			traversedObjects[file.UniqueOID()] = true
+			if err := file.Save(tx); err != nil {
+				return nil
+			}
+
 			for _, object := range file.SubObjects() {
+				if _, found := traversedObjects[object.UniqueOID()]; found {
+					// already processed
+					continue
+				}
 				if object.State() != None {
 					if err := db.StageObject(object); err != nil {
 						return fmt.Errorf("unable to stage modified object %s: %v", object, err)
 					}
+				}
+				traversedObjects[object.UniqueOID()] = true
+				if err := object.Save(tx); err != nil {
+					return err
 				}
 			}
 
@@ -110,6 +142,15 @@ func (c *Collection) Add(paths ...string) error {
 		if err := db.StageObject(deletion); err != nil {
 			return fmt.Errorf("unable to stage deleted object %s: %v", deletion, err)
 		}
+	}
+
+	// Don't forget to commit
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	// And to persist the index
+	if err := db.index.Save(filepath.Join(CurrentConfig().RootDirectory, ".nt/index")); err != nil {
+		return err
 	}
 
 	return nil

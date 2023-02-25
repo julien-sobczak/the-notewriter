@@ -683,6 +683,8 @@ func (n *Note) CheckWithTx(tx *sql.Tx) error {
 }
 
 func (n *Note) Save(tx *sql.Tx) error {
+	n.new = false
+	n.stale = false
 	switch n.State() {
 	case Added:
 		return n.InsertWithTx(tx)

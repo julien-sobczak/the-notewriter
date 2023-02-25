@@ -655,6 +655,8 @@ func (f *File) CheckWithTx(tx *sql.Tx) error {
 }
 
 func (f *File) Save(tx *sql.Tx) error {
+	f.new = false
+	f.stale = false
 	switch f.State() {
 	case Added:
 		return f.InsertWithTx(tx)

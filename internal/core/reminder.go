@@ -627,6 +627,8 @@ func (r *Reminder) CheckWithTx(tx *sql.Tx) error {
 }
 
 func (r *Reminder) Save(tx *sql.Tx) error {
+	r.new = false
+	r.stale = false
 	switch r.State() {
 	case Added:
 		return r.InsertWithTx(tx)

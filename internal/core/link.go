@@ -211,6 +211,8 @@ func (l *Link) CheckWithTx(tx *sql.Tx) error {
 }
 
 func (l *Link) Save(tx *sql.Tx) error {
+	l.new = false
+	l.stale = false
 	switch l.State() {
 	case Added:
 		return l.InsertWithTx(tx)

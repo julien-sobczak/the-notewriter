@@ -327,6 +327,8 @@ func (m *Media) CheckWithTx(tx *sql.Tx) error {
 }
 
 func (m *Media) Save(tx *sql.Tx) error {
+	m.new = false
+	m.stale = false
 	switch m.State() {
 	case Added:
 		return m.InsertWithTx(tx)

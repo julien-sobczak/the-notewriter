@@ -185,6 +185,7 @@ func (c *Collection) GetAbsolutePath(path string) string {
 }
 
 func (c *Collection) Save(tx *sql.Tx) error {
+	c.new = false
 	switch c.State() {
 	case Added:
 		return c.InsertWithTx(tx)
