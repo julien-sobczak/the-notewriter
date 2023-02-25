@@ -5,8 +5,10 @@ import (
 	"compress/zlib"
 	"crypto/sha1"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
@@ -65,6 +67,24 @@ func NewIndex() *Index {
 	}
 }
 
+// NewIndexFromPath loads an index file from a file.
+func NewIndexFromPath(path string) (*Index, error) {
+	in, err := os.Open(path)
+	if errors.Is(err, os.ErrNotExist) {
+		// First use
+		return NewIndex(), nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	index := new(Index)
+	if err := index.Read(in); err != nil {
+		return nil, err
+	}
+	in.Close()
+	return index, nil
+}
+
 // FindCommitContaining returns the commit associated with a given object.
 func (i *Index) FindCommitContaining(objectOID string) (string, bool) {
 	indexFile, ok := i.objectsRef[objectOID]
@@ -97,7 +117,7 @@ func (i *Index) AppendCommit(c *Commit) {
 }
 
 // StageObject registers a changed object into the staging area
-func (i *Index) StageObject(obj Object, state State) error {
+func (i *Index) StageObject(obj Object) error {
 	objData, err := NewObjectData(obj)
 	if err != nil {
 		return err
@@ -122,12 +142,12 @@ func (i *Index) StageObject(obj Object, state State) error {
 		CommitObject: CommitObject{
 			OID:   obj.UniqueOID(),
 			Kind:  obj.Kind(),
-			State: state,
+			State: obj.State(),
 			MTime: obj.ModificationTime(),
 			Data:  objData,
 		},
 	}
-	switch state {
+	switch obj.State() {
 	case Added:
 		i.StagingArea.Added = append(i.StagingArea.Added, stagingObject)
 	case Renamed:

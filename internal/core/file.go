@@ -148,6 +148,24 @@ func (f *File) UniqueOID() string {
 	return f.OID
 }
 
+func (f *File) State() State {
+	if !f.DeletedAt.IsZero() {
+		return Deleted
+	}
+	if f.new {
+		return Added
+	}
+	if f.stale {
+		return Modified
+	}
+	return None
+}
+
+func (f *File) SetTombstone() {
+	f.DeletedAt = clock.Now()
+	f.stale = true
+}
+
 func (f *File) ModificationTime() time.Time {
 	return f.MTime
 }
@@ -169,9 +187,27 @@ func (f *File) Write(w io.Writer) error {
 	return err
 }
 
+func (f *File) SubObjects() []Object {
+	var objs []Object
+	for _, object := range f.GetNotes() {
+		objs = append(objs, object)
+	}
+	for _, object := range f.GetFlashcards() {
+		objs = append(objs, object)
+	}
+	for _, object := range f.GetMedias() {
+		objs = append(objs, object)
+	}
+	return objs
+}
+
 func (f *File) Blobs() []Blob {
 	// Use Media.Blobs() instead
 	return nil
+}
+
+func (f File) String() string {
+	return fmt.Sprintf("file %q [%s]", f.RelativePath, f.OID)
 }
 
 /* Update */
@@ -461,7 +497,7 @@ func (f *File) GetFlashcards() []*Flashcard {
 }
 
 // GetMedias extracts medias from the file.
-func (f *File) GetMedias() ([]*Media, error) {
+func (f *File) GetMedias() []*Media {
 	return extractMediasFromMarkdown(f.RelativePath, f.Content)
 }
 
@@ -618,7 +654,20 @@ func (f *File) CheckWithTx(tx *sql.Tx) error {
 	return nil
 }
 
-func (f *File) Save() error {
+func (f *File) Save(tx *sql.Tx) error {
+	switch f.State() {
+	case Added:
+		return f.InsertWithTx(tx)
+	case Modified:
+		return f.UpdateWithTx(tx)
+	case Deleted:
+		return f.DeleteWithTx(tx)
+	default:
+		return f.CheckWithTx(tx)
+	}
+}
+
+func (f *File) OldSave() error { // FIXME remove deprecated
 	if !f.stale {
 		return f.Check()
 	}
@@ -646,7 +695,7 @@ func (f *File) Save() error {
 	return nil
 }
 
-func (f *File) SaveWithTx(tx *sql.Tx) error {
+func (f *File) SaveWithTx(tx *sql.Tx) error { // FIXME remove deprecated
 	if !f.stale {
 		return f.CheckWithTx(tx)
 	}
@@ -692,11 +741,7 @@ func (f *File) SaveWithTx(tx *sql.Tx) error {
 	}
 
 	// Save the medias
-	medias, err := f.GetMedias()
-	if err != nil {
-		return err
-	}
-	for _, media := range medias {
+	for _, media := range f.GetMedias() {
 		if err := media.SaveWithTx(tx); err != nil {
 			return err
 		}

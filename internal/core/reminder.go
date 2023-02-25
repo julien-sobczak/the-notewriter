@@ -112,6 +112,24 @@ func (r *Reminder) ModificationTime() time.Time {
 	return r.UpdatedAt
 }
 
+func (r *Reminder) State() State {
+	if !r.DeletedAt.IsZero() {
+		return Deleted
+	}
+	if r.new {
+		return Added
+	}
+	if r.stale {
+		return Modified
+	}
+	return None
+}
+
+func (r *Reminder) SetTombstone() {
+	r.DeletedAt = clock.Now()
+	r.stale = true
+}
+
 func (n *Reminder) Read(r io.Reader) error {
 	err := yaml.NewDecoder(r).Decode(n)
 	if err != nil {
@@ -129,9 +147,18 @@ func (r *Reminder) Write(w io.Writer) error {
 	return err
 }
 
+func (r *Reminder) SubObjects() []Object {
+	return nil
+}
+
+
 func (r *Reminder) Blobs() []Blob {
 	// Use Media.Blobs() instead
 	return nil
+}
+
+func (r Reminder) String() string {
+	return fmt.Sprintf("reminder %s [%s]", r.Tag, r.OID)
 }
 
 /* Update */
@@ -599,7 +626,20 @@ func (r *Reminder) CheckWithTx(tx *sql.Tx) error {
 	return err
 }
 
-func (r *Reminder) Save() error {
+func (r *Reminder) Save(tx *sql.Tx) error {
+	switch r.State() {
+	case Added:
+		return r.InsertWithTx(tx)
+	case Modified:
+		return r.UpdateWithTx(tx)
+	case Deleted:
+		return r.DeleteWithTx(tx)
+	default:
+		return r.CheckWithTx(tx)
+	}
+}
+
+func (r *Reminder) OldSave() error { // FIXME remove deprecated
 	if !r.stale {
 		return r.Check()
 	}
@@ -627,7 +667,7 @@ func (r *Reminder) Save() error {
 	return nil
 }
 
-func (r *Reminder) SaveWithTx(tx *sql.Tx) error {
+func (r *Reminder) SaveWithTx(tx *sql.Tx) error { // FIXME remove deprecated
 	if !r.stale {
 		return r.CheckWithTx(tx)
 	}

@@ -261,8 +261,7 @@ func TestGetLinks(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			note := NewNote(NewEmptyFile(), tt.title, tt.content, 1)
-			links, err := note.GetLinks()
-			require.NoError(t, err)
+			links := note.GetLinks()
 			require.Len(t, links, len(tt.expected))
 			for i, actualLink := range links {
 				expectedLink := tt.expected[i]
@@ -305,8 +304,7 @@ func TestGetReminders(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			note := NewNote(NewEmptyFile(), tt.title, tt.content, 1)
-			reminders, err := note.GetReminders()
-			require.NoError(t, err)
+			reminders := note.GetReminders()
 			require.Len(t, reminders, len(tt.expected))
 			for i, actualReminder := range reminders {
 				expectedReminder := tt.expected[i]

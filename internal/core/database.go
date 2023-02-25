@@ -26,13 +26,24 @@ var (
 )
 
 type DB struct {
+	// .nt/index
+	index *Index
+	// .nt/refs/origin
 	origin Remote
+	// .nt/database.sql
 	client *sql.DB
 }
 
 func CurrentDB() *DB {
 	dbOnce.Do(func() {
-		dbSingleton = &DB{}
+		index, err := NewIndexFromPath(CurrentCollection().GetAbsolutePath(".nt/index"))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to read current .nt/index file: %v", err)
+			os.Exit(1)
+		}
+		dbSingleton = &DB{
+			index: index,
+		}
 	})
 	return dbSingleton
 }
@@ -60,7 +71,7 @@ func (db *DB) Origin() Remote {
 			}
 			db.origin = remote
 		case "s3":
-			remote, err := NewS3RemoteFromCredentials(configRemote.BucketName, configRemote.AccessKey, configRemote.SecretKey)
+			remote, err := NewS3RemoteWithCredentials(configRemote.BucketName, configRemote.AccessKey, configRemote.SecretKey)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Unable to init S3 remote: %v\n", err)
 				os.Exit(1)
@@ -107,30 +118,12 @@ func (db *DB) Client() *sql.DB {
 	return dbSingleton.client
 }
 
-// Add adds new objects to staging area.
-func (d *DB) Add(paths ...string) error {
-	// TODO
-	// Check paths are located inside the root directory
-	// Check for .|file|dir
-	return nil
-}
-
 func (d *DB) AddBlob(raw []byte, blob Blob) error {
 	// TODO where to save blob OID? Must be in objects in commit files. New column? ✅
 	return nil
 }
-func (d *DB) StageObjectAdded(new Object) error {
-	// TODO Must Write .nt/index
-	return nil
-}
-func (d *DB) StageObjectUpdated(new, old Object) error {
-	// TODO
-	return nil
-}
-func (d *DB) StageObjectDeleted(old Object) error {
-	// TODO
-	return nil
-
+func (d *DB) StageObject(obj Object) error {
+	return d.index.StageObject(obj)
 }
 
 // Commit creates a new commit object and clear the staging area.

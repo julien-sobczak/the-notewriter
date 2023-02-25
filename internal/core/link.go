@@ -88,6 +88,24 @@ func (l *Link) ModificationTime() time.Time {
 	return l.UpdatedAt
 }
 
+func (l *Link) State() State {
+	if !l.DeletedAt.IsZero() {
+		return Deleted
+	}
+	if l.new {
+		return Added
+	}
+	if l.stale {
+		return Modified
+	}
+	return None
+}
+
+func (l *Link) SetTombstone() {
+	l.DeletedAt = clock.Now()
+	l.stale = true
+}
+
 func (l *Link) Read(r io.Reader) error {
 	err := yaml.NewDecoder(r).Decode(l)
 	if err != nil {
@@ -105,9 +123,18 @@ func (l *Link) Write(w io.Writer) error {
 	return err
 }
 
+func (l *Link) SubObjects() []Object {
+	return nil
+}
+
+
 func (l *Link) Blobs() []Blob {
 	// Use Media.Blobs() instead
 	return nil
+}
+
+func (l Link) String() string {
+	return fmt.Sprintf("link %q [%s]", l.URL, l.OID)
 }
 
 /* Update */
@@ -183,7 +210,20 @@ func (l *Link) CheckWithTx(tx *sql.Tx) error {
 	return err
 }
 
-func (l *Link) Save() error {
+func (l *Link) Save(tx *sql.Tx) error {
+	switch l.State() {
+	case Added:
+		return l.InsertWithTx(tx)
+	case Modified:
+		return l.UpdateWithTx(tx)
+	case Deleted:
+		return l.DeleteWithTx(tx)
+	default:
+		return l.CheckWithTx(tx)
+	}
+}
+
+func (l *Link) OldSave() error { // FIXME remove deprecated
 	if !l.stale {
 		return nil
 	}
@@ -211,7 +251,7 @@ func (l *Link) Save() error {
 	return nil
 }
 
-func (l *Link) SaveWithTx(tx *sql.Tx) error {
+func (l *Link) SaveWithTx(tx *sql.Tx) error { // FIXME remove deprecated
 	if !l.stale {
 		return nil
 	}

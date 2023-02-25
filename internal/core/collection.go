@@ -115,6 +115,13 @@ func (c *Collection) ModificationTime() time.Time {
 	return c.UpdatedAt
 }
 
+func (c *Collection) State() State {
+	return Modified
+}
+
+func (c *Collection) SetTombstone() {
+}
+
 func (c *Collection) Read(r io.Reader) error {
 	err := yaml.NewDecoder(r).Decode(c)
 	if err != nil {
@@ -132,9 +139,17 @@ func (c *Collection) Write(w io.Writer) error {
 	return err
 }
 
+func (c *Collection) SubObjects() []Object {
+	return nil
+}
+
 func (c *Collection) Blobs() []Blob {
 	// Use Media.Blobs() instead
 	return nil
+}
+
+func (c Collection) String() string {
+	return fmt.Sprintf("collection [%s]", c.OID)
 }
 
 /* Reference Management */
@@ -169,7 +184,17 @@ func (c *Collection) GetAbsolutePath(path string) string {
 	return filepath.Join(c.Path, path)
 }
 
-func (c *Collection) Save() error {
+func (c *Collection) Save(tx *sql.Tx) error {
+	switch c.State() {
+	case Added:
+		return c.InsertWithTx(tx)
+	case Modified:
+		return c.UpdateWithTx(tx)
+	}
+	return nil
+}
+
+func (c *Collection) OldSave() error { // FIXME remove deprecated
 	db := CurrentDB().Client()
 	tx, err := db.BeginTx(context.Background(), nil)
 	if err != nil {
@@ -190,7 +215,7 @@ func (c *Collection) Save() error {
 	return nil
 }
 
-func (c *Collection) SaveWithTx(tx *sql.Tx) error {
+func (c *Collection) SaveWithTx(tx *sql.Tx) error { // FIXME remove deprecated
 	// TODO walk the file system to find stale files
 
 	now := clock.Now()

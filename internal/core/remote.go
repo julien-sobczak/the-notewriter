@@ -70,7 +70,7 @@ type S3Remote struct {
 	// Use S3 API to satisfy interface
 }
 
-func NewS3RemoteFromCredentials(bucketName string, accessKey, secretKey string) (*S3Remote, error) {
+func NewS3RemoteWithCredentials(bucketName string, accessKey, secretKey string) (*S3Remote, error) {
 	return &S3Remote{
 		accessKey:  accessKey,
 		secretKey:  secretKey,

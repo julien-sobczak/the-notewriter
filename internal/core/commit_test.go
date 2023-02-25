@@ -254,9 +254,10 @@ Guido van Rossum
 		// Stage the new file
 		f, err = NewFileFromPath(filepath.Join(dirname, "python.md"))
 		require.NoError(t, err)
-		idx.StageObject(f, Added)
-		idx.StageObject(f.GetNotes()[0], Added)
-		idx.StageObject(f.GetFlashcards()[0], Added) // TODO add SubObjects() and State() in Object interface?
+		idx.StageObject(f)
+		for _, obj := range f.SubObjects() {
+			idx.StageObject(obj)
+		}
 
 		// Create a new commit
 		newCommit := idx.CreateCommitFromStagingArea()

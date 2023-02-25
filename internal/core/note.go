@@ -159,6 +159,24 @@ func (n *Note) ModificationTime() time.Time {
 	return n.UpdatedAt
 }
 
+func (n *Note) State() State {
+	if !n.DeletedAt.IsZero() {
+		return Deleted
+	}
+	if n.new {
+		return Added
+	}
+	if n.stale {
+		return Modified
+	}
+	return None
+}
+
+func (n *Note) SetTombstone() {
+	n.DeletedAt = clock.Now()
+	n.stale = true
+}
+
 func (n *Note) Read(r io.Reader) error {
 	err := yaml.NewDecoder(r).Decode(n)
 	if err != nil {
@@ -176,9 +194,27 @@ func (n *Note) Write(w io.Writer) error {
 	return err
 }
 
+func (n *Note) SubObjects() []Object {
+	var objs []Object
+	for _, object := range n.GetLinks() {
+		objs = append(objs, object)
+	}
+	for _, object := range n.GetMedias() {
+		objs = append(objs, object)
+	}
+	for _, object := range n.GetReminders() {
+		objs = append(objs, object)
+	}
+	return objs
+}
+
 func (n *Note) Blobs() []Blob {
 	// Use Media.Blobs() instead
 	return nil
+}
+
+func (n Note) String() string {
+	return fmt.Sprintf("note %q [%s]", n.Title, n.OID)
 }
 
 /* Update */
@@ -396,10 +432,6 @@ func mergeAttributes(attributes ...map[string]interface{}) map[string]interface{
 	return result
 }
 
-func (n Note) String() string {
-	return fmt.Sprintf("[%v] %s", n.NoteKind, n.Title)
-}
-
 func isSupportedNote(text string) (bool, NoteKind, string) {
 	if m := regexReference.FindStringSubmatch(text); m != nil {
 		return true, KindReference, m[1]
@@ -529,12 +561,12 @@ func extractAttributes(content string) (string, map[string]interface{}) {
 }
 
 // GetMedias extracts medias from the note.
-func (n *Note) GetMedias() ([]*Media, error) {
+func (n *Note) GetMedias() []*Media {
 	return extractMediasFromMarkdown(n.File.RelativePath, n.ContentRaw)
 }
 
 // GetLinks extracts special links from a note.
-func (n *Note) GetLinks() ([]*Link, error) {
+func (n *Note) GetLinks() []*Link {
 	var links []*Link
 
 	reLink := regexp.MustCompile(`(?:^|[^!])\[(.*?)\]\("?(http[^\s"]*)"?(?:\s+["'](.*?)["'])?\)`)
@@ -557,11 +589,11 @@ func (n *Note) GetLinks() ([]*Link, error) {
 		links = append(links, link)
 	}
 
-	return links, nil
+	return links
 }
 
 // GetReminders extracts reminders from the note.
-func (n *Note) GetReminders() ([]*Reminder, error) {
+func (n *Note) GetReminders() []*Reminder {
 	var reminders []*Reminder
 
 	reReminders := regexp.MustCompile("`(#reminder-(\\S+))`")
@@ -583,13 +615,13 @@ func (n *Note) GetReminders() ([]*Reminder, error) {
 
 			reminder, err := NewOrExistingReminder(n, description, tag)
 			if err != nil {
-				return nil, err
+				log.Fatal(err)
 			}
 			reminders = append(reminders, reminder)
 		}
 	}
 
-	return reminders, nil
+	return reminders
 }
 
 // TODO add SetParent method and traverse the hierachy to merge attributes/tags
@@ -650,7 +682,20 @@ func (n *Note) CheckWithTx(tx *sql.Tx) error {
 	return nil
 }
 
-func (n *Note) Save() error {
+func (n *Note) Save(tx *sql.Tx) error {
+	switch n.State() {
+	case Added:
+		return n.InsertWithTx(tx)
+	case Modified:
+		return n.UpdateWithTx(tx)
+	case Deleted:
+		return n.DeleteWithTx(tx)
+	default:
+		return n.CheckWithTx(tx)
+	}
+}
+
+func (n *Note) OldSave() error { // FIXME remove deprecated
 	if !n.stale {
 		return n.Check()
 	}
@@ -678,7 +723,7 @@ func (n *Note) Save() error {
 	return nil
 }
 
-func (n *Note) SaveWithTx(tx *sql.Tx) error {
+func (n *Note) SaveWithTx(tx *sql.Tx) error { // FIXME remove deprecated
 	if !n.stale {
 		return n.CheckWithTx(tx)
 	}
@@ -701,13 +746,13 @@ func (n *Note) SaveWithTx(tx *sql.Tx) error {
 		}
 
 		// Update note ID
-		links, _ := n.GetLinks()
+		links := n.GetLinks()
 		for _, link := range links {
 			link.NoteOID = n.OID
 		}
 
 		// Save reminders
-		reminders, _ := n.GetReminders()
+		reminders := n.GetReminders()
 		for _, reminder := range reminders {
 			reminder.NoteOID = n.OID
 		}
@@ -717,10 +762,7 @@ func (n *Note) SaveWithTx(tx *sql.Tx) error {
 	n.stale = false
 
 	// Save the links
-	links, err := n.GetLinks()
-	if err != nil {
-		return err
-	}
+	links := n.GetLinks()
 	for _, link := range links {
 		if err := link.SaveWithTx(tx); err != nil {
 			return err
@@ -728,10 +770,7 @@ func (n *Note) SaveWithTx(tx *sql.Tx) error {
 	}
 
 	// Save reminders
-	reminders, err := n.GetReminders()
-	if err != nil {
-		return err
-	}
+	reminders := n.GetReminders()
 	for _, reminder := range reminders {
 		if err := reminder.SaveWithTx(tx); err != nil {
 			return err

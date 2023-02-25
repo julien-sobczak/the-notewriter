@@ -22,7 +22,7 @@ var addCmd = &cobra.Command{
 		}
 
 		CheckConfig()
-		err := core.CurrentDB().Add(args...)
+		err := core.CurrentCollection().Add(args...)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

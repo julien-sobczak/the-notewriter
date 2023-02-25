@@ -191,6 +191,24 @@ func (m *Media) ModificationTime() time.Time {
 	return m.UpdatedAt
 }
 
+func (m *Media) State() State {
+	if !m.DeletedAt.IsZero() {
+		return Deleted
+	}
+	if m.new {
+		return Added
+	}
+	if m.stale {
+		return Modified
+	}
+	return None
+}
+
+func (m *Media) SetTombstone() {
+	m.DeletedAt = clock.Now()
+	m.stale = true
+}
+
 func (m *Media) Read(r io.Reader) error {
 	err := yaml.NewDecoder(r).Decode(m)
 	if err != nil {
@@ -208,9 +226,17 @@ func (m *Media) Write(w io.Writer) error {
 	return err
 }
 
+func (m *Media) SubObjects() []Object {
+	return nil
+}
+
 func (m *Media) Blobs() []Blob {
 	// TODO implement
 	return nil
+}
+
+func (m Media) String() string {
+	return fmt.Sprintf("media %s [%s]", m.RelativePath, m.OID)
 }
 
 /* State Management */
@@ -226,7 +252,7 @@ func (m *Media) Updated() bool {
 /* Parsing */
 
 // extractMediasFromMarkdown search for medias from a markdown document (can be a file, a note, a flashcard, etc.).
-func extractMediasFromMarkdown(fileRelativePath string, content string) ([]*Media, error) {
+func extractMediasFromMarkdown(fileRelativePath string, content string) []*Media {
 	var medias []*Media
 
 	// Avoid returning duplicates if a media is included twice
@@ -241,13 +267,13 @@ func extractMediasFromMarkdown(fileRelativePath string, content string) ([]*Medi
 		}
 		relpath, err := CurrentCollection().GetNoteRelativePath(fileRelativePath, src)
 		if err != nil {
-			return nil, err
+			log.Fatal(err)
 		}
 		media := NewOrExistingMedia(relpath)
 		medias = append(medias, media)
 		filepaths[src] = true
 	}
-	return medias, nil
+	return medias
 }
 
 func NewOrExistingMedia(relpath string) *Media {
@@ -300,7 +326,20 @@ func (m *Media) CheckWithTx(tx *sql.Tx) error {
 	return err
 }
 
-func (m *Media) Save() error {
+func (m *Media) Save(tx *sql.Tx) error {
+	switch m.State() {
+	case Added:
+		return m.InsertWithTx(tx)
+	case Modified:
+		return m.UpdateWithTx(tx)
+	case Deleted:
+		return m.DeleteWithTx(tx)
+	default:
+		return m.CheckWithTx(tx)
+	}
+}
+
+func (m *Media) OldSave() error { // FIXME remove deprecated
 	if !m.stale {
 		return m.Check()
 	}

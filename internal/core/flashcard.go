@@ -211,6 +211,24 @@ func (f *Flashcard) ModificationTime() time.Time {
 	return f.UpdatedAt
 }
 
+func (f *Flashcard) State() State {
+	if !f.DeletedAt.IsZero() {
+		return Deleted
+	}
+	if f.new {
+		return Added
+	}
+	if f.stale {
+		return Modified
+	}
+	return None
+}
+
+func (f *Flashcard) SetTombstone() {
+	f.DeletedAt = clock.Now()
+	f.stale = true
+}
+
 func (f *Flashcard) Read(r io.Reader) error {
 	err := yaml.NewDecoder(r).Decode(f)
 	if err != nil {
@@ -228,9 +246,17 @@ func (f *Flashcard) Write(w io.Writer) error {
 	return err
 }
 
+func (f *Flashcard) SubObjects() []Object {
+	return nil
+}
+
 func (f *Flashcard) Blobs() []Blob {
 	// Use Media.Blobs() instead
 	return nil
+}
+
+func (f Flashcard) String() string {
+	return fmt.Sprintf("flashcard %q [%s]", f.ShortTitle, f.OID)
 }
 
 /* Update */
@@ -307,7 +333,7 @@ func splitFrontBack(content string) (string, string) {
 }
 
 // GetMedias extracts medias from the flashcard.
-func (f *Flashcard) GetMedias() ([]*Media, error) {
+func (f *Flashcard) GetMedias() []*Media {
 	return extractMediasFromMarkdown(f.File.RelativePath, f.FrontMarkdown+f.BackMarkdown)
 }
 
@@ -347,7 +373,20 @@ func (f *Flashcard) CheckWithTx(tx *sql.Tx) error {
 	return err
 }
 
-func (f *Flashcard) Save() error {
+func (f *Flashcard) Save(tx *sql.Tx) error {
+	switch f.State() {
+	case Added:
+		return f.InsertWithTx(tx)
+	case Modified:
+		return f.UpdateWithTx(tx)
+	case Deleted:
+		return f.DeleteWithTx(tx)
+	default:
+		return f.CheckWithTx(tx)
+	}
+}
+
+func (f *Flashcard) OldSave() error { // FIXME remove deprecated
 	if !f.stale {
 		return f.Check()
 	}
@@ -375,7 +414,7 @@ func (f *Flashcard) Save() error {
 	return nil
 }
 
-func (f *Flashcard) SaveWithTx(tx *sql.Tx) error {
+func (f *Flashcard) SaveWithTx(tx *sql.Tx) error { // FIXME remove deprecated
 	if !f.stale {
 		return f.CheckWithTx(tx)
 	}

@@ -278,8 +278,7 @@ func TestGetMedias(t *testing.T) {
 	require.NoError(t, err)
 
 	// Step 1: Check medias on a file
-	medias, err := f.GetMedias()
-	require.NoError(t, err)
+	medias := f.GetMedias()
 	require.Len(t, medias, 5)
 
 	// Dead links must be detected
@@ -297,16 +296,14 @@ func TestGetMedias(t *testing.T) {
 	// Step 2: Check medias on a note
 	note := f.FindNoteByKindAndShortTitle(KindReference, "Animation")
 	require.NotNil(t, note)
-	medias, err = note.GetMedias()
-	require.NoError(t, err)
+	medias = note.GetMedias()
 	assert.Len(t, medias, 1)
 	assert.Equal(t, "medias/leitner_system_animation.gif", medias[0].RelativePath)
 
 	// Step 3: Check medias on a flashcard
 	flashcard := f.FindFlashcardByTitle("Fishes")
 	require.NotNil(t, flashcard)
-	medias, err = flashcard.GetMedias()
-	require.NoError(t, err)
+	medias = flashcard.GetMedias()
 	assert.Len(t, medias, 2)
 	assert.Equal(t, "medias/jellyfish.ogm", medias[0].RelativePath)
 	assert.Equal(t, "medias/aquarium.webm", medias[1].RelativePath)
@@ -322,7 +319,7 @@ func TestFileSave(t *testing.T) {
 	assertNoFiles(t)
 	clock.Freeze()
 	defer clock.Unfreeze()
-	err = f.Save()
+	err = f.OldSave()
 	require.NoError(t, err)
 
 	require.Equal(t, 1, mustCountFiles(t))
