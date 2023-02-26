@@ -99,7 +99,6 @@ CREATE TABLE note (
 );
 
 CREATE VIRTUAL TABLE note_fts USING FTS5(kind UNINDEXED, short_title, content_text, content='note', content_rowid='rowid');
--- -- TODO add other fields? Contentless table?
 
 create trigger note_fts_after_insert after insert on note begin
   insert into note_fts (rowid, kind, short_title, content_text) values (new.rowid, new.kind, new.short_title, new.content_text);
@@ -178,7 +177,6 @@ CREATE TABLE link (
     last_checked_at TEXT,
 
     FOREIGN KEY(note_oid) REFERENCES note(oid) ON DELETE CASCADE ON UPDATE CASCADE
-    -- TODO add filepath? line? absolute path?
 );
 -- Ex (skills/node.md): [Link 2](https://docs.npmjs.com "Tutorial to creating Node.js modules #go/node/module")
 -- insert into link(1, 'Link 2', 'https://docs.npmjs.com', 'Tutorial to creating Node.js', 'node/module', 'skills/node.md')
@@ -254,7 +252,6 @@ CREATE TABLE flashcard (
     FOREIGN KEY(file_oid) REFERENCES file(oid) ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY(note_oid) REFERENCES note(oid) ON DELETE CASCADE ON UPDATE CASCADE
 );
--- TODO add custom template name?
 
 
 CREATE TABLE reminder (

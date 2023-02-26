@@ -34,8 +34,6 @@ var getNoteCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// TODO add a method to find a note by path (maybe add new fields in file and note tables?)
-		// TODO dump the content to JSON, YAML, HTML or plain text
 		wikilink := args[0]
 		notes, err := core.FindNotesByWikilink(wikilink)
 		if err != nil {

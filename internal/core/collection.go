@@ -217,8 +217,6 @@ func (c *Collection) OldSave() error { // FIXME remove deprecated
 }
 
 func (c *Collection) SaveWithTx(tx *sql.Tx) error { // FIXME remove deprecated
-	// TODO walk the file system to find stale files
-
 	now := clock.Now()
 	c.UpdatedAt = now
 	c.LastCheckedAt = now

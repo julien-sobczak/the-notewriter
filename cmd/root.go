@@ -43,7 +43,6 @@ func init() {
 	rootCmd.Flags().BoolVarP(&verboseDebug, "verbose-debug", "vv", false, "enable verbose debug output")
 	rootCmd.Flags().BoolVarP(&verboseTrace, "verbose-trace", "vvv", false, "enable verbose trace output")
 	rootCmd.Flags().StringVarP(&CollectionDir, "collection", "c", "", "Collection directory (default is $HOME/notes)")
-	// TODO add support for an environment variable to override this flag
 }
 
 func Execute() {

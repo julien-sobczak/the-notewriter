@@ -287,7 +287,6 @@ func TestGetReminders(t *testing.T) {
 			title: "TODO: Activities",
 			content: "\n" +
 				"* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`\n",
-			// TODO complete with more supported syntaxes
 			expected: []*Reminder{
 				{
 					DescriptionRaw:  "Buy **Lego Christmas** sets to create a village",

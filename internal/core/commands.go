@@ -96,7 +96,7 @@ func (c *Collection) Add(paths ...string) error {
 		}
 
 		c.walk(path, func(path string, stat fs.FileInfo) error {
-			CurrentLogger().Debugf("Processing %s...\n", path) // TODO emit notif for tests?
+			CurrentLogger().Debugf("Processing %s...\n", path)
 
 			file, err := NewOrExistingFile(path)
 			if err != nil {
