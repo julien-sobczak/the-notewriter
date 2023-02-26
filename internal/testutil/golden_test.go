@@ -19,12 +19,12 @@ func TestSetUpFromGoldenFile(t *testing.T) {
 }
 
 func TestSetUpFromGoldenDir(t *testing.T) {
-	dirname := SetUpFromGoldenDir(t)
+	root := SetUpFromGoldenDir(t)
 
-	assertFileContains(t, filepath.Join(dirname, "notes.md"), "# Notes\n\nMy Personal notes\n")
-	requireDirExists(t, filepath.Join(dirname, "medias"))                // Follow link
-	requireFileExists(t, filepath.Join(dirname, "medias/wikimedia.svg")) // Follow link
-	assertFileContains(t, filepath.Join(dirname, "projects/todo.md"), "# TODO\n\n## TODO: Backlog\n\n* [x] Create backlog\n* [ ] Deploy\n")
+	assertFileContains(t, filepath.Join(root, "notes.md"), "# Notes\n\nMy Personal notes\n")
+	requireDirExists(t, filepath.Join(root, "medias"))                // Follow link
+	requireFileExists(t, filepath.Join(root, "medias/wikimedia.svg")) // Follow link
+	assertFileContains(t, filepath.Join(root, "projects/todo.md"), "# TODO\n\n## TODO: Backlog\n\n* [x] Create backlog\n* [ ] Deploy\n")
 }
 
 func TestGoldenFile(t *testing.T) {

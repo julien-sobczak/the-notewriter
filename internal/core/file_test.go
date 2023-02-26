@@ -271,10 +271,10 @@ func TestGetFlashcards(t *testing.T) {
 }
 
 func TestGetMedias(t *testing.T) {
-	dirname := SetUpCollectionFromGoldenDir(t)
+	root := SetUpCollectionFromGoldenDir(t)
 
 	// Init the file
-	f, err := NewFileFromPath(filepath.Join(dirname, "medias.md"))
+	f, err := NewFileFromPath(filepath.Join(root, "medias.md"))
 	require.NoError(t, err)
 
 	// Step 1: Check medias on a file
@@ -310,10 +310,10 @@ func TestGetMedias(t *testing.T) {
 }
 
 func TestFileSave(t *testing.T) {
-	dirname := SetUpCollectionFromGoldenDir(t)
+	root := SetUpCollectionFromGoldenDir(t)
 
 	// Init the file
-	f, err := NewFileFromPath(filepath.Join(dirname, "go.md"))
+	f, err := NewFileFromPath(filepath.Join(root, "go.md"))
 	require.NoError(t, err)
 
 	assertNoFiles(t)
@@ -466,14 +466,12 @@ func TestFileSave(t *testing.T) {
 
 func TestFile(t *testing.T) {
 	// Make tests reproductible
-	UseFixedOID("42d74d967d9b4e989502647ac510777ca1e22f4a")
-	defer ResetOID()
-	clock.FreezeAt(time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
-	defer clock.Unfreeze()
-	dirname := SetUpCollectionFromGoldenDirNamed(t, "TestFileSave")
+	UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
+	FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
+	root := SetUpCollectionFromGoldenDirNamed(t, "TestFileSave")
 
 	t.Run("YAML", func(t *testing.T) {
-		fileSrc, err := NewFileFromPath(filepath.Join(dirname, "go.md"))
+		fileSrc, err := NewFileFromPath(filepath.Join(root, "go.md"))
 		require.NoError(t, err)
 		fileSrc.MTime = clock.Now()
 

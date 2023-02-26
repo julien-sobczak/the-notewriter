@@ -149,7 +149,7 @@ func (c *Collection) Add(paths ...string) error {
 		return err
 	}
 	// And to persist the index
-	if err := db.index.Save(filepath.Join(CurrentConfig().RootDirectory, ".nt/index")); err != nil {
+	if err := db.index.Save(); err != nil {
 		return err
 	}
 

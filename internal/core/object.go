@@ -46,6 +46,9 @@ type Object interface {
 	Read(r io.Reader) error
 	// Write writes the object to YAML.
 	Write(w io.Writer) error
+
+	// String returns a one-line description
+	String() string
 }
 
 // Same for other objects

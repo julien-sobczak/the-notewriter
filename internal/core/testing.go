@@ -3,7 +3,9 @@ package core
 import (
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,6 +18,31 @@ func Reset() {
 	dbClientOnce.Reset()
 	dbOnce.Reset()
 	loggerOnce.Reset()
+}
+
+/* Reproducible Tests */
+
+// FreezeAt wraps the clock API to register the cleanup function at the end of the test.
+func FreezeAt(t *testing.T, point time.Time) time.Time {
+	now := clock.FreezeAt(point)
+	t.Cleanup(clock.Unfreeze)
+	return now
+}
+
+// SetNextOIDs configures a predefined list of OID
+func SetNextOIDs(t *testing.T, oids ...string) {
+	oidGenerator = &suiteOIDGenerator{
+		nextOIDs: oids,
+	}
+	t.Cleanup(ResetOID)
+}
+
+// UseFixedOID configures a fixed OID value
+func UseFixedOID(t *testing.T, value string) {
+	oidGenerator = &fixedOIDGenerator{
+		oid: value,
+	}
+	t.Cleanup(ResetOID)
 }
 
 /* Test Helpers */

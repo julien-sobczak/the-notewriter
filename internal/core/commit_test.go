@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -38,8 +37,7 @@ func TestNewOIDFromBytes(t *testing.T) {
 func TestCommitGraph(t *testing.T) {
 
 	t.Run("New CommitGraph", func(t *testing.T) {
-		now := clock.FreezeAt(time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
-		defer clock.Unfreeze()
+		now := FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
 		cg := NewCommitGraph()
 		assert.Equal(t, now, cg.UpdatedAt)
 
@@ -48,7 +46,7 @@ func TestCommitGraph(t *testing.T) {
 		require.ErrorContains(t, err, "invalid head")
 
 		// A succession of commits
-		now = clock.FreezeAt(time.Date(2023, time.Month(1), 1, 1, 14, 30, 0, time.UTC))
+		now = FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 14, 30, 0, time.UTC))
 		err = cg.AppendCommit("a757e67f5ae2a8df3a4634c96c16af5c8491bea2", "")
 		require.NoError(t, err)
 		err = cg.AppendCommit("a04d20dec96acfc2f9785802d7e3708721005d5d", "a757e67f5ae2a8df3a4634c96c16af5c8491bea2")
@@ -143,15 +141,13 @@ func TestObjectData(t *testing.T) {
 func TestCommit(t *testing.T) {
 
 	// Make tests reproductible
-	UseFixedOID("93267c32147a4ab7a1100ce82faab56a99fca1cd")
-	defer ResetOID()
-	clock.FreezeAt(time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
-	defer clock.Unfreeze()
+	UseFixedOID(t, "93267c32147a4ab7a1100ce82faab56a99fca1cd")
+	FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
 
 	t.Run("New commit", func(t *testing.T) {
-		dirname := SetUpCollectionFromGoldenDirNamed(t, "TestFileSave")
+		root := SetUpCollectionFromGoldenDirNamed(t, "TestFileSave")
 
-		f, err := NewFileFromPath(filepath.Join(dirname, "go.md"))
+		f, err := NewFileFromPath(filepath.Join(root, "go.md"))
 		require.NoError(t, err)
 
 		cSrc := NewCommit()
@@ -172,11 +168,13 @@ objects:
       kind: note
       state: added
       mtime: 2023-01-01T01:12:30Z
+      desc: 'note "Reference: Golang History" [93267c32147a4ab7a1100ce82faab56a99fca1cd]'
       data: eJzEklFr2zAQx9/1KW7uQ1qoY0nOklmkec1gL6P0aWO4Z+ssi9iSkZVmhX344STNGIzCWGGPJ/3vx++k81YrKHK5XNW5FIsVLrBaoRCc1/RBNojV+yUWRVOjqDVrbEfl37UMGMjF0vl47kwStrNOKxAs2tiRgtk9NRTI1aRg6zt0Bj7aMfrwPGNj60Msz8HfL1mgDqN9onLA2Cowft5rdrA721m3UzAz/uoVMsYYbLWPNCoGADD6fZhybYzDqLKM3HxiDaQtzn0w2VRlW19eD8GbgH1vnSkn5h4N3bCI5kxKoT0bdtaRgpzV3sXpFQIeFPxIj6nHq3PqkR3r9bs0/VcJSNPNifb1NO636xeS8XNNT5n2dQbJlfGZ8ckNHHAETaM1jjRUz3DvKwoRtoHsSD2F2+kEPtsd3QI6DZ/IwUPr+2H0DjDC1nvTEVgHkvPV/DJoi2OroKoWfKl1XRcNr6SQJHNZoCBe5IhS6Eu8x7DT/uAUzP6P+OyXeew7Beths0ZoAzV3yR9EEjhu5N2Lz+Ykvc5w89Zm62zYXOQifY+XTX7zvwuEkXSJUYHkMk+5SLl44EIJqXL+he0H/XrgZwAAAP//EyBnoA==
     - oid: 93267c32147a4ab7a1100ce82faab56a99fca1cd
       kind: flashcard
       state: added
       mtime: 2023-01-01T01:12:30Z
+      desc: flashcard "Golang Logo" [93267c32147a4ab7a1100ce82faab56a99fca1cd]
       data: eJyUkEGP0zAQhe/+FUNPEKmNne5uqZUN2hMXjkhIIBRNk4kTbZox9nQBiR+PGpeqLBKrnjwavTfv8+OhtbBdF3ebZl2Ymw3e4G6Dxmjd0NuiQ9zd3uF22zVomlbFnoPUMshIFt7ziJODD+xYdcNI9XW3JpZrLYIuWgUAsATHSn56sqDVtwMd5qFNzzAJhSccLRhFGKnusBEOFopbrVUgTzLIwFM8ikf0kdJEnRzfLvAk9R7DY8vfJwufehRomSJIT5Blp3+P7DjLIJAPFGmSd2qHzeOF79dyRn2ALHPsewpZtlLz6tWXY2lfX6/yPbUDxtzxKj65N6foXvajhdJXfyeXUQJPrrrIL/PT7gKjzH2VUNKdE0bpq4fzicRzdq9mzx9ZOewdxNDcL57xLQBHuV8c2ReQV7MpEQv9kOdFXWD+U1LSnwtKOC+V0wRCobZGsVDoYr3UZqnNR22sKexaf1YH3/5f8DsAAP//xGXohw==
 `), strings.TrimSpace(cYAML))
 
@@ -211,18 +209,16 @@ objects:
 }
 
 func TestIndex(t *testing.T) {
-	// Make tests reproductible
-	UseFixedOID("93267c32147a4ab7a1100ce82faab56a99fca1cd") // TODO Use t.Cleanup inside the function to avoid the defer ?
-	defer ResetOID()
-	now := time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC)
-	clock.FreezeAt(now)
-	defer clock.Unfreeze()
-	dirname := SetUpCollectionFromGoldenDirNamed(t, "TestFileSave")
 
 	t.Run("New", func(t *testing.T) {
+		// Make tests reproductible
+		UseFixedOID(t, "93267c32147a4ab7a1100ce82faab56a99fca1cd")
+		now := FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
+		root := SetUpCollectionFromGoldenDirNamed(t, "TestFileSave")
+
 		idx := NewIndex()
 
-		f, err := NewFileFromPath(filepath.Join(dirname, "go.md"))
+		f, err := NewFileFromPath(filepath.Join(root, "go.md"))
 		require.NoError(t, err)
 
 		c := NewCommit()
@@ -241,7 +237,7 @@ func TestIndex(t *testing.T) {
 		assert.Equal(t, c.OID, commitOID)
 
 		// Create a new file
-		err = os.WriteFile(filepath.Join(dirname, "python.md"), []byte(`# Python
+		err = os.WriteFile(filepath.Join(root, "python.md"), []byte(`# Python
 
 ## Flashcard: Python's creator
 
@@ -252,7 +248,7 @@ Guido van Rossum
 		require.NoError(t, err)
 
 		// Stage the new file
-		f, err = NewFileFromPath(filepath.Join(dirname, "python.md"))
+		f, err = NewFileFromPath(filepath.Join(root, "python.md"))
 		require.NoError(t, err)
 		idx.StageObject(f)
 		for _, obj := range f.SubObjects() {
@@ -267,9 +263,12 @@ Guido van Rossum
 	})
 
 	t.Run("Save on disk", func(t *testing.T) {
+		// Make tests reproductible
+		UseFixedOID(t, "93267c32147a4ab7a1100ce82faab56a99fca1cd")
+
 		root := SetUpCollectionFromGoldenDirNamed(t, "TestFileSave")
 
-		f, err := NewFileFromPath(filepath.Join(dirname, "go.md"))
+		f, err := NewFileFromPath(filepath.Join(root, "go.md"))
 		require.NoError(t, err)
 
 		idx := NewIndex()
@@ -277,11 +276,10 @@ Guido van Rossum
 		idx.StageObject(f.GetNotes()[0])
 		idx.StageObject(f.GetFlashcards()[0])
 
-		path := filepath.Join(root, ".nt/index")
-		err = idx.Save(path)
+		err = idx.Save()
 		require.NoError(t, err)
 
-		idx, err = NewIndexFromPath(path)
+		idx, err = NewIndexFromPath(filepath.Join(root, ".nt/index"))
 		require.NoError(t, err)
 		assert.Len(t, idx.StagingArea.Added, 2)
 	})

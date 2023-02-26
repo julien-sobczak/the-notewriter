@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -81,12 +82,21 @@ func NewIndexFromPath(path string) (*Index, error) {
 	if err := index.Read(in); err != nil {
 		return nil, err
 	}
+	if index.objectsRef == nil {
+		index.objectsRef = make(map[string]*IndexObject)
+	}
 	in.Close()
 	return index, nil
 }
 
+// CountChanges returns the number of changes currently present in the staging area.
+func (i *Index) CountChanges() int {
+	return len(i.StagingArea.Added) + len(i.StagingArea.Modified) + len(i.StagingArea.Deleted)
+}
+
 // Save persists the index on disk.
-func (i *Index) Save(path string) error {
+func (i *Index) Save() error {
+	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/index")
 	f, err := os.Create(path)
 	if err != nil {
 		return err
@@ -133,28 +143,15 @@ func (i *Index) StageObject(obj Object) error {
 		return err
 	}
 
-	// Update index
-	indexObject, ok := i.objectsRef[obj.UniqueOID()]
-	if ok {
-		indexObject.MTime = obj.ModificationTime()
-	} else {
-		indexObject := &IndexObject{
-			OID:       obj.UniqueOID(),
-			MTime:     obj.ModificationTime(),
-			CommitOID: "staging",
-		}
-		i.objectsRef[obj.UniqueOID()] = indexObject
-		i.Objects = append(i.Objects, indexObject)
-	}
-
 	// Update staging area
 	stagingObject := &StagingObject{
 		CommitObject: CommitObject{
-			OID:   obj.UniqueOID(),
-			Kind:  obj.Kind(),
-			State: obj.State(),
-			MTime: obj.ModificationTime(),
-			Data:  objData,
+			OID:         obj.UniqueOID(),
+			Kind:        obj.Kind(),
+			State:       obj.State(),
+			MTime:       obj.ModificationTime(),
+			Description: obj.String(),
+			Data:        objData,
 		},
 	}
 	switch obj.State() {
@@ -175,17 +172,35 @@ func (i *Index) StageObject(obj Object) error {
 func (i *Index) CreateCommitFromStagingArea() *Commit {
 	c := NewCommit()
 
-	for _, o := range i.StagingArea.Added {
-		c.Append(o.OID, o.Kind, o.State, o.MTime, o.Data)
-		i.objectsRef[o.OID].CommitOID = c.OID
+	for _, obj := range i.StagingArea.Added {
+		c.Append(obj)
+		indexObject := &IndexObject{
+			OID:       obj.OID,
+			MTime:     obj.MTime,
+			CommitOID: c.OID,
+		}
+		i.objectsRef[obj.OID] = indexObject
+		i.Objects = append(i.Objects, indexObject)
 	}
-	for _, o := range i.StagingArea.Modified {
-		c.Append(o.OID, o.Kind, o.State, o.MTime, o.Data)
-		i.objectsRef[o.OID].CommitOID = c.OID
+	for _, obj := range i.StagingArea.Modified {
+		c.Append(obj)
+		indexObject := &IndexObject{
+			OID:       obj.OID,
+			MTime:     obj.MTime,
+			CommitOID: c.OID,
+		}
+		i.objectsRef[obj.OID] = indexObject
+		i.Objects = append(i.Objects, indexObject)
 	}
-	for _, o := range i.StagingArea.Deleted {
-		c.Append(o.OID, o.Kind, o.State, o.MTime, o.Data)
-		i.objectsRef[o.OID].CommitOID = c.OID
+	for _, obj := range i.StagingArea.Deleted {
+		c.Append(obj)
+		indexObject := &IndexObject{
+			OID:       obj.OID,
+			MTime:     obj.MTime,
+			CommitOID: c.OID,
+		}
+		i.objectsRef[obj.OID] = indexObject
+		i.Objects = append(i.Objects, indexObject)
 	}
 
 	// Clear the staging area
@@ -298,11 +313,12 @@ type Commit struct {
 }
 
 type CommitObject struct {
-	OID   string     `yaml:"oid"`
-	Kind  string     `yaml:"kind"`
-	State State      `yaml:"state"` // (A) added, (D) deleted, (M) modified, (R) renamed
-	MTime time.Time  `yaml:"mtime"`
-	Data  ObjectData `yaml:"data"`
+	OID         string     `yaml:"oid"`
+	Kind        string     `yaml:"kind"`
+	State       State      `yaml:"state"` // (A) added, (D) deleted, (M) modified, (R) renamed
+	MTime       time.Time  `yaml:"mtime"`
+	Description string     `yaml:"desc"`
+	Data        ObjectData `yaml:"data"`
 }
 
 // ObjectData serializes any Object to base64 after zlib compression.
@@ -397,25 +413,29 @@ func (c *Commit) AppendObject(obj Object) error {
 		return err
 	}
 	c.Objects = append(c.Objects, CommitObject{
-		OID:   obj.UniqueOID(),
-		Kind:  obj.Kind(),
-		State: obj.State(),
-		MTime: obj.ModificationTime(),
-		Data:  data,
+		OID:         obj.UniqueOID(),
+		Kind:        obj.Kind(),
+		State:       obj.State(),
+		MTime:       obj.ModificationTime(),
+		Description: obj.String(),
+		Data:        data,
 	})
 	return nil
 }
 
-// Append registers a new object inside the commit.
-func (c *Commit) Append(oid string, kind string, state State, mtime time.Time, data ObjectData) {
+// Append registers a new staged object inside the commit.
+func (c *Commit) Append(obj *StagingObject) {
 	c.Objects = append(c.Objects, CommitObject{
-		OID:   oid,
-		Kind:  kind,
-		State: state,
-		MTime: mtime,
-		Data:  data,
+		OID:         obj.OID,
+		Kind:        obj.Kind,
+		State:       obj.State,
+		MTime:       obj.MTime,
+		Description: obj.Description,
+		Data:        obj.Data,
 	})
 }
+
+/* Object */
 
 func (c *Commit) UniqueOID() string {
 	return c.OID
@@ -438,6 +458,20 @@ func (c *Commit) Write(w io.Writer) error {
 	}
 	_, err = w.Write(data)
 	return err
+}
+
+// Save writes a new file inside .nt/objects.
+func (c *Commit) Save() error {
+	dir := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects/"+c.OID[0:2])
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+		return err
+	}
+	f, err := os.Create(filepath.Join(dir, c.OID))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return c.Write(f)
 }
 
 func (c *Commit) Blobs() []Blob {
@@ -538,20 +572,6 @@ func (g *fixedOIDGenerator) NewOID() string {
 
 func (g *fixedOIDGenerator) NewOIDFromBytes(b []byte) string {
 	return g.oid
-}
-
-// SetNextOIDs configures a predefined list of OID
-func SetNextOIDs(oids ...string) {
-	oidGenerator = &suiteOIDGenerator{
-		nextOIDs: oids,
-	}
-}
-
-// SetNextOID configures a predefined list of OID
-func UseFixedOID(oid string) {
-	oidGenerator = &fixedOIDGenerator{
-		oid: oid,
-	}
 }
 
 // ResetOID restores the original unique OID generator.

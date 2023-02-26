@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -275,8 +274,7 @@ func TestGetLinks(t *testing.T) {
 }
 
 func TestGetReminders(t *testing.T) {
-	clock.FreezeAt(time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
-	defer clock.Unfreeze()
+	FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
 
 	var tests = []struct {
 		name     string      // name
@@ -323,8 +321,7 @@ func TestGetReminders(t *testing.T) {
 }
 
 func TestNoteFormat(t *testing.T) {
-	UseFixedOID("16252dafd6355e678bf8ae44b127f657cd3cdd0e")
-	defer ResetOID()
+	UseFixedOID(t, "16252dafd6355e678bf8ae44b127f657cd3cdd0e")
 
 	var tests = []struct {
 		name             string // name
@@ -413,10 +410,8 @@ func TestNoteFTS(t *testing.T) {
 
 func TestNote(t *testing.T) {
 	// Make tests reproductible
-	UseFixedOID("42d74d967d9b4e989502647ac510777ca1e22f4a")
-	defer ResetOID()
-	clock.FreezeAt(time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
-	defer clock.Unfreeze()
+	UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
+	FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
 
 	t.Run("YAML", func(t *testing.T) {
 		noteSrc := NewNote(NewEmptyFile(), "TODO: Backlog", "* [ ] Test", 2)
