@@ -26,7 +26,6 @@ const (
 	Added    State = "added"
 	Modified State = "modified"
 	Deleted  State = "deleted"
-	Renamed  State = "renamed"
 )
 
 /* Index */
@@ -137,7 +136,7 @@ func (i *Index) AppendCommit(c *Commit) {
 }
 
 // StageObject registers a changed object into the staging area
-func (i *Index) StageObject(obj Object) error {
+func (i *Index) StageObject(obj StatefulObject) error {
 	objData, err := NewObjectData(obj)
 	if err != nil {
 		return err
@@ -157,8 +156,6 @@ func (i *Index) StageObject(obj Object) error {
 	switch obj.State() {
 	case Added:
 		i.StagingArea.Added = append(i.StagingArea.Added, stagingObject)
-	case Renamed:
-		fallthrough
 	case Modified:
 		i.StagingArea.Modified = append(i.StagingArea.Modified, stagingObject)
 	case Deleted:
@@ -250,6 +247,24 @@ func NewCommitGraph() *CommitGraph {
 	}
 }
 
+// NewCommitGraphFromPath loads a commit-graph file from a path.
+func NewCommitGraphFromPath(path string) (*CommitGraph, error) {
+	in, err := os.Open(path)
+	if errors.Is(err, os.ErrNotExist) {
+		// First use
+		return NewCommitGraph(), nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	cg := new(CommitGraph)
+	if err := cg.Read(in); err != nil {
+		return nil, err
+	}
+	in.Close()
+	return cg, nil
+}
+
 // Read instantiates a commit graph from an existing file
 func (cg *CommitGraph) Read(r io.Reader) error {
 	err := yaml.NewDecoder(r).Decode(&cg)
@@ -260,17 +275,18 @@ func (cg *CommitGraph) Read(r io.Reader) error {
 }
 
 // AppendCommit pushes a new commit.
-func (c *CommitGraph) AppendCommit(childOID, parentOID string) error {
-	var head = ""
-	if len(c.CommitOIDs) > 0 {
-		head = c.CommitOIDs[len(c.CommitOIDs)-1]
-	}
-	if head != parentOID {
-		return fmt.Errorf("invalid head reference %s", head)
-	}
+func (c *CommitGraph) AppendCommit(commitOID string) error {
 	c.UpdatedAt = clock.Now()
-	c.CommitOIDs = append(c.CommitOIDs, childOID)
+	c.CommitOIDs = append(c.CommitOIDs, commitOID)
 	return nil
+}
+
+// Ref returns the commit OID of the last commit.
+func (c *CommitGraph) Ref() string {
+	if len(c.CommitOIDs) == 0 {
+		return ""
+	}
+	return c.CommitOIDs[len(c.CommitOIDs)-1]
 }
 
 // LastCommits returns all recent commits.
@@ -294,6 +310,26 @@ func (c *CommitGraph) LastCommitsFrom(head string) ([]string, error) {
 	return results, nil
 }
 
+// MissingCommitsFrom returns all commits present in origin and not present in current commit graph.
+func (c *CommitGraph) MissingCommitsFrom(origin *CommitGraph) []string {
+	var results []string
+
+	for _, oidOrigin := range origin.CommitOIDs {
+		found := false
+		for _, oidLocal := range c.CommitOIDs {
+			if oidLocal == oidOrigin {
+				found = true
+				break
+			}
+		}
+		if !found {
+			results = append(results, oidOrigin)
+		}
+	}
+
+	return results
+}
+
 // Write dumps the commit graph.
 func (c *CommitGraph) Write(w io.Writer) error {
 	data, err := yaml.Marshal(c)
@@ -304,12 +340,26 @@ func (c *CommitGraph) Write(w io.Writer) error {
 	return err
 }
 
+// Save persists the commit-graph locally.
+func (c *CommitGraph) Save() error {
+	dir := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects/info/")
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+		return err
+	}
+	f, err := os.Create(filepath.Join(dir, "commit-graph"))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return c.Write(f)
+}
+
 /* Commit */
 
 type Commit struct {
-	OID     string         `yaml:"oid"`
-	CTime   time.Time      `yaml:"ctime"`
-	Objects []CommitObject `yaml:"objects"`
+	OID     string          `yaml:"oid"`
+	CTime   time.Time       `yaml:"ctime"`
+	Objects []*CommitObject `yaml:"objects"`
 }
 
 type CommitObject struct {
@@ -319,6 +369,41 @@ type CommitObject struct {
 	MTime       time.Time  `yaml:"mtime"`
 	Description string     `yaml:"desc"`
 	Data        ObjectData `yaml:"data"`
+}
+
+// ReadObject recreates the core object from a commit object.
+func (c *CommitObject) ReadObject() StatefulObject {
+	switch c.Kind {
+	case "collection":
+		collection := new(Collection)
+		c.Data.Unmarshal(collection)
+		return collection
+	case "file":
+		file := new(File)
+		c.Data.Unmarshal(file)
+		return file
+	case "flashcard":
+		flashcard := new(Flashcard)
+		c.Data.Unmarshal(flashcard)
+		return flashcard
+	case "note":
+		note := new(Note)
+		c.Data.Unmarshal(note)
+		return note
+	case "link":
+		link := new(Link)
+		c.Data.Unmarshal(link)
+		return link
+	case "media":
+		media := new(Media)
+		c.Data.Unmarshal(media)
+		return media
+	case "reminder":
+		reminder := new(Reminder)
+		c.Data.Unmarshal(reminder)
+		return reminder
+	}
+	return nil
 }
 
 // ObjectData serializes any Object to base64 after zlib compression.
@@ -407,12 +492,12 @@ func NewCommit() *Commit {
 }
 
 // Append registers a new object inside the commit.
-func (c *Commit) AppendObject(obj Object) error {
+func (c *Commit) AppendObject(obj StatefulObject) error {
 	data, err := NewObjectData(obj)
 	if err != nil {
 		return err
 	}
-	c.Objects = append(c.Objects, CommitObject{
+	c.Objects = append(c.Objects, &CommitObject{
 		OID:         obj.UniqueOID(),
 		Kind:        obj.Kind(),
 		State:       obj.State(),
@@ -425,7 +510,7 @@ func (c *Commit) AppendObject(obj Object) error {
 
 // Append registers a new staged object inside the commit.
 func (c *Commit) Append(obj *StagingObject) {
-	c.Objects = append(c.Objects, CommitObject{
+	c.Objects = append(c.Objects, &CommitObject{
 		OID:         obj.OID,
 		Kind:        obj.Kind,
 		State:       obj.State,
@@ -433,6 +518,16 @@ func (c *Commit) Append(obj *StagingObject) {
 		Description: obj.Description,
 		Data:        obj.Data,
 	})
+}
+
+// GetCommitObject retrieves a commit object.
+func (c *Commit) GetCommitObject(oid string) (*CommitObject, bool) {
+	for _, object := range c.Objects {
+		if object.OID == oid {
+			return object, true
+		}
+	}
+	return nil, false
 }
 
 /* Object */
@@ -462,11 +557,11 @@ func (c *Commit) Write(w io.Writer) error {
 
 // Save writes a new file inside .nt/objects.
 func (c *Commit) Save() error {
-	dir := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects/"+c.OID[0:2])
-	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects/"+OIDToPath(c.OID))
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
 		return err
 	}
-	f, err := os.Create(filepath.Join(dir, c.OID))
+	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
@@ -474,7 +569,7 @@ func (c *Commit) Save() error {
 	return c.Write(f)
 }
 
-func (c *Commit) Blobs() []Blob {
+func (c *Commit) Blobs() []BlobRef {
 	// Blobs are stored outside commits.
 	return nil
 }

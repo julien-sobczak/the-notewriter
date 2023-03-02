@@ -50,6 +50,7 @@ type ConfigRemote struct {
 	// fs-specific attributes
 	Dir string
 	// s3-specific attributes
+	Endpoint   string
 	AccessKey  string
 	SecretKey  string
 	BucketName string

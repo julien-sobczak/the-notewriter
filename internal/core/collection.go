@@ -119,7 +119,7 @@ func (c *Collection) State() State {
 	return Modified
 }
 
-func (c *Collection) SetTombstone() {
+func (c *Collection) ForceState(state State) {
 }
 
 func (c *Collection) Read(r io.Reader) error {
@@ -139,11 +139,11 @@ func (c *Collection) Write(w io.Writer) error {
 	return err
 }
 
-func (c *Collection) SubObjects() []Object {
+func (c *Collection) SubObjects() []StatefulObject {
 	return nil
 }
 
-func (c *Collection) Blobs() []Blob {
+func (c *Collection) Blobs() []BlobRef {
 	// Use Media.Blobs() instead
 	return nil
 }
@@ -185,14 +185,15 @@ func (c *Collection) GetAbsolutePath(path string) string {
 }
 
 func (c *Collection) Save(tx *sql.Tx) error {
-	c.new = false
+	var err error
 	switch c.State() {
 	case Added:
-		return c.InsertWithTx(tx)
+		err = c.InsertWithTx(tx)
 	case Modified:
-		return c.UpdateWithTx(tx)
+		err = c.UpdateWithTx(tx)
 	}
-	return nil
+	c.new = false
+	return err
 }
 
 func (c *Collection) OldSave() error { // FIXME remove deprecated

@@ -161,7 +161,17 @@ func (f *File) State() State {
 	return None
 }
 
-func (f *File) SetTombstone() {
+func (f *File) ForceState(state State) {
+	switch state {
+	case Added:
+		f.new = true
+	case Deleted:
+		f.DeletedAt = clock.Now()
+	}
+	f.stale = true
+}
+
+func (f *File) SetAlive() {
 	f.DeletedAt = clock.Now()
 	f.stale = true
 }
@@ -187,8 +197,8 @@ func (f *File) Write(w io.Writer) error {
 	return err
 }
 
-func (f *File) SubObjects() []Object {
-	var objs []Object
+func (f *File) SubObjects() []StatefulObject {
+	var objs []StatefulObject
 	for _, object := range f.GetNotes() {
 		objs = append(objs, object)
 	}
@@ -201,7 +211,7 @@ func (f *File) SubObjects() []Object {
 	return objs
 }
 
-func (f *File) Blobs() []Blob {
+func (f *File) Blobs() []BlobRef {
 	// Use Media.Blobs() instead
 	return nil
 }
@@ -655,18 +665,20 @@ func (f *File) CheckWithTx(tx *sql.Tx) error {
 }
 
 func (f *File) Save(tx *sql.Tx) error {
-	f.new = false
-	f.stale = false
+	var err error
 	switch f.State() {
 	case Added:
-		return f.InsertWithTx(tx)
+		err = f.InsertWithTx(tx)
 	case Modified:
-		return f.UpdateWithTx(tx)
+		err = f.UpdateWithTx(tx)
 	case Deleted:
-		return f.DeleteWithTx(tx)
+		err = f.DeleteWithTx(tx)
 	default:
-		return f.CheckWithTx(tx)
+		err = f.CheckWithTx(tx)
 	}
+	f.new = false
+	f.stale = false
+	return err
 }
 
 func (f *File) OldSave() error { // FIXME remove deprecated

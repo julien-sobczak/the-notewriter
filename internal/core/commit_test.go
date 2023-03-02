@@ -41,22 +41,18 @@ func TestCommitGraph(t *testing.T) {
 		cg := NewCommitGraph()
 		assert.Equal(t, now, cg.UpdatedAt)
 
-		// Initial parent must be empty
-		err := cg.AppendCommit("a757e67f5ae2a8df3a4634c96c16af5c8491bea2", "invalid parent")
-		require.ErrorContains(t, err, "invalid head")
-
 		// A succession of commits
 		now = FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 14, 30, 0, time.UTC))
-		err = cg.AppendCommit("a757e67f5ae2a8df3a4634c96c16af5c8491bea2", "")
+		err := cg.AppendCommit("a757e67f5ae2a8df3a4634c96c16af5c8491bea2")
 		require.NoError(t, err)
-		err = cg.AppendCommit("a04d20dec96acfc2f9785802d7e3708721005d5d", "a757e67f5ae2a8df3a4634c96c16af5c8491bea2")
+		err = cg.AppendCommit("a04d20dec96acfc2f9785802d7e3708721005d5d")
 		require.NoError(t, err)
-		err = cg.AppendCommit("52d614e255d914e2f6022689617da983381c27a3", "a04d20dec96acfc2f9785802d7e3708721005d5d")
+		err = cg.AppendCommit("52d614e255d914e2f6022689617da983381c27a3")
 		require.NoError(t, err)
 		assert.Equal(t, now, cg.UpdatedAt)
 
 		// Repeat the last commit must fail as head as changed
-		err = cg.AppendCommit("52d614e255d914e2f6022689617da983381c27a3", "a04d20dec96acfc2f9785802d7e3708721005d5d")
+		err = cg.AppendCommit("52d614e255d914e2f6022689617da983381c27a3")
 		require.ErrorContains(t, err, "invalid head")
 
 		_, err = cg.LastCommitsFrom("unknown")
@@ -113,6 +109,31 @@ commits:
 		hashOut, _ := hashFromFile(out.Name())
 		assert.Equal(t, hashIn, hashOut)
 	})
+
+	t.Run("Diff", func(t *testing.T) {
+		cg1 := NewCommitGraph()
+		cg2 := NewCommitGraph()
+
+		// Start with a common commit
+		err := cg1.AppendCommit("a757e67f5ae2a8df3a4634c96c16af5c8491bea2")
+		require.NoError(t, err)
+		err = cg2.AppendCommit("a757e67f5ae2a8df3a4634c96c16af5c8491bea2")
+		require.NoError(t, err)
+
+		// New commit only in cg1
+		err = cg1.AppendCommit("5bb55dad2b3157a81893bc25f809d85a1fab2911")
+		require.NoError(t, err)
+
+		// New commits only in cg2
+		err = cg2.AppendCommit("f3aaf5433ec0357844d88f860c42e044fe44ee61")
+		require.NoError(t, err)
+		err = cg2.AppendCommit("3c2fbfe30b58a9737ddfc45ef54587339b2a6c79")
+		require.NoError(t, err)
+
+		assert.EqualValues(t, []string{"f3aaf5433ec0357844d88f860c42e044fe44ee61", "3c2fbfe30b58a9737ddfc45ef54587339b2a6c79"}, cg1.MissingCommitsFrom(cg2))
+		assert.EqualValues(t, []string{"5bb55dad2b3157a81893bc25f809d85a1fab2911"}, cg2.MissingCommitsFrom(cg1))
+	})
+
 }
 
 func TestObjectData(t *testing.T) {

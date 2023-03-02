@@ -3,17 +3,26 @@ package core
 import (
 	"database/sql"
 	"io"
+	"os"
+	"path/filepath"
 	"time"
 )
 
-type Blob struct {
+// OIDToPath converts an oid to a file path.
+func OIDToPath(oid string) string {
+	// We use the first two characters to spread objects into different directories
+	// (same as .git/objects/) to avoid having a large unpractical directory.
+	return oid[0:2] + "/" + oid
+}
+
+type BlobRef struct {
 	// OID to locate the blob file in .nt/objects
 	OID        string
 	Attributes map[string]interface{}
 	Tags       []string
 }
 
-func (b *Blob) Hash() string {
+func (b *BlobRef) Hash() string {
 	// TODO
 	return ""
 }
@@ -30,17 +39,9 @@ type Object interface {
 	ModificationTime() time.Time
 
 	// SubObjects returns the objects directly contained by this object.
-	SubObjects() []Object
+	SubObjects() []StatefulObject
 	// Blobs returns the optional blobs associated with this object.
-	Blobs() []Blob
-
-	// State returns the current state.
-	State() State
-	// SetTombstone marks the object as to be deleted.
-	SetTombstone()
-
-	// Save persists to DB.
-	Save(tx *sql.Tx) error
+	Blobs() []BlobRef
 
 	// Read rereads the object from YAML.
 	Read(r io.Reader) error
@@ -49,6 +50,64 @@ type Object interface {
 
 	// String returns a one-line description
 	String() string
+}
+
+// StatefulObject to represent the subset of updatable objects persisted in database.
+type StatefulObject interface {
+	Object
+
+	// State returns the current state.
+	State() State
+	// ForceState marks the object in the given state
+	ForceState(newState State)
+
+	// Save persists to DB.
+	Save(tx *sql.Tx) error
+}
+
+type BlobFile struct {
+	Ref  BlobRef
+	Data []byte
+}
+
+func NewBlobFile(ref BlobRef, data []byte) *BlobFile {
+	return &BlobFile{
+		Ref:  ref,
+		Data: data,
+	}
+}
+
+// Read populates a commit from an object file.
+func (c *BlobFile) Read(r io.Reader) error {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return err
+	}
+	c.Data = data
+	return nil
+}
+
+// Write dumps a commit to an object file.
+func (c *BlobFile) Write(w io.Writer) error {
+	_, err := w.Write(c.Data)
+	if err != nil {
+		return err
+	}
+	return err
+}
+
+// Save writes a new file inside .nt/objects.
+func (c *BlobFile) Save() error {
+	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", OIDToPath(c.Ref.OID))
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		return err
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return c.Write(f)
 }
 
 // Same for other objects

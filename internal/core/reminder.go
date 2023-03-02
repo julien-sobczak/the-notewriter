@@ -125,8 +125,13 @@ func (r *Reminder) State() State {
 	return None
 }
 
-func (r *Reminder) SetTombstone() {
-	r.DeletedAt = clock.Now()
+func (r *Reminder) ForceState(state State) {
+	switch state {
+	case Added:
+		r.new = true
+	case Deleted:
+		r.DeletedAt = clock.Now()
+	}
 	r.stale = true
 }
 
@@ -147,12 +152,11 @@ func (r *Reminder) Write(w io.Writer) error {
 	return err
 }
 
-func (r *Reminder) SubObjects() []Object {
+func (r *Reminder) SubObjects() []StatefulObject {
 	return nil
 }
 
-
-func (r *Reminder) Blobs() []Blob {
+func (r *Reminder) Blobs() []BlobRef {
 	// Use Media.Blobs() instead
 	return nil
 }
@@ -627,18 +631,20 @@ func (r *Reminder) CheckWithTx(tx *sql.Tx) error {
 }
 
 func (r *Reminder) Save(tx *sql.Tx) error {
-	r.new = false
-	r.stale = false
+	var err error
 	switch r.State() {
 	case Added:
-		return r.InsertWithTx(tx)
+		err = r.InsertWithTx(tx)
 	case Modified:
-		return r.UpdateWithTx(tx)
+		err = r.UpdateWithTx(tx)
 	case Deleted:
-		return r.DeleteWithTx(tx)
+		err = r.DeleteWithTx(tx)
 	default:
-		return r.CheckWithTx(tx)
+		err = r.CheckWithTx(tx)
 	}
+	r.new = false
+	r.stale = false
+	return err
 }
 
 func (r *Reminder) OldSave() error { // FIXME remove deprecated

@@ -172,8 +172,13 @@ func (n *Note) State() State {
 	return None
 }
 
-func (n *Note) SetTombstone() {
-	n.DeletedAt = clock.Now()
+func (n *Note) ForceState(state State) {
+	switch state {
+	case Added:
+		n.new = true
+	case Deleted:
+		n.DeletedAt = clock.Now()
+	}
 	n.stale = true
 }
 
@@ -194,8 +199,8 @@ func (n *Note) Write(w io.Writer) error {
 	return err
 }
 
-func (n *Note) SubObjects() []Object {
-	var objs []Object
+func (n *Note) SubObjects() []StatefulObject {
+	var objs []StatefulObject
 	for _, object := range n.GetLinks() {
 		objs = append(objs, object)
 	}
@@ -208,7 +213,7 @@ func (n *Note) SubObjects() []Object {
 	return objs
 }
 
-func (n *Note) Blobs() []Blob {
+func (n *Note) Blobs() []BlobRef {
 	// Use Media.Blobs() instead
 	return nil
 }
@@ -683,18 +688,20 @@ func (n *Note) CheckWithTx(tx *sql.Tx) error {
 }
 
 func (n *Note) Save(tx *sql.Tx) error {
-	n.new = false
-	n.stale = false
+	var err error
 	switch n.State() {
 	case Added:
-		return n.InsertWithTx(tx)
+		err = n.InsertWithTx(tx)
 	case Modified:
-		return n.UpdateWithTx(tx)
+		err = n.UpdateWithTx(tx)
 	case Deleted:
-		return n.DeleteWithTx(tx)
+		err = n.DeleteWithTx(tx)
 	default:
-		return n.CheckWithTx(tx)
+		err = n.CheckWithTx(tx)
 	}
+	n.new = false
+	n.stale = false
+	return err
 }
 
 func (n *Note) OldSave() error { // FIXME remove deprecated

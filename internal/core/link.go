@@ -101,8 +101,13 @@ func (l *Link) State() State {
 	return None
 }
 
-func (l *Link) SetTombstone() {
-	l.DeletedAt = clock.Now()
+func (l *Link) ForceState(state State) {
+	switch state {
+	case Added:
+		l.new = true
+	case Deleted:
+		l.DeletedAt = clock.Now()
+	}
 	l.stale = true
 }
 
@@ -123,12 +128,11 @@ func (l *Link) Write(w io.Writer) error {
 	return err
 }
 
-func (l *Link) SubObjects() []Object {
+func (l *Link) SubObjects() []StatefulObject {
 	return nil
 }
 
-
-func (l *Link) Blobs() []Blob {
+func (l *Link) Blobs() []BlobRef {
 	// Use Media.Blobs() instead
 	return nil
 }
@@ -211,18 +215,20 @@ func (l *Link) CheckWithTx(tx *sql.Tx) error {
 }
 
 func (l *Link) Save(tx *sql.Tx) error {
-	l.new = false
-	l.stale = false
+	var err error
 	switch l.State() {
 	case Added:
-		return l.InsertWithTx(tx)
+		err = l.InsertWithTx(tx)
 	case Modified:
-		return l.UpdateWithTx(tx)
+		err = l.UpdateWithTx(tx)
 	case Deleted:
-		return l.DeleteWithTx(tx)
+		err = l.DeleteWithTx(tx)
 	default:
-		return l.CheckWithTx(tx)
+		err = l.CheckWithTx(tx)
 	}
+	l.new = false
+	l.stale = false
+	return err
 }
 
 func (l *Link) OldSave() error { // FIXME remove deprecated

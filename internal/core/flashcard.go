@@ -224,8 +224,13 @@ func (f *Flashcard) State() State {
 	return None
 }
 
-func (f *Flashcard) SetTombstone() {
-	f.DeletedAt = clock.Now()
+func (f *Flashcard) ForceState(state State) {
+	switch state {
+	case Added:
+		f.new = true
+	case Deleted:
+		f.DeletedAt = clock.Now()
+	}
 	f.stale = true
 }
 
@@ -246,11 +251,11 @@ func (f *Flashcard) Write(w io.Writer) error {
 	return err
 }
 
-func (f *Flashcard) SubObjects() []Object {
+func (f *Flashcard) SubObjects() []StatefulObject {
 	return nil
 }
 
-func (f *Flashcard) Blobs() []Blob {
+func (f *Flashcard) Blobs() []BlobRef {
 	// Use Media.Blobs() instead
 	return nil
 }
@@ -374,18 +379,20 @@ func (f *Flashcard) CheckWithTx(tx *sql.Tx) error {
 }
 
 func (f *Flashcard) Save(tx *sql.Tx) error {
-	f.new = false
-	f.stale = false
+	var err error
 	switch f.State() {
 	case Added:
-		return f.InsertWithTx(tx)
+		err = f.InsertWithTx(tx)
 	case Modified:
-		return f.UpdateWithTx(tx)
+		err = f.UpdateWithTx(tx)
 	case Deleted:
-		return f.DeleteWithTx(tx)
+		err = f.DeleteWithTx(tx)
 	default:
-		return f.CheckWithTx(tx)
+		err = f.CheckWithTx(tx)
 	}
+	f.new = false
+	f.stale = false
+	return err
 }
 
 func (f *Flashcard) OldSave() error { // FIXME remove deprecated

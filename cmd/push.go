@@ -18,6 +18,11 @@ var pushCmd = &cobra.Command{
 	Long:  `Push to remote new objects.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		CheckConfig()
+		if core.CurrentDB().Origin() == nil {
+			fmt.Println("There is no remote currently configured.")
+			fmt.Println("Please specify one in .nt/config")
+			os.Exit(1)
+		}
 		err := core.CurrentDB().Push()
 		if err != nil {
 			fmt.Println(err)

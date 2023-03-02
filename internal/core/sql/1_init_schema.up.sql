@@ -92,10 +92,7 @@ CREATE TABLE note (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT,
-    last_checked_at TEXT,
-
-    FOREIGN KEY(file_oid) REFERENCES file(oid) ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY(note_oid) REFERENCES note(oid) ON DELETE CASCADE ON UPDATE CASCADE
+    last_checked_at TEXT
 );
 
 CREATE VIRTUAL TABLE note_fts USING FTS5(kind UNINDEXED, short_title, content_text, content='note', content_rowid='rowid');
@@ -174,9 +171,7 @@ CREATE TABLE link (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT,
-    last_checked_at TEXT,
-
-    FOREIGN KEY(note_oid) REFERENCES note(oid) ON DELETE CASCADE ON UPDATE CASCADE
+    last_checked_at TEXT
 );
 -- Ex (skills/node.md): [Link 2](https://docs.npmjs.com "Tutorial to creating Node.js modules #go/node/module")
 -- insert into link(1, 'Link 2', 'https://docs.npmjs.com', 'Tutorial to creating Node.js', 'node/module', 'skills/node.md')
@@ -247,10 +242,7 @@ CREATE TABLE flashcard (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT,
-    last_checked_at TEXT,
-
-    FOREIGN KEY(file_oid) REFERENCES file(oid) ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY(note_oid) REFERENCES note(oid) ON DELETE CASCADE ON UPDATE CASCADE
+    last_checked_at TEXT
 );
 
 
@@ -280,8 +272,5 @@ CREATE TABLE reminder (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT,
-    last_checked_at TEXT,
-
-    FOREIGN KEY(file_oid) REFERENCES file(oid) ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY(note_oid) REFERENCES note(oid) ON DELETE CASCADE ON UPDATE CASCADE
+    last_checked_at TEXT
 );

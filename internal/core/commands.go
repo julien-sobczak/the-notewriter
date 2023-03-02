@@ -138,7 +138,7 @@ func (c *Collection) Add(paths ...string) error {
 		return err
 	}
 	for _, deletion := range deletions {
-		deletion.SetTombstone()
+		deletion.ForceState(Deleted)
 		if err := db.StageObject(deletion); err != nil {
 			return fmt.Errorf("unable to stage deleted object %s: %v", deletion, err)
 		}
@@ -156,9 +156,9 @@ func (c *Collection) Add(paths ...string) error {
 	return nil
 }
 
-func (c *Collection) findObjectsLastCheckedBefore(buildTime time.Time) ([]Object, error) {
+func (c *Collection) findObjectsLastCheckedBefore(buildTime time.Time) ([]StatefulObject, error) {
 	// Search for deleted objects...
-	var deletions []Object
+	var deletions []StatefulObject
 
 	links, err := FindLinksLastCheckedBefore(buildTime)
 	if err != nil {

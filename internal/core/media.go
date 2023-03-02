@@ -204,11 +204,15 @@ func (m *Media) State() State {
 	return None
 }
 
-func (m *Media) SetTombstone() {
-	m.DeletedAt = clock.Now()
+func (m *Media) ForceState(state State) {
+	switch state {
+	case Added:
+		m.new = true
+	case Deleted:
+		m.DeletedAt = clock.Now()
+	}
 	m.stale = true
 }
-
 func (m *Media) Read(r io.Reader) error {
 	err := yaml.NewDecoder(r).Decode(m)
 	if err != nil {
@@ -226,11 +230,11 @@ func (m *Media) Write(w io.Writer) error {
 	return err
 }
 
-func (m *Media) SubObjects() []Object {
+func (m *Media) SubObjects() []StatefulObject {
 	return nil
 }
 
-func (m *Media) Blobs() []Blob {
+func (m *Media) Blobs() []BlobRef {
 	// TODO implement
 	return nil
 }
@@ -327,18 +331,20 @@ func (m *Media) CheckWithTx(tx *sql.Tx) error {
 }
 
 func (m *Media) Save(tx *sql.Tx) error {
-	m.new = false
-	m.stale = false
+	var err error
 	switch m.State() {
 	case Added:
-		return m.InsertWithTx(tx)
+		err = m.InsertWithTx(tx)
 	case Modified:
-		return m.UpdateWithTx(tx)
+		err = m.UpdateWithTx(tx)
 	case Deleted:
-		return m.DeleteWithTx(tx)
+		err = m.DeleteWithTx(tx)
 	default:
-		return m.CheckWithTx(tx)
+		err = m.CheckWithTx(tx)
 	}
+	m.new = false
+	m.stale = false
+	return err
 }
 
 func (m *Media) OldSave() error { // FIXME remove deprecated
