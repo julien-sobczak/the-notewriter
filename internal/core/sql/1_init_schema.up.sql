@@ -159,6 +159,9 @@ CREATE TABLE link (
     -- Note representing the link
     note_oid TEXT NOT NULL,
 
+    -- The relative path of the file containing the note (denormalized field)
+    relative_path TEXT NOT NULL,
+
     "text" TEXT NOT NULL,
 
     url TEXT NOT NULL,
@@ -184,6 +187,9 @@ CREATE TABLE flashcard (
 
     -- Note representing the flashcard
     note_oid TEXT NOT NULL,
+
+    -- The relative path of the file containing the note (denormalized field)
+    relative_path TEXT NOT NULL,
 
     -- Note short title
     short_title TEXT NOT NULL,
@@ -254,6 +260,9 @@ CREATE TABLE reminder (
 
     -- Note representing the flashcard
     note_oid TEXT NOT NULL,
+
+    -- The relative path of the file containing the note (denormalized field)
+    relative_path TEXT NOT NULL,
 
     -- Description
     description_raw TEXT NOT NULL,

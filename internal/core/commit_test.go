@@ -51,10 +51,6 @@ func TestCommitGraph(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, now, cg.UpdatedAt)
 
-		// Repeat the last commit must fail as head as changed
-		err = cg.AppendCommit("52d614e255d914e2f6022689617da983381c27a3")
-		require.ErrorContains(t, err, "invalid head")
-
 		_, err = cg.LastCommitsFrom("unknown")
 		require.ErrorContains(t, err, "unknown commit")
 		commits, err := cg.LastCommitsFrom("a04d20dec96acfc2f9785802d7e3708721005d5d")

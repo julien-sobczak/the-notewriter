@@ -450,7 +450,7 @@ func (f *Flashcard) SaveWithTx(tx *sql.Tx) error { // FIXME remove deprecated
 }
 
 func (f *Flashcard) InsertWithTx(tx *sql.Tx) error {
-	CurrentLogger().Debugf("Inserting file %s...", f.ShortTitle)
+	CurrentLogger().Debugf("Inserting flashcard %s...", f.ShortTitle)
 	query := `
 		INSERT INTO flashcard(
 			oid,

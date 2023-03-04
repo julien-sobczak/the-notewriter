@@ -501,6 +501,12 @@ func (db *DB) Restore() error {
 
 /* Utility */
 
+// Ref returns the commit OID for the given ref
+func (db *DB) Ref(name string) (string, bool) {
+	value, ok := db.refs[name]
+	return value, ok
+}
+
 // updateRef updates a ref with a new commit OID.
 func (db *DB) updateRef(name, commitOID string) error {
 	refdir := filepath.Join(CurrentConfig().RootDirectory, ".nt/refs/")

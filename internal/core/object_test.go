@@ -20,7 +20,7 @@ func TestOIDToPath(t *testing.T) {
 		{
 			"Example 2",
 			"5bb55dad2b3157a81893bc25f809d85a1fab2911",
-			"55/5bb55dad2b3157a81893bc25f809d85a1fab2911",
+			"5b/5bb55dad2b3157a81893bc25f809d85a1fab2911",
 		},
 	}
 

@@ -641,8 +641,8 @@ func QueryMedias(whereClause string, args ...any) ([]*Media, error) {
 		err = rows.Scan(
 			&m.OID,
 			&m.RelativePath,
-			&m.Dangling,
 			&m.MediaKind,
+			&m.Dangling,
 			&m.Extension,
 			&mTime,
 			&m.Hash,

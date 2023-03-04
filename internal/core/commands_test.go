@@ -115,7 +115,46 @@ func TestCommandRestore(t *testing.T) {
 }
 
 func TestCommandCommit(t *testing.T) {
-	// TODO julien
+
+	t.Run("Basic", func(t *testing.T) {
+		root := SetUpCollectionFromGoldenDirNamed(t, "TestFileSave")
+
+		err := CurrentCollection().Add("go.md")
+		require.NoError(t, err)
+
+		err = CurrentDB().Commit("initial commit")
+		require.NoError(t, err)
+
+		newFilepath := filepath.Join(root, "python.md")
+		err = os.WriteFile(newFilepath, []byte(`# Python
+
+## Flashcard: Python's creator
+
+Who invented Python?
+---
+Guido van Rossum
+`), 0644)
+		require.NoError(t, err)
+
+		refBefore, _ := CurrentDB().Ref("main")
+		err = CurrentDB().Commit("empty commit")
+		require.ErrorContains(t, err, "nothing to commit")
+
+		// Check no commit were created
+		refAfter, _ := CurrentDB().Ref("main")
+		require.Equal(t, refBefore, refAfter)
+
+		// Create a second commit
+		CurrentLogger().SetVerboseLevel(VerboseDebug) // FIXME remove
+		err = CurrentCollection().Add("python.md")
+		require.NoError(t, err)
+
+		err = CurrentDB().Commit("second commit")
+		require.NoError(t, err)
+		refAfter, _ = CurrentDB().Ref("main")
+		require.NotEqual(t, refBefore, refAfter)
+	})
+
 }
 
 func TestCommandPull(t *testing.T) {
