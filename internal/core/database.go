@@ -354,6 +354,11 @@ func (db *DB) Pull() error {
 		db.updateRef("main", commit.OID)
 	}
 
+	// Persist local commit-graph including downloaded commits
+	if err := db.commitGraph.Save(); err != nil {
+		return err
+	}
+
 	// Keep note of last origin retrieved commit
 	db.updateRef("origin", cg.Ref())
 
@@ -370,19 +375,26 @@ func (db *DB) Push() error {
 		return errors.New("no remote found")
 	}
 
+	// List of commits to push
+	var commitOIDs []string
+
 	// Read remote's commit-graph to find new commits to pull
 	data, err := origin.GetObject("info/commit-graph")
 	if errors.Is(err, ErrObjectNotExist) {
-		// Nothing to pull
-		return nil
-	}
-	cg := new(CommitGraph)
-	if err := cg.Read(bytes.NewReader(data)); err != nil {
+		// Push all local commits
+		commitOIDs = db.commitGraph.CommitOIDs
+	} else if err != nil {
 		return err
+	} else {
+		cg := new(CommitGraph)
+		if err := cg.Read(bytes.NewReader(data)); err != nil {
+			return err
+		}
+		// Find only missing commits
+		commitOIDs = cg.MissingCommitsFrom(db.commitGraph)
 	}
 
-	// Iterate over missing commits
-	commitOIDs := cg.MissingCommitsFrom(db.commitGraph)
+	// Iterate over commits to push
 	for _, commitOID := range commitOIDs {
 
 		commit, err := db.ReadCommit(commitOID)

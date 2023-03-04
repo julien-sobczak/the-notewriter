@@ -157,10 +157,46 @@ Guido van Rossum
 
 }
 
-func TestCommandPull(t *testing.T) {
-	// TODO julien
-}
+func TestCommandPushPull(t *testing.T) {
 
-func TestCommandPush(t *testing.T) {
-	// TODO julien
+	t.Run("Basic", func(t *testing.T) {
+		SetUpCollectionFromGoldenDirNamed(t, "TestFileSave")
+		// Configure origin
+		origin := t.TempDir()
+		CurrentConfig().ConfigFile.Remote = ConfigRemote{
+			Type: "fs",
+			Dir:  origin,
+		}
+
+		// Push
+		err := CurrentCollection().Add(".")
+		require.NoError(t, err)
+		err = CurrentDB().Commit("initial commit")
+		require.NoError(t, err)
+		err = CurrentDB().Push()
+		require.NoError(t, err)
+		head, ok := CurrentDB().Ref("origin")
+		require.True(t, ok)
+
+		// Check origin
+		require.FileExists(t, filepath.Join(origin, "info/commit-graph"))
+		require.FileExists(t, filepath.Join(origin, OIDToPath(head)))
+
+		Reset()
+
+		// Pull from a new repository
+		root := SetUpCollectionFromTempDir(t)
+		// Configure same origin
+		CurrentConfig().ConfigFile.Remote = ConfigRemote{
+			Type: "fs",
+			Dir:  origin,
+		}
+		err = CurrentDB().Pull()
+		require.NoError(t, err)
+
+		// Check local
+		require.FileExists(t, filepath.Join(root, ".nt/objects/info/commit-graph"))
+		require.FileExists(t, filepath.Join(root, ".nt/objects", OIDToPath(head)))
+	})
+
 }
