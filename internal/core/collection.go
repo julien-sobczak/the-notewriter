@@ -98,7 +98,7 @@ func (c *Collection) CreateNewReferenceFile(identifier string, kind string) (*Fi
 		})
 	}
 
-	return NewFileFromAttributes(attributes), nil
+	return NewFileFromAttributes("", attributes), nil // FIXME use a name
 }
 
 /* Object */

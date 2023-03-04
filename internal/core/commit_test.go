@@ -133,7 +133,7 @@ commits:
 }
 
 func TestObjectData(t *testing.T) {
-	noteSrc := NewNote(NewEmptyFile(), "TODO: Backlog", "* [ ] Test ObjectData", 2)
+	noteSrc := NewNote(NewEmptyFile("todo.md"), "TODO: Backlog", "* [ ] Test ObjectData", 2)
 	dataSrc, err := NewObjectData(noteSrc)
 	require.NoError(t, err)
 
@@ -192,7 +192,7 @@ objects:
       state: added
       mtime: 2023-01-01T01:12:30Z
       desc: flashcard "Golang Logo" [93267c32147a4ab7a1100ce82faab56a99fca1cd]
-      data: eJyUkEGP0zAQhe/+FUNPEKmNne5uqZUN2hMXjkhIIBRNk4kTbZox9nQBiR+PGpeqLBKrnjwavTfv8+OhtbBdF3ebZl2Ymw3e4G6Dxmjd0NuiQ9zd3uF22zVomlbFnoPUMshIFt7ziJODD+xYdcNI9XW3JpZrLYIuWgUAsATHSn56sqDVtwMd5qFNzzAJhSccLRhFGKnusBEOFopbrVUgTzLIwFM8ikf0kdJEnRzfLvAk9R7DY8vfJwufehRomSJIT5Blp3+P7DjLIJAPFGmSd2qHzeOF79dyRn2ALHPsewpZtlLz6tWXY2lfX6/yPbUDxtzxKj65N6foXvajhdJXfyeXUQJPrrrIL/PT7gKjzH2VUNKdE0bpq4fzicRzdq9mzx9ZOewdxNDcL57xLQBHuV8c2ReQV7MpEQv9kOdFXWD+U1LSnwtKOC+V0wRCobZGsVDoYr3UZqnNR22sKexaf1YH3/5f8DsAAP//xGXohw==
+      data: eJyUkEGL1EAQhe/9K8o5aWCSTmZ3x2mykT158SgIioSapNIJ20m13TWjgj9eJhmHcQWXPVVRvFfv4/HQGthtirttsynymy3e4H6Lea51Q2+LDnF/e4e7Xddg3rQq9hyklkEcGXjPDicLH9iy6gZH9ct+TSwvtQRyKMORao/SG7Ccjq0StNEoAIA1WFby05MBrb4d6DAv7TKGSSgc0RnIFWGkusNGOBgobrVWgTzJIANP8SR26CMtG3Vyml3gSeoRw2PL3ycDn3oUaJkiSE+QJOcyHFtOEgjkA0Wa5J3aY/N45fu1nlEfIEks+55CkqRqPr36cmry6+s0G6kdMGaW03i0b87RvYzOQOmrv5PLKIEnW13ll9n5doVRZr5aUJY/Z4zSVw+XFwvPxZ3Onj+ychgtxNDcr57wrQCd3K9O7CvIqtm0EAv9kKdFXWH+U9KivxS04DxXThMIhdoaxUChi81a52udf9S5yQuz0Z/Vwbf/F/wOAAD//4rN8Cg=
 `), strings.TrimSpace(cYAML))
 
 		// Unmarshall YAML

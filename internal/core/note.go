@@ -139,12 +139,6 @@ func NewNote(f *File, title string, content string, lineNumber int) *Note {
 	return n
 }
 
-// NewNoteFromObject instantiates a new note from an object file.
-func NewNoteFromObject(r io.Reader) *Note {
-	// TODO
-	return &Note{new: false}
-}
-
 /* Object */
 
 func (n *Note) Kind() string {
@@ -1003,8 +997,8 @@ func FindNotesByWikilink(wikilink string) ([]*Note, error) {
 	return QueryNotes(`WHERE wikilink LIKE ?`, "%"+wikilink)
 }
 
-func FindNotesLastCheckedBefore(point time.Time) ([]*Note, error) {
-	return QueryNotes(`WHERE last_checked_at < ?`, timeToSQL(point))
+func FindNotesLastCheckedBefore(point time.Time, path string) ([]*Note, error) {
+	return QueryNotes(`WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 func SearchNotes(kind NoteKind, q string) ([]*Note, error) {

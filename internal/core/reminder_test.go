@@ -84,7 +84,7 @@ func TestReminder(t *testing.T) {
 	FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
 
 	t.Run("YAML", func(t *testing.T) {
-		noteSrc := NewNote(NewEmptyFile(), "TODO: Backlog", "* [ ] Test `#reminder-2025-09`", 2)
+		noteSrc := NewNote(NewEmptyFile("example.md"), "TODO: Backlog", "* [ ] Test `#reminder-2025-09`", 2)
 		reminderSrc, err := NewReminder(noteSrc, "Test", "#reminder-2025-09")
 		require.NoError(t, err)
 
@@ -97,6 +97,7 @@ func TestReminder(t *testing.T) {
 oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
 file_oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
 note_oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
+relative_path: example.md
 description_raw: Test
 description_markdown: Test
 description_html: <p>Test</p>

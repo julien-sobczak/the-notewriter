@@ -12,7 +12,7 @@ import (
 )
 
 func TestNewNoteQuote(t *testing.T) {
-	f := NewEmptyFile()
+	f := NewEmptyFile("example.md")
 	f.SetAttribute("tags", []string{"favorite"})
 	f.SetAttribute("name", "Austin Kleon")
 
@@ -212,7 +212,7 @@ Wisdom is making the right choice without all the information.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			file := NewEmptyFile()
+			file := NewEmptyFile("example.md")
 			actual := NewNote(file, tt.name, tt.input, 10)
 			content, _, _ := actual.parseContentRaw()
 			if tt.strict {
@@ -259,7 +259,7 @@ func TestGetLinks(t *testing.T) {
 	SetUpCollectionFromTempDir(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			note := NewNote(NewEmptyFile(), tt.title, tt.content, 1)
+			note := NewNote(NewEmptyFile("example.md"), tt.title, tt.content, 1)
 			links := note.GetLinks()
 			require.Len(t, links, len(tt.expected))
 			for i, actualLink := range links {
@@ -300,7 +300,7 @@ func TestGetReminders(t *testing.T) {
 	SetUpCollectionFromTempDir(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			note := NewNote(NewEmptyFile(), tt.title, tt.content, 1)
+			note := NewNote(NewEmptyFile("example.md"), tt.title, tt.content, 1)
 			reminders := note.GetReminders()
 			require.Len(t, reminders, len(tt.expected))
 			for i, actualReminder := range reminders {
@@ -346,7 +346,7 @@ func TestNoteFormat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			note := NewNote(NewEmptyFile(), tt.title, tt.content, 1)
+			note := NewNote(NewEmptyFile(""), tt.title, tt.content, 1)
 			actualJSON := note.FormatToJSON()
 			actualMarkdown := note.FormatToMarkdown()
 			actualHTML := note.FormatToHTML()
@@ -366,7 +366,7 @@ func TestNoteFTS(t *testing.T) {
 	CurrentLogger().SetVerboseLevel(VerboseTrace)
 
 	// Insert a note
-	note := NewNote(NewEmptyFile(), "Reference: FTS5", "TODO", 2)
+	note := NewNote(NewEmptyFile("example.md"), "Reference: FTS5", "TODO", 2)
 	tx, err := db.BeginTx(context.Background(), nil)
 	require.NoError(t, err)
 	err = note.InsertWithTx(tx)
@@ -413,7 +413,7 @@ func TestNote(t *testing.T) {
 	FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
 
 	t.Run("YAML", func(t *testing.T) {
-		noteSrc := NewNote(NewEmptyFile(), "TODO: Backlog", "* [ ] Test", 2)
+		noteSrc := NewNote(NewEmptyFile("example.md"), "TODO: Backlog", "* [ ] Test", 2)
 
 		// Marshall
 		buf := new(bytes.Buffer)
@@ -427,8 +427,8 @@ parent_note_oid: ""
 kind: 7
 title: 'TODO: Backlog'
 short_title: Backlog
-relative_path: ""
-wikilink: '#TODO: Backlog'
+relative_path: example.md
+wikilink: 'example.md#TODO: Backlog'
 attributes: {}
 line: 2
 content_raw: '* [ ] Test'

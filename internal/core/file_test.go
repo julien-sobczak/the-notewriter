@@ -38,7 +38,7 @@ key2: 2`,
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			file := NewFileFromAttributes(tt.input)
+			file := NewFileFromAttributes("", tt.input)
 			actual, err := file.FrontMatterString()
 			require.NoError(t, err)
 			assert.Equal(t, strings.TrimSpace(tt.expected), strings.TrimSpace(actual))
@@ -47,7 +47,7 @@ key2: 2`,
 }
 
 func TestNewFile(t *testing.T) {
-	f := NewEmptyFile()
+	f := NewEmptyFile("")
 	f.SetAttribute("tags", []string{"toto"})
 
 	assert.Equal(t, []interface{}{"toto"}, f.GetAttribute("tags"))

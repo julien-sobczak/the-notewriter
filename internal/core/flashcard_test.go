@@ -16,7 +16,7 @@ func TestFlashcard(t *testing.T) {
 	FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
 
 	t.Run("YAML", func(t *testing.T) {
-		fileSrc := NewEmptyFile()
+		fileSrc := NewEmptyFile("example.md")
 		noteSrc := NewNote(fileSrc, "Flashcard: Syntax", "Question\n---\nAnswer", 1)
 		flashcardSrc := NewFlashcard(fileSrc, noteSrc)
 
@@ -30,6 +30,7 @@ oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
 short_title: Syntax
 file_oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
 note_oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
+relative_path: example.md
 type: 0
 queue: 0
 due: 0

@@ -53,6 +53,9 @@ type Flashcard struct {
 	NoteOID string `yaml:"note_oid"`
 	Note    *Note  `yaml:"-"` // Lazy-loaded
 
+	// The filepath of the file containing the note (denormalized field)
+	RelativePath string `yaml:"relative_path"`
+
 	// List of tags
 	Tags []string `yaml:"tags,omitempty"`
 
@@ -154,13 +157,14 @@ func NewFlashcard(file *File, note *Note) *Flashcard {
 	// FIXME if front => invalid flashcard
 
 	f := &Flashcard{
-		OID:        NewOID(),
-		ShortTitle: note.ShortTitle,
-		FileOID:    file.OID,
-		File:       file,
-		NoteOID:    note.OID,
-		Note:       note,
-		Tags:       note.GetTags(),
+		OID:          NewOID(),
+		ShortTitle:   note.ShortTitle,
+		FileOID:      file.OID,
+		File:         file,
+		NoteOID:      note.OID,
+		Note:         note,
+		RelativePath: note.RelativePath,
+		Tags:         note.GetTags(),
 
 		// SRS
 		Type:        CardNew,
@@ -183,18 +187,6 @@ func NewFlashcard(file *File, note *Note) *Flashcard {
 	f.updateContent(frontMarkdown, backMarkdown)
 
 	return f
-}
-
-// NewFlaschardFromObject instantiates a new note from an object file.
-func NewFlashcardFromObject(r io.Reader) *Flashcard {
-	// TODO
-	return &Flashcard{}
-}
-
-// NewStudyFromObject instantiates a new study from an object file.
-func NewStudyFromObject(r io.Reader) *Study {
-	// TODO
-	return &Study{}
 }
 
 /* Object */
@@ -456,6 +448,7 @@ func (f *Flashcard) InsertWithTx(tx *sql.Tx) error {
 			oid,
 			file_oid,
 			note_oid,
+			relative_path,
 			short_title,
 			tags,
 			"type",
@@ -477,12 +470,13 @@ func (f *Flashcard) InsertWithTx(tx *sql.Tx) error {
 			deleted_at,
 			last_checked_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 		`
 	_, err := tx.Exec(query,
 		f.OID,
 		f.FileOID,
 		f.NoteOID,
+		f.RelativePath,
 		f.ShortTitle,
 		strings.Join(f.Tags, ","),
 		f.Type,
@@ -517,6 +511,7 @@ func (f *Flashcard) UpdateWithTx(tx *sql.Tx) error {
 		SET
 			file_oid = ?,
 			note_oid = ?,
+			relative_path = ?,
 			short_title = ?,
 			tags = ?,
 			"type" = ?,
@@ -541,6 +536,7 @@ func (f *Flashcard) UpdateWithTx(tx *sql.Tx) error {
 	_, err := tx.Exec(query,
 		f.FileOID,
 		f.NoteOID,
+		f.RelativePath,
 		f.ShortTitle,
 		strings.Join(f.Tags, ","),
 		f.Type,
@@ -621,8 +617,8 @@ func FindFlashcardByHash(hash string) (*Flashcard, error) {
 	return QueryFlashcard(`WHERE hash = ?`, hash)
 }
 
-func FindFlashcardsLastCheckedBefore(point time.Time) ([]*Flashcard, error) {
-	return QueryFlashcards(`WHERE last_checked_at < ?`, timeToSQL(point))
+func FindFlashcardsLastCheckedBefore(point time.Time, path string) ([]*Flashcard, error) {
+	return QueryFlashcards(`WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 /* SQL Helpers */
@@ -643,6 +639,7 @@ func QueryFlashcard(whereClause string, args ...any) (*Flashcard, error) {
 			oid,
 			file_oid,
 			note_oid,
+			relative_path,
 			short_title,
 			tags,
 			"type",
@@ -669,6 +666,7 @@ func QueryFlashcard(whereClause string, args ...any) (*Flashcard, error) {
 			&f.OID,
 			&f.FileOID,
 			&f.NoteOID,
+			&f.RelativePath,
 			&f.ShortTitle,
 			&tagsRaw,
 			&f.Type,
@@ -715,6 +713,7 @@ func QueryFlashcards(whereClause string, args ...any) ([]*Flashcard, error) {
 			oid,
 			file_oid,
 			note_oid,
+			relative_path,
 			short_title,
 			tags,
 			"type",
@@ -753,6 +752,7 @@ func QueryFlashcards(whereClause string, args ...any) ([]*Flashcard, error) {
 			&f.OID,
 			&f.FileOID,
 			&f.NoteOID,
+			&f.RelativePath,
 			&f.ShortTitle,
 			&tagsRaw,
 			&f.Type,

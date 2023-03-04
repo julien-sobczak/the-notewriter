@@ -29,6 +29,9 @@ type Reminder struct {
 	NoteOID string `yaml:"note_oid"`
 	Note    *Note  `yaml:"-"` // Lazy-loaded
 
+	// The filepath of the file containing the note (denormalized field)
+	RelativePath string `yaml:"relative_path"`
+
 	// Description
 	DescriptionRaw      string `yaml:"description_raw"`
 	DescriptionMarkdown string `yaml:"description_markdown"`
@@ -72,14 +75,15 @@ func NewReminder(note *Note, descriptionRaw, tag string) (*Reminder, error) {
 	descriptionRaw = strings.TrimSpace(descriptionRaw)
 
 	r := &Reminder{
-		OID:       NewOID(),
-		FileOID:   note.FileOID,
-		NoteOID:   note.OID,
-		Tag:       tag,
-		CreatedAt: clock.Now(),
-		UpdatedAt: clock.Now(),
-		stale:     true,
-		new:       true,
+		OID:          NewOID(),
+		FileOID:      note.FileOID,
+		NoteOID:      note.OID,
+		RelativePath: note.RelativePath,
+		Tag:          tag,
+		CreatedAt:    clock.Now(),
+		UpdatedAt:    clock.Now(),
+		stale:        true,
+		new:          true,
 	}
 
 	r.updateContent(descriptionRaw)
@@ -90,12 +94,6 @@ func NewReminder(note *Note, descriptionRaw, tag string) (*Reminder, error) {
 	}
 
 	return r, nil
-}
-
-// NewReminderFromObject instantiates a new reminder from an object file.
-func NewReminderFromObject(r io.Reader) *Reminder {
-	// TODO
-	return &Reminder{new: false}
 }
 
 /* Object */
@@ -708,6 +706,7 @@ func (r *Reminder) InsertWithTx(tx *sql.Tx) error {
 			oid,
 			file_oid,
 			note_oid,
+			relative_path,
 			description_raw,
 			description_markdown,
 			description_html,
@@ -720,12 +719,13 @@ func (r *Reminder) InsertWithTx(tx *sql.Tx) error {
 			deleted_at,
 			last_checked_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 	_, err := tx.Exec(query,
 		r.OID,
 		r.FileOID,
 		r.NoteOID,
+		r.RelativePath,
 		r.DescriptionRaw,
 		r.DescriptionMarkdown,
 		r.DescriptionHTML,
@@ -752,6 +752,7 @@ func (r *Reminder) UpdateWithTx(tx *sql.Tx) error {
 		SET
 			file_oid = ?,
 			note_oid = ?,
+			relative_path = ?,
 			description_raw = ?,
 			description_markdown = ?,
 			description_html = ?,
@@ -767,6 +768,7 @@ func (r *Reminder) UpdateWithTx(tx *sql.Tx) error {
 	_, err := tx.Exec(query,
 		r.FileOID,
 		r.NoteOID,
+		r.RelativePath,
 		r.DescriptionRaw,
 		r.DescriptionMarkdown,
 		r.DescriptionHTML,
@@ -839,8 +841,8 @@ func FindRemindersByUpcomingDate(deadline time.Time) ([]*Reminder, error) {
 	return QueryReminders(`WHERE next_performed_at > ?`, timeToSQL(deadline))
 }
 
-func FindRemindersLastCheckedBefore(point time.Time) ([]*Reminder, error) {
-	return QueryReminders(`WHERE last_checked_at < ?`, timeToSQL(point))
+func FindRemindersLastCheckedBefore(point time.Time, path string) ([]*Reminder, error) {
+	return QueryReminders(`WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 /* SQL Helpers */
@@ -862,6 +864,7 @@ func QueryReminder(whereClause string, args ...any) (*Reminder, error) {
 			oid,
 			file_oid,
 			note_oid,
+			relative_path,
 			description_raw,
 			description_markdown,
 			description_html,
@@ -879,6 +882,7 @@ func QueryReminder(whereClause string, args ...any) (*Reminder, error) {
 			&r.OID,
 			&r.FileOID,
 			&r.NoteOID,
+			&r.RelativePath,
 			&r.DescriptionRaw,
 			&r.DescriptionMarkdown,
 			&r.DescriptionHTML,
@@ -917,6 +921,7 @@ func QueryReminders(whereClause string, args ...any) ([]*Reminder, error) {
 			oid,
 			file_oid,
 			note_oid,
+			relative_path,
 			description_raw,
 			description_markdown,
 			description_html,
@@ -947,6 +952,7 @@ func QueryReminders(whereClause string, args ...any) ([]*Reminder, error) {
 			&r.OID,
 			&r.FileOID,
 			&r.NoteOID,
+			&r.RelativePath,
 			&r.DescriptionRaw,
 			&r.DescriptionMarkdown,
 			&r.DescriptionHTML,

@@ -131,16 +131,16 @@ func (c *Collection) Add(paths ...string) error {
 
 			return nil
 		})
-	}
 
-	deletions, err := c.findObjectsLastCheckedBefore(buildTime)
-	if err != nil {
-		return err
-	}
-	for _, deletion := range deletions {
-		deletion.ForceState(Deleted)
-		if err := db.StageObject(deletion); err != nil {
-			return fmt.Errorf("unable to stage deleted object %s: %v", deletion, err)
+		deletions, err := c.findObjectsLastCheckedBefore(buildTime, path)
+		if err != nil {
+			return err
+		}
+		for _, deletion := range deletions {
+			deletion.ForceState(Deleted)
+			if err := db.StageObject(deletion); err != nil {
+				return fmt.Errorf("unable to stage deleted object %s: %v", deletion, err)
+			}
 		}
 	}
 
@@ -156,47 +156,40 @@ func (c *Collection) Add(paths ...string) error {
 	return nil
 }
 
-func (c *Collection) findObjectsLastCheckedBefore(buildTime time.Time) ([]StatefulObject, error) {
+func (c *Collection) findObjectsLastCheckedBefore(buildTime time.Time, path string) ([]StatefulObject, error) {
 	CurrentLogger().Debug("Searching for ")
 	// Search for deleted objects...
 	var deletions []StatefulObject
 
-	links, err := FindLinksLastCheckedBefore(buildTime)
+	links, err := FindLinksLastCheckedBefore(buildTime, path)
 	if err != nil {
 		return nil, err
 	}
 	for _, object := range links {
 		deletions = append(deletions, object)
 	}
-	reminders, err := FindRemindersLastCheckedBefore(buildTime)
+	reminders, err := FindRemindersLastCheckedBefore(buildTime, path)
 	if err != nil {
 		return nil, err
 	}
 	for _, object := range reminders {
 		deletions = append(deletions, object)
 	}
-	flashcards, err := FindFlashcardsLastCheckedBefore(buildTime)
+	flashcards, err := FindFlashcardsLastCheckedBefore(buildTime, path)
 	if err != nil {
 		return nil, err
 	}
 	for _, object := range flashcards {
 		deletions = append(deletions, object)
 	}
-	medias, err := FindMediasLastCheckedBefore(buildTime)
-	if err != nil {
-		return nil, err
-	}
-	for _, object := range medias {
-		deletions = append(deletions, object)
-	}
-	notes, err := FindNotesLastCheckedBefore(buildTime)
+	notes, err := FindNotesLastCheckedBefore(buildTime, path)
 	if err != nil {
 		return nil, err
 	}
 	for _, object := range notes {
 		deletions = append(deletions, object)
 	}
-	files, err := FindFilesLastCheckedBefore(buildTime)
+	files, err := FindFilesLastCheckedBefore(buildTime, path)
 	if err != nil {
 		return nil, err
 	}

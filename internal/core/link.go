@@ -17,6 +17,9 @@ type Link struct {
 
 	NoteOID string `yaml:"note_oid"`
 
+	// The filepath of the file containing the note (denormalized field)
+	RelativePath string `yaml:"relative_path"`
+
 	// The link text
 	Text string `yaml:"text"`
 
@@ -53,12 +56,13 @@ func NewOrExistingLink(note *Note, text, url, title, goName string) *Link {
 
 func NewLink(note *Note, text, url, title, goName string) *Link {
 	return &Link{
-		OID:     NewOID(),
-		NoteOID: note.OID,
-		Text:    text,
-		URL:     url,
-		Title:   title,
-		GoName:  goName,
+		OID:          NewOID(),
+		NoteOID:      note.OID,
+		RelativePath: note.RelativePath,
+		Text:         text,
+		URL:          url,
+		Title:        title,
+		GoName:       goName,
 
 		CreatedAt: clock.Now(),
 		UpdatedAt: clock.Now(),
@@ -66,12 +70,6 @@ func NewLink(note *Note, text, url, title, goName string) *Link {
 		new:   true,
 		stale: true,
 	}
-}
-
-// NewLinkFromObject instantiates a new link from an object file.
-func NewLinkFromObject(r io.Reader) *Link {
-	// TODO
-	return &Link{}
 }
 
 /* Object */
@@ -291,6 +289,7 @@ func (l *Link) InsertWithTx(tx *sql.Tx) error {
 		INSERT INTO link(
 			oid,
 			note_oid,
+			relative_path,
 			"text",
 			url,
 			title,
@@ -300,11 +299,12 @@ func (l *Link) InsertWithTx(tx *sql.Tx) error {
 			deleted_at,
 			last_checked_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 		`
 	_, err := tx.Exec(query,
 		l.OID,
 		l.NoteOID,
+		l.RelativePath,
 		l.Text,
 		l.URL,
 		l.Title,
@@ -327,6 +327,7 @@ func (l *Link) UpdateWithTx(tx *sql.Tx) error {
 		UPDATE link
 		SET
 			note_oid = ?,
+			relative_path = ?,
 			"text" = ?,
 			url = ?,
 			title = ?,
@@ -339,6 +340,7 @@ func (l *Link) UpdateWithTx(tx *sql.Tx) error {
 		`
 	_, err := tx.Exec(query,
 		l.NoteOID,
+		l.RelativePath,
 		l.Text,
 		l.URL,
 		l.Title,
@@ -404,8 +406,8 @@ func FindLinksByText(text string) ([]*Link, error) {
 	return QueryLinks("WHERE text = ?", text)
 }
 
-func FindLinksLastCheckedBefore(point time.Time) ([]*Link, error) {
-	return QueryLinks(`WHERE last_checked_at < ?`, timeToSQL(point))
+func FindLinksLastCheckedBefore(point time.Time, path string) ([]*Link, error) {
+	return QueryLinks(`WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path + "%")
 }
 
 /* SQL Helpers */
@@ -424,6 +426,7 @@ func QueryLink(whereClause string, args ...any) (*Link, error) {
 		SELECT
 			oid,
 			note_oid,
+			relative_path,
 			"text",
 			url,
 			title,
@@ -437,6 +440,7 @@ func QueryLink(whereClause string, args ...any) (*Link, error) {
 		Scan(
 			&l.OID,
 			&l.NoteOID,
+			&l.RelativePath,
 			&l.Text,
 			&l.URL,
 			&l.Title,
@@ -469,6 +473,7 @@ func QueryLinks(whereClause string, args ...any) ([]*Link, error) {
 		SELECT
 			oid,
 			note_oid,
+			relative_path,
 			"text",
 			url,
 			title,
@@ -493,6 +498,7 @@ func QueryLinks(whereClause string, args ...any) ([]*Link, error) {
 		err = rows.Scan(
 			&l.OID,
 			&l.NoteOID,
+			&l.RelativePath,
 			&l.Text,
 			&l.URL,
 			&l.Title,

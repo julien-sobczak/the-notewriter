@@ -124,12 +124,6 @@ func NewMedia(relpath string) *Media {
 	return m
 }
 
-// NewMediaFromObject instantiates a new media from an object file.
-func NewMediaFromObject(r io.Reader) *Media {
-	// TODO
-	return &Media{}
-}
-
 func (m *Media) Update() {
 	abspath := CurrentCollection().GetAbsolutePath(m.RelativePath)
 	stat, err := os.Stat(abspath)
@@ -537,8 +531,8 @@ func FindMediaByHash(hash string) (*Media, error) {
 	return QueryMedia(`WHERE hashsum = ?`, hash)
 }
 
-func FindMediasLastCheckedBefore(point time.Time) ([]*Media, error) {
-	return QueryMedias(`WHERE last_checked_at < ?`, timeToSQL(point))
+func FindMediasLastCheckedBefore(point time.Time, path string) ([]*Media, error) {
+	return QueryMedias(`WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 /* SQL Helpers */

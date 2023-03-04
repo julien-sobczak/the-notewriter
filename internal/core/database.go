@@ -519,6 +519,7 @@ func (db *DB) updateRef(name, commitOID string) error {
 	}
 	defer f.Close()
 	_, err = f.WriteString(commitOID)
+	db.refs[name] = commitOID
 	return err
 }
 

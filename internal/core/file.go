@@ -79,24 +79,20 @@ func NewOrExistingFile(path string) (*File, error) {
 	return NewFileFromPath(path)
 }
 
-// NewFileFromObject instantiates a new file from an object file.
-func NewFileFromObject(r io.Reader) *File {
-	// TODO
-	return &File{new: false}
-}
-
 /* Creation */
 
-func NewEmptyFile() *File {
+func NewEmptyFile(name string) *File {
 	return &File{
-		OID:   NewOID(),
-		stale: true,
-		new:   true,
+		OID:          NewOID(),
+		stale:        true,
+		new:          true,
+		Wikilink:     name,
+		RelativePath: name,
 	}
 }
 
-func NewFileFromAttributes(attributes []Attribute) *File {
-	file := NewEmptyFile()
+func NewFileFromAttributes(name string, attributes []Attribute) *File {
+	file := NewEmptyFile(name)
 	for _, attribute := range attributes {
 		file.SetAttribute(attribute.Key, attribute.Value)
 	}
@@ -893,8 +889,8 @@ func FindFilesByWikilink(wikilink string) ([]*File, error) {
 	return QueryFiles(`WHERE wikilink LIKE ?`, "%"+wikilink)
 }
 
-func FindFilesLastCheckedBefore(point time.Time) ([]*File, error) {
-	return QueryFiles(`WHERE last_checked_at < ?`, timeToSQL(point))
+func FindFilesLastCheckedBefore(point time.Time, path string) ([]*File, error) {
+	return QueryFiles(`WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 // CountFiles returns the total number of files.
