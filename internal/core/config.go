@@ -54,6 +54,7 @@ type ConfigRemote struct {
 	AccessKey  string
 	SecretKey  string
 	BucketName string
+	Secure     bool
 }
 type ConfigSearch struct {
 	Q    string

@@ -88,11 +88,11 @@ type S3Remote struct {
 	minioClient *minio.Client
 }
 
-func NewS3RemoteWithCredentials(endpoint string, bucketName string, accessKey, secretKey string) (*S3Remote, error) {
+func NewS3RemoteWithCredentials(endpoint string, bucketName string, accessKey, secretKey string, secure bool) (*S3Remote, error) {
 	// Initialize minio client object.
 	minioClient, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
-		Secure: true,
+		Secure: secure,
 	})
 	if err != nil {
 		return nil, err
@@ -110,8 +110,16 @@ func NewS3RemoteWithCredentials(endpoint string, bucketName string, accessKey, s
 func (r *S3Remote) GetObject(key string) ([]byte, error) {
 	object, err := r.minioClient.GetObject(context.Background(), r.bucketName, key, minio.GetObjectOptions{})
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
+	stat, err := object.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if stat.Size == 0 {
+		return nil, ErrObjectNotExist
+	}
+	defer object.Close()
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(object)
 	return buf.Bytes(), nil
@@ -123,5 +131,9 @@ func (r *S3Remote) PutObject(key string, data []byte) error {
 }
 
 func (r *S3Remote) DeleteObject(key string) error {
+	_, err := r.GetObject(key)
+	if err != nil {
+		return err
+	}
 	return r.minioClient.RemoveObject(context.Background(), r.bucketName, key, minio.RemoveObjectOptions{})
 }

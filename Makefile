@@ -11,6 +11,9 @@ build:
 test:
 	go test --tags "fts5" ./... -count=1 -v
 
+test-all:
+	go test --tags "fts5 integration" ./... -count=1 -v
+
 install:
 	go install --tags "fts5"
 

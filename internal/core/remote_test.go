@@ -13,11 +13,12 @@ func TestFSRemote(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add a file
-	r.PutObject("info/commit-graph", []byte(`
+	err = r.PutObject("info/commit-graph", []byte(`
 updated_at: 2023-01-01T01:14:30Z
 commits:
 	- a757e67f5ae2a8df3a4634c96c16af5c8491bea2
 `))
+	require.NoError(t, err)
 
 	// Read the wrong file
 	_, err = r.GetObject("commit-graph")

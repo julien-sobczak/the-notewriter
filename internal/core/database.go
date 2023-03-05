@@ -151,7 +151,7 @@ func (db *DB) Origin() Remote {
 			}
 			db.origin = remote
 		case "s3":
-			remote, err := NewS3RemoteWithCredentials(configRemote.Endpoint, configRemote.BucketName, configRemote.AccessKey, configRemote.SecretKey)
+			remote, err := NewS3RemoteWithCredentials(configRemote.Endpoint, configRemote.BucketName, configRemote.AccessKey, configRemote.SecretKey, configRemote.Secure)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Unable to init S3 remote: %v\n", err)
 				os.Exit(1)
