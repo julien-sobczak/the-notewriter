@@ -411,10 +411,9 @@ func (m *Media) InsertWithTx(tx *sql.Tx) error {
 			mode,
 			created_at,
 			updated_at,
-			deleted_at,
 			last_checked_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 	_, err := tx.Exec(query,
 		m.OID,
@@ -429,7 +428,6 @@ func (m *Media) InsertWithTx(tx *sql.Tx) error {
 		m.Mode,
 		timeToSQL(m.CreatedAt),
 		timeToSQL(m.UpdatedAt),
-		timeToSQL(m.DeletedAt),
 		timeToSQL(m.LastCheckedAt),
 	)
 	if err != nil {
@@ -455,7 +453,6 @@ func (m *Media) UpdateWithTx(tx *sql.Tx) error {
 			mode = ?,
 			created_at = ?,
 			updated_at = ?,
-			deleted_at = ?,
 			last_checked_at = ?
 		WHERE oid = ?;
 	`
@@ -471,7 +468,6 @@ func (m *Media) UpdateWithTx(tx *sql.Tx) error {
 		m.Mode,
 		timeToSQL(m.CreatedAt),
 		timeToSQL(m.UpdatedAt),
-		timeToSQL(m.DeletedAt),
 		timeToSQL(m.LastCheckedAt),
 		m.OID,
 	)
@@ -512,7 +508,7 @@ func CountMedias() (int, error) {
 	db := CurrentDB().Client()
 
 	var count int
-	if err := db.QueryRow(`SELECT count(*) FROM media WHERE deleted_at = ''`).Scan(&count); err != nil {
+	if err := db.QueryRow(`SELECT count(*) FROM media`).Scan(&count); err != nil {
 		return 0, err
 	}
 
@@ -543,7 +539,6 @@ func QueryMedia(whereClause string, args ...any) (*Media, error) {
 	var m Media
 	var createdAt string
 	var updatedAt string
-	var deletedAt string
 	var lastCheckedAt string
 	var mTime string
 
@@ -562,7 +557,6 @@ func QueryMedia(whereClause string, args ...any) (*Media, error) {
 			mode,
 			created_at,
 			updated_at,
-			deleted_at,
 			last_checked_at
 		FROM media
 		%s;`, whereClause), args...).
@@ -579,7 +573,6 @@ func QueryMedia(whereClause string, args ...any) (*Media, error) {
 			&m.Mode,
 			&createdAt,
 			&updatedAt,
-			&deletedAt,
 			&lastCheckedAt,
 		); err != nil {
 		if err == sql.ErrNoRows {
@@ -590,7 +583,6 @@ func QueryMedia(whereClause string, args ...any) (*Media, error) {
 
 	m.CreatedAt = timeFromSQL(createdAt)
 	m.UpdatedAt = timeFromSQL(updatedAt)
-	m.DeletedAt = timeFromSQL(deletedAt)
 	m.LastCheckedAt = timeFromSQL(lastCheckedAt)
 	m.MTime = timeFromSQL(mTime)
 
@@ -616,7 +608,6 @@ func QueryMedias(whereClause string, args ...any) ([]*Media, error) {
 			mode,
 			created_at,
 			updated_at,
-			deleted_at,
 			last_checked_at
 		FROM media
 		%s;`, whereClause), args...)
@@ -628,7 +619,6 @@ func QueryMedias(whereClause string, args ...any) ([]*Media, error) {
 		var m Media
 		var createdAt string
 		var updatedAt string
-		var deletedAt string
 		var lastCheckedAt string
 		var mTime string
 
@@ -645,7 +635,6 @@ func QueryMedias(whereClause string, args ...any) ([]*Media, error) {
 			&m.Mode,
 			&createdAt,
 			&updatedAt,
-			&deletedAt,
 			&lastCheckedAt,
 		)
 		if err != nil {
@@ -654,7 +643,6 @@ func QueryMedias(whereClause string, args ...any) ([]*Media, error) {
 
 		m.CreatedAt = timeFromSQL(createdAt)
 		m.UpdatedAt = timeFromSQL(updatedAt)
-		m.DeletedAt = timeFromSQL(deletedAt)
 		m.LastCheckedAt = timeFromSQL(lastCheckedAt)
 		m.MTime = timeFromSQL(mTime)
 		medias = append(medias, &m)

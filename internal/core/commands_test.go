@@ -228,12 +228,12 @@ Guido van Rossum
 		assert.Equal(t, strings.TrimSpace(`
 Changes to be committed:
   (use "nt restore..." to unstage)
-	added:	file "go.md" [0000000000000000000000000000000000000002]
-	added:	note "Reference: Golang History" [0000000000000000000000000000000000000003]
-	added:	note "Flashcard: Golang Logo" [0000000000000000000000000000000000000004]
-	added:	note "TODO: Conferences" [0000000000000000000000000000000000000005]
-	added:	flashcard "Golang Logo" [0000000000000000000000000000000000000006]
-	added:	media medias/go.svg [0000000000000000000000000000000000000007]
+	added:	file "go.md" [0000000000000000000000000000000000000001]
+	added:	note "Reference: Golang History" [0000000000000000000000000000000000000002]
+	added:	note "Flashcard: Golang Logo" [0000000000000000000000000000000000000003]
+	added:	note "TODO: Conferences" [0000000000000000000000000000000000000004]
+	added:	flashcard "Golang Logo" [0000000000000000000000000000000000000005]
+	added:	media medias/go.svg [0000000000000000000000000000000000000006]
 
 Changes not staged for commit:
   (use "nt add <file>..." to update what will be committed)
@@ -267,9 +267,9 @@ Changes not staged for commit:
 		assert.Equal(t, strings.TrimSpace(`
 Changes to be committed:
   (use "nt restore..." to unstage)
-	added:	file "python.md" [0000000000000000000000000000000000000008]
-	added:	note "Flashcard: Python's creator" [0000000000000000000000000000000000000009]
-	added:	flashcard "Python's creator" [0000000000000000000000000000000000000010]
+	added:	file "python.md" [0000000000000000000000000000000000000007]
+	added:	note "Flashcard: Python's creator" [0000000000000000000000000000000000000008]
+	added:	flashcard "Python's creator" [0000000000000000000000000000000000000009]
 
 Changes not staged for commit:
   (use "nt add <file>..." to update what will be committed)
@@ -286,15 +286,15 @@ Changes not staged for commit:
 		assert.Equal(t, strings.TrimSpace(`
 Changes to be committed:
   (use "nt restore..." to unstage)
-	added:	file "python.md" [0000000000000000000000000000000000000008]
-	added:	note "Flashcard: Python's creator" [0000000000000000000000000000000000000009]
-	added:	flashcard "Python's creator" [0000000000000000000000000000000000000010]
-	added:	file "go.md" [0000000000000000000000000000000000000011]
-	added:	note "Reference: Golang History" [0000000000000000000000000000000000000012]
-	added:	note "Flashcard: Golang Logo" [0000000000000000000000000000000000000013]
-	added:	note "TODO: Conferences" [0000000000000000000000000000000000000014]
-	added:	flashcard "Golang Logo" [0000000000000000000000000000000000000015]
-	added:	media medias/go.svg [0000000000000000000000000000000000000016]
+	added:	file "python.md" [0000000000000000000000000000000000000007]
+	added:	note "Flashcard: Python's creator" [0000000000000000000000000000000000000008]
+	added:	flashcard "Python's creator" [0000000000000000000000000000000000000009]
+	added:	file "go.md" [0000000000000000000000000000000000000010]
+	added:	note "Reference: Golang History" [0000000000000000000000000000000000000011]
+	added:	note "Flashcard: Golang Logo" [0000000000000000000000000000000000000012]
+	added:	note "TODO: Conferences" [0000000000000000000000000000000000000013]
+	added:	flashcard "Golang Logo" [0000000000000000000000000000000000000014]
+	added:	media medias/go.svg [0000000000000000000000000000000000000015]
 		`), strings.TrimSpace(output))
 	})
 

@@ -296,10 +296,9 @@ func (l *Link) InsertWithTx(tx *sql.Tx) error {
 			go_name,
 			created_at,
 			updated_at,
-			deleted_at,
 			last_checked_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 		`
 	_, err := tx.Exec(query,
 		l.OID,
@@ -311,7 +310,6 @@ func (l *Link) InsertWithTx(tx *sql.Tx) error {
 		l.GoName,
 		timeToSQL(l.CreatedAt),
 		timeToSQL(l.UpdatedAt),
-		timeToSQL(l.DeletedAt),
 		timeToSQL(l.LastCheckedAt),
 	)
 	if err != nil {
@@ -333,7 +331,6 @@ func (l *Link) UpdateWithTx(tx *sql.Tx) error {
 			title = ?,
 			go_name = ?,
 			updated_at = ?,
-			deleted_at = ?,
 			last_checked_at = ?
 		)
 		WHERE oid = ?;
@@ -346,7 +343,6 @@ func (l *Link) UpdateWithTx(tx *sql.Tx) error {
 		l.Title,
 		l.GoName,
 		timeToSQL(l.UpdatedAt),
-		timeToSQL(l.DeletedAt),
 		timeToSQL(l.LastCheckedAt),
 		l.OID,
 	)
@@ -387,7 +383,7 @@ func CountLinks() (int, error) {
 	db := CurrentDB().Client()
 
 	var count int
-	if err := db.QueryRow(`SELECT count(*) FROM link WHERE deleted_at = ''`).Scan(&count); err != nil {
+	if err := db.QueryRow(`SELECT count(*) FROM link`).Scan(&count); err != nil {
 		return 0, err
 	}
 
@@ -418,7 +414,6 @@ func QueryLink(whereClause string, args ...any) (*Link, error) {
 	var l Link
 	var createdAt string
 	var updatedAt string
-	var deletedAt string
 	var lastCheckedAt string
 
 	// Query for a value based on a single row.
@@ -433,7 +428,6 @@ func QueryLink(whereClause string, args ...any) (*Link, error) {
 			go_name,
 			created_at,
 			updated_at,
-			deleted_at,
 			last_checked_at
 		FROM link
 		%s;`, whereClause), args...).
@@ -447,7 +441,6 @@ func QueryLink(whereClause string, args ...any) (*Link, error) {
 			&l.GoName,
 			&createdAt,
 			&updatedAt,
-			&deletedAt,
 			&lastCheckedAt,
 		); err != nil {
 		if err == sql.ErrNoRows {
@@ -458,7 +451,6 @@ func QueryLink(whereClause string, args ...any) (*Link, error) {
 
 	l.CreatedAt = timeFromSQL(createdAt)
 	l.UpdatedAt = timeFromSQL(updatedAt)
-	l.DeletedAt = timeFromSQL(deletedAt)
 	l.LastCheckedAt = timeFromSQL(lastCheckedAt)
 
 	return &l, nil
@@ -480,7 +472,6 @@ func QueryLinks(whereClause string, args ...any) ([]*Link, error) {
 			go_name,
 			created_at,
 			updated_at,
-			deleted_at,
 			last_checked_at
 		FROM link
 		%s;`, whereClause), args...)
@@ -492,7 +483,6 @@ func QueryLinks(whereClause string, args ...any) ([]*Link, error) {
 		var l Link
 		var createdAt string
 		var updatedAt string
-		var deletedAt string
 		var lastCheckedAt string
 
 		err = rows.Scan(
@@ -505,7 +495,6 @@ func QueryLinks(whereClause string, args ...any) ([]*Link, error) {
 			&l.GoName,
 			&createdAt,
 			&updatedAt,
-			&deletedAt,
 			&lastCheckedAt,
 		)
 		if err != nil {
@@ -514,7 +503,6 @@ func QueryLinks(whereClause string, args ...any) ([]*Link, error) {
 
 		l.CreatedAt = timeFromSQL(createdAt)
 		l.UpdatedAt = timeFromSQL(updatedAt)
-		l.DeletedAt = timeFromSQL(deletedAt)
 		l.LastCheckedAt = timeFromSQL(lastCheckedAt)
 		links = append(links, &l)
 	}

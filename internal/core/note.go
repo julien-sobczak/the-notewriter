@@ -806,9 +806,8 @@ func (n *Note) InsertWithTx(tx *sql.Tx) error {
 			content_text,
 			created_at,
 			updated_at,
-			deleted_at,
 			last_checked_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 
 	attributesYAML, err := n.AttributesYAML()
@@ -840,7 +839,6 @@ func (n *Note) InsertWithTx(tx *sql.Tx) error {
 		n.ContentText,
 		timeToSQL(n.CreatedAt),
 		timeToSQL(n.UpdatedAt),
-		timeToSQL(n.DeletedAt),
 		timeToSQL(n.LastCheckedAt),
 	)
 	if err != nil {
@@ -872,7 +870,6 @@ func (n *Note) UpdateWithTx(tx *sql.Tx) error {
 			content_html = ?,
 			content_text = ?,
 			updated_at = ?,
-			deleted_at = ?,
 			last_checked_at = ?
 		WHERE oid = ?;
 	`
@@ -904,7 +901,6 @@ func (n *Note) UpdateWithTx(tx *sql.Tx) error {
 		n.ContentHTML,
 		n.ContentText,
 		timeToSQL(n.UpdatedAt),
-		timeToSQL(n.DeletedAt),
 		timeToSQL(n.LastCheckedAt),
 		n.OID,
 	)
@@ -966,7 +962,7 @@ func CountNotes() (int, error) {
 	db := CurrentDB().Client()
 
 	var count int
-	if err := db.QueryRow(`SELECT count(*) FROM note WHERE deleted_at = ''`).Scan(&count); err != nil {
+	if err := db.QueryRow(`SELECT count(*) FROM note`).Scan(&count); err != nil {
 		return 0, err
 	}
 
@@ -1034,7 +1030,6 @@ func QueryNote(whereClause string, args ...any) (*Note, error) {
 	var n Note
 	var createdAt string
 	var updatedAt string
-	var deletedAt string
 	var lastCheckedAt string
 	var tagsRaw string
 	var attributesRaw string
@@ -1060,7 +1055,6 @@ func QueryNote(whereClause string, args ...any) (*Note, error) {
 			content_text,
 			created_at,
 			updated_at,
-			deleted_at,
 			last_checked_at
 		FROM note
 		%s;`, whereClause), args...).
@@ -1083,7 +1077,6 @@ func QueryNote(whereClause string, args ...any) (*Note, error) {
 			&n.ContentText,
 			&createdAt,
 			&updatedAt,
-			&deletedAt,
 			&lastCheckedAt,
 		); err != nil {
 		if err == sql.ErrNoRows {
@@ -1102,7 +1095,6 @@ func QueryNote(whereClause string, args ...any) (*Note, error) {
 	n.Tags = strings.Split(tagsRaw, ",")
 	n.CreatedAt = timeFromSQL(createdAt)
 	n.UpdatedAt = timeFromSQL(updatedAt)
-	n.DeletedAt = timeFromSQL(deletedAt)
 	n.LastCheckedAt = timeFromSQL(lastCheckedAt)
 
 	return &n, nil
@@ -1133,7 +1125,6 @@ func QueryNotes(whereClause string, args ...any) ([]*Note, error) {
 			content_text,
 			created_at,
 			updated_at,
-			deleted_at,
 			last_checked_at
 		FROM note
 		%s;`, whereClause), args...)
@@ -1145,7 +1136,6 @@ func QueryNotes(whereClause string, args ...any) ([]*Note, error) {
 		var n Note
 		var createdAt string
 		var updatedAt string
-		var deletedAt string
 		var lastCheckedAt string
 		var tagsRaw string
 		var attributesRaw string
@@ -1169,7 +1159,6 @@ func QueryNotes(whereClause string, args ...any) ([]*Note, error) {
 			&n.ContentText,
 			&createdAt,
 			&updatedAt,
-			&deletedAt,
 			&lastCheckedAt,
 		)
 		if err != nil {
@@ -1186,7 +1175,6 @@ func QueryNotes(whereClause string, args ...any) ([]*Note, error) {
 		n.Tags = strings.Split(tagsRaw, ",")
 		n.CreatedAt = timeFromSQL(createdAt)
 		n.UpdatedAt = timeFromSQL(updatedAt)
-		n.DeletedAt = timeFromSQL(deletedAt)
 		n.LastCheckedAt = timeFromSQL(lastCheckedAt)
 		notes = append(notes, &n)
 	}

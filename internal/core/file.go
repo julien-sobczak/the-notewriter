@@ -771,14 +771,13 @@ func (f *File) InsertWithTx(tx *sql.Tx) error {
 			content,
 			created_at,
 			updated_at,
-			deleted_at,
 			last_checked_at,
 			mtime,
 			size,
 			hashsum,
 			mode
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 	frontMatter, err := f.FrontMatterString()
 	if err != nil {
@@ -792,7 +791,6 @@ func (f *File) InsertWithTx(tx *sql.Tx) error {
 		f.Content,
 		timeToSQL(f.CreatedAt),
 		timeToSQL(f.UpdatedAt),
-		timeToSQL(f.DeletedAt),
 		timeToSQL(f.LastCheckedAt),
 		timeToSQL(f.MTime),
 		f.Size,
@@ -816,7 +814,6 @@ func (f *File) UpdateWithTx(tx *sql.Tx) error {
 			front_matter = ?,
 			content = ?,
 			updated_at = ?,
-			deleted_at = ?,
 			last_checked_at = ?,
 			mtime = ?,
 			size = ?,
@@ -834,7 +831,6 @@ func (f *File) UpdateWithTx(tx *sql.Tx) error {
 		frontMatter,
 		f.Content,
 		timeToSQL(f.UpdatedAt),
-		timeToSQL(f.DeletedAt),
 		timeToSQL(f.LastCheckedAt),
 		timeToSQL(f.MTime),
 		f.Size,
@@ -898,7 +894,7 @@ func CountFiles() (int, error) {
 	db := CurrentDB().Client()
 
 	var count int
-	if err := db.QueryRow(`SELECT count(*) FROM file WHERE deleted_at = ''`).Scan(&count); err != nil {
+	if err := db.QueryRow(`SELECT count(*) FROM file`).Scan(&count); err != nil {
 		return 0, err
 	}
 
@@ -914,7 +910,6 @@ func QueryFile(whereClause string, args ...any) (*File, error) {
 	var rawFrontMatter string
 	var createdAt string
 	var updatedAt string
-	var deletedAt string
 	var lastCheckedAt string
 	var mTime string
 
@@ -928,7 +923,6 @@ func QueryFile(whereClause string, args ...any) (*File, error) {
 			content,
 			created_at,
 			updated_at,
-			deleted_at,
 			last_checked_at,
 			mtime,
 			size,
@@ -944,7 +938,6 @@ func QueryFile(whereClause string, args ...any) (*File, error) {
 			&f.Content,
 			&createdAt,
 			&updatedAt,
-			&deletedAt,
 			&lastCheckedAt,
 			&mTime,
 			&f.Size,
@@ -968,7 +961,6 @@ func QueryFile(whereClause string, args ...any) (*File, error) {
 	}
 	f.CreatedAt = timeFromSQL(createdAt)
 	f.UpdatedAt = timeFromSQL(updatedAt)
-	f.DeletedAt = timeFromSQL(deletedAt)
 	f.LastCheckedAt = timeFromSQL(lastCheckedAt)
 	f.MTime = timeFromSQL(mTime)
 
@@ -989,7 +981,6 @@ func QueryFiles(whereClause string, args ...any) ([]*File, error) {
 			content,
 			created_at,
 			updated_at,
-			deleted_at,
 			last_checked_at,
 			mtime,
 			size,
@@ -1006,7 +997,6 @@ func QueryFiles(whereClause string, args ...any) ([]*File, error) {
 		var rawFrontMatter string
 		var createdAt string
 		var updatedAt string
-		var deletedAt string
 		var lastCheckedAt string
 		var mTime string
 
@@ -1018,7 +1008,6 @@ func QueryFiles(whereClause string, args ...any) ([]*File, error) {
 			&f.Content,
 			&createdAt,
 			&updatedAt,
-			&deletedAt,
 			&lastCheckedAt,
 			&mTime,
 			&f.Size,
@@ -1040,7 +1029,6 @@ func QueryFiles(whereClause string, args ...any) ([]*File, error) {
 		}
 		f.CreatedAt = timeFromSQL(createdAt)
 		f.UpdatedAt = timeFromSQL(updatedAt)
-		f.DeletedAt = timeFromSQL(deletedAt)
 		f.LastCheckedAt = timeFromSQL(lastCheckedAt)
 		f.MTime = timeFromSQL(mTime)
 

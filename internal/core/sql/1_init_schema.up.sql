@@ -1,12 +1,3 @@
-CREATE TABLE collection (
-    oid TEXT PRIMARY KEY,
-
-    -- Timestamps to track changes
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    last_checked_at TEXT
-);
-
 CREATE TABLE file (
     oid TEXT PRIMARY KEY,
 
@@ -24,7 +15,6 @@ CREATE TABLE file (
     -- Timestamps to track changes
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    deleted_at TEXT,
     last_checked_at TEXT,
 
     -- Last modification of local file on disk
@@ -91,7 +81,6 @@ CREATE TABLE note (
     -- Timestamps to track changes
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    deleted_at TEXT,
     last_checked_at TEXT
 );
 
@@ -149,7 +138,6 @@ CREATE TABLE media (
     -- Timestamps to track changes
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    deleted_at TEXT,
     last_checked_at TEXT
 );
 
@@ -173,7 +161,6 @@ CREATE TABLE link (
     -- Timestamps to track changes
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    deleted_at TEXT,
     last_checked_at TEXT
 );
 -- Ex (skills/node.md): [Link 2](https://docs.npmjs.com "Tutorial to creating Node.js modules #go/node/module")
@@ -247,7 +234,6 @@ CREATE TABLE flashcard (
     -- Timestamps to track changes
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    deleted_at TEXT,
     last_checked_at TEXT
 );
 
@@ -280,6 +266,5 @@ CREATE TABLE reminder (
     -- Timestamps to track changes
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    deleted_at TEXT,
     last_checked_at TEXT
 );

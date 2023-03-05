@@ -78,6 +78,8 @@ func SetUpS3Remote(t *testing.T) (*S3Remote, *minio.Client) {
 	ctx := context.Background()
 
 	// Start the container
+	// (See documentation https://golang.testcontainers.org/quickstart/)
+	// (See example https://github.com/romnn/testcontainers/blob/v0.2.0/examples/minio/minio_example.go)
 	req := testcontainers.ContainerRequest{
 		Image: "minio/minio:RELEASE.2023-02-27T18-10-45Z", // Check https://hub.docker.com/r/minio/minio/tags
 		Env: map[string]string{

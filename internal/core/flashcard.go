@@ -467,10 +467,9 @@ func (f *Flashcard) InsertWithTx(tx *sql.Tx) error {
 			back_text,
 			created_at,
 			updated_at,
-			deleted_at,
 			last_checked_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 		`
 	_, err := tx.Exec(query,
 		f.OID,
@@ -495,7 +494,6 @@ func (f *Flashcard) InsertWithTx(tx *sql.Tx) error {
 		f.BackText,
 		timeToSQL(f.CreatedAt),
 		timeToSQL(f.UpdatedAt),
-		timeToSQL(f.DeletedAt),
 		timeToSQL(f.LastCheckedAt))
 	if err != nil {
 		return err
@@ -529,7 +527,6 @@ func (f *Flashcard) UpdateWithTx(tx *sql.Tx) error {
 			front_text = ?,
 			back_text = ?,
 			updated_at = ?,
-			deleted_at = ?,
 			last_checked_at = ?
 		WHERE oid = ?;
 		`
@@ -554,7 +551,6 @@ func (f *Flashcard) UpdateWithTx(tx *sql.Tx) error {
 		f.FrontText,
 		f.BackText,
 		timeToSQL(f.UpdatedAt),
-		timeToSQL(f.DeletedAt),
 		timeToSQL(f.LastCheckedAt),
 		f.OID)
 
@@ -594,7 +590,7 @@ func CountFlashcards() (int, error) {
 	db := CurrentDB().Client()
 
 	var count int
-	if err := db.QueryRow(`SELECT count(*) FROM flashcard WHERE deleted_at = ''`).Scan(&count); err != nil {
+	if err := db.QueryRow(`SELECT count(*) FROM flashcard`).Scan(&count); err != nil {
 		return 0, err
 	}
 
@@ -630,7 +626,6 @@ func QueryFlashcard(whereClause string, args ...any) (*Flashcard, error) {
 	var tagsRaw string
 	var createdAt string
 	var updatedAt string
-	var deletedAt string
 	var lastCheckedAt string
 
 	// Query for a value based on a single row.
@@ -658,7 +653,6 @@ func QueryFlashcard(whereClause string, args ...any) (*Flashcard, error) {
 			back_text,
 			created_at,
 			updated_at,
-			deleted_at,
 			last_checked_at
 		FROM flashcard
 		%s;`, whereClause), args...).
@@ -685,7 +679,6 @@ func QueryFlashcard(whereClause string, args ...any) (*Flashcard, error) {
 			&f.BackText,
 			&createdAt,
 			&updatedAt,
-			&deletedAt,
 			&lastCheckedAt,
 		); err != nil {
 		if err == sql.ErrNoRows {
@@ -697,7 +690,6 @@ func QueryFlashcard(whereClause string, args ...any) (*Flashcard, error) {
 	f.Tags = strings.Split(tagsRaw, ",")
 	f.CreatedAt = timeFromSQL(createdAt)
 	f.UpdatedAt = timeFromSQL(updatedAt)
-	f.DeletedAt = timeFromSQL(deletedAt)
 	f.LastCheckedAt = timeFromSQL(lastCheckedAt)
 
 	return &f, nil
@@ -732,7 +724,6 @@ func QueryFlashcards(whereClause string, args ...any) ([]*Flashcard, error) {
 			back_text,
 			created_at,
 			updated_at,
-			deleted_at,
 			last_checked_at
 		FROM flashcard
 		%s;`, whereClause), args...)
@@ -745,7 +736,6 @@ func QueryFlashcards(whereClause string, args ...any) ([]*Flashcard, error) {
 		var tagsRaw string
 		var createdAt string
 		var updatedAt string
-		var deletedAt string
 		var lastCheckedAt string
 
 		err = rows.Scan(
@@ -771,7 +761,6 @@ func QueryFlashcards(whereClause string, args ...any) ([]*Flashcard, error) {
 			&f.BackText,
 			&createdAt,
 			&updatedAt,
-			&deletedAt,
 			&lastCheckedAt,
 		)
 		if err != nil {
@@ -780,7 +769,6 @@ func QueryFlashcards(whereClause string, args ...any) ([]*Flashcard, error) {
 		f.Tags = strings.Split(tagsRaw, ",")
 		f.CreatedAt = timeFromSQL(createdAt)
 		f.UpdatedAt = timeFromSQL(updatedAt)
-		f.DeletedAt = timeFromSQL(deletedAt)
 		f.LastCheckedAt = timeFromSQL(lastCheckedAt)
 		flashcards = append(flashcards, &f)
 	}

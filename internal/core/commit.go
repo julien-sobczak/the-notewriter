@@ -387,10 +387,6 @@ type CommitObject struct {
 // ReadObject recreates the core object from a commit object.
 func (c *CommitObject) ReadObject() StatefulObject {
 	switch c.Kind {
-	case "collection":
-		collection := new(Collection)
-		c.Data.Unmarshal(collection)
-		return collection
 	case "file":
 		file := new(File)
 		c.Data.Unmarshal(file)
@@ -464,10 +460,6 @@ func (od ObjectData) Unmarshal(target interface{}) error {
 	io.Copy(dest, r)
 	r.Close()
 
-	if c, ok := target.(*Collection); ok {
-		c.Read(dest)
-		return nil
-	}
 	if f, ok := target.(*File); ok {
 		f.Read(dest)
 		return nil
