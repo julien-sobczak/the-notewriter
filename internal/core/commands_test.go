@@ -3,6 +3,7 @@ package core
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -197,6 +198,104 @@ func TestCommandPushPull(t *testing.T) {
 		// Check local
 		require.FileExists(t, filepath.Join(root, ".nt/objects/info/commit-graph"))
 		require.FileExists(t, filepath.Join(root, ".nt/objects", OIDToPath(head)))
+	})
+
+}
+
+func TestCommandStatus(t *testing.T) {
+
+	t.Run("Basic", func(t *testing.T) {
+		UseSequenceOID(t)
+
+		root := SetUpCollectionFromGoldenDirNamed(t, "TestFileSave")
+
+		err := CurrentCollection().Add("go.md")
+		require.NoError(t, err)
+
+		newFilepath := filepath.Join(root, "python.md")
+		err = os.WriteFile(newFilepath, []byte(`# Python
+
+## Flashcard: Python's creator
+
+Who invented Python?
+---
+Guido van Rossum
+`), 0644)
+		require.NoError(t, err)
+
+		output, err := CurrentCollection().Status()
+		require.NoError(t, err)
+		assert.Equal(t, strings.TrimSpace(`
+Changes to be committed:
+  (use "nt restore..." to unstage)
+	added:	file "go.md" [0000000000000000000000000000000000000002]
+	added:	note "Reference: Golang History" [0000000000000000000000000000000000000003]
+	added:	note "Flashcard: Golang Logo" [0000000000000000000000000000000000000004]
+	added:	note "TODO: Conferences" [0000000000000000000000000000000000000005]
+	added:	flashcard "Golang Logo" [0000000000000000000000000000000000000006]
+	added:	media medias/go.svg [0000000000000000000000000000000000000007]
+
+Changes not staged for commit:
+  (use "nt add <file>..." to update what will be committed)
+	added:	python.md
+		`), strings.TrimSpace(output))
+
+		// Restore
+		err = CurrentDB().Restore()
+		require.NoError(t, err)
+
+		// Status must report no change
+		output, err = CurrentCollection().Status()
+		require.NoError(t, err)
+		assert.Equal(t, strings.TrimSpace(`
+Changes to be committed:
+  (use "nt restore..." to unstage)
+
+Changes not staged for commit:
+  (use "nt add <file>..." to update what will be committed)
+	added:	go.md
+	added:	python.md
+		`), strings.TrimSpace(output))
+
+		// Add a new file
+		err = CurrentCollection().Add("python.md")
+		require.NoError(t, err)
+
+		// Status must report only the new files
+		output, err = CurrentCollection().Status()
+		require.NoError(t, err)
+		assert.Equal(t, strings.TrimSpace(`
+Changes to be committed:
+  (use "nt restore..." to unstage)
+	added:	file "python.md" [0000000000000000000000000000000000000008]
+	added:	note "Flashcard: Python's creator" [0000000000000000000000000000000000000009]
+	added:	flashcard "Python's creator" [0000000000000000000000000000000000000010]
+
+Changes not staged for commit:
+  (use "nt add <file>..." to update what will be committed)
+	added:	go.md
+		`), strings.TrimSpace(output))
+
+		// Add the old file
+		err = CurrentCollection().Add("go.md")
+		require.NoError(t, err)
+
+		// Status must report both files
+		output, err = CurrentCollection().Status()
+		require.NoError(t, err)
+		assert.Equal(t, strings.TrimSpace(`
+Changes to be committed:
+  (use "nt restore..." to unstage)
+	added:	file "python.md" [0000000000000000000000000000000000000008]
+	added:	note "Flashcard: Python's creator" [0000000000000000000000000000000000000009]
+	added:	flashcard "Python's creator" [0000000000000000000000000000000000000010]
+	added:	file "go.md" [0000000000000000000000000000000000000011]
+	added:	note "Reference: Golang History" [0000000000000000000000000000000000000012]
+	added:	note "Flashcard: Golang Logo" [0000000000000000000000000000000000000013]
+	added:	note "TODO: Conferences" [0000000000000000000000000000000000000014]
+	added:	flashcard "Golang Logo" [0000000000000000000000000000000000000015]
+	added:	media medias/go.svg [0000000000000000000000000000000000000016]
+		`), strings.TrimSpace(output))
 	})
 
 }

@@ -7,6 +7,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
@@ -197,4 +199,103 @@ func (c *Collection) findObjectsLastCheckedBefore(buildTime time.Time, path stri
 		deletions = append(deletions, object)
 	}
 	return deletions, nil
+}
+
+// Status displays current objects in staging area.
+func (c *Collection) Status() (string, error) {
+	// No side-effect with this command.
+	// We only output results.
+	var sb strings.Builder
+
+	// Show staging area content
+	sb.WriteString(`Changes to be committed:` + "\n")
+	sb.WriteString(`  (use "nt restore..." to unstage)` + "\n")
+	stagingArea := CurrentDB().index.StagingArea
+	for _, obj := range stagingArea.Added {
+		sb.WriteString(fmt.Sprintf("\tadded:\t%s\n", obj.Description))
+	}
+	for _, obj := range stagingArea.Modified {
+		sb.WriteString(fmt.Sprintf("\tmodified:\t%s\n", obj.Description))
+	}
+	for _, obj := range stagingArea.Deleted {
+		sb.WriteString(fmt.Sprintf("\tdeleted:\t%s\n", obj.Description))
+	}
+
+	// Show modified files not in staging area
+	type ObjectStatus struct {
+		RelativePath string
+		OID          string
+		Status       State
+	}
+	uncommittedFiles := make(map[string]ObjectStatus)
+
+	root := CurrentConfig().RootDirectory
+	c.walk(root, func(path string, stat fs.FileInfo) error {
+		relpath, err := CurrentCollection().GetFileRelativePath(path)
+		if err != nil {
+			return err
+		}
+
+		// Use index to determine if the file is new or changed
+		indexObject, ok := CurrentDB().index.StagingArea.ContainsFile(relpath)
+		if ok {
+			if indexObject.MTime.Equal(stat.ModTime()) {
+				// File was not updated since added to staging area = still OK
+				return nil
+			}
+			if indexObject.MTime.Before(stat.ModTime()) {
+				uncommittedFiles[relpath] = ObjectStatus{
+					RelativePath: relpath,
+					OID:          indexObject.OID,
+					Status:       Modified,
+				}
+			} else {
+				uncommittedFiles[relpath] = ObjectStatus{
+					RelativePath: relpath,
+					OID:          indexObject.OID,
+					Status:       None,
+				}
+			}
+		} else {
+			uncommittedFiles[relpath] = ObjectStatus{
+				RelativePath: relpath,
+				Status:       Added,
+			}
+		}
+
+		return nil
+	})
+	// Traverse index to find known files not traversed by the walk
+	for relpath, indexObject := range CurrentDB().index.filesRef {
+		_, found := uncommittedFiles[relpath]
+		if !found {
+			uncommittedFiles[relpath] = ObjectStatus{
+				RelativePath: relpath,
+				OID:          indexObject.OID,
+				Status:       Deleted,
+			}
+		}
+	}
+
+	if len(uncommittedFiles) > 0 {
+		// Sort map entries
+		keys := make([]string, 0, len(uncommittedFiles))
+		for k := range uncommittedFiles {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+
+		sb.WriteString("\n")
+		sb.WriteString(`Changes not staged for commit:` + "\n")
+		sb.WriteString(`  (use "nt add <file>..." to update what will be committed)` + "\n")
+		for _, key := range keys {
+			obj := uncommittedFiles[key]
+			if obj.Status == None {
+				continue
+			}
+			sb.WriteString(fmt.Sprintf("\t%s:\t%s\n", obj.Status, obj.RelativePath))
+		}
+	}
+
+	return sb.String(), nil
 }

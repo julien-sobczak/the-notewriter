@@ -45,6 +45,12 @@ func UseFixedOID(t *testing.T, value string) {
 	t.Cleanup(ResetOID)
 }
 
+// UseFixedOID configures a fixed OID value
+func UseSequenceOID(t *testing.T) {
+	oidGenerator = &sequenceOIDGenerator{}
+	t.Cleanup(ResetOID)
+}
+
 /* Test Helpers */
 
 func mustCountFiles(t *testing.T) int {

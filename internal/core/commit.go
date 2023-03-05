@@ -37,8 +37,11 @@ const (
 // and to quickly locate which the commit file containing the object otherwise.
 // Useful when adding or restoring objects.
 type Index struct {
-	Objects     []*IndexObject          `yaml:"objects"`
-	objectsRef  map[string]*IndexObject `yaml:"-"`
+	Objects []*IndexObject `yaml:"objects"`
+	// Same as objects when searching by OID
+	objectsRef map[string]*IndexObject `yaml:"-"`
+	// Same as objects when searching by relative path
+	filesRef    map[string]*IndexObject `yaml:"files"`
 	StagingArea StagingArea             `yaml:"staging"`
 }
 
@@ -60,10 +63,34 @@ type StagingArea struct {
 	Deleted  []*StagingObject `yaml:"edited"`
 }
 
+// Objects returns all objects inside the staging area.
+func (sa *StagingArea) Objects() []*StagingObject {
+	var results []*StagingObject
+	results = append(results, sa.Added...)
+	results = append(results, sa.Modified...)
+	results = append(results, sa.Deleted...)
+	return results
+}
+
+// Contains file returns the staging object from a given file path.
+func (sa *StagingArea) ContainsFile(relpath string) (*StagingObject, bool) {
+	for _, obj := range sa.Objects() {
+		if obj.Kind == "file" {
+			file := new(File)
+			obj.Data.Unmarshal(file)
+			if file.RelativePath == relpath {
+				return obj, true
+			}
+		}
+	}
+	return nil, false
+}
+
 // NewIndex instantiates a new index.
 func NewIndex() *Index {
 	return &Index{
 		objectsRef: make(map[string]*IndexObject),
+		filesRef:   make(map[string]*IndexObject),
 	}
 }
 
@@ -83,6 +110,9 @@ func NewIndexFromPath(path string) (*Index, error) {
 	}
 	if index.objectsRef == nil {
 		index.objectsRef = make(map[string]*IndexObject)
+	}
+	if index.filesRef == nil {
+		index.filesRef = make(map[string]*IndexObject)
 	}
 	in.Close()
 	return index, nil
@@ -116,22 +146,7 @@ func (i *Index) FindCommitContaining(objectOID string) (string, bool) {
 // AppendCommit completes the index with object from a commit.
 func (i *Index) AppendCommit(c *Commit) {
 	for _, objectCommit := range c.Objects {
-		objectFile, ok := i.objectsRef[objectCommit.OID]
-		if ok {
-			// Update index object if updated since
-			if objectFile.MTime.Before(objectCommit.MTime) {
-				objectFile.MTime = objectCommit.MTime
-			}
-		} else {
-			// Save the object into the index
-			objectIndex := &IndexObject{
-				OID:       objectCommit.OID,
-				MTime:     objectCommit.MTime,
-				CommitOID: c.OID,
-			}
-			i.Objects = append(i.Objects, objectIndex)
-			i.objectsRef[objectCommit.OID] = objectIndex
-		}
+		i.putObject(c.OID, objectCommit)
 	}
 }
 
@@ -169,35 +184,9 @@ func (i *Index) StageObject(obj StatefulObject) error {
 func (i *Index) CreateCommitFromStagingArea() *Commit {
 	c := NewCommit()
 
-	for _, obj := range i.StagingArea.Added {
+	for _, obj := range i.StagingArea.Objects() {
 		c.Append(obj)
-		indexObject := &IndexObject{
-			OID:       obj.OID,
-			MTime:     obj.MTime,
-			CommitOID: c.OID,
-		}
-		i.objectsRef[obj.OID] = indexObject
-		i.Objects = append(i.Objects, indexObject)
-	}
-	for _, obj := range i.StagingArea.Modified {
-		c.Append(obj)
-		indexObject := &IndexObject{
-			OID:       obj.OID,
-			MTime:     obj.MTime,
-			CommitOID: c.OID,
-		}
-		i.objectsRef[obj.OID] = indexObject
-		i.Objects = append(i.Objects, indexObject)
-	}
-	for _, obj := range i.StagingArea.Deleted {
-		c.Append(obj)
-		indexObject := &IndexObject{
-			OID:       obj.OID,
-			MTime:     obj.MTime,
-			CommitOID: c.OID,
-		}
-		i.objectsRef[obj.OID] = indexObject
-		i.Objects = append(i.Objects, indexObject)
+		i.putObject(c.OID, &obj.CommitObject)
 	}
 
 	// Clear the staging area
@@ -206,6 +195,30 @@ func (i *Index) CreateCommitFromStagingArea() *Commit {
 	i.StagingArea.Deleted = nil
 
 	return c
+}
+
+// putObject registers a new object inside the index.
+func (i *Index) putObject(commitOID string, obj *CommitObject) {
+	indexObject := &IndexObject{
+		OID:       obj.OID,
+		MTime:     obj.MTime,
+		CommitOID: commitOID,
+	}
+
+	// Update inner mappings
+	i.objectsRef[obj.OID] = indexObject
+	if obj.Kind == "file" {
+		_, found := i.filesRef[obj.OID]
+		// Update mapping path -> object
+		if !found {
+			file := new(File)
+			obj.Data.Unmarshal(file)
+			if file.RelativePath != "" {
+				i.filesRef[file.RelativePath] = indexObject
+			}
+		}
+	}
+	i.Objects = append(i.Objects, indexObject)
 }
 
 // Read read an index from the file.
@@ -667,6 +680,19 @@ func (g *fixedOIDGenerator) NewOID() string {
 
 func (g *fixedOIDGenerator) NewOIDFromBytes(b []byte) string {
 	return g.oid
+}
+
+type sequenceOIDGenerator struct {
+	count int
+}
+
+func (g *sequenceOIDGenerator) NewOID() string {
+	g.count++
+	return fmt.Sprintf("%040d", g.count)
+}
+
+func (g *sequenceOIDGenerator) NewOIDFromBytes(b []byte) string {
+	return NewOID()
 }
 
 // ResetOID restores the original unique OID generator.
