@@ -13,7 +13,7 @@ import (
 func TestCommandAdd(t *testing.T) {
 
 	t.Run("Basic", func(t *testing.T) {
-		root := SetUpCollectionFromGoldenDirNamed(t, "TestFileSave")
+		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
 
 		err := CurrentCollection().Add("go.md")
 		require.NoError(t, err)
@@ -56,7 +56,7 @@ func TestCommandAdd(t *testing.T) {
 	})
 
 	t.Run("Add Media", func(t *testing.T) {
-		root := SetUpCollectionFromGoldenDirNamed(t, "TestFileSave") // Use a new directory with different medias
+		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal") // Use a new directory with different medias
 
 		err := CurrentCollection().Add("go.md")
 		require.NoError(t, err)
@@ -79,7 +79,7 @@ func TestCommandAdd(t *testing.T) {
 func TestCommandRestore(t *testing.T) {
 
 	t.Run("Basic", func(t *testing.T) {
-		root := SetUpCollectionFromGoldenDirNamed(t, "TestFileSave")
+		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
 
 		CurrentLogger().SetVerboseLevel(VerboseDebug)
 
@@ -118,7 +118,7 @@ func TestCommandRestore(t *testing.T) {
 func TestCommandCommit(t *testing.T) {
 
 	t.Run("Basic", func(t *testing.T) {
-		root := SetUpCollectionFromGoldenDirNamed(t, "TestFileSave")
+		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
 
 		err := CurrentCollection().Add("go.md")
 		require.NoError(t, err)
@@ -161,7 +161,7 @@ Guido van Rossum
 func TestCommandPushPull(t *testing.T) {
 
 	t.Run("Basic", func(t *testing.T) {
-		SetUpCollectionFromGoldenDirNamed(t, "TestFileSave")
+		SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
 		// Configure origin
 		origin := t.TempDir()
 		CurrentConfig().ConfigFile.Remote = ConfigRemote{
@@ -207,7 +207,7 @@ func TestCommandStatus(t *testing.T) {
 	t.Run("Basic", func(t *testing.T) {
 		UseSequenceOID(t)
 
-		root := SetUpCollectionFromGoldenDirNamed(t, "TestFileSave")
+		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
 
 		err := CurrentCollection().Add("go.md")
 		require.NoError(t, err)

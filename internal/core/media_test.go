@@ -55,7 +55,7 @@ func TestMedia(t *testing.T) {
 	// Make tests reproductible
 	UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
 	FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
-	SetUpCollectionFromGoldenDirNamed(t, "TestFileSave")
+	SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
 
 	t.Run("YAML", func(t *testing.T) {
 		// Set up a collection

@@ -310,7 +310,7 @@ func TestGetMedias(t *testing.T) {
 }
 
 func TestFileSave(t *testing.T) {
-	root := SetUpCollectionFromGoldenDir(t)
+	root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
 
 	// Init the file
 	f, err := NewFileFromPath(filepath.Join(root, "go.md"))
@@ -468,7 +468,7 @@ func TestFile(t *testing.T) {
 	// Make tests reproductible
 	UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
 	FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
-	root := SetUpCollectionFromGoldenDirNamed(t, "TestFileSave")
+	root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
 
 	t.Run("YAML", func(t *testing.T) {
 		fileSrc, err := NewFileFromPath(filepath.Join(root, "go.md"))

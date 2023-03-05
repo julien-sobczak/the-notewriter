@@ -162,7 +162,7 @@ func TestCommit(t *testing.T) {
 	FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
 
 	t.Run("New commit", func(t *testing.T) {
-		root := SetUpCollectionFromGoldenDirNamed(t, "TestFileSave")
+		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
 
 		f, err := NewFileFromPath(filepath.Join(root, "go.md"))
 		require.NoError(t, err)
@@ -231,7 +231,7 @@ func TestIndex(t *testing.T) {
 		// Make tests reproductible
 		UseFixedOID(t, "93267c32147a4ab7a1100ce82faab56a99fca1cd")
 		now := FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
-		root := SetUpCollectionFromGoldenDirNamed(t, "TestFileSave")
+		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
 
 		idx := NewIndex()
 
@@ -283,7 +283,7 @@ Guido van Rossum
 		// Make tests reproductible
 		UseFixedOID(t, "93267c32147a4ab7a1100ce82faab56a99fca1cd")
 
-		root := SetUpCollectionFromGoldenDirNamed(t, "TestFileSave")
+		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
 
 		f, err := NewFileFromPath(filepath.Join(root, "go.md"))
 		require.NoError(t, err)
