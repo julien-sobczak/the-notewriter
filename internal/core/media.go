@@ -326,6 +326,8 @@ func (m *Media) CheckWithTx(tx *sql.Tx) error {
 
 func (m *Media) Save(tx *sql.Tx) error {
 	var err error
+	m.UpdatedAt = clock.Now()
+	m.LastCheckedAt = clock.Now()
 	switch m.State() {
 	case Added:
 		err = m.InsertWithTx(tx)
@@ -339,60 +341,6 @@ func (m *Media) Save(tx *sql.Tx) error {
 	m.new = false
 	m.stale = false
 	return err
-}
-
-func (m *Media) OldSave() error { // FIXME remove deprecated
-	if !m.stale {
-		return m.Check()
-	}
-
-	db := CurrentDB().Client()
-	tx, err := db.BeginTx(context.Background(), nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	err = m.SaveWithTx(tx)
-	if err != nil {
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
-
-	m.new = false
-	m.stale = false
-
-	return nil
-}
-
-func (m *Media) SaveWithTx(tx *sql.Tx) error {
-	if !m.stale {
-		return m.CheckWithTx(tx)
-	}
-
-	now := clock.Now()
-	m.UpdatedAt = now
-	m.LastCheckedAt = now
-
-	if !m.new {
-		if err := m.UpdateWithTx(tx); err != nil {
-			return err
-		}
-	} else {
-		m.CreatedAt = now
-		if err := m.InsertWithTx(tx); err != nil {
-			return err
-		}
-	}
-
-	m.new = false
-	m.stale = false
-
-	return nil
 }
 
 func (m *Media) InsertWithTx(tx *sql.Tx) error {

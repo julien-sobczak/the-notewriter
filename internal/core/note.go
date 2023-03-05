@@ -197,12 +197,15 @@ func (n *Note) SubObjects() []StatefulObject {
 	var objs []StatefulObject
 	for _, object := range n.GetLinks() {
 		objs = append(objs, object)
+		objs = append(objs, object.SubObjects()...)
 	}
 	for _, object := range n.GetMedias() {
 		objs = append(objs, object)
+		objs = append(objs, object.SubObjects()...)
 	}
 	for _, object := range n.GetReminders() {
 		objs = append(objs, object)
+		objs = append(objs, object.SubObjects()...)
 	}
 	return objs
 }
@@ -683,6 +686,8 @@ func (n *Note) CheckWithTx(tx *sql.Tx) error {
 
 func (n *Note) Save(tx *sql.Tx) error {
 	var err error
+	n.UpdatedAt = clock.Now()
+	n.LastCheckedAt = clock.Now()
 	switch n.State() {
 	case Added:
 		err = n.InsertWithTx(tx)
@@ -696,91 +701,6 @@ func (n *Note) Save(tx *sql.Tx) error {
 	n.new = false
 	n.stale = false
 	return err
-}
-
-func (n *Note) OldSave() error { // FIXME remove deprecated
-	if !n.stale {
-		return n.Check()
-	}
-
-	db := CurrentDB().Client()
-	tx, err := db.BeginTx(context.Background(), nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	err = n.SaveWithTx(tx)
-	if err != nil {
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
-
-	n.new = false
-	n.stale = false
-
-	return nil
-}
-
-func (n *Note) SaveWithTx(tx *sql.Tx) error { // FIXME remove deprecated
-	if !n.stale {
-		return n.CheckWithTx(tx)
-	}
-
-	// There is no common interface between sql.DB and sql.Txt
-	// See https://github.com/golang/go/issues/14468
-
-	now := clock.Now()
-	n.UpdatedAt = now
-	n.LastCheckedAt = now
-
-	if !n.new {
-		if err := n.UpdateWithTx(tx); err != nil {
-			return err
-		}
-	} else {
-		n.CreatedAt = now
-		if err := n.InsertWithTx(tx); err != nil {
-			return err
-		}
-
-		// Update note ID
-		links := n.GetLinks()
-		for _, link := range links {
-			link.NoteOID = n.OID
-		}
-
-		// Save reminders
-		reminders := n.GetReminders()
-		for _, reminder := range reminders {
-			reminder.NoteOID = n.OID
-		}
-	}
-
-	n.new = false
-	n.stale = false
-
-	// Save the links
-	links := n.GetLinks()
-	for _, link := range links {
-		if err := link.SaveWithTx(tx); err != nil {
-			return err
-		}
-	}
-
-	// Save reminders
-	reminders := n.GetReminders()
-	for _, reminder := range reminders {
-		if err := reminder.SaveWithTx(tx); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func (n *Note) InsertWithTx(tx *sql.Tx) error {

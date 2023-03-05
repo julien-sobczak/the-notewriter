@@ -630,6 +630,8 @@ func (r *Reminder) CheckWithTx(tx *sql.Tx) error {
 
 func (r *Reminder) Save(tx *sql.Tx) error {
 	var err error
+	r.UpdatedAt = clock.Now()
+	r.LastCheckedAt = clock.Now()
 	switch r.State() {
 	case Added:
 		err = r.InsertWithTx(tx)
@@ -643,60 +645,6 @@ func (r *Reminder) Save(tx *sql.Tx) error {
 	r.new = false
 	r.stale = false
 	return err
-}
-
-func (r *Reminder) OldSave() error { // FIXME remove deprecated
-	if !r.stale {
-		return r.Check()
-	}
-
-	db := CurrentDB().Client()
-	tx, err := db.BeginTx(context.Background(), nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	err = r.SaveWithTx(tx)
-	if err != nil {
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
-
-	r.new = false
-	r.stale = false
-
-	return nil
-}
-
-func (r *Reminder) SaveWithTx(tx *sql.Tx) error { // FIXME remove deprecated
-	if !r.stale {
-		return r.CheckWithTx(tx)
-	}
-
-	now := clock.Now()
-	r.UpdatedAt = now
-	r.LastCheckedAt = now
-
-	if !r.new {
-		if err := r.UpdateWithTx(tx); err != nil {
-			return err
-		}
-	} else {
-		r.CreatedAt = now
-		if err := r.InsertWithTx(tx); err != nil {
-			return err
-		}
-	}
-
-	r.new = false
-	r.stale = false
-
-	return nil
 }
 
 func (r *Reminder) InsertWithTx(tx *sql.Tx) error {

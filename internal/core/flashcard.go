@@ -154,7 +154,7 @@ func NewOrExistingFlashcard(file *File, note *Note) *Flashcard {
 func NewFlashcard(file *File, note *Note) *Flashcard {
 
 	frontMarkdown, backMarkdown := splitFrontBack(note.ContentMarkdown)
-	// FIXME if front => invalid flashcard
+	// FIXME if front => invalid flashcard (lint)
 
 	f := &Flashcard{
 		OID:          NewOID(),
@@ -372,6 +372,8 @@ func (f *Flashcard) CheckWithTx(tx *sql.Tx) error {
 
 func (f *Flashcard) Save(tx *sql.Tx) error {
 	var err error
+	f.UpdatedAt = clock.Now()
+	f.LastCheckedAt = clock.Now()
 	switch f.State() {
 	case Added:
 		err = f.InsertWithTx(tx)
@@ -385,60 +387,6 @@ func (f *Flashcard) Save(tx *sql.Tx) error {
 	f.new = false
 	f.stale = false
 	return err
-}
-
-func (f *Flashcard) OldSave() error { // FIXME remove deprecated
-	if !f.stale {
-		return f.Check()
-	}
-
-	db := CurrentDB().Client()
-	tx, err := db.BeginTx(context.Background(), nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	err = f.SaveWithTx(tx)
-	if err != nil {
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
-
-	f.new = false
-	f.stale = false
-
-	return nil
-}
-
-func (f *Flashcard) SaveWithTx(tx *sql.Tx) error { // FIXME remove deprecated
-	if !f.stale {
-		return f.CheckWithTx(tx)
-	}
-
-	now := clock.Now()
-	f.UpdatedAt = now
-	f.LastCheckedAt = now
-
-	if !f.new {
-		if err := f.UpdateWithTx(tx); err != nil {
-			return err
-		}
-	} else {
-		f.CreatedAt = now
-		if err := f.InsertWithTx(tx); err != nil {
-			return err
-		}
-	}
-
-	f.new = false
-	f.stale = false
-
-	return nil
 }
 
 func (f *Flashcard) InsertWithTx(tx *sql.Tx) error {

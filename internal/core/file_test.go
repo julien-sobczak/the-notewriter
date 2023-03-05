@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -311,17 +312,28 @@ func TestGetMedias(t *testing.T) {
 
 func TestFileSave(t *testing.T) {
 	root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+	FreezeNow(t)
+	assertNoFiles(t)
+	assertNoNotes(t)
+	assertNoFlashcards(t)
+	assertNoLinks(t)
+	assertNoReminders(t)
+	assertNoMedias(t)
 
 	// Init the file
 	f, err := NewFileFromPath(filepath.Join(root, "go.md"))
 	require.NoError(t, err)
 
-	assertNoFiles(t)
-	clock.Freeze()
-	defer clock.Unfreeze()
-	err = f.OldSave()
+	tx, err := CurrentDB().Client().BeginTx(context.Background(), nil)
 	require.NoError(t, err)
-
+	err = f.Save(tx)
+	require.NoError(t, err)
+	for _, object := range f.SubObjects() {
+		err := object.Save(tx)
+		require.NoError(t, err)
+	}
+	err = tx.Commit()
+	require.NoError(t, err)
 	require.Equal(t, 1, mustCountFiles(t))
 	require.Equal(t, 3, mustCountNotes(t))
 	require.Equal(t, 1, mustCountMedias(t))
@@ -465,12 +477,13 @@ func TestFileSave(t *testing.T) {
 }
 
 func TestFile(t *testing.T) {
-	// Make tests reproductible
-	UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
-	FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
-	root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
 
 	t.Run("YAML", func(t *testing.T) {
+		// Make tests reproductible
+		UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
+		FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
+		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+
 		fileSrc, err := NewFileFromPath(filepath.Join(root, "go.md"))
 		require.NoError(t, err)
 		fileSrc.MTime = clock.Now()
@@ -514,8 +527,8 @@ mode: 420
 size: 469
 hash: 40bba27f3783ba6f8d94b288c8e1b216
 mtime: 2023-01-01T01:12:30Z
-created_at: 0001-01-01T00:00:00Z
-updated_at: 0001-01-01T00:00:00Z
+created_at: 2023-01-01T01:12:30Z
+updated_at: 2023-01-01T01:12:30Z
 `), strings.TrimSpace(noteYAML))
 
 		// Unmarshall

@@ -124,6 +124,8 @@ func NewFileFromPath(filepath string) (*File, error) {
 		Hash:         hash(contentBytes),
 		MTime:        stat.ModTime(),
 		Content:      contentRaw,
+		CreatedAt:    clock.Now(),
+		UpdatedAt:    clock.Now(),
 		stale:        true,
 		new:          true,
 	}
@@ -197,13 +199,17 @@ func (f *File) SubObjects() []StatefulObject {
 	var objs []StatefulObject
 	for _, object := range f.GetNotes() {
 		objs = append(objs, object)
+		objs = append(objs, object.SubObjects()...)
 	}
 	for _, object := range f.GetFlashcards() {
 		objs = append(objs, object)
+		objs = append(objs, object.SubObjects()...)
 	}
-	for _, object := range f.GetMedias() {
-		objs = append(objs, object)
-	}
+	// Medias are already saved through files
+	// for _, object := range f.GetMedias() {
+	// 	objs = append(objs, object)
+	// 	objs = append(objs, object.SubObjects()...)
+	// }
 	return objs
 }
 
@@ -662,6 +668,8 @@ func (f *File) CheckWithTx(tx *sql.Tx) error {
 
 func (f *File) Save(tx *sql.Tx) error {
 	var err error
+	f.UpdatedAt = clock.Now()
+	f.LastCheckedAt = clock.Now()
 	switch f.State() {
 	case Added:
 		err = f.InsertWithTx(tx)
@@ -675,89 +683,6 @@ func (f *File) Save(tx *sql.Tx) error {
 	f.new = false
 	f.stale = false
 	return err
-}
-
-func (f *File) OldSave() error { // FIXME remove deprecated
-	if !f.stale {
-		return f.Check()
-	}
-
-	db := CurrentDB().Client()
-	tx, err := db.BeginTx(context.Background(), nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	err = f.SaveWithTx(tx)
-	if err != nil {
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
-
-	f.new = false
-	f.stale = false
-
-	return nil
-}
-
-func (f *File) SaveWithTx(tx *sql.Tx) error { // FIXME remove deprecated
-	if !f.stale {
-		return f.CheckWithTx(tx)
-	}
-
-	now := clock.Now()
-	f.UpdatedAt = now
-	f.LastCheckedAt = now
-
-	if !f.new {
-		if err := f.UpdateWithTx(tx); err != nil {
-			return err
-		}
-	} else {
-		f.CreatedAt = now
-		if err := f.InsertWithTx(tx); err != nil {
-			return err
-		}
-
-		// Set ID on related items
-		for _, note := range f.GetNotes() {
-			note.FileOID = f.OID
-		}
-		for _, flashcard := range f.GetFlashcards() {
-			flashcard.FileOID = f.OID
-		}
-	}
-
-	f.new = false
-	f.stale = false
-
-	// Save the notes
-	for _, note := range f.GetNotes() {
-		if err := note.SaveWithTx(tx); err != nil {
-			return err
-		}
-	}
-
-	// Ssve the flashcards
-	for _, flashcard := range f.GetFlashcards() {
-		if err := flashcard.SaveWithTx(tx); err != nil {
-			return err
-		}
-	}
-
-	// Save the medias
-	for _, media := range f.GetMedias() {
-		if err := media.SaveWithTx(tx); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func (f *File) InsertWithTx(tx *sql.Tx) error {

@@ -21,7 +21,6 @@ func (c *Collection) walk(path string, fn func(path string, stat fs.FileInfo) er
 
 	filepath.WalkDir(path, func(path string, info fs.DirEntry, err error) error {
 		if err != nil {
-			log.Fatal(err) // FIXME not visible in stderr
 			return err
 		}
 

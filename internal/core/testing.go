@@ -22,6 +22,13 @@ func Reset() {
 
 /* Reproducible Tests */
 
+// FreezeNow wraps the clock API to register the cleanup function at the end of the test.
+func FreezeNow(t *testing.T) time.Time {
+	now := clock.Freeze()
+	t.Cleanup(clock.Unfreeze)
+	return now
+}
+
 // FreezeAt wraps the clock API to register the cleanup function at the end of the test.
 func FreezeAt(t *testing.T, point time.Time) time.Time {
 	now := clock.FreezeAt(point)
@@ -91,6 +98,36 @@ func mustCountReminders(t *testing.T) int {
 
 func assertNoFiles(t *testing.T) {
 	count, err := CountFiles()
+	require.NoError(t, err)
+	require.Equal(t, 0, count)
+}
+
+func assertNoNotes(t *testing.T) {
+	count, err := CountNotes()
+	require.NoError(t, err)
+	require.Equal(t, 0, count)
+}
+
+func assertNoFlashcards(t *testing.T) {
+	count, err := CountFlashcards()
+	require.NoError(t, err)
+	require.Equal(t, 0, count)
+}
+
+func assertNoLinks(t *testing.T) {
+	count, err := CountLinks()
+	require.NoError(t, err)
+	require.Equal(t, 0, count)
+}
+
+func assertNoReminders(t *testing.T) {
+	count, err := CountReminders()
+	require.NoError(t, err)
+	require.Equal(t, 0, count)
+}
+
+func assertNoMedias(t *testing.T) {
+	count, err := CountMedias()
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 }

@@ -11,11 +11,12 @@ import (
 )
 
 func TestFlashcard(t *testing.T) {
-	// Make tests reproductible
-	UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
-	FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
 
 	t.Run("YAML", func(t *testing.T) {
+		// Make tests reproductible
+		UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
+		FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
+
 		fileSrc := NewEmptyFile("example.md")
 		noteSrc := NewNote(fileSrc, "Flashcard: Syntax", "Question\n---\nAnswer", 1)
 		flashcardSrc := NewFlashcard(fileSrc, noteSrc)

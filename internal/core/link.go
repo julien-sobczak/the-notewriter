@@ -214,6 +214,8 @@ func (l *Link) CheckWithTx(tx *sql.Tx) error {
 
 func (l *Link) Save(tx *sql.Tx) error {
 	var err error
+	l.UpdatedAt = clock.Now()
+	l.LastCheckedAt = clock.Now()
 	switch l.State() {
 	case Added:
 		err = l.InsertWithTx(tx)
@@ -227,60 +229,6 @@ func (l *Link) Save(tx *sql.Tx) error {
 	l.new = false
 	l.stale = false
 	return err
-}
-
-func (l *Link) OldSave() error { // FIXME remove deprecated
-	if !l.stale {
-		return nil
-	}
-
-	db := CurrentDB().Client()
-	tx, err := db.BeginTx(context.Background(), nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	err = l.SaveWithTx(tx)
-	if err != nil {
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
-
-	l.new = false
-	l.stale = false
-
-	return nil
-}
-
-func (l *Link) SaveWithTx(tx *sql.Tx) error { // FIXME remove deprecated
-	if !l.stale {
-		return nil
-	}
-
-	now := clock.Now()
-	l.UpdatedAt = now
-	l.LastCheckedAt = now
-
-	if !l.new {
-		if err := l.UpdateWithTx(tx); err != nil {
-			return err
-		}
-	} else {
-		l.CreatedAt = now
-		if err := l.InsertWithTx(tx); err != nil {
-			return err
-		}
-	}
-
-	l.new = false
-	l.stale = false
-
-	return nil
 }
 
 func (l *Link) InsertWithTx(tx *sql.Tx) error {
@@ -403,7 +351,7 @@ func FindLinksByText(text string) ([]*Link, error) {
 }
 
 func FindLinksLastCheckedBefore(point time.Time, path string) ([]*Link, error) {
-	return QueryLinks(`WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path + "%")
+	return QueryLinks(`WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 /* SQL Helpers */
