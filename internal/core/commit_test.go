@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/julien-sobczak/the-notetaker/internal/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -101,8 +102,8 @@ commits:
 		out.Close()
 
 		// Files must match
-		hashIn, _ := hashFromFile(in.Name())
-		hashOut, _ := hashFromFile(out.Name())
+		hashIn, _ := helpers.HashFromFile(in.Name())
+		hashOut, _ := helpers.HashFromFile(out.Name())
 		assert.Equal(t, hashIn, hashOut)
 	})
 

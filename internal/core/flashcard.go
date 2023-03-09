@@ -384,9 +384,12 @@ func (f *Flashcard) Save(tx *sql.Tx) error {
 	default:
 		err = f.CheckWithTx(tx)
 	}
+	if err != nil {
+		return err
+	}
 	f.new = false
 	f.stale = false
-	return err
+	return nil
 }
 
 func (f *Flashcard) InsertWithTx(tx *sql.Tx) error {

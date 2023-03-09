@@ -134,6 +134,15 @@ func (db *DB) ReadBlob(oid string) ([]byte, error) {
 	return os.ReadFile(path)
 }
 
+// WriteBlob writes a blob file on disk
+func (db *DB) WriteBlob(oid string, data []byte) error {
+	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", OIDToPath(oid))
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
+}
+
 // Origin returns the origin implementation based on the optional configured type.
 func (db *DB) Origin() Remote {
 	dbRemoteOnce.Do(func() {

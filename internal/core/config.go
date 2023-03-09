@@ -3,10 +3,12 @@ package core
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/julien-sobczak/the-notetaker/internal/medias"
 	"github.com/julien-sobczak/the-notetaker/pkg/resync"
 	"github.com/pelletier/go-toml/v2"
 )
@@ -39,11 +41,15 @@ var (
 // Note: Fields must be public for toml package to unmarshall
 type ConfigFile struct {
 	Core   ConfigCore
+	Medias ConfigMedias
 	Remote ConfigRemote
 	Search map[string]ConfigSearch
 }
 type ConfigCore struct {
 	Extensions []string
+}
+type ConfigMedias struct {
+	Command string
 }
 type ConfigRemote struct {
 	Type string // fs or s3
@@ -127,6 +133,9 @@ type Config struct {
 
 	// .ntignore content
 	IgnoreFile IgnoreFile
+
+	// Temporary directory to generate blob files locally
+	tempDir string
 }
 
 func CurrentConfig() *Config {
@@ -143,6 +152,37 @@ func CurrentConfig() *Config {
 		}
 	})
 	return configSingleton
+}
+
+// TempDir returns the privileged temporary directory to use when generating temporary files.
+func (c *Config) TempDir() string {
+	if c.tempDir == "" {
+		dir, err := os.MkdirTemp("", "the-notetaker")
+		if err != nil {
+			log.Fatalf("Unable to init temp dir: %v", err)
+		}
+		c.tempDir = dir
+	}
+	return c.tempDir
+	// FIXME call defer os.RemoveAll(CurrentConfig().TempDir()) from tests?
+}
+
+// Converter returns the convertor to use when creating blobs from media files.
+func (c *Config) Converter() medias.Converter {
+	switch c.ConfigFile.Medias.Command {
+	case "":
+		fallthrough
+	case "ffmpeg":
+		converter, err := medias.NewFFmpegConverter()
+		if err != nil {
+			log.Fatal(err)
+		}
+		return converter
+	case "random":
+		return medias.NewRandomConverter()
+	}
+	log.Fatalf("Unsupported converter %q", c.ConfigFile.Medias.Command)
+	return nil
 }
 
 func currentHome() string {

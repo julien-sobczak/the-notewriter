@@ -52,12 +52,14 @@ func TestDetectMediaKind(t *testing.T) {
 }
 
 func TestMedia(t *testing.T) {
-	// Make tests reproductible
-	UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
-	FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
-	SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
 
 	t.Run("YAML", func(t *testing.T) {
+
+		// Make tests reproductible
+		UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
+		FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
+		SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+
 		// Set up a collection
 		mediaSrc := NewMedia("medias/go.svg")
 		mediaSrc.MTime = clock.Now()
@@ -78,6 +80,25 @@ mtime: 2023-01-01T01:12:30Z
 hash: 974a75814a1339c82cb497ea1ab56383
 size: 2288
 mode: 420
+blobs:
+    - oid: 0418c0a668c9a0091dcafcb9d7da7920
+      mime: image/avif
+      attributes: {}
+      tags:
+        - preview
+        - lossy
+    - oid: c6e3ac8e7e3db88f3cda3446e5edced6
+      mime: image/avif
+      attributes: {}
+      tags:
+        - large
+        - lossy
+    - oid: 2ed80445aeb8c676219c18c9214dd596
+      mime: image/avif
+      attributes: {}
+      tags:
+        - original
+        - lossy
 created_at: 2023-01-01T01:12:30Z
 updated_at: 2023-01-01T01:12:30Z
 `), strings.TrimSpace(mediaYAML))
@@ -86,9 +107,22 @@ updated_at: 2023-01-01T01:12:30Z
 		mediaDest := new(Media)
 		err = mediaDest.Read(buf)
 		require.NoError(t, err)
-		mediaSrc.new = false
-		mediaSrc.stale = false
-		assert.EqualValues(t, mediaSrc, mediaDest)
+		assert.EqualValues(t, cleanMedia(mediaSrc), cleanMedia(mediaDest))
 	})
 
+}
+
+/* Test Helpers */
+
+// cleanMedia ignore some values as EqualValues is very strict.
+func cleanMedia(m *Media) *Media {
+	// Do not compare state management attributes
+	m.new = false
+	m.stale = false
+	for _, b := range m.BlobRefs {
+		if b.Attributes != nil && len(b.Attributes) == 0 {
+			b.Attributes = nil
+		}
+	}
+	return m
 }

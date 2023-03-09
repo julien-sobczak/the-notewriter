@@ -642,9 +642,12 @@ func (r *Reminder) Save(tx *sql.Tx) error {
 	default:
 		err = r.CheckWithTx(tx)
 	}
+	if err != nil {
+		return err
+	}
 	r.new = false
 	r.stale = false
-	return err
+	return nil
 }
 
 func (r *Reminder) InsertWithTx(tx *sql.Tx) error {

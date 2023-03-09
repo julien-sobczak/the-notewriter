@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/julien-sobczak/the-notetaker/internal/helpers"
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/julien-sobczak/the-notetaker/pkg/markdown"
 	"github.com/julien-sobczak/the-notetaker/pkg/text"
@@ -101,7 +102,7 @@ func NewOrExistingNote(f *File, title string, content string, lineNumber int) *N
 		return note
 	}
 
-	hash := hash([]byte(content))
+	hash := helpers.Hash([]byte(content))
 	note, _ = FindMatchingNotes(title, hash)
 	if note != nil {
 		note.Update(f, title, content, lineNumber)
@@ -266,7 +267,7 @@ func (n *Note) parseContentRaw() (string, []string, map[string]interface{}) {
 
 func (n *Note) updateContent(rawContent string) {
 	n.ContentRaw = strings.TrimSpace(rawContent)
-	n.Hash = hash([]byte(n.ContentRaw))
+	n.Hash = helpers.Hash([]byte(n.ContentRaw))
 
 	content, tags, attributes := n.parseContentRaw()
 
@@ -698,9 +699,12 @@ func (n *Note) Save(tx *sql.Tx) error {
 	default:
 		err = n.CheckWithTx(tx)
 	}
+	if err != nil {
+		return err
+	}
 	n.new = false
 	n.stale = false
-	return err
+	return nil
 }
 
 func (n *Note) InsertWithTx(tx *sql.Tx) error {

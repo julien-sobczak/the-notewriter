@@ -56,8 +56,13 @@ func configureDir(t *testing.T, dirname string) {
 		if err := os.Mkdir(ntDir, os.ModePerm); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(ntDir, "config"), []byte(`[core]
-extensions=["md", "markdown"]`), os.ModePerm); err != nil {
+		if err := os.WriteFile(filepath.Join(ntDir, "config"), []byte(`
+[core]
+extensions=["md", "markdown"]
+
+[medias]
+command="random"
+`), os.ModePerm); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -17,14 +17,10 @@ func OIDToPath(oid string) string {
 
 type BlobRef struct {
 	// OID to locate the blob file in .nt/objects
-	OID        string
-	Attributes map[string]interface{}
-	Tags       []string
-}
-
-func (b *BlobRef) Hash() string {
-	// TODO
-	return ""
+	OID        string                 `yaml:"oid"`
+	MimeType   string                 `yaml:"mime"`
+	Attributes map[string]interface{} `yaml:"attributes"`
+	Tags       []string               `yaml:"tags"`
 }
 
 // Object groups method common to all kinds of managed objects.

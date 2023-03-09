@@ -226,9 +226,12 @@ func (l *Link) Save(tx *sql.Tx) error {
 	default:
 		err = l.CheckWithTx(tx)
 	}
+	if err != nil {
+		return err
+	}
 	l.new = false
 	l.stale = false
-	return err
+	return nil
 }
 
 func (l *Link) InsertWithTx(tx *sql.Tx) error {

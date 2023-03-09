@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
@@ -14,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/julien-sobczak/the-notetaker/internal/helpers"
+	"github.com/julien-sobczak/the-notetaker/internal/medias"
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"gopkg.in/yaml.v3"
 )
@@ -28,9 +31,20 @@ const (
 	KindDocument MediaKind = 4
 )
 
+// List of supported audio formats
 var AudioExtensions = []string{".mp3", ".wav"}
+
+// List of supported picture formats
 var PictureExtensions = []string{".jpeg", ".png", ".gif", ".svg", ".avif"}
+
+// List of supported picture formats
 var VideoExtensions = []string{".mp4", ".ogg", ".webm"}
+
+// Maximum width and/or height for preview blobs.
+const PreviewMaxWidthOrHeight = 600
+
+// Maximum width and/or height for large blobs.
+const LargeMaxWidthOrHeight = 1980
 
 type Media struct {
 	OID string `yaml:"oid"`
@@ -62,7 +76,8 @@ type Media struct {
 	// Permission of the file
 	Mode fs.FileMode `yaml:"mode"`
 
-	// TODO add blob OIDs?
+	// Eager-loaded list of blobs
+	BlobRefs []*BlobRef `yaml:"blobs"`
 
 	// Timestamps to track changes
 	CreatedAt     time.Time `yaml:"created_at"`
@@ -117,9 +132,11 @@ func NewMedia(relpath string) *Media {
 
 	m.Dangling = false
 	m.Size = stat.Size()
-	m.Hash, _ = hashFromFile(abspath)
+	m.Hash, _ = helpers.HashFromFile(abspath)
 	m.MTime = stat.ModTime()
 	m.Mode = stat.Mode()
+
+	m.UpdateBlobs()
 
 	return m
 }
@@ -141,7 +158,7 @@ func (m *Media) Update() {
 			m.Mode = 0
 		} else {
 			m.Size = stat.Size()
-			m.Hash, _ = hashFromFile(abspath)
+			m.Hash, _ = helpers.HashFromFile(abspath)
 			m.MTime = stat.ModTime()
 			m.Mode = stat.Mode()
 		}
@@ -154,7 +171,7 @@ func (m *Media) Update() {
 		m.Size = size
 		m.stale = true
 	}
-	hash, _ := hashFromFile(abspath)
+	hash, _ := helpers.HashFromFile(abspath)
 	if m.Hash != hash {
 		m.Hash = hash
 		m.stale = true
@@ -169,6 +186,107 @@ func (m *Media) Update() {
 		m.Mode = mode
 		m.stale = true
 	}
+
+	if m.stale {
+		m.UpdateBlobs()
+	}
+}
+
+func (m *Media) UpdateBlobs() {
+	src := CurrentCollection().GetAbsolutePath(m.RelativePath)
+
+	tmpDir := CurrentConfig().TempDir()
+	converter := CurrentConfig().Converter()
+
+	switch m.MediaKind {
+
+	case KindUnknown:
+		// Same as document
+		fallthrough
+	case KindDocument:
+		// Nothing to convert
+		// Simply copy the content
+		m.BlobRefs = append(m.BlobRefs, MustWriteBlob(src, []string{"original", "lossless"}))
+
+	case KindPicture:
+		// Convert to AVIF (widely supported in desktop and mobiles as of 2023)
+
+		dimensions, _ := medias.ReadImageDimensions(src)
+
+		if dimensions.LargerThan(PreviewMaxWidthOrHeight) {
+			dest := filepath.Join(tmpDir, fileNameWithoutExt(src) + "-preview.avif")
+			err := converter.ToAVIF(src, dest, medias.ResizeTo(PreviewMaxWidthOrHeight))
+			if err != nil {
+				log.Fatalf("Unable to generate preview blob from file %q: %v", m.RelativePath, err)
+			}
+			m.BlobRefs = append(m.BlobRefs, MustWriteBlob(dest, []string{"preview", "lossy"}))
+		}
+
+		if dimensions.LargerThan(LargeMaxWidthOrHeight) {
+			dest := filepath.Join(tmpDir, fileNameWithoutExt(src) + "-large.avif")
+			err := converter.ToAVIF(src, dest, medias.ResizeTo(LargeMaxWidthOrHeight))
+			if err != nil {
+				log.Fatalf("Unable to generate preview blob from file %q: %v", m.RelativePath, err)
+			}
+			m.BlobRefs = append(m.BlobRefs, MustWriteBlob(dest, []string{"large", "lossy"}))
+		}
+
+		dest := filepath.Join(tmpDir, fileNameWithoutExt(src) + "-original.avif")
+		err := converter.ToAVIF(src, dest, medias.OriginalSize())
+		if err != nil {
+			log.Fatalf("Unable to generate preview blob from file %q: %v", m.RelativePath, err)
+		}
+		m.BlobRefs = append(m.BlobRefs, MustWriteBlob(dest, []string{"original", "lossy"}))
+
+	case KindAudio:
+		dest := filepath.Join(tmpDir, fileNameWithoutExt(src) + "-original.mp3")
+		err := converter.ToMP3(src, dest)
+		if err != nil {
+			log.Fatalf("Unable to generate preview blob from file %q: %v", m.RelativePath, err)
+		}
+		m.BlobRefs = append(m.BlobRefs, MustWriteBlob(dest, []string{"original", "lossy"}))
+
+	case KindVideo:
+		dest := filepath.Join(tmpDir, fileNameWithoutExt(src) + "-original.webm")
+		err := converter.ToWebM(src, dest)
+		if err != nil {
+			log.Fatalf("Unable to generate preview blob from file %q: %v", m.RelativePath, err)
+		}
+		m.BlobRefs = append(m.BlobRefs, MustWriteBlob(dest, []string{"original", "lossy"}))
+
+		// and generate a picture from the first frame
+		dest = filepath.Join(tmpDir, fileNameWithoutExt(src) + "-preview.avif")
+		err = converter.ToAVIF(src, dest, medias.ResizeTo(PreviewMaxWidthOrHeight))
+		if err != nil {
+			log.Fatalf("Unable to generate preview blob from file %q: %v", m.RelativePath, err)
+		}
+		m.BlobRefs = append(m.BlobRefs, MustWriteBlob(dest, []string{"preview", "lossy"}))
+	}
+}
+
+// fileNameWithoutExt removes the directory and the extension
+func fileNameWithoutExt(fileName string) string {
+	fileName = filepath.Base(fileName)
+	return strings.TrimSuffix(fileName, filepath.Ext(fileName))
+}
+
+// MustWriteBlob writes a new blob or fail.
+func MustWriteBlob(path string, tags []string) *BlobRef {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		log.Fatalf("Unable to read blob %q: %v", path, err)
+	}
+	ext := filepath.Ext(path)
+	oid := helpers.Hash(data)
+	blob := BlobRef{
+		OID:      oid,
+		MimeType: medias.MimeType(ext),
+		Tags:     tags,
+	}
+	if err := CurrentDB().WriteBlob(blob.OID, data); err != nil {
+		log.Fatalf("Unable to write blob from file %q: %v", path, err)
+	}
+	return &blob
 }
 
 /* Object */
@@ -338,9 +456,12 @@ func (m *Media) Save(tx *sql.Tx) error {
 	default:
 		err = m.CheckWithTx(tx)
 	}
+	if err != nil {
+		return err
+	}
 	m.new = false
 	m.stale = false
-	return err
+	return nil
 }
 
 func (m *Media) InsertWithTx(tx *sql.Tx) error {
@@ -382,6 +503,53 @@ func (m *Media) InsertWithTx(tx *sql.Tx) error {
 		return err
 	}
 
+	// Insert blobs
+	m.InsertBlobsWithTx(tx)
+
+	return nil
+}
+
+func (m *Media) InsertBlobsWithTx(tx *sql.Tx) error {
+	for _, b := range m.BlobRefs {
+		// Blobs are immutable and their OID is determined using a hashsum.
+		// Two medias can contains the same content and share the same blobs.
+
+		blob, err := FindBlobFromOID(b.OID)
+		if err != nil {
+			return err
+		}
+		if blob != nil {
+			CurrentLogger().Debugf("Ignoring existing blob %s...", b.OID)
+			// Already exists
+			return nil
+		}
+
+		CurrentLogger().Debugf("Inserting blob %s...", b.OID)
+		attributes, err := AttributesString(b.Attributes)
+		if err != nil {
+			return err
+		}
+		query := `
+			INSERT INTO blob(
+				oid,
+				media_oid,
+				mime,
+				attributes,
+				tags
+			)
+			VALUES (?, ?, ?, ?, ?);
+		`
+		_, err = tx.Exec(query,
+			b.OID,
+			m.OID,
+			b.MimeType,
+			attributes,
+			strings.Join(b.Tags, ","),
+		)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -419,6 +587,9 @@ func (m *Media) UpdateWithTx(tx *sql.Tx) error {
 		timeToSQL(m.LastCheckedAt),
 		m.OID,
 	)
+
+	// Insert blobs
+	m.InsertBlobsWithTx(tx)
 
 	return err
 }
@@ -479,6 +650,14 @@ func FindMediasLastCheckedBefore(point time.Time, path string) ([]*Media, error)
 	return QueryMedias(`WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
+func FindBlobsFromMedia(mediaOID string) ([]*BlobRef, error) {
+	return QueryBlobs("WHERE media_oid = ?", mediaOID)
+}
+
+func FindBlobFromOID(oid string) (*BlobRef, error) {
+	return QueryBlob("WHERE oid = ?", oid)
+}
+
 /* SQL Helpers */
 
 func QueryMedia(whereClause string, args ...any) (*Media, error) {
@@ -533,6 +712,13 @@ func QueryMedia(whereClause string, args ...any) (*Media, error) {
 	m.UpdatedAt = timeFromSQL(updatedAt)
 	m.LastCheckedAt = timeFromSQL(lastCheckedAt)
 	m.MTime = timeFromSQL(mTime)
+
+	// Load blobs
+	blobs, err := FindBlobsFromMedia(m.OID)
+	if err != nil {
+		return nil, err
+	}
+	m.BlobRefs = blobs
 
 	return &m, nil
 }
@@ -593,6 +779,14 @@ func QueryMedias(whereClause string, args ...any) ([]*Media, error) {
 		m.UpdatedAt = timeFromSQL(updatedAt)
 		m.LastCheckedAt = timeFromSQL(lastCheckedAt)
 		m.MTime = timeFromSQL(mTime)
+
+		// Load blobs
+		blobs, err := FindBlobsFromMedia(m.OID)
+		if err != nil {
+			return nil, err
+		}
+		m.BlobRefs = blobs
+
 		medias = append(medias, &m)
 	}
 
@@ -602,4 +796,107 @@ func QueryMedias(whereClause string, args ...any) ([]*Media, error) {
 	}
 
 	return medias, err
+}
+
+func QueryBlob(whereClause string, args ...any) (*BlobRef, error) {
+	db := CurrentDB().Client()
+
+	var b BlobRef
+	var attributesRaw string
+	var tagsRaw string
+
+	// Query for a value based on a single row.
+	if err := db.QueryRow(fmt.Sprintf(`
+		SELECT
+			oid,
+			mime,
+			attributes,
+			tags
+		FROM blob
+		%s;`, whereClause), args...).
+		Scan(
+			&b.OID,
+			&b.MimeType,
+			&attributesRaw,
+			&tagsRaw,
+		); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	attributes := make(map[string]interface{})
+	err := yaml.Unmarshal([]byte(attributesRaw), &attributes)
+	if err != nil {
+		return nil, err
+	}
+	b.Attributes = attributes
+	b.Tags = strings.Split(tagsRaw, ",")
+
+	return &b, nil
+}
+
+func QueryBlobs(whereClause string, args ...any) ([]*BlobRef, error) {
+	db := CurrentDB().Client()
+
+	var blobs []*BlobRef
+
+	rows, err := db.Query(fmt.Sprintf(`
+		SELECT
+			oid,
+			mime,
+			attributes,
+			tags
+		FROM blob
+		%s;`, whereClause), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var b BlobRef
+		var attributesRaw string
+		var tagsRaw string
+
+		err = rows.Scan(
+			&b.OID,
+			&b.MimeType,
+			&attributesRaw,
+			&tagsRaw,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		attributes := make(map[string]interface{})
+		err := yaml.Unmarshal([]byte(attributesRaw), &attributes)
+		if err != nil {
+			return nil, err
+		}
+		b.Attributes = attributes
+		b.Tags = strings.Split(tagsRaw, ",")
+		blobs = append(blobs, &b)
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	return blobs, err
+}
+
+/* Helpers */
+
+// AttributesString formats the current attributes to the YAML front matter format.
+func AttributesString(attributes map[string]interface{}) (string, error) {
+	var buf bytes.Buffer
+	bufEncoder := yaml.NewEncoder(&buf)
+	bufEncoder.SetIndent(Indent)
+	err := bufEncoder.Encode(attributes)
+	if err != nil {
+		return "", err
+	}
+	return CompactYAML(buf.String()), nil
 }

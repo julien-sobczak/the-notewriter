@@ -6,7 +6,7 @@ CREATE TABLE file (
     -- The full wikilink to this note
     wikilink TEXT NOT NULL,
 
-    -- JSON document representing the Front Matter
+    -- YAML document representing the Front Matter
     front_matter TEXT NOT NULL,
 
     -- Raw file content
@@ -139,6 +139,22 @@ CREATE TABLE media (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     last_checked_at TEXT
+);
+
+CREATE TABLE blob (
+    oid TEXT PRIMARY KEY,
+
+    -- Media
+    media_oid TEXT NOT NULL,
+
+    -- Media type
+    mime TEXT NOT NULL,
+
+    -- YAML document representing the media
+    attributes TEXT NOT NULL,
+
+    -- Comma separated list of tags
+    tags TEXT DEFAULT ''
 );
 
 CREATE TABLE link (

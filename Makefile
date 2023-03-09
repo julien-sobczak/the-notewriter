@@ -11,6 +11,10 @@ build:
 test:
 	go test --tags "fts5" ./... -count=1 -v
 
+# go install gotest.tools/gotestsum@latest
+testsum:
+	gotestsum -- -tags=fts5 ./... -count=1
+
 test-all:
 	go test --tags "fts5 integration" ./... -count=1 -v
 

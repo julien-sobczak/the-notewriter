@@ -3,7 +3,6 @@ package core
 import (
 	"bytes"
 	"context"
-	"crypto/md5"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -14,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/julien-sobczak/the-notetaker/internal/helpers"
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/julien-sobczak/the-notetaker/pkg/markdown"
 	"github.com/julien-sobczak/the-notetaker/pkg/text"
@@ -121,7 +121,7 @@ func NewFileFromPath(filepath string) (*File, error) {
 		Wikilink:     text.TrimExtension(relativePath),
 		Mode:         stat.Mode(),
 		Size:         stat.Size(),
-		Hash:         hash(contentBytes),
+		Hash:         helpers.Hash(contentBytes),
 		MTime:        stat.ModTime(),
 		Content:      contentRaw,
 		CreatedAt:    clock.Now(),
@@ -245,7 +245,7 @@ func (f *File) Update() error {
 
 	f.Mode = fileInfo.Mode()
 	f.Size = fileInfo.Size()
-	f.Hash = hash(contentBytes)
+	f.Hash = helpers.Hash(contentBytes)
 	f.frontMatter = frontMatter
 	f.MTime = fileInfo.ModTime()
 	f.Content = contentRaw
@@ -563,22 +563,6 @@ func parseFile(filepath string) ([]byte, *yaml.Node, string, error) {
 
 /* Data Management */
 
-// hash is an utility to determine a MD5 hash (acceptable as not used for security reasons).
-func hash(bytes []byte) string {
-	h := md5.New()
-	h.Write(bytes)
-	return fmt.Sprintf("%x", h.Sum(nil))
-}
-
-// hashFromFile reads the file content to determine the hash.
-func hashFromFile(path string) (string, error) {
-	contentBytes, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	return hash(contentBytes), nil
-}
-
 func (f *File) SaveOnDisk() error {
 	// Persist to disk
 	frontMatter, err := f.FrontMatterString()
@@ -605,7 +589,7 @@ func (f *File) SaveOnDisk() error {
 	}
 	f.Size = stat.Size()
 	f.Mode = stat.Mode()
-	f.Hash = hash(rawContent)
+	f.Hash = helpers.Hash(rawContent)
 
 	return nil
 }
@@ -680,9 +664,12 @@ func (f *File) Save(tx *sql.Tx) error {
 	default:
 		err = f.CheckWithTx(tx)
 	}
+	if err != nil {
+		return err
+	}
 	f.new = false
 	f.stale = false
-	return err
+	return nil
 }
 
 func (f *File) InsertWithTx(tx *sql.Tx) error {
