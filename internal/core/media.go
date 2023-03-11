@@ -206,7 +206,8 @@ func (m *Media) UpdateBlobs() {
 	case KindDocument:
 		// Nothing to convert
 		// Simply copy the content
-		m.BlobRefs = append(m.BlobRefs, MustWriteBlob(src, []string{"original", "lossless"}))
+		blob := MustWriteBlob(src, []string{"original", "lossless"})
+		m.BlobRefs = append(m.BlobRefs, blob)
 
 	case KindPicture:
 		// Convert to AVIF (widely supported in desktop and mobiles as of 2023)
@@ -214,7 +215,7 @@ func (m *Media) UpdateBlobs() {
 		dimensions, _ := medias.ReadImageDimensions(src)
 
 		if dimensions.LargerThan(PreviewMaxWidthOrHeight) {
-			dest := filepath.Join(tmpDir, fileNameWithoutExt(src) + "-preview.avif")
+			dest := filepath.Join(tmpDir, fileNameWithoutExt(src)+"-preview.avif")
 			err := converter.ToAVIF(src, dest, medias.ResizeTo(PreviewMaxWidthOrHeight))
 			if err != nil {
 				log.Fatalf("Unable to generate preview blob from file %q: %v", m.RelativePath, err)
@@ -223,7 +224,7 @@ func (m *Media) UpdateBlobs() {
 		}
 
 		if dimensions.LargerThan(LargeMaxWidthOrHeight) {
-			dest := filepath.Join(tmpDir, fileNameWithoutExt(src) + "-large.avif")
+			dest := filepath.Join(tmpDir, fileNameWithoutExt(src)+"-large.avif")
 			err := converter.ToAVIF(src, dest, medias.ResizeTo(LargeMaxWidthOrHeight))
 			if err != nil {
 				log.Fatalf("Unable to generate preview blob from file %q: %v", m.RelativePath, err)
@@ -231,7 +232,7 @@ func (m *Media) UpdateBlobs() {
 			m.BlobRefs = append(m.BlobRefs, MustWriteBlob(dest, []string{"large", "lossy"}))
 		}
 
-		dest := filepath.Join(tmpDir, fileNameWithoutExt(src) + "-original.avif")
+		dest := filepath.Join(tmpDir, fileNameWithoutExt(src)+"-original.avif")
 		err := converter.ToAVIF(src, dest, medias.OriginalSize())
 		if err != nil {
 			log.Fatalf("Unable to generate preview blob from file %q: %v", m.RelativePath, err)
@@ -239,7 +240,7 @@ func (m *Media) UpdateBlobs() {
 		m.BlobRefs = append(m.BlobRefs, MustWriteBlob(dest, []string{"original", "lossy"}))
 
 	case KindAudio:
-		dest := filepath.Join(tmpDir, fileNameWithoutExt(src) + "-original.mp3")
+		dest := filepath.Join(tmpDir, fileNameWithoutExt(src)+"-original.mp3")
 		err := converter.ToMP3(src, dest)
 		if err != nil {
 			log.Fatalf("Unable to generate preview blob from file %q: %v", m.RelativePath, err)
@@ -247,7 +248,7 @@ func (m *Media) UpdateBlobs() {
 		m.BlobRefs = append(m.BlobRefs, MustWriteBlob(dest, []string{"original", "lossy"}))
 
 	case KindVideo:
-		dest := filepath.Join(tmpDir, fileNameWithoutExt(src) + "-original.webm")
+		dest := filepath.Join(tmpDir, fileNameWithoutExt(src)+"-original.webm")
 		err := converter.ToWebM(src, dest)
 		if err != nil {
 			log.Fatalf("Unable to generate preview blob from file %q: %v", m.RelativePath, err)
@@ -255,7 +256,7 @@ func (m *Media) UpdateBlobs() {
 		m.BlobRefs = append(m.BlobRefs, MustWriteBlob(dest, []string{"original", "lossy"}))
 
 		// and generate a picture from the first frame
-		dest = filepath.Join(tmpDir, fileNameWithoutExt(src) + "-preview.avif")
+		dest = filepath.Join(tmpDir, fileNameWithoutExt(src)+"-preview.avif")
 		err = converter.ToAVIF(src, dest, medias.ResizeTo(PreviewMaxWidthOrHeight))
 		if err != nil {
 			log.Fatalf("Unable to generate preview blob from file %q: %v", m.RelativePath, err)
@@ -286,6 +287,7 @@ func MustWriteBlob(path string, tags []string) *BlobRef {
 	if err := CurrentDB().WriteBlob(blob.OID, data); err != nil {
 		log.Fatalf("Unable to write blob from file %q: %v", path, err)
 	}
+	CurrentLogger().Infof("\t💾 Saved blob %s", filepath.Base(path))
 	return &blob
 }
 

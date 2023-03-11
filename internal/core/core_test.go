@@ -72,6 +72,10 @@ command="random"
 		os.Unsetenv("NT_HOME")
 		Reset()
 	})
+
+	// Force debug level in tests to diagnose more easily
+	CurrentLogger().SetVerboseLevel(VerboseDebug)
+	CurrentLogger().Debugf("✨ Set up directory %q", ntDir)
 }
 
 /* Test */

@@ -24,4 +24,4 @@ Landscape:
 
 ## AVIF
 
-![AVIF](medias/earth-landscape-large.gif)
+![AVIF](medias/flower-portrait.avif)

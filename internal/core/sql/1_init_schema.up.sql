@@ -11,6 +11,7 @@ CREATE TABLE file (
 
     -- Raw file content
     content TEXT NOT NULL,
+    content_line INTEGER NOT NULL,
 
     -- Timestamps to track changes
     created_at TEXT NOT NULL,

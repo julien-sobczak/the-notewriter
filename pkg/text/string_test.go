@@ -121,33 +121,33 @@ func TestTrimExtension(t *testing.T) {
 		expected string // output
 	}{
 		{
-			name: "Basic filename",
-			path: "README.md",
+			name:     "Basic filename",
+			path:     "README.md",
 			expected: "README",
 		},
 		{
-			name: "Basic directory",
-			path: "medias/",
+			name:     "Basic directory",
+			path:     "medias/",
 			expected: "medias",
 		},
 		{
-			name: "File path",
-			path: "medias/pic.png",
+			name:     "File path",
+			path:     "medias/pic.png",
 			expected: "medias/pic",
 		},
 		{
-			name: "Several extensions",
-			path: "medias/pic.png.back",
+			name:     "Several extensions",
+			path:     "medias/pic.png.back",
 			expected: "medias/pic.png",
 		},
 		{
-			name: "md file",
-			path: "note.md",
+			name:     "md file",
+			path:     "note.md",
 			expected: "note",
 		},
 		{
-			name: "markdown file",
-			path: "note.markdown",
+			name:     "markdown file",
+			path:     "note.markdown",
 			expected: "note",
 		},
 	}
@@ -157,4 +157,20 @@ func TestTrimExtension(t *testing.T) {
 			assert.Equal(t, tt.expected, actual)
 		})
 	}
+}
+
+func TestExtractLines(t *testing.T) {
+	input := `line1
+line2
+line3
+line4`
+
+	firstLine := text.ExtractLines(input, 1, 1)
+	assert.Equal(t, "line1", firstLine)
+
+	twoLines := text.ExtractLines(input, 2, 3)
+	assert.Equal(t, "line2\nline3", twoLines)
+
+	lastLines := text.ExtractLines(input, 3, 5)
+	assert.Equal(t, "line3\nline4", lastLines)
 }

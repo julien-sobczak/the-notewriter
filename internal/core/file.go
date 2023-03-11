@@ -40,8 +40,9 @@ type File struct {
 	// The FrontMatter for the note file
 	frontMatter *yaml.Node `yaml:"front_matter"`
 
-	Content string  `yaml:"content"`
-	notes   []*Note `yaml:"-"`
+	Content     string  `yaml:"content"`
+	ContentLine int     `yaml:"content_line"`
+	notes       []*Note `yaml:"-"`
 
 	// Permission of the file (required to save back)
 	Mode fs.FileMode `yaml:"mode"`
@@ -110,7 +111,7 @@ func NewFileFromPath(filepath string) (*File, error) {
 		return nil, err
 	}
 
-	contentBytes, frontMatter, contentRaw, err := parseFile(filepath)
+	contentBytes, frontMatter, contentBody, contentBodyLine, err := parseFile(filepath)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +124,8 @@ func NewFileFromPath(filepath string) (*File, error) {
 		Size:         stat.Size(),
 		Hash:         helpers.Hash(contentBytes),
 		MTime:        stat.ModTime(),
-		Content:      contentRaw,
+		Content:      contentBody,
+		ContentLine:  contentBodyLine,
 		CreatedAt:    clock.Now(),
 		UpdatedAt:    clock.Now(),
 		stale:        true,
@@ -238,7 +240,7 @@ func (f *File) Update() error {
 
 	f.stale = true
 
-	contentBytes, frontMatter, contentRaw, err := parseFile(abspath)
+	contentBytes, frontMatter, contentBody, contentBodyLine, err := parseFile(abspath)
 	if err != nil {
 		return err
 	}
@@ -248,7 +250,8 @@ func (f *File) Update() error {
 	f.Hash = helpers.Hash(contentBytes)
 	f.frontMatter = frontMatter
 	f.MTime = fileInfo.ModTime()
-	f.Content = contentRaw
+	f.Content = contentBody
+	f.ContentLine = contentBodyLine
 
 	return nil
 }
@@ -385,86 +388,113 @@ func (f *File) GetTags() []string {
 
 /* Content */
 
-// GetNotes extracts the typed notes present in the file.
 func (f *File) GetNotes() []*Note {
 	if f.notes != nil {
 		return f.notes
 	}
 
-	// All typed notes collected until now
-	var notes []*Note
+	type Section struct {
+		level      int
+		kind       NoteKind
+		longTitle  string
+		shortTitle string
+		lineNumber int
 
-	// Current line number during the parsing
-	var lineNumber int
+		// The built note from this section
+		Note *Note
+	}
+	var sections []*Section
 
-	// Keep some information about the current note that
-	// will be added when finding the next one (or end of file)
-	var currentNote bytes.Buffer
-	var currentNoteTitle string
-	var currentLineNumber int
-	var currentLevel int
-	var linesCountInCurrentNote int = -1 // 0 = the title has been found
+	// Extract all note (typed or untyped) sections
+	lines := strings.Split(f.Content, "\n")
 
-	// Keep parent notes to create the hierarchy
-	lastNotePerLevel := make(map[int]*Note)
-	lastNotePerLevel[-1] = nil
-	lastNotePerLevel[0] = nil
-	lastNotePerLevel[1] = nil
-	lastNotePerLevel[2] = nil
-	lastNotePerLevel[3] = nil
-	lastNotePerLevel[4] = nil
-	lastNotePerLevel[5] = nil
-	lastNotePerLevel[6] = nil
-	lastNotePerLevel[7] = nil
-
-	for _, line := range strings.Split(f.Content, "\n") {
-		lineNumber++
-
-		// New section = new potential note?
-		if ok, text, level := markdown.IsHeading(line); ok {
-			ok, _, _ := isSupportedNote(text)
-			if ok || level <= currentLevel {
-
-				// Add previous note
-				if linesCountInCurrentNote > 0 {
-					note := NewNote(f, currentNoteTitle, currentNote.String(), currentLineNumber)
-					note.ParentNote = lastNotePerLevel[currentLevel-1]
-					notes = append(notes, note)
-					lastNotePerLevel[currentLevel] = note
-					// Reset
-					currentNote.Reset()
-					linesCountInCurrentNote = -1
+	// Check if the file contains typed notes.
+	// If so, it means the top heading (= the title of file) does not represent a free note.
+	// Otherwise, we will add this top heading as a standalone note.
+	ignoreTopHeading := false
+	for _, line := range lines {
+		if ok, longTitle, level := markdown.IsHeading(line); ok {
+			if ok, kind, _ := isSupportedNote(longTitle); ok {
+				if level != 1 && kind != KindFree {
+					ignoreTopHeading = true
+					break
 				}
 			}
-
-			if ok {
-				// New note
-				currentNote.Reset()
-				currentLineNumber = lineNumber
-				currentNoteTitle = text
-				currentLevel = level
-				linesCountInCurrentNote = 0
-				continue
-			}
-
-			// Just a subsection
-			if linesCountInCurrentNote >= 0 {
-				currentNote.WriteString(line + "\n")
-				linesCountInCurrentNote++
-			}
-		}
-
-		// Just another line in note content
-		if linesCountInCurrentNote >= 0 {
-			currentNote.WriteString(line + "\n")
-			linesCountInCurrentNote++
 		}
 	}
 
-	// Add last note
-	if linesCountInCurrentNote > 0 {
-		note := NewOrExistingNote(f, currentNoteTitle, currentNote.String(), lineNumber)
-		note.ParentNote = lastNotePerLevel[currentLevel-1] // FIXME bug note.ParentNoteID is never defined...
+	// Current line number during the parsing
+	var lineNumber int
+	insideTypedNote := false
+	for _, line := range lines {
+		lineNumber++
+		if ok, longTitle, level := markdown.IsHeading(line); ok {
+			if level == 1 && ignoreTopHeading {
+				continue
+			}
+			lastLevel := 0
+			if len(sections) > 0 {
+				lastLevel = sections[len(sections)-1].level
+			}
+			if level <= lastLevel {
+				insideTypedNote = false
+			}
+			ok, kind, shortTitle := isSupportedNote(longTitle)
+			if ok {
+				sections = append(sections, &Section{
+					level:      level,
+					kind:       kind,
+					longTitle:  longTitle,
+					shortTitle: shortTitle,
+					lineNumber: lineNumber,
+				})
+				insideTypedNote = true
+			} else { // block inside a note or a free note?
+				if !insideTypedNote { // new free note
+					sections = append(sections, &Section{
+						level:      level,
+						kind:       KindFree,
+						longTitle:  longTitle,
+						shortTitle: shortTitle,
+						lineNumber: lineNumber,
+					})
+				}
+			}
+		}
+	}
+
+	// Iterate over sections and use line numbers to split the raw content into notes
+	if len(sections) == 0 {
+		return nil
+	}
+
+	// All notes collected until now
+	var notes []*Note
+	for i, section := range sections {
+		var parentSection *Section
+		var nextSection *Section
+		if i < len(sections)-1 {
+			nextSection = sections[i+1]
+		}
+		for _, prevSection := range sections[0:i] {
+			if prevSection.level == section.level-1 {
+				parentSection = prevSection
+			}
+		}
+
+		lineStart := section.lineNumber + 1
+		lineEnd := -1 // EOF
+		if nextSection != nil {
+			lineEnd = nextSection.lineNumber - 1
+		}
+
+		noteContent := text.ExtractLines(f.Content, lineStart, lineEnd)
+		noteLine := f.ContentLine + section.lineNumber - 1
+		note := NewOrExistingNote(f, section.longTitle, noteContent, noteLine)
+		section.Note = note
+		if parentSection != nil {
+			note.ParentNote = parentSection.Note
+		}
 		notes = append(notes, note)
 	}
 
@@ -515,10 +545,10 @@ func (f *File) GetMedias() []*Media {
 
 /* Parsing */
 
-func parseFile(filepath string) ([]byte, *yaml.Node, string, error) {
+func parseFile(filepath string) ([]byte, *yaml.Node, string, int, error) {
 	contentBytes, err := os.ReadFile(filepath)
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, "", 0, err
 	}
 
 	var rawFrontMatter bytes.Buffer
@@ -526,7 +556,8 @@ func parseFile(filepath string) ([]byte, *yaml.Node, string, error) {
 	frontMatterStarted := false
 	frontMatterEnded := false
 	bodyStarted := false
-	for _, line := range strings.Split(strings.TrimSuffix(string(contentBytes), "\n"), "\n") {
+	bodyStartLineNumber := 0
+	for i, line := range strings.Split(strings.TrimSuffix(string(contentBytes), "\n"), "\n") {
 		if strings.HasPrefix(line, "---") {
 			if bodyStarted {
 				// Flashcard Front/Back line separator
@@ -544,8 +575,9 @@ func parseFile(filepath string) ([]byte, *yaml.Node, string, error) {
 			rawFrontMatter.WriteString(line)
 			rawFrontMatter.WriteString("\n")
 		} else {
-			if !text.IsBlank(line) {
+			if !text.IsBlank(line) && !bodyStarted {
 				bodyStarted = true
+				bodyStartLineNumber = i + 1
 			}
 			rawContent.WriteString(line)
 			rawContent.WriteString("\n")
@@ -555,10 +587,10 @@ func parseFile(filepath string) ([]byte, *yaml.Node, string, error) {
 	var frontMatter yaml.Node
 	err = yaml.Unmarshal(rawFrontMatter.Bytes(), &frontMatter)
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, "", 0, err
 	}
 
-	return contentBytes, &frontMatter, strings.TrimSpace(rawContent.String()), nil
+	return contentBytes, &frontMatter, strings.TrimSpace(rawContent.String()), bodyStartLineNumber, nil
 }
 
 /* Data Management */
@@ -681,6 +713,7 @@ func (f *File) InsertWithTx(tx *sql.Tx) error {
 			wikilink,
 			front_matter,
 			content,
+			content_line,
 			created_at,
 			updated_at,
 			last_checked_at,
@@ -689,7 +722,7 @@ func (f *File) InsertWithTx(tx *sql.Tx) error {
 			hashsum,
 			mode
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 	frontMatter, err := f.FrontMatterString()
 	if err != nil {
@@ -701,6 +734,7 @@ func (f *File) InsertWithTx(tx *sql.Tx) error {
 		f.Wikilink,
 		frontMatter,
 		f.Content,
+		f.ContentLine,
 		timeToSQL(f.CreatedAt),
 		timeToSQL(f.UpdatedAt),
 		timeToSQL(f.LastCheckedAt),
@@ -725,6 +759,7 @@ func (f *File) UpdateWithTx(tx *sql.Tx) error {
 			wikilink = ?,
 			front_matter = ?,
 			content = ?,
+			content_line = ?,
 			updated_at = ?,
 			last_checked_at = ?,
 			mtime = ?,
@@ -742,6 +777,7 @@ func (f *File) UpdateWithTx(tx *sql.Tx) error {
 		f.Wikilink,
 		frontMatter,
 		f.Content,
+		f.ContentLine,
 		timeToSQL(f.UpdatedAt),
 		timeToSQL(f.LastCheckedAt),
 		timeToSQL(f.MTime),
@@ -833,6 +869,7 @@ func QueryFile(whereClause string, args ...any) (*File, error) {
 			wikilink,
 			front_matter,
 			content,
+			content_line,
 			created_at,
 			updated_at,
 			last_checked_at,
@@ -848,6 +885,7 @@ func QueryFile(whereClause string, args ...any) (*File, error) {
 			&f.Wikilink,
 			&rawFrontMatter,
 			&f.Content,
+			&f.ContentLine,
 			&createdAt,
 			&updatedAt,
 			&lastCheckedAt,
@@ -891,6 +929,7 @@ func QueryFiles(whereClause string, args ...any) ([]*File, error) {
 			wikilink,
 			front_matter,
 			content,
+			content_line,
 			created_at,
 			updated_at,
 			last_checked_at,
@@ -918,6 +957,7 @@ func QueryFiles(whereClause string, args ...any) ([]*File, error) {
 			&f.Wikilink,
 			&rawFrontMatter,
 			&f.Content,
+			&f.ContentLine,
 			&createdAt,
 			&updatedAt,
 			&lastCheckedAt,

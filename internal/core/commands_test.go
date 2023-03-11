@@ -56,22 +56,49 @@ func TestCommandAdd(t *testing.T) {
 	})
 
 	t.Run("Add Media", func(t *testing.T) {
-		t.Skip() // FIXME julien now
 		root := SetUpCollectionFromGoldenDirNamed(t, "TestMedias")
 
-		err := CurrentCollection().Add("go.md")
+		err := CurrentCollection().Add(".")
 		require.NoError(t, err)
 
-		// Check blobs are present
-		media, err := FindMediaByRelativePath("medias/go.svg")
-		require.NoError(t, err)
-		require.NotNil(t, media)
-		for _, blob := range media.Blobs() {
-			oid := blob.OID
-			assert.NoFileExists(t, filepath.Join(root, ".nt/objects/", OIDToPath(oid)))
+		// Check referenced blobs are present
+		referencedMedias := []string{
+			// audios.md
+			"medias/waterfall.flac",
+			"medias/thunderstorm.wav",
+			"medias/rain.flac",
+			"medias/water.mp3",
+			// pictures.md
+			"medias/branch-portrait-small.jpg",
+			"medias/branch-portrait-original.jpg",
+			"medias/bird-landscape-large.png",
+			"medias/earth-landscape-large.gif",
+			"medias/flower-portrait.avif",
+			// videos.md
+			"medias/forest-large.mp4",
+			"medias/forest-large.webm",
+			"medias/aurora.avi",
+			"medias/aurora.mp4",
+		}
+		for _, expectedMedia := range referencedMedias {
+			media, err := FindMediaByRelativePath(expectedMedia)
+			require.NoError(t, err)
+			require.NotNil(t, media)
+			for _, blob := range media.Blobs() {
+				oid := blob.OID
+				assert.NoFileExists(t, filepath.Join(root, ".nt/objects/", OIDToPath(oid)))
+			}
 		}
 
-		// TODO julien
+		// Check non-referenced blobs are missing
+		unreferencedMedias := []string{
+			"medias/branch-portrait.avif",
+		}
+		for _, unreferencedMedia := range unreferencedMedias {
+			media, err := FindMediaByRelativePath(unreferencedMedia)
+			require.NoError(t, err)
+			require.Nil(t, media)
+		}
 
 	})
 

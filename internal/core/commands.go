@@ -157,7 +157,7 @@ func (c *Collection) Add(paths ...string) error {
 }
 
 func (c *Collection) findObjectsLastCheckedBefore(buildTime time.Time, path string) ([]StatefulObject, error) {
-	CurrentLogger().Debug("Searching for ")
+	CurrentLogger().Debugf("Searching for %s", path)
 	// Search for deleted objects...
 	var deletions []StatefulObject
 

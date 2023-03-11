@@ -63,27 +63,29 @@ tags:
 }
 
 func TestNewFileFromPath(t *testing.T) {
-	var tests = []struct {
-		name          string // name
-		rawContent    string // input
-		actualContent string // output
-	}{
 
-		{
-			name: "File without Front Matter",
-			rawContent: `# Hello
+	t.Run("Extract content", func(t *testing.T) {
+		var tests = []struct {
+			name          string // name
+			rawContent    string // input
+			actualContent string // output
+		}{
 
-Hello World!
-`,
-			actualContent: `# Hello
+			{
+				name: "File without Front Matter",
+				rawContent: `# Hello
 
 Hello World!
 `,
-		},
+				actualContent: `# Hello
 
-		{
-			name: "File with Front Matter",
-			rawContent: `---
+Hello World!
+`,
+			},
+
+			{
+				name: "File with Front Matter",
+				rawContent: `---
 tags: [test]
 ---
 
@@ -91,23 +93,15 @@ tags: [test]
 
 Hello World!
 `,
-			actualContent: `# Hello
+				actualContent: `# Hello
 
 Hello World!
 `,
-		},
+			},
 
-		{
-			name: "File without Front Matter and Flashcard",
-			rawContent: `# Hello
-
-## Flashcard: Demo
-
-What is the question?
----
-The answer
-`,
-			actualContent: `# Hello
+			{
+				name: "File without Front Matter and Flashcard",
+				rawContent: `# Hello
 
 ## Flashcard: Demo
 
@@ -115,17 +109,115 @@ What is the question?
 ---
 The answer
 `,
-		},
-	}
+				actualContent: `# Hello
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			filename := SetUpCollectionFromFileContent(t, "test.md", tt.rawContent)
-			f, err := NewFileFromPath(filename)
-			require.NoError(t, err)
-			assert.Equal(t, strings.TrimSpace(tt.actualContent), strings.TrimSpace(f.Content))
-		})
-	}
+## Flashcard: Demo
+
+What is the question?
+---
+The answer
+`,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				filename := SetUpCollectionFromFileContent(t, "test.md", tt.rawContent)
+				f, err := NewFileFromPath(filename)
+				require.NoError(t, err)
+				assert.Equal(t, strings.TrimSpace(tt.actualContent), strings.TrimSpace(f.Content))
+			})
+		}
+	})
+
+	t.Run("Extract notes", func(t *testing.T) { // FIXME debug and implement
+		tests := []struct {
+			name       string
+			rawContent string                      // input
+			check      func(t *testing.T, f *File) // output
+		}{
+
+			// A file can contains a single note.
+			// The free kind is used by default.
+			{
+				name: "A file used as a free note",
+				rawContent: `
+# Free Note
+
+This is a free note.
+`,
+				check: func(t *testing.T, f *File) {
+					// A single note representing the whole file must be found.
+					notes := f.GetNotes()
+					require.Len(t, notes, 1)
+					note := notes[0]
+					require.Equal(t, KindFree, note.NoteKind)
+				},
+			},
+
+			// A prefix can be used
+			{
+				name: "A file used as a reference note",
+				rawContent: `
+# Cheatsheet: Using a file as a single note
+
+This is a note.
+`,
+				check: func(t *testing.T, f *File) {
+					// A single note representing the whole file must be found.
+					notes := f.GetNotes()
+					require.Len(t, notes, 1)
+					note := notes[0]
+					require.Equal(t, KindCheatsheet, note.NoteKind)
+				},
+			},
+
+			// A file can contains free notes (sometimes due to typo)
+			{
+				name: "A file contaning free notes",
+				rawContent: `
+# Example
+
+## Note: A typed note
+
+This note is strongly typed.
+
+## A free note
+
+This note is not typed.
+
+## Flaschard: A untyped note due to a typo
+
+What is the kind for flashcard?
+
+---
+
+Flashcard
+
+`,
+				check: func(t *testing.T, f *File) {
+					// Free notes must be found even if untyped
+					notes := f.GetNotes()
+					require.Len(t, notes, 3)
+					note1 := notes[0]
+					note2 := notes[1]
+					note3 := notes[2]
+					require.Equal(t, KindNote, note1.NoteKind)
+					require.Equal(t, KindFree, note2.NoteKind)
+					require.Equal(t, KindFree, note3.NoteKind)
+				},
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				filename := SetUpCollectionFromFileContent(t, "test.md", tt.rawContent)
+				f, err := NewFileFromPath(filename)
+				require.NoError(t, err)
+				tt.check(t, f)
+			})
+		}
+	})
+
 }
 
 func TestEditFileFrontMatter(t *testing.T) {
@@ -208,26 +300,25 @@ func TestGetNotes(t *testing.T) {
 
 	assert.Equal(t, KindFlashcard, notes[0].NoteKind)
 	assert.Nil(t, notes[0].ParentNote)
-	assert.Equal(t, 6, notes[0].Line)
+	assert.Equal(t, 10, notes[0].Line)
 	assert.Equal(t, "Flashcard: About _The NoteTaker_", notes[0].Title)
-	t.Log(notes[0].ContentRaw)
 	assert.Equal(t, notes[0].ContentRaw, "**What** is _The NoteTaker_?\n\n---\n\n_The NoteTaker_ is an unobstrusive application to organize all kinds of notes.")
 
 	assert.Equal(t, KindQuote, notes[1].NoteKind)
 	assert.Nil(t, notes[1].ParentNote)
-	assert.Equal(t, 15, notes[1].Line)
+	assert.Equal(t, 19, notes[1].Line)
 	assert.Equal(t, "Quote: Gustave Flaubert on Order", notes[1].Title)
 	assert.Equal(t, notes[1].ContentRaw, "`#favorite` `#life-changing`\n\n<!-- name: Gustave Flaubert -->\n<!-- references: https://fortelabs.com/blog/tiagos-favorite-second-brain-quotes/ -->\n\nBe regular and orderly in your life so that you may be violent and original in your work.")
 
 	assert.Equal(t, KindFlashcard, notes[2].NoteKind)
 	assert.Equal(t, notes[1], notes[2].ParentNote)
-	assert.Equal(t, 25, notes[2].Line)
+	assert.Equal(t, 29, notes[2].Line)
 	assert.Equal(t, "Flashcard: Gustave Flaubert on Order", notes[2].Title)
 	assert.Equal(t, notes[2].ContentRaw, "`#creativity`\n\n**Why** order is required for creativity?\n\n---\n\n> Be regular and orderly in your life **so that you may be violent and original in your work**.\n> -- Gustave Flaubert")
 
 	assert.Equal(t, KindTodo, notes[3].NoteKind)
 	assert.Nil(t, notes[3].ParentNote)
-	assert.Equal(t, 40, notes[3].Line)
+	assert.Equal(t, 41, notes[3].Line)
 	assert.Equal(t, "TODO: Backlog", notes[3].Title)
 	assert.Equal(t, notes[3].ContentRaw, "* [*] Complete examples\n* [ ] Write `README.md`")
 }
@@ -354,6 +445,7 @@ func TestFileSave(t *testing.T) {
 	assert.Equal(t, expectedFrontMatter, actualFrontMatter)
 	assert.Equal(t, []string{"go"}, actual.GetTags())
 	assert.Contains(t, actual.Content, "# Go", actual.Content)
+	assert.Equal(t, 6, actual.ContentLine)
 	assert.Equal(t, f.Mode, actual.Mode)
 	assert.Equal(t, f.Size, actual.Size)
 	assert.Equal(t, f.Hash, actual.Hash)
@@ -377,7 +469,7 @@ func TestFileSave(t *testing.T) {
 		"source": "https://en.wikipedia.org/wiki/Go_(programming_language)",
 	}, note.Attributes)
 	assert.Equal(t, []string{"go", "history"}, note.GetTags())
-	assert.Equal(t, 3, note.Line)
+	assert.Equal(t, 8, note.Line)
 	assert.Equal(t, "`#history`\n\n<!-- source: https://en.wikipedia.org/wiki/Go_(programming_language) -->\n\n[Golang](https://go.dev/doc/ \"#go/go\") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.", note.ContentRaw)
 	assert.Equal(t, "bb406ddcc9f0b212e2329a1e093aa21d", note.Hash)
 	assert.Equal(t, `[Golang](https://go.dev/doc/ "#go/go") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.`, note.ContentMarkdown)
@@ -523,6 +615,7 @@ content: |-
     ## TODO: Conferences
 
     * [Gophercon Europe](https://gophercon.eu/) `+"`"+`#reminder-2023-06-26`+"`"+`
+content_line: 6
 mode: 420
 size: 469
 hash: 40bba27f3783ba6f8d94b288c8e1b216

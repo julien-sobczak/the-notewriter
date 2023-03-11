@@ -8,6 +8,19 @@ import (
 	"strings"
 )
 
+// ExtractLines extract the given lines (1-based indices).
+func ExtractLines(text string, start, end int) string {
+	lines := strings.Split(text, "\n")
+	start = start - 1
+	if start < 0 {
+		start = 0
+	}
+	if end == -1 || end > len(lines) {
+		end = len(lines)
+	}
+	return strings.Join(lines[start:end], "\n")
+}
+
 // SquashBlankLines replaces successive blank lines by a single empty one.
 func SquashBlankLines(text string) string {
 	var result bytes.Buffer
