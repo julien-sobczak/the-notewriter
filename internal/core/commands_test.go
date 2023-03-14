@@ -86,7 +86,7 @@ func TestCommandAdd(t *testing.T) {
 			require.NotNil(t, media)
 			for _, blob := range media.Blobs() {
 				oid := blob.OID
-				assert.NoFileExists(t, filepath.Join(root, ".nt/objects/", OIDToPath(oid)))
+				assert.FileExists(t, filepath.Join(root, ".nt/objects/", OIDToPath(oid)))
 			}
 		}
 
@@ -375,7 +375,7 @@ A **gopher**.
 `), 0644)
 		require.NoError(t, err)
 
-		err = CurrentCollection().Add("go.md")
+		err = CurrentCollection().Add(".") // To force medias cleaning
 		require.NoError(t, err)
 		err = CurrentDB().Commit("update go.svg -> go.png")
 		require.NoError(t, err)

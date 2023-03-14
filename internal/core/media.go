@@ -82,7 +82,7 @@ type Media struct {
 	// Timestamps to track changes
 	CreatedAt     time.Time `yaml:"created_at"`
 	UpdatedAt     time.Time `yaml:"updated_at"`
-	DeletedAt     time.Time `yaml:"-"`
+	DeletedAt     time.Time `yaml:"deleted_at,omitempty"`
 	LastCheckedAt time.Time `yaml:"-"`
 
 	new   bool
@@ -626,7 +626,7 @@ func (m *Media) DeleteWithTx(tx *sql.Tx) error {
 }
 
 func (m *Media) DeleteBlobsWithTx(tx *sql.Tx) error {
-	CurrentLogger().Debugf("Deleting blobs for media  %s...", m.OID)
+	CurrentLogger().Debugf("Deleting blobs for media %s...", m.OID)
 	query := `DELETE FROM blob WHERE media_oid = ?;`
 	res, err := tx.Exec(query, m.OID)
 	if err != nil {

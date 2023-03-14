@@ -73,7 +73,12 @@ func (r *FSRemote) PutObject(key string, data []byte) error {
 }
 
 func (r *FSRemote) DeleteObject(key string) error {
-	return os.Remove(filepath.Join(r.path, key))
+	path := filepath.Join(r.path, key)
+	_, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return ErrObjectNotExist
+	}
+	return os.Remove(path)
 }
 
 /* S3 */

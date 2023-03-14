@@ -48,7 +48,7 @@ type Reminder struct {
 	// Timestamps to track changes
 	CreatedAt     time.Time `yaml:"created_at"`
 	UpdatedAt     time.Time `yaml:"updated_at"`
-	DeletedAt     time.Time `yaml:"-"`
+	DeletedAt     time.Time `yaml:"deleted_at,omitempty"`
 	LastCheckedAt time.Time `yaml:"-"`
 
 	new   bool

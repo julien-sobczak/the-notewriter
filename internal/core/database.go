@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"
@@ -152,19 +151,27 @@ func (db *DB) WriteBlob(oid string, data []byte) error {
 // DeleteBlobs removes all blobs on disk from a media
 func (db *DB) DeleteBlobs(media *Media) error {
 	for _, blob := range media.BlobRefs {
-		path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", OIDToPath(blob.OID))
-		err := os.Remove(path)
-		if err != nil {
+		if err := db.DeleteBlob(media, blob); err != nil {
 			return err
 		}
-		// Save blobs as orphans
-		db.index.OrphanBlobs = append(db.index.OrphanBlobs, &IndexBlob{
-			OID:      blob.OID,
-			DTime:    clock.Now(),
-			MediaOID: media.OID,
-		})
-		CurrentLogger().Infof("💾 Deleted blob %s", filepath.Base(path))
 	}
+	return nil
+}
+
+// DeleteBlob removes a single blob on disk
+func (db *DB) DeleteBlob(media *Media, blob *BlobRef) error {
+	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", OIDToPath(blob.OID))
+	err := os.Remove(path)
+	if err != nil {
+		return err
+	}
+	// Save blob as orphans
+	db.index.OrphanBlobs = append(db.index.OrphanBlobs, &IndexBlob{
+		OID:      blob.OID,
+		DTime:    clock.Now(),
+		MediaOID: media.OID,
+	})
+	CurrentLogger().Infof("💾 Deleted blob %s", filepath.Base(path))
 	return nil
 }
 
@@ -548,54 +555,51 @@ func (db *DB) Restore() error {
 
 // GC removes non referenced objects/blobs in the local directory.
 func (db *DB) GC() error {
-	// We search for old versions of medias (= more recent blobs have been generated since)
-	// or deleted medias.
-
-	// Walk the commits in any order for medias
+	// Walk the commits to locate all medias
+	var allMedias []*Media
 	for _, commitOID := range db.commitGraph.CommitOIDs {
 		commit, err := db.ReadCommit(commitOID)
 		if err != nil {
 			return err
 		}
+
 		for _, object := range commit.Objects {
 			if object.Kind == "media" {
-				lastCommitObject, ok := db.index.objectsRef[object.OID]
-				if !ok {
-					// Object have already been deleted
-					continue
-				}
-
 				// Read the media
 				media := new(Media)
 				if err := object.Data.Unmarshal(media); err != nil {
 					return err
 				}
 
-				// Read the most up-to-date version of this media
-				lastCommit, err := db.ReadCommit(lastCommitObject.CommitOID)
-				if err != nil {
-					return err
-				}
-				lastObject := lastCommit.GetObject(media.OID)
-				lastMedia := new(Media)
-				lastObject.Data.Unmarshal(lastMedia)
+				allMedias = append(allMedias, media)
+			}
+		}
+	}
 
-				// The media no longer exists
-				if !lastMedia.DeletedAt.IsZero() {
-					// The blobs are no longer required
-					if err := db.DeleteBlobs(media); err != nil {
-						log.Fatalf("Unable to delete old blobs from file %q: %v", media.RelativePath, err)
-					}
-					continue
-				}
+	// Traverse in reverse order to find used blobs
+	traversedMedias := make(map[string]bool)
+	usedBlobs := make(map[string]bool)
+	for i := len(allMedias) - 1; i >= 0; i-- {
+		media := allMedias[i]
+		if _, ok := traversedMedias[media.OID]; ok {
+			// Old media version
+			continue
+		}
+		traversedMedias[media.OID] = true
+		if !media.DeletedAt.IsZero() {
+			// Media no longer exists = blobs are no longer truly referenced by it
+			continue
+		}
+		for _, blob := range media.BlobRefs {
+			usedBlobs[blob.OID] = true
+		}
+	}
 
-				// Check if mtime has changed since
-				if media.MTime.Before(lastMedia.MTime) {
-					// The media must have been re-committed with new blobs
-					if err := db.DeleteBlobs(media); err != nil {
-						log.Fatalf("Unable to delete old blobs from file %q: %v", media.RelativePath, err)
-					}
-				}
+	// Traverse all medias to detect unused blobs based on the previous list
+	for _, media := range allMedias {
+		for _, blob := range media.BlobRefs {
+			if _, ok := usedBlobs[blob.OID]; !ok {
+				db.DeleteBlob(media, blob)
 			}
 		}
 	}
@@ -610,23 +614,73 @@ func (db *DB) OriginGC() error {
 		return errors.New("no remote found")
 	}
 
-	// We are looking for orphan blobs deleted after the last commit in origin
-	from := time.Time{} // Zero
+	// Retrieve the origin commit graph
+	data, err := origin.GetObject("info/commit-graph")
+	if errors.Is(err, ErrObjectNotExist) {
+		// Nothing to pull
+		return nil
+	}
+	commitGraph := new(CommitGraph)
+	if err := commitGraph.Read(bytes.NewReader(data)); err != nil {
+		return err
+	}
 
-	// Check last known commit
-	lastCommitOID, ok := db.refs["origin"]
-	if ok {
-		commit, err := db.ReadCommit(lastCommitOID)
+	// Walk the commits to locate all medias
+	var allMedias []*Media
+	for _, commitOID := range commitGraph.CommitOIDs {
+		data, err := origin.GetObject(OIDToPath(commitOID))
 		if err != nil {
 			return err
 		}
-		from = commit.CTime
+		commit := new(Commit)
+		if err := commit.Read(bytes.NewReader(data)); err != nil {
+			return err
+		}
+
+		for _, object := range commit.Objects {
+			if object.Kind == "media" {
+				// Read the media
+				media := new(Media)
+				if err := object.Data.Unmarshal(media); err != nil {
+					return err
+				}
+
+				allMedias = append(allMedias, media)
+			}
+		}
 	}
 
-	// Iterate over blobs deleted after this commit
-	for _, blob := range db.index.FindBlobsDeletedAfter(from) {
-		if err := db.Origin().DeleteObject(OIDToPath(blob.OID)); err != nil {
-			return err
+	// Traverse in reverse order to find used blobs
+	traversedMedias := make(map[string]bool)
+	usedBlobs := make(map[string]bool)
+	for i := len(allMedias) - 1; i >= 0; i-- {
+		media := allMedias[i]
+		if _, ok := traversedMedias[media.OID]; ok {
+			// Old media version
+			continue
+		}
+		traversedMedias[media.OID] = true
+		if !media.DeletedAt.IsZero() {
+			// Media no longer exists = blobs are no longer truly referenced by it
+			continue
+		}
+		for _, blob := range media.BlobRefs {
+			usedBlobs[blob.OID] = true
+		}
+	}
+
+	// Traverse all medias to detect unused blobs based on the previous list
+	for _, media := range allMedias {
+		for _, blob := range media.BlobRefs {
+			if _, ok := usedBlobs[blob.OID]; !ok {
+				CurrentLogger().Infof("💾 Deleted remote blob %s", blob.OID)
+				if err := origin.DeleteObject(OIDToPath(blob.OID)); err != nil {
+					if !errors.Is(err, ErrObjectNotExist) {
+						return err
+					}
+					// Ignore objects already deleted
+				}
+			}
 		}
 	}
 
