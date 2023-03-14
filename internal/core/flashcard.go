@@ -247,7 +247,7 @@ func (f *Flashcard) SubObjects() []StatefulObject {
 	return nil
 }
 
-func (f *Flashcard) Blobs() []BlobRef {
+func (f *Flashcard) Blobs() []*BlobRef {
 	// Use Media.Blobs() instead
 	return nil
 }

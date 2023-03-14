@@ -11,10 +11,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/julien-sobczak/the-notetaker/pkg/resync"
 )
 
@@ -140,7 +142,30 @@ func (db *DB) WriteBlob(oid string, data []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0644)
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return err
+	}
+	CurrentLogger().Infof("💾 Saved blob %s", filepath.Base(path))
+	return nil
+}
+
+// DeleteBlobs removes all blobs on disk from a media
+func (db *DB) DeleteBlobs(media *Media) error {
+	for _, blob := range media.BlobRefs {
+		path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", OIDToPath(blob.OID))
+		err := os.Remove(path)
+		if err != nil {
+			return err
+		}
+		// Save blobs as orphans
+		db.index.OrphanBlobs = append(db.index.OrphanBlobs, &IndexBlob{
+			OID:      blob.OID,
+			DTime:    clock.Now(),
+			MediaOID: media.OID,
+		})
+		CurrentLogger().Infof("💾 Deleted blob %s", filepath.Base(path))
+	}
+	return nil
 }
 
 // Origin returns the origin implementation based on the optional configured type.
@@ -450,6 +475,7 @@ func (db *DB) Push() error {
 	return nil
 }
 
+// Restore reverts the latest add command.
 func (db *DB) Restore() error {
 	// Run all queries inside the same transaction
 	tx, err := db.Client().BeginTx(context.Background(), nil)
@@ -518,6 +544,93 @@ func (db *DB) Restore() error {
 	err = db.index.Save()
 
 	return err
+}
+
+// GC removes non referenced objects/blobs in the local directory.
+func (db *DB) GC() error {
+	// We search for old versions of medias (= more recent blobs have been generated since)
+	// or deleted medias.
+
+	// Walk the commits in any order for medias
+	for _, commitOID := range db.commitGraph.CommitOIDs {
+		commit, err := db.ReadCommit(commitOID)
+		if err != nil {
+			return err
+		}
+		for _, object := range commit.Objects {
+			if object.Kind == "media" {
+				lastCommitObject, ok := db.index.objectsRef[object.OID]
+				if !ok {
+					// Object have already been deleted
+					continue
+				}
+
+				// Read the media
+				media := new(Media)
+				if err := object.Data.Unmarshal(media); err != nil {
+					return err
+				}
+
+				// Read the most up-to-date version of this media
+				lastCommit, err := db.ReadCommit(lastCommitObject.CommitOID)
+				if err != nil {
+					return err
+				}
+				lastObject := lastCommit.GetObject(media.OID)
+				lastMedia := new(Media)
+				lastObject.Data.Unmarshal(lastMedia)
+
+				// The media no longer exists
+				if !lastMedia.DeletedAt.IsZero() {
+					// The blobs are no longer required
+					if err := db.DeleteBlobs(media); err != nil {
+						log.Fatalf("Unable to delete old blobs from file %q: %v", media.RelativePath, err)
+					}
+					continue
+				}
+
+				// Check if mtime has changed since
+				if media.MTime.Before(lastMedia.MTime) {
+					// The media must have been re-committed with new blobs
+					if err := db.DeleteBlobs(media); err != nil {
+						log.Fatalf("Unable to delete old blobs from file %q: %v", media.RelativePath, err)
+					}
+				}
+			}
+		}
+	}
+
+	return db.index.Save()
+}
+
+// GC removes non referenced objects/blobs in the remote directory.
+func (db *DB) OriginGC() error {
+	origin := db.Origin()
+	if origin == nil {
+		return errors.New("no remote found")
+	}
+
+	// We are looking for orphan blobs deleted after the last commit in origin
+	from := time.Time{} // Zero
+
+	// Check last known commit
+	lastCommitOID, ok := db.refs["origin"]
+	if ok {
+		commit, err := db.ReadCommit(lastCommitOID)
+		if err != nil {
+			return err
+		}
+		from = commit.CTime
+	}
+
+	// Iterate over blobs deleted after this commit
+	for _, blob := range db.index.FindBlobsDeletedAfter(from) {
+		if err := db.Origin().DeleteObject(OIDToPath(blob.OID)); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 /* Utility */

@@ -81,19 +81,19 @@ hash: 974a75814a1339c82cb497ea1ab56383
 size: 2288
 mode: 420
 blobs:
-    - oid: 0418c0a668c9a0091dcafcb9d7da7920
+    - oid: 7874924b49bdb20876d6b0b1d649df60
       mime: image/avif
       attributes: {}
       tags:
         - preview
         - lossy
-    - oid: c6e3ac8e7e3db88f3cda3446e5edced6
+    - oid: a760ee003209f2c502d6ea0e93e12e87
       mime: image/avif
       attributes: {}
       tags:
         - large
         - lossy
-    - oid: 2ed80445aeb8c676219c18c9214dd596
+    - oid: 7bcec2c96c9f7f0e2663f3bb132e705a
       mime: image/avif
       attributes: {}
       tags:

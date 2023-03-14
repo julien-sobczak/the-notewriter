@@ -211,7 +211,7 @@ func (n *Note) SubObjects() []StatefulObject {
 	return objs
 }
 
-func (n *Note) Blobs() []BlobRef {
+func (n *Note) Blobs() []*BlobRef {
 	// Use Media.Blobs() instead
 	return nil
 }
@@ -565,7 +565,7 @@ func extractAttributes(content string) (string, map[string]interface{}) {
 
 // GetMedias extracts medias from the note.
 func (n *Note) GetMedias() []*Media {
-	return extractMediasFromMarkdown(n.File.RelativePath, n.ContentRaw)
+	return extractMediasFromMarkdown(n.GetFile().RelativePath, n.ContentRaw)
 }
 
 // GetLinks extracts special links from a note.

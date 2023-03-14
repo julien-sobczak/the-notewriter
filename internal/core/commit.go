@@ -41,8 +41,12 @@ type Index struct {
 	// Same as objects when searching by OID
 	objectsRef map[string]*IndexObject `yaml:"-"`
 	// Same as objects when searching by relative path
-	filesRef    map[string]*IndexObject `yaml:"files"`
-	StagingArea StagingArea             `yaml:"staging"`
+	filesRef map[string]*IndexObject `yaml:"files"`
+
+	// A list of blobs that is known to be orphans
+	OrphanBlobs []*IndexBlob `yaml:"orphan_blobs"`
+
+	StagingArea StagingArea `yaml:"staging"`
 }
 
 type IndexObject struct {
@@ -50,6 +54,13 @@ type IndexObject struct {
 	MTime time.Time `yaml:"mtime"`
 	// The commit containing the latest version (empty for uncommitted object)
 	CommitOID string `yaml:"commit_oid"`
+}
+
+type IndexBlob struct {
+	OID   string    `yaml:"oid"`
+	DTime time.Time `yaml:"dtime"`
+	// The media that introduced this blob
+	MediaOID string `yaml:"media_oid"`
 }
 
 type StagingObject struct {
@@ -141,6 +152,17 @@ func (i *Index) FindCommitContaining(objectOID string) (string, bool) {
 		return "", false
 	}
 	return indexFile.CommitOID, true
+}
+
+// FindBlobsDeletedAfter returns all blobs deleted from a given date.
+func (i *Index) FindBlobsDeletedAfter(from time.Time) []*IndexBlob {
+	var results []*IndexBlob
+	for _, blob := range i.OrphanBlobs {
+		if from.IsZero() || blob.DTime.After(from) {
+			results = append(results, blob)
+		}
+	}
+	return results
 }
 
 // AppendCommit completes the index with object from a commit.
@@ -496,6 +518,16 @@ func NewCommit() *Commit {
 	}
 }
 
+// GetObject retrieves an object from a commit.
+func (c *Commit) GetObject(oid string) *CommitObject {
+	for _, object := range c.Objects {
+		if object.OID == oid {
+			return object
+		}
+	}
+	return nil
+}
+
 // Append registers a new object inside the commit.
 func (c *Commit) AppendObject(obj StatefulObject) error {
 	data, err := NewObjectData(obj)
@@ -574,7 +606,7 @@ func (c *Commit) Save() error {
 	return c.Write(f)
 }
 
-func (c *Commit) Blobs() []BlobRef {
+func (c *Commit) Blobs() []*BlobRef {
 	// Blobs are stored outside commits.
 	return nil
 }

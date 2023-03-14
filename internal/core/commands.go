@@ -136,6 +136,18 @@ func (c *Collection) Add(paths ...string) error {
 		if err != nil {
 			return err
 		}
+		// Check for dead medias only when adding the root directory.
+		// For example, when adding a file, it can contains references to medias stored in a directory outside the given path.
+		if path == CurrentConfig().RootDirectory { // nt add .
+			// As we walked the whole hierarchy, all medias must have be checked.
+			mediaDeletions, err := FindMediasLastCheckedBefore(buildTime)
+			if err != nil {
+				return err
+			}
+			for _, mediaDeletion := range mediaDeletions {
+				deletions = append(deletions, mediaDeletion)
+			}
+		}
 		for _, deletion := range deletions {
 			deletion.ForceState(Deleted)
 			if err := db.StageObject(deletion); err != nil {

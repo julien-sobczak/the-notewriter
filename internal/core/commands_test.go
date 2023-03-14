@@ -330,3 +330,90 @@ Changes to be committed:
 	})
 
 }
+
+func TestCommandGC(t *testing.T) {
+
+	t.Run("Basic", func(t *testing.T) {
+		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+
+		// Configure origin
+		origin := t.TempDir()
+		CurrentConfig().ConfigFile.Remote = ConfigRemote{
+			Type: "fs",
+			Dir:  origin,
+		}
+
+		err := CurrentCollection().Add(".")
+		require.NoError(t, err)
+		err = CurrentDB().Commit("initial commit")
+		require.NoError(t, err)
+		err = CurrentDB().Push()
+		require.NoError(t, err)
+		logo, err := FindMediaByRelativePath("medias/go.svg")
+		require.NoError(t, err)
+		require.NotNil(t, logo)
+		require.Len(t, logo.BlobRefs, 3)
+		logoOriginalBlob := logo.BlobRefs[0]
+		// Check local
+		require.FileExists(t, filepath.Join(root, ".nt/objects/", OIDToPath(logoOriginalBlob.OID)))
+		// Check origin
+		require.FileExists(t, filepath.Join(origin, OIDToPath(logoOriginalBlob.OID)))
+
+		// Update the media file
+		err = os.WriteFile(filepath.Join(root, "go.md"), []byte(`
+# Go
+
+## Flashcard: Golang Logo
+
+What does the **Golang logo** represent?
+
+---
+
+A **gopher**.
+
+![Logo](./medias/go.png)
+`), 0644)
+		require.NoError(t, err)
+
+		err = CurrentCollection().Add("go.md")
+		require.NoError(t, err)
+		err = CurrentDB().Commit("update go.svg -> go.png")
+		require.NoError(t, err)
+		err = CurrentDB().Push()
+		require.NoError(t, err)
+
+		logo, err = FindMediaByRelativePath("medias/go.svg")
+		require.NoError(t, err)
+		require.NotNil(t, logo) // Must still exists as we delay the deletion until next gc
+		logo, err = FindMediaByRelativePath("medias/go.png")
+		require.NoError(t, err)
+		require.NotNil(t, logo)
+		require.Len(t, logo.BlobRefs, 2)
+		logoModifiedBlob := logo.BlobRefs[0]
+		require.NotEqual(t, logoOriginalBlob.OID, logoModifiedBlob.OID) // Must be different blobs
+		// Check local
+		require.FileExists(t, filepath.Join(root, ".nt/objects/", OIDToPath(logoOriginalBlob.OID))) // Must still exists
+		require.FileExists(t, filepath.Join(root, ".nt/objects/", OIDToPath(logoModifiedBlob.OID)))
+		// Check origin
+		require.FileExists(t, filepath.Join(origin, OIDToPath(logoOriginalBlob.OID))) // Must still exists
+		require.FileExists(t, filepath.Join(origin, OIDToPath(logoModifiedBlob.OID)))
+
+		// Run "nt gc"
+		err = CurrentDB().GC()
+		require.NoError(t, err)
+		// Only the referenced blob must now exists
+		// Check local
+		require.NoFileExists(t, filepath.Join(root, ".nt/objects/", OIDToPath(logoOriginalBlob.OID))) // garbage collected
+		require.FileExists(t, filepath.Join(root, ".nt/objects/", OIDToPath(logoModifiedBlob.OID)))
+		// Check origin
+		require.FileExists(t, filepath.Join(origin, OIDToPath(logoOriginalBlob.OID))) // not garbage collected by this command
+		require.FileExists(t, filepath.Join(origin, OIDToPath(logoModifiedBlob.OID)))
+
+		// Run "nt origin gc"
+		err = CurrentDB().OriginGC()
+		require.NoError(t, err)
+		require.NoFileExists(t, filepath.Join(origin, OIDToPath(logoOriginalBlob.OID))) // garbage collected
+		require.FileExists(t, filepath.Join(origin, OIDToPath(logoModifiedBlob.OID)))
+	})
+
+}

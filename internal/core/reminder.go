@@ -154,7 +154,7 @@ func (r *Reminder) SubObjects() []StatefulObject {
 	return nil
 }
 
-func (r *Reminder) Blobs() []BlobRef {
+func (r *Reminder) Blobs() []*BlobRef {
 	// Use Media.Blobs() instead
 	return nil
 }

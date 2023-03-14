@@ -215,7 +215,7 @@ func (f *File) SubObjects() []StatefulObject {
 	return objs
 }
 
-func (f *File) Blobs() []BlobRef {
+func (f *File) Blobs() []*BlobRef {
 	// Use Media.Blobs() instead
 	return nil
 }

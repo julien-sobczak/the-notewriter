@@ -130,7 +130,7 @@ func (l *Link) SubObjects() []StatefulObject {
 	return nil
 }
 
-func (l *Link) Blobs() []BlobRef {
+func (l *Link) Blobs() []*BlobRef {
 	// Use Media.Blobs() instead
 	return nil
 }

@@ -37,7 +37,7 @@ type Object interface {
 	// SubObjects returns the objects directly contained by this object.
 	SubObjects() []StatefulObject
 	// Blobs returns the optional blobs associated with this object.
-	Blobs() []BlobRef
+	Blobs() []*BlobRef
 
 	// Read rereads the object from YAML.
 	Read(r io.Reader) error
@@ -62,11 +62,11 @@ type StatefulObject interface {
 }
 
 type BlobFile struct {
-	Ref  BlobRef
+	Ref  *BlobRef
 	Data []byte
 }
 
-func NewBlobFile(ref BlobRef, data []byte) *BlobFile {
+func NewBlobFile(ref *BlobRef, data []byte) *BlobFile {
 	return &BlobFile{
 		Ref:  ref,
 		Data: data,

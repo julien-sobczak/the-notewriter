@@ -198,6 +198,9 @@ func (m *Media) UpdateBlobs() {
 	tmpDir := CurrentConfig().TempDir()
 	converter := CurrentConfig().Converter()
 
+	// Old blobs will be gc later if not referenced.
+	m.BlobRefs = nil
+
 	switch m.MediaKind {
 
 	case KindUnknown:
@@ -215,7 +218,7 @@ func (m *Media) UpdateBlobs() {
 		dimensions, _ := medias.ReadImageDimensions(src)
 
 		if dimensions.LargerThan(PreviewMaxWidthOrHeight) {
-			dest := filepath.Join(tmpDir, fileNameWithoutExt(src)+"-preview.avif")
+			dest := filepath.Join(tmpDir, filepath.Base(src)+".preview.avif")
 			err := converter.ToAVIF(src, dest, medias.ResizeTo(PreviewMaxWidthOrHeight))
 			if err != nil {
 				log.Fatalf("Unable to generate preview blob from file %q: %v", m.RelativePath, err)
@@ -224,7 +227,7 @@ func (m *Media) UpdateBlobs() {
 		}
 
 		if dimensions.LargerThan(LargeMaxWidthOrHeight) {
-			dest := filepath.Join(tmpDir, fileNameWithoutExt(src)+"-large.avif")
+			dest := filepath.Join(tmpDir, filepath.Base(src)+".large.avif")
 			err := converter.ToAVIF(src, dest, medias.ResizeTo(LargeMaxWidthOrHeight))
 			if err != nil {
 				log.Fatalf("Unable to generate preview blob from file %q: %v", m.RelativePath, err)
@@ -232,7 +235,7 @@ func (m *Media) UpdateBlobs() {
 			m.BlobRefs = append(m.BlobRefs, MustWriteBlob(dest, []string{"large", "lossy"}))
 		}
 
-		dest := filepath.Join(tmpDir, fileNameWithoutExt(src)+"-original.avif")
+		dest := filepath.Join(tmpDir, filepath.Base(src)+".original.avif")
 		err := converter.ToAVIF(src, dest, medias.OriginalSize())
 		if err != nil {
 			log.Fatalf("Unable to generate preview blob from file %q: %v", m.RelativePath, err)
@@ -240,7 +243,7 @@ func (m *Media) UpdateBlobs() {
 		m.BlobRefs = append(m.BlobRefs, MustWriteBlob(dest, []string{"original", "lossy"}))
 
 	case KindAudio:
-		dest := filepath.Join(tmpDir, fileNameWithoutExt(src)+"-original.mp3")
+		dest := filepath.Join(tmpDir, filepath.Base(src)+".original.mp3")
 		err := converter.ToMP3(src, dest)
 		if err != nil {
 			log.Fatalf("Unable to generate preview blob from file %q: %v", m.RelativePath, err)
@@ -248,7 +251,7 @@ func (m *Media) UpdateBlobs() {
 		m.BlobRefs = append(m.BlobRefs, MustWriteBlob(dest, []string{"original", "lossy"}))
 
 	case KindVideo:
-		dest := filepath.Join(tmpDir, fileNameWithoutExt(src)+"-original.webm")
+		dest := filepath.Join(tmpDir, filepath.Base(src)+".original.webm")
 		err := converter.ToWebM(src, dest)
 		if err != nil {
 			log.Fatalf("Unable to generate preview blob from file %q: %v", m.RelativePath, err)
@@ -256,19 +259,13 @@ func (m *Media) UpdateBlobs() {
 		m.BlobRefs = append(m.BlobRefs, MustWriteBlob(dest, []string{"original", "lossy"}))
 
 		// and generate a picture from the first frame
-		dest = filepath.Join(tmpDir, fileNameWithoutExt(src)+"-preview.avif")
+		dest = filepath.Join(tmpDir, filepath.Base(src)+".preview.avif")
 		err = converter.ToAVIF(src, dest, medias.ResizeTo(PreviewMaxWidthOrHeight))
 		if err != nil {
 			log.Fatalf("Unable to generate preview blob from file %q: %v", m.RelativePath, err)
 		}
 		m.BlobRefs = append(m.BlobRefs, MustWriteBlob(dest, []string{"preview", "lossy"}))
 	}
-}
-
-// fileNameWithoutExt removes the directory and the extension
-func fileNameWithoutExt(fileName string) string {
-	fileName = filepath.Base(fileName)
-	return strings.TrimSuffix(fileName, filepath.Ext(fileName))
 }
 
 // MustWriteBlob writes a new blob or fail.
@@ -287,7 +284,6 @@ func MustWriteBlob(path string, tags []string) *BlobRef {
 	if err := CurrentDB().WriteBlob(blob.OID, data); err != nil {
 		log.Fatalf("Unable to write blob from file %q: %v", path, err)
 	}
-	CurrentLogger().Infof("\t💾 Saved blob %s", filepath.Base(path))
 	return &blob
 }
 
@@ -348,9 +344,8 @@ func (m *Media) SubObjects() []StatefulObject {
 	return nil
 }
 
-func (m *Media) Blobs() []BlobRef {
-	// TODO implement
-	return nil
+func (m *Media) Blobs() []*BlobRef {
+	return m.BlobRefs
 }
 
 func (m Media) String() string {
@@ -512,6 +507,9 @@ func (m *Media) InsertWithTx(tx *sql.Tx) error {
 }
 
 func (m *Media) InsertBlobsWithTx(tx *sql.Tx) error {
+	if err := m.DeleteBlobsWithTx(tx); err != nil {
+		return err
+	}
 	for _, b := range m.BlobRefs {
 		// Blobs are immutable and their OID is determined using a hashsum.
 		// Two medias can contains the same content and share the same blobs.
@@ -523,7 +521,7 @@ func (m *Media) InsertBlobsWithTx(tx *sql.Tx) error {
 		if blob != nil {
 			CurrentLogger().Debugf("Ignoring existing blob %s...", b.OID)
 			// Already exists
-			return nil
+			continue
 		}
 
 		CurrentLogger().Debugf("Inserting blob %s...", b.OID)
@@ -618,10 +616,28 @@ func (m *Media) Delete() error {
 }
 
 func (m *Media) DeleteWithTx(tx *sql.Tx) error {
+	if err := m.DeleteBlobsWithTx(tx); err != nil {
+		return err
+	}
 	CurrentLogger().Debugf("Deleting media %s...", m.RelativePath)
 	query := `DELETE FROM media WHERE oid = ?;`
 	_, err := tx.Exec(query, m.OID)
 	return err
+}
+
+func (m *Media) DeleteBlobsWithTx(tx *sql.Tx) error {
+	CurrentLogger().Debugf("Deleting blobs for media  %s...", m.OID)
+	query := `DELETE FROM blob WHERE media_oid = ?;`
+	res, err := tx.Exec(query, m.OID)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	CurrentLogger().Debugf("Deleted %d rows", rows)
+	return nil
 }
 
 // CountMedias returns the total number of medias.
@@ -648,8 +664,8 @@ func FindMediaByHash(hash string) (*Media, error) {
 	return QueryMedia(`WHERE hashsum = ?`, hash)
 }
 
-func FindMediasLastCheckedBefore(point time.Time, path string) ([]*Media, error) {
-	return QueryMedias(`WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
+func FindMediasLastCheckedBefore(point time.Time) ([]*Media, error) {
+	return QueryMedias(`WHERE last_checked_at < ?`, timeToSQL(point))
 }
 
 func FindBlobsFromMedia(mediaOID string) ([]*BlobRef, error) {
