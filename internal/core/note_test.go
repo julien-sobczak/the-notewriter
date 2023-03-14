@@ -359,8 +359,8 @@ func TestNoteFormat(t *testing.T) {
 	}
 }
 
-func TestNoteFTS(t *testing.T) {
-	SetUpCollectionFromGoldenDir(t)
+func TestSearchNotes(t *testing.T) {
+	SetUpCollectionFromGoldenDirNamed(t, "TestNoteFTS")
 
 	db := CurrentDB().Client()
 	CurrentLogger().SetVerboseLevel(VerboseTrace)
@@ -375,7 +375,7 @@ func TestNoteFTS(t *testing.T) {
 	require.NoError(t, err)
 
 	// Search the note using a full-text query
-	notes, err := SearchNotes(KindReference, "fts5")
+	notes, err := SearchNotes("kind:reference fts5")
 	require.NoError(t, err)
 	assert.Len(t, notes, 1)
 
@@ -389,7 +389,7 @@ func TestNoteFTS(t *testing.T) {
 	require.NoError(t, err)
 
 	// Search the note using a full-text query
-	notes, err = SearchNotes(KindReference, "full")
+	notes, err = SearchNotes("kind:reference full")
 	require.NoError(t, err)
 	assert.Len(t, notes, 1)
 
@@ -402,7 +402,7 @@ func TestNoteFTS(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check the note is no longer
-	notes, err = SearchNotes(KindReference, "full")
+	notes, err = SearchNotes("kind:reference full")
 	require.NoError(t, err)
 	assert.Len(t, notes, 0)
 }

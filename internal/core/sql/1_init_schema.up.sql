@@ -85,19 +85,19 @@ CREATE TABLE note (
     last_checked_at TEXT
 );
 
-CREATE VIRTUAL TABLE note_fts USING FTS5(kind UNINDEXED, short_title, content_text, content='note', content_rowid='rowid');
+CREATE VIRTUAL TABLE note_fts USING FTS5(oid UNINDEXED, kind UNINDEXED, short_title, content_text, content='note', content_rowid='rowid');
 
 create trigger note_fts_after_insert after insert on note begin
-  insert into note_fts (rowid, kind, short_title, content_text) values (new.rowid, new.kind, new.short_title, new.content_text);
+  insert into note_fts (rowid, oid, kind, short_title, content_text) values (new.rowid, new.oid, new.kind, new.short_title, new.content_text);
 end;
 
 create trigger note_fts_after_update after update on note begin
-  insert into note_fts (note_fts, rowid, kind, short_title, content_text) values('delete', old.rowid, old.kind, old.short_title, old.content_text);
-  insert into note_fts (rowid, kind, short_title, content_text) values (new.rowid, new.kind, new.short_title, new.content_text);
+  insert into note_fts (note_fts, rowid, oid, kind, short_title, content_text) values('delete', old.rowid, old.oid, old.kind, old.short_title, old.content_text);
+  insert into note_fts (rowid, oid, kind, short_title, content_text) values (new.rowid, new.oid, new.kind, new.short_title, new.content_text);
 end;
 
 create trigger note_fts_after_delete after delete on note begin
-  insert into note_fts (note_fts, rowid, kind, short_title, content_text) values('delete', old.rowid, old.kind, old.short_title, old.content_text);
+  insert into note_fts (note_fts, rowid, oid, kind, short_title, content_text) values('delete', old.rowid, old.oid, old.kind, old.short_title, old.content_text);
 end;
 
 CREATE TABLE media (

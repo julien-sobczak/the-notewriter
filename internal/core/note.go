@@ -34,6 +34,8 @@ const (
 	KindSnippet    NoteKind = 9
 )
 
+var AllKinds = []NoteKind{KindFree, KindReference, KindNote, KindFlashcard, KindCheatsheet, KindQuote, KindJournal, KindTodo, KindArtwork, KindSnippet}
+
 var regexReference = regexp.MustCompile(`(?i)^Reference[-:_ ]\s*(.*)$`)
 var regexNote = regexp.MustCompile(`^(?i)Note[-:_ ]\s*(.*)$`)
 var regexFlashcard = regexp.MustCompile(`^(?i)Flashcard[-:_ ]\s*(.*)$`)
@@ -921,13 +923,79 @@ func FindNotesLastCheckedBefore(point time.Time, path string) ([]*Note, error) {
 	return QueryNotes(`WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
-func SearchNotes(kind NoteKind, q string) ([]*Note, error) {
+// SearchNotes query notes to find the ones matching a list of criteria.
+//
+// Examples:
+//
+//	tag:favorite kind:reference kind:note path:projects/
+func SearchNotes(q string) ([]*Note, error) {
+	var kinds []string
+	var tags []string
+	var path string
+	var terms []string
+	for _, clause := range strings.Split(q, " ") {
+		clause = strings.TrimSpace(clause)
+
+		// tag?
+		if strings.HasPrefix(clause, "tag:") {
+			tags = append(tags, clause[len("tag:"):])
+			continue
+		}
+
+		// path?
+		if strings.HasPrefix(clause, "path:") {
+			// Tolerate trailing / to let the user filter on directory (ex: projects/ and projects.md)
+			path = strings.TrimLeft(clause[len("path:"):], "/")
+			continue
+		}
+
+		// path?
+		if strings.HasPrefix(clause, "kind:") {
+			kinds = append(kinds, clause[len("kind:"):])
+			continue
+		}
+
+		// A simple term to match
+		terms = append(terms, clause)
+	}
+
+	// Prepare SQL values
+
 	db := CurrentDB().Client()
-	queryFTS, err := db.Prepare("SELECT rowid FROM note_fts WHERE kind = ? and note_fts MATCH ? ORDER BY rank LIMIT 10;")
+
+	var querySQL strings.Builder
+	querySQL.WriteString("SELECT note_fts.rowid ")
+	querySQL.WriteString("FROM note_fts ")
+	querySQL.WriteString("JOIN note on note.oid = note_fts.oid ")
+	querySQL.WriteString("WHERE note.oid IS NOT NULL ") // useless but simplify the query building
+	if len(kinds) > 0 {
+		var kindsInts []string
+		for _, kind := range kinds {
+			kindsInts = append(kindsInts, fmt.Sprintf("%d", ValueToNoteKind(kind)))
+		}
+		querySQL.WriteString(fmt.Sprintf("AND note.kind IN (%s) ", strings.Join(kindsInts, ",")))
+	}
+	if len(tags) > 0 {
+		querySQL.WriteString("AND ( ")
+		for _, tag := range tags {
+			querySQL.WriteString(fmt.Sprintf("  note.tags LIKE '%%%s%%' ", tag))
+		}
+		querySQL.WriteString(") ")
+	}
+	if path != "" {
+		querySQL.WriteString(fmt.Sprintf("AND note.relative_path LIKE '%s' ", path+"?"))
+	}
+	if len(terms) > 0 {
+		querySQL.WriteString(fmt.Sprintf("AND note_fts MATCH '%s' ", strings.Join(terms, " AND ")))
+	}
+
+	querySQL.WriteString("ORDER BY rank LIMIT 10;")
+	fmt.Println(querySQL.String())
+	queryFTS, err := db.Prepare(querySQL.String())
 	if err != nil {
 		return nil, err
 	}
-	res, err := queryFTS.Query(kind, q)
+	res, err := queryFTS.Query()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -944,6 +1012,33 @@ func SearchNotes(kind NoteKind, q string) ([]*Note, error) {
 
 	query := "WHERE rowid IN (" + strings.Join(ids, ",") + ")"
 	return QueryNotes(query)
+}
+
+func ValueToNoteKind(value string) NoteKind {
+	// TODO refactor
+	switch value {
+	case "free":
+		return KindFree
+	case "reference":
+		return KindReference
+	case "note":
+		return KindNote
+	case "flashcard":
+		return KindFlashcard
+	case "cheatsheet":
+		return KindCheatsheet
+	case "quote":
+		return KindQuote
+	case "journal":
+		return KindJournal
+	case "todo":
+		return KindTodo
+	case "artwork":
+		return KindArtwork
+	case "snippet":
+		return KindSnippet
+	}
+	return KindFree
 }
 
 /* SQL Helpers */
