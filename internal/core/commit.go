@@ -154,15 +154,15 @@ func (i *Index) FindCommitContaining(objectOID string) (string, bool) {
 	return indexFile.CommitOID, true
 }
 
-// FindBlobsDeletedAfter returns all blobs deleted from a given date.
-func (i *Index) FindBlobsDeletedAfter(from time.Time) []*IndexBlob {
-	var results []*IndexBlob
-	for _, blob := range i.OrphanBlobs {
-		if from.IsZero() || blob.DTime.After(from) {
-			results = append(results, blob)
+// IsOrphanBlob checks if the blob has already beeing deleted.
+func (i *Index) IsOrphanBlob(oid string) bool {
+	for _, b := range i.OrphanBlobs {
+		if b.OID == oid {
+			return true
 		}
 	}
-	return results
+	// not found
+	return false
 }
 
 // AppendCommit completes the index with object from a commit.

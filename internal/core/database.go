@@ -419,7 +419,7 @@ func (db *DB) Push() error {
 	// List of commits to push
 	var commitOIDs []string
 
-	// Read remote's commit-graph to find new commits to pull
+	// Read remote's commit-graph to find commits to push
 	data, err := origin.GetObject("info/commit-graph")
 	if errors.Is(err, ErrObjectNotExist) {
 		// Push all local commits
@@ -431,6 +431,12 @@ func (db *DB) Push() error {
 		if err := cg.Read(bytes.NewReader(data)); err != nil {
 			return err
 		}
+		// Check if we miss some commits locally
+		missingOIDs := db.commitGraph.MissingCommitsFrom(cg)
+		if len(missingOIDs) > 0 {
+			return errors.New("missing commits from origin")
+		}
+
 		// Find only missing commits
 		commitOIDs = cg.MissingCommitsFrom(db.commitGraph)
 	}
@@ -473,6 +479,24 @@ func (db *DB) Push() error {
 		return err
 	}
 	if err := origin.PutObject("info/commit-graph", buf.Bytes()); err != nil {
+		return err
+	}
+
+	// Update remote index
+	buf = new(bytes.Buffer)
+	if err := db.index.Write(buf); err != nil {
+		return err
+	}
+	if err := origin.PutObject("index", buf.Bytes()); err != nil {
+		return err
+	}
+
+	// Push commit for mobile app to retrieve settings
+	data, err = os.ReadFile(filepath.Join(CurrentConfig().RootDirectory, ".nt/config"))
+	if err != nil {
+		return err
+	}
+	if err := origin.PutObject("config", data); err != nil {
 		return err
 	}
 
@@ -598,6 +622,10 @@ func (db *DB) GC() error {
 	// Traverse all medias to detect unused blobs based on the previous list
 	for _, media := range allMedias {
 		for _, blob := range media.BlobRefs {
+			if db.index.IsOrphanBlob(blob.OID) {
+				// Already deleted
+				continue
+			}
 			if _, ok := usedBlobs[blob.OID]; !ok {
 				db.DeleteBlob(media, blob)
 			}
@@ -617,17 +645,28 @@ func (db *DB) OriginGC() error {
 	// Retrieve the origin commit graph
 	data, err := origin.GetObject("info/commit-graph")
 	if errors.Is(err, ErrObjectNotExist) {
-		// Nothing to pull
+		// Nothing to clean
 		return nil
 	}
-	commitGraph := new(CommitGraph)
-	if err := commitGraph.Read(bytes.NewReader(data)); err != nil {
+	originCommitGraph := new(CommitGraph)
+	if err := originCommitGraph.Read(bytes.NewReader(data)); err != nil {
+		return err
+	}
+
+	// Retrieve the origin commit graph
+	data, err = origin.GetObject("index")
+	if errors.Is(err, ErrObjectNotExist) {
+		// Nothing to clean
+		return nil
+	}
+	originIndex := new(Index)
+	if err := originIndex.Read(bytes.NewReader(data)); err != nil {
 		return err
 	}
 
 	// Walk the commits to locate all medias
 	var allMedias []*Media
-	for _, commitOID := range commitGraph.CommitOIDs {
+	for _, commitOID := range originCommitGraph.CommitOIDs {
 		data, err := origin.GetObject(OIDToPath(commitOID))
 		if err != nil {
 			return err
@@ -672,6 +711,10 @@ func (db *DB) OriginGC() error {
 	// Traverse all medias to detect unused blobs based on the previous list
 	for _, media := range allMedias {
 		for _, blob := range media.BlobRefs {
+			if originIndex.IsOrphanBlob(blob.OID) {
+				// already deleted
+				continue
+			}
 			if _, ok := usedBlobs[blob.OID]; !ok {
 				CurrentLogger().Infof("💾 Deleted remote blob %s", blob.OID)
 				if err := origin.DeleteObject(OIDToPath(blob.OID)); err != nil {

@@ -207,6 +207,8 @@ func TestCommandPushPull(t *testing.T) {
 		require.True(t, ok)
 
 		// Check origin
+		require.FileExists(t, filepath.Join(origin, "config"))
+		require.FileExists(t, filepath.Join(origin, "index"))
 		require.FileExists(t, filepath.Join(origin, "info/commit-graph"))
 		require.FileExists(t, filepath.Join(origin, OIDToPath(head)))
 
@@ -225,6 +227,62 @@ func TestCommandPushPull(t *testing.T) {
 		// Check local
 		require.FileExists(t, filepath.Join(root, ".nt/objects/info/commit-graph"))
 		require.FileExists(t, filepath.Join(root, ".nt/objects", OIDToPath(head)))
+	})
+
+	t.Run("Pull before push", func(t *testing.T) {
+		SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+		// Configure origin
+		origin := t.TempDir()
+		CurrentConfig().ConfigFile.Remote = ConfigRemote{
+			Type: "fs",
+			Dir:  origin,
+		}
+
+		// Push
+		err := CurrentCollection().Add(".")
+		require.NoError(t, err)
+		err = CurrentDB().Commit("initial commit")
+		require.NoError(t, err)
+		err = CurrentDB().Push()
+		require.NoError(t, err)
+
+		Reset()
+
+		// Create a new (empty) repository
+		root := SetUpCollectionFromTempDir(t)
+		// Configure same origin
+		CurrentConfig().ConfigFile.Remote = ConfigRemote{
+			Type: "fs",
+			Dir:  origin,
+		}
+
+		// Create a new commit from a new file
+		newFilepath := filepath.Join(root, "python.md")
+		err = os.WriteFile(newFilepath, []byte(`# Python
+
+## Flashcard: Python's creator
+
+Who invented Python?
+---
+Guido van Rossum
+`), 0644)
+		require.NoError(t, err)
+		err = CurrentCollection().Add(".")
+		require.NoError(t, err)
+		err = CurrentDB().Commit("new commit")
+		require.NoError(t, err)
+
+		// Try to push before pulling first
+		err = CurrentDB().Push()
+		require.ErrorContains(t, err, "missing commits from origin")
+
+		// Pull first
+		err = CurrentDB().Pull()
+		require.NoError(t, err)
+
+		// Try to repush
+		err = CurrentDB().Push()
+		require.NoError(t, err)
 	})
 
 }
