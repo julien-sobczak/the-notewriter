@@ -60,3 +60,13 @@ func TrimExtension(path string) string {
 	path = strings.TrimSuffix(path, string(filepath.Separator))
 	return strings.TrimSuffix(path, filepath.Ext(path))
 }
+
+// LineNumber returns the number of the first line containing the subtring
+// or -1 if not found.
+func LineNumber(text string, sub string) int {
+	i := strings.Index(text, sub)
+	if i == -1 {
+		return -1
+	}
+	return len(strings.Split(text[0:i], "\n"))
+}

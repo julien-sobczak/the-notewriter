@@ -174,3 +174,13 @@ line4`
 	lastLines := text.ExtractLines(input, 3, 5)
 	assert.Equal(t, "line3\nline4", lastLines)
 }
+
+func TestLineNumber(t *testing.T) {
+	input := `1. Hello
+2. Bonjour
+3. Ola
+`
+	assert.Equal(t, 1, text.LineNumber(input, "Hello"))
+	assert.Equal(t, 2, text.LineNumber(input, "Bonjour"))
+	assert.Equal(t, 3, text.LineNumber(input, "Ola"))
+}

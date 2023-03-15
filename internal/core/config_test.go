@@ -9,52 +9,79 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCurrentConfigPresent(t *testing.T) {
-	dir := populate(t, map[string]interface{}{
+func TestReadConfigFromDirectory(t *testing.T) {
 
-		".nt/config": `
+	t.Run("Config present", func(t *testing.T) {
+		dir := populate(t, map[string]interface{}{
+
+			".nt/config": `
 [core]
 extensions=["md"]`,
 
-		".ntignore": `README.md`,
+			".nt/lint": `
+rules:
 
-		"journal/today": Symlink("./2022-12-24.md"),
-		"journal/2022-12-24.md": `
+# Enforce a minimum number of lines between notes
+- name: min-lines-between-notes
+  severity: warning # Default to error
+  args: [2]
+
+# Forbid untyped notes (must be able to exclude paths)
+- name: no-free-note
+  includes: # default to root
+  - todo/
+  - "!todo/misc"
+`,
+
+			".ntignore": `README.md`,
+
+			"journal/today": Symlink("./2022-12-24.md"),
+			"journal/2022-12-24.md": `
 # 2022-12-24
 
 ## Note: Nothing interesting
 Blablabla`,
+		})
+
+		c, err := ReadConfigFromDirectory(filepath.Join(dir, "journal"))
+		require.NoError(t, err)
+		require.NotNil(t, c)
+		assert.Contains(t, c.IgnoreFile.Entries, GlobPath("README.md"))
+
+		c, err = ReadConfigFromDirectory(dir)
+		require.NoError(t, err)
+		require.NotNil(t, c)
+		assert.Contains(t, c.IgnoreFile.Entries, GlobPath("README.md"))
+		assert.Len(t, c.LintFile.Rules, 2)
+		rule1 := c.LintFile.Rules[0]
+		rule2 := c.LintFile.Rules[1]
+		assert.Equal(t, "min-lines-between-notes", rule1.Name)
+		assert.Equal(t, "warning", rule1.Severity)
+		assert.EqualValues(t, []string{"2"}, rule1.Args)
+		assert.Equal(t, "no-free-note", rule2.Name)
+		assert.Equal(t, "", rule2.Severity)
+		assert.EqualValues(t, []GlobPath{"todo/", "!todo/misc"}, rule2.Includes)
 	})
 
-	c, err := ReadConfigFromDirectory(filepath.Join(dir, "journal"))
-	require.NoError(t, err)
-	require.NotNil(t, c)
-	assert.Contains(t, c.IgnoreFile.Entries, GlobPath("README.md"))
+	t.Run("Config missing", func(t *testing.T) {
+		dir := populate(t, map[string]interface{}{
+			// missing .nt directory
 
-	c, err = ReadConfigFromDirectory(dir)
-	require.NoError(t, err)
-	require.NotNil(t, c)
-	assert.Contains(t, c.IgnoreFile.Entries, GlobPath("README.md"))
-}
+			".ntignore": `README.md`,
 
-func TestCurrentConfigMissing(t *testing.T) {
-	dir := populate(t, map[string]interface{}{
-		// missing .nt directory
-
-		".ntignore": `README.md`,
-
-		"journal/today": Symlink("./2022-12-24.md"),
-		"journal/2022-12-24.md": `
+			"journal/today": Symlink("./2022-12-24.md"),
+			"journal/2022-12-24.md": `
 # 2022-12-24
 
 ## Note: Nothing interesting
 Blablabla`,
+		})
+
+		c, err := ReadConfigFromDirectory(filepath.Join(dir, "journal"))
+		require.NoError(t, err)
+		require.Nil(t, c)
 	})
 
-	// DEBUG WHY infinite loop
-	c, err := ReadConfigFromDirectory(filepath.Join(dir, "journal"))
-	require.NoError(t, err)
-	require.Nil(t, c)
 }
 
 func TestInitConfiguration(t *testing.T) {

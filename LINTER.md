@@ -89,9 +89,44 @@ lint:
       - dirA/fileB.proto
   service_suffix: API
   rpc_allow_google_protobuf_empty_requests: true
-breaking:
-  use:
-    - FILE
-  except:
-    - FILE_NO_DELETE
+```
+
+
+## Format
+
+We will use YAML unlink `.nt/config` which uses TOML like Git. Rules must be configured and TOML is not as expressive as YAML.
+
+Proposal:
+
+```yaml
+# .nt/lint
+rules:
+
+# Forbid duplicate note titles
+- name: no-duplicate-note-title
+  includes:
+  - "!archives"
+
+# Enforce a minimum number of lines between notes
+- name: min-lines-between-notes
+  severity: warning # Default to error
+  args: [2]
+
+# Forbid untyped notes (must be able to exclude paths)
+- name: no-free-note
+  includes: # default to root
+  - projects/
+  - references/
+  - todo/
+  - "!todo/misc"
+
+# Path to media files must exist
+- name: no-dangling-media
+
+# Links between notes must exist
+- name: no-dead-wikilink
+
+# No extension in wikilink
+- name: no-extension-wikilink
+  severity: warning
 ```

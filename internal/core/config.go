@@ -11,6 +11,7 @@ import (
 	"github.com/julien-sobczak/the-notetaker/internal/medias"
 	"github.com/julien-sobczak/the-notetaker/pkg/resync"
 	"github.com/pelletier/go-toml/v2"
+	"gopkg.in/yaml.v3"
 )
 
 // How many parent directories to traverse before considering a directory as not a nt repository
@@ -114,6 +115,7 @@ func (f *IgnoreFile) Include(path string) bool {
 type GlobPath string
 
 func (g GlobPath) Match(path string) bool {
+	// FIXME What about !entries???
 	// TODO Go standard library doesn't support the same Git syntax (ex: ** is missing).
 	// Compare https://git-scm.com/docs/gitignore with https://go.dev/src/path/filepath/match.go
 	match, err := filepath.Match(string(g), path)
@@ -124,12 +126,34 @@ func (g GlobPath) Match(path string) bool {
 	return match
 }
 
+type LintFile struct {
+	Rules []ConfigLintRule `yaml:"rules"`
+}
+type ConfigLintRule struct {
+
+	// Name of the rule. Must exists in the registry of rules.
+	Name string `yaml:"name"`
+
+	// Severity of the rule: "error", "warning". Default to "error".
+	Severity string `yaml:"severity"`
+
+	// Optional arguments for the rule.
+	Args []string `yaml:"args"`
+
+	// PathRestrictions returns on which paths to evaluate the rule.
+	// Glob expressions are supported and ! as prefix indicated to exclude.
+	Includes []GlobPath `yaml:"includes"`
+}
+
 type Config struct {
 	// Absolute top directory containing the .nt sub-directory
 	RootDirectory string
 
 	// .nt/config content
 	ConfigFile ConfigFile
+
+	// .nt/lint content
+	LintFile LintFile
 
 	// .ntignore content
 	IgnoreFile IgnoreFile
@@ -259,6 +283,25 @@ func ReadConfigFromDirectory(path string) (*Config, error) {
 		}
 	}
 
+	// Check for .nt/lint
+	ntLintConfigPath := filepath.Join(rootPath, ".nt", "lint")
+	_, err = os.Stat(ntLintConfigPath)
+	var lintFile *LintFile
+	if os.IsNotExist(err) {
+		// No default file to apply
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to check for .nt/lint file: %v", err)
+	} else {
+		content, err := os.ReadFile(ntLintConfigPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read .nt/lint file: %v", err)
+		}
+		lintFile, err = parseLintFile(string(content))
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse .nt/lint file: %v", err)
+		}
+	}
+
 	// Check for .ntignore
 	ntignorePath := filepath.Join(rootPath, ".ntignore")
 	_, err = os.Stat(ntignorePath)
@@ -281,11 +324,15 @@ func ReadConfigFromDirectory(path string) (*Config, error) {
 		}
 	}
 
-	return &Config{
+	config := &Config{
 		RootDirectory: rootPath,
 		ConfigFile:    *configFile,
 		IgnoreFile:    *ignoreFile,
-	}, nil
+	}
+	if lintFile != nil {
+		config.LintFile = *lintFile
+	}
+	return config, nil
 }
 
 func parseConfigFile(content string) (*ConfigFile, error) {
@@ -293,6 +340,14 @@ func parseConfigFile(content string) (*ConfigFile, error) {
 	d := toml.NewDecoder(r)
 	d.DisallowUnknownFields()
 	var result ConfigFile
+	err := d.Decode(&result)
+	return &result, err
+}
+
+func parseLintFile(content string) (*LintFile, error) {
+	r := strings.NewReader(content)
+	d := yaml.NewDecoder(r)
+	var result LintFile
 	err := d.Decode(&result)
 	return &result, err
 }

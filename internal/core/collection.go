@@ -15,6 +15,8 @@ import (
 	"github.com/julien-sobczak/the-notetaker/internal/reference/zotero"
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/julien-sobczak/the-notetaker/pkg/resync"
+
+	"golang.org/x/exp/slices"
 )
 
 const ReferenceKindBook = "book"
@@ -416,4 +418,91 @@ func (c *Collection) Status() (string, error) {
 	}
 
 	return sb.String(), nil
+}
+
+func (c *Collection) Lint(paths ...string) (*LintResult, error) {
+	/*
+	 * Implementation: The linter must only considering local files and
+	 * ignore commits or the staging area completely.
+	 *
+	 * Indeed, the linter can be run initially before any files have been added or committed.
+	 * In the same way, a file can reference a media that existed
+	 * and is still present in the database objects even so the media has been deleted and
+	 * not added since.
+	 */
+	var result LintResult
+	rules := CurrentConfig().LintFile.Rules
+
+	// Check all rules are valid before checking anything else
+	for _, rule := range rules {
+		ruleName := rule.Name
+		_, ok := LintRules[ruleName]
+		if !ok {
+			return nil, fmt.Errorf("unknown lint rule %q", rule.Name)
+		}
+		if rule.Severity != "" && slices.Contains([]string{"error", "warning"}, rule.Severity) {
+			return nil, fmt.Errorf("unknown severity %q for lint rule %q", rule.Severity, rule.Name)
+		}
+	}
+
+	// Traverse all given paths
+	for _, path := range paths {
+
+		if path == "." {
+			// Process all files in the root directory
+			path = CurrentConfig().RootDirectory
+		} else if !filepath.IsAbs(path) {
+			path = CurrentCollection().GetAbsolutePath(path)
+		}
+
+		c.walk(path, func(path string, stat fs.FileInfo) error {
+			CurrentLogger().Debugf("Processing %s...\n", path)
+
+			// Work without the database
+			file, err := ParseFile(path)
+			if err != nil {
+				return err
+			}
+
+			foundViolations := false
+
+			for _, configRule := range rules {
+				rule := LintRules[configRule.Name]
+
+				// Check path restrictions
+				matchAllIncludes := true
+				for _, include := range configRule.Includes {
+					if !include.Match(file.RelativePath) {
+						matchAllIncludes = false
+					}
+				}
+				if !matchAllIncludes {
+					continue
+				}
+
+				violations, err := rule.Eval(file, configRule.Args)
+				if err != nil {
+					return err
+				}
+				if len(violations) > 0 {
+					foundViolations = true
+				}
+				if configRule.Severity == "warning" {
+					result.Warnings = append(result.Warnings, violations...)
+				} else {
+					result.Errors = append(result.Errors, violations...)
+				}
+			}
+
+			// Update stats
+			if foundViolations {
+				result.AffectedFiles += 1
+			}
+			result.AnalyzedFiles += 1
+
+			return nil
+		})
+	}
+
+	return &result, nil
 }

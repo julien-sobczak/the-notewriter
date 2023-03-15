@@ -101,38 +101,28 @@ func NewFileFromAttributes(name string, attributes []Attribute) *File {
 }
 
 func NewFileFromPath(filepath string) (*File, error) {
-	stat, err := os.Lstat(filepath)
-	if err != nil {
-		return nil, err
-	}
-
-	relativePath, err := CurrentCollection().GetFileRelativePath(filepath)
-	if err != nil {
-		return nil, err
-	}
-
-	contentBytes, frontMatter, contentBody, contentBodyLine, err := parseFile(filepath)
+	parsedFile, err := ParseFile(filepath)
 	if err != nil {
 		return nil, err
 	}
 
 	file := &File{
 		OID:          NewOID(),
-		RelativePath: relativePath,
-		Wikilink:     text.TrimExtension(relativePath),
-		Mode:         stat.Mode(),
-		Size:         stat.Size(),
-		Hash:         helpers.Hash(contentBytes),
-		MTime:        stat.ModTime(),
-		Content:      contentBody,
-		ContentLine:  contentBodyLine,
+		RelativePath: parsedFile.RelativePath,
+		Wikilink:     text.TrimExtension(parsedFile.RelativePath),
+		Mode:         parsedFile.LStat.Mode(),
+		Size:         parsedFile.LStat.Size(),
+		Hash:         helpers.Hash(parsedFile.Bytes),
+		MTime:        parsedFile.LStat.ModTime(),
+		Content:      parsedFile.Body,
+		ContentLine:  parsedFile.BodyLine,
 		CreatedAt:    clock.Now(),
 		UpdatedAt:    clock.Now(),
 		stale:        true,
 		new:          true,
 	}
-	if frontMatter.Kind > 0 { // Happen when no Front Matter is present
-		file.frontMatter = frontMatter.Content[0]
+	if parsedFile.FrontMatter.Kind > 0 { // Happen when no Front Matter is present
+		file.frontMatter = parsedFile.FrontMatter.Content[0]
 	}
 
 	return file, nil
@@ -240,18 +230,22 @@ func (f *File) Update() error {
 
 	f.stale = true
 
-	contentBytes, frontMatter, contentBody, contentBodyLine, err := parseFile(abspath)
+	parsedFile, err := ParseFile(abspath)
 	if err != nil {
 		return err
 	}
 
 	f.Mode = fileInfo.Mode()
 	f.Size = fileInfo.Size()
-	f.Hash = helpers.Hash(contentBytes)
-	f.frontMatter = frontMatter
+	f.Hash = helpers.Hash(parsedFile.Bytes)
+	if parsedFile.FrontMatter.Kind > 0 {
+		f.frontMatter = parsedFile.FrontMatter
+	} else {
+		f.frontMatter = nil
+	}
 	f.MTime = fileInfo.ModTime()
-	f.Content = contentBody
-	f.ContentLine = contentBodyLine
+	f.Content = parsedFile.Body
+	f.ContentLine = parsedFile.BodyLine
 
 	return nil
 }
@@ -393,20 +387,58 @@ func (f *File) GetNotes() []*Note {
 		return f.notes
 	}
 
+	parsedNotes := ParseNotes(f.Content)
+
+	if len(parsedNotes) == 0 {
+		return nil
+	}
+
+	// All notes collected until now
+	var notes []*Note
+	for i, currentNote := range parsedNotes {
+		parentNoteIndex := -1
+		for j, prevNote := range parsedNotes[0:i] {
+			if prevNote.Level == currentNote.Level-1 {
+				parentNoteIndex = j
+			}
+		}
+
+		noteLine := f.ContentLine + currentNote.Line - 1
+		note := NewOrExistingNote(f, currentNote.LongTitle, currentNote.Body, noteLine)
+		if parentNoteIndex != -1 {
+			note.ParentNote = notes[parentNoteIndex]
+		}
+		notes = append(notes, note)
+	}
+
+	if len(notes) > 0 {
+		f.notes = notes
+	}
+	return f.notes
+}
+
+// ParsedNote represents a single raw note inside a file.
+type ParsedNote struct {
+	Level      int
+	Kind       NoteKind
+	LongTitle  string
+	ShortTitle string
+	Line       int
+	Body       string
+}
+
+func ParseNotes(fileBody string) []*ParsedNote {
 	type Section struct {
 		level      int
 		kind       NoteKind
 		longTitle  string
 		shortTitle string
 		lineNumber int
-
-		// The built note from this section
-		Note *Note
 	}
 	var sections []*Section
 
-	// Extract all note (typed or untyped) sections
-	lines := strings.Split(f.Content, "\n")
+	// Extract all sections
+	lines := strings.Split(fileBody, "\n")
 
 	// Check if the file contains typed notes.
 	// If so, it means the top heading (= the title of file) does not represent a free note.
@@ -469,17 +501,11 @@ func (f *File) GetNotes() []*Note {
 	}
 
 	// All notes collected until now
-	var notes []*Note
+	var notes []*ParsedNote
 	for i, section := range sections {
-		var parentSection *Section
 		var nextSection *Section
 		if i < len(sections)-1 {
 			nextSection = sections[i+1]
-		}
-		for _, prevSection := range sections[0:i] {
-			if prevSection.level == section.level-1 {
-				parentSection = prevSection
-			}
 		}
 
 		lineStart := section.lineNumber + 1
@@ -488,20 +514,19 @@ func (f *File) GetNotes() []*Note {
 			lineEnd = nextSection.lineNumber - 1
 		}
 
-		noteContent := text.ExtractLines(f.Content, lineStart, lineEnd)
-		noteLine := f.ContentLine + section.lineNumber - 1
-		note := NewOrExistingNote(f, section.longTitle, noteContent, noteLine)
-		section.Note = note
-		if parentSection != nil {
-			note.ParentNote = parentSection.Note
-		}
-		notes = append(notes, note)
+		noteContent := text.ExtractLines(fileBody, lineStart, lineEnd)
+		notes = append(notes, &ParsedNote{
+			Level:      section.level,
+			Kind:       section.kind,
+			LongTitle:  section.longTitle,
+			ShortTitle: section.shortTitle,
+			Line:       section.lineNumber,
+			Body:       noteContent,
+		})
 	}
 
-	if len(notes) > 0 {
-		f.notes = notes
-	}
-	return f.notes
+	return notes
+
 }
 
 // FindNoteByKindAndShortTitle searches for a given note based on its kind and title.
@@ -545,10 +570,46 @@ func (f *File) GetMedias() []*Media {
 
 /* Parsing */
 
-func parseFile(filepath string) ([]byte, *yaml.Node, string, int, error) {
+type ParsedFile struct {
+	// The paths to the file
+	AbsolutePath string
+	RelativePath string
+
+	// Stat
+	Stat  fs.FileInfo
+	LStat fs.FileInfo
+
+	// The raw file bytes
+	Bytes []byte
+
+	// The YAML Front Matter
+	FrontMatter *yaml.Node
+
+	// The content excluding the front matter
+	Body     string
+	BodyLine int
+}
+
+func ParseFile(filepath string) (*ParsedFile, error) {
+	relativePath, err := CurrentCollection().GetFileRelativePath(filepath)
+	if err != nil {
+		return nil, err
+	}
+	absolutePath := CurrentCollection().GetAbsolutePath(relativePath)
+
+	lstat, err := os.Lstat(absolutePath)
+	if err != nil {
+		return nil, err
+	}
+
+	stat, err := os.Stat(absolutePath)
+	if err != nil {
+		return nil, err
+	}
+
 	contentBytes, err := os.ReadFile(filepath)
 	if err != nil {
-		return nil, nil, "", 0, err
+		return nil, err
 	}
 
 	var rawFrontMatter bytes.Buffer
@@ -587,10 +648,19 @@ func parseFile(filepath string) ([]byte, *yaml.Node, string, int, error) {
 	var frontMatter yaml.Node
 	err = yaml.Unmarshal(rawFrontMatter.Bytes(), &frontMatter)
 	if err != nil {
-		return nil, nil, "", 0, err
+		return nil, err
 	}
 
-	return contentBytes, &frontMatter, strings.TrimSpace(rawContent.String()), bodyStartLineNumber, nil
+	return &ParsedFile{
+		AbsolutePath: absolutePath,
+		RelativePath: relativePath,
+		Stat:         stat,
+		LStat:        lstat,
+		Bytes:        contentBytes,
+		FrontMatter:  &frontMatter,
+		Body:         strings.TrimSpace(rawContent.String()),
+		BodyLine:     bodyStartLineNumber,
+	}, nil
 }
 
 /* Data Management */

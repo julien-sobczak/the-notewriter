@@ -10,6 +10,43 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestCommandLint(t *testing.T) {
+
+	t.Run("Basic", func(t *testing.T) {
+		root := SetUpCollectionFromTempDir(t)
+		err := os.WriteFile(filepath.Join(root, ".nt/lint"), []byte(`
+rules:
+- name: no-duplicate-note-title
+`), 0644)
+		require.NoError(t, err)
+		configOnce.Reset()
+
+		// Create a file violating the rule
+		err = os.WriteFile(filepath.Join(root, "lint.md"), []byte(`
+# Linter
+
+## Note: Name
+
+This is a first note
+
+## Note: Name
+
+This is a second note
+`), 0644)
+		require.NoError(t, err)
+
+		result, err := CurrentCollection().Lint(".")
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Equal(t, 1, result.AnalyzedFiles)
+		require.Equal(t, 1, result.AffectedFiles)
+		require.Len(t, result.Errors, 1)
+		violation := result.Errors[0]
+		assert.Equal(t, "duplicated note with title \"Name\"", violation.Message)
+	})
+
+}
+
 func TestCommandAdd(t *testing.T) {
 
 	t.Run("Basic", func(t *testing.T) {

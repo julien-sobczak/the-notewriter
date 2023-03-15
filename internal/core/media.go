@@ -18,6 +18,7 @@ import (
 	"github.com/julien-sobczak/the-notetaker/internal/helpers"
 	"github.com/julien-sobczak/the-notetaker/internal/medias"
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
+	"github.com/julien-sobczak/the-notetaker/pkg/text"
 	"gopkg.in/yaml.v3"
 )
 
@@ -362,27 +363,60 @@ func (m *Media) Updated() bool {
 /* Parsing */
 
 // extractMediasFromMarkdown search for medias from a markdown document (can be a file, a note, a flashcard, etc.).
-func extractMediasFromMarkdown(fileRelativePath string, content string) []*Media {
+func extractMediasFromMarkdown(fileRelativePath string, fileBody string) []*Media {
 	var medias []*Media
+
+	parsedMedias := ParseMedias(fileRelativePath, fileBody)
+	for _, parsedMedia := range parsedMedias {
+		media := NewOrExistingMedia(parsedMedia.RelativePath)
+		medias = append(medias, media)
+	}
+	return medias
+}
+
+type ParsedMedia struct {
+	// The path as specified in the file. (Ex: "../medias/pic.png")
+	RawPath string
+	// The path relative to the root collection directory. (Ex: "references/medias/pic.png")
+	RelativePath string
+	// The absolute path. (Ex: "$HOME/notes/references/medias/pic.png")
+	AbsolutePath string
+	// Line number where the link present.
+	Line int
+}
+
+// ParseMedias extracts raw paths from a file or note body content.
+func ParseMedias(fileRelativePath, fileBody string) []*ParsedMedia {
+	var medias []*ParsedMedia
 
 	// Avoid returning duplicates if a media is included twice
 	filepaths := make(map[string]bool)
 
 	regexMedia := regexp.MustCompile(`!\[(.*?)\]\((\S*?)(?:\s+"(.*?)")?\)`)
-	matches := regexMedia.FindAllStringSubmatch(content, -1)
+	matches := regexMedia.FindAllStringSubmatch(fileBody, -1)
 	for _, match := range matches {
-		src := match[2]
-		if _, ok := filepaths[src]; ok {
+		txt := match[0]
+		line := text.LineNumber(fileBody, txt)
+
+		rawPath := match[2]
+		if _, ok := filepaths[rawPath]; ok {
 			continue
 		}
-		relpath, err := CurrentCollection().GetNoteRelativePath(fileRelativePath, src)
+		relativePath, err := CurrentCollection().GetNoteRelativePath(fileRelativePath, rawPath)
 		if err != nil {
 			log.Fatal(err)
 		}
-		media := NewOrExistingMedia(relpath)
-		medias = append(medias, media)
-		filepaths[src] = true
+		absolutePath := CurrentCollection().GetAbsolutePath(relativePath)
+
+		medias = append(medias, &ParsedMedia{
+			RawPath:      rawPath,
+			RelativePath: relativePath,
+			AbsolutePath: absolutePath,
+			Line:         line,
+		})
+		filepaths[rawPath] = true
 	}
+
 	return medias
 }
 
