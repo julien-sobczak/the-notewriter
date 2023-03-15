@@ -516,7 +516,6 @@ func TestFileSave(t *testing.T) {
 	assert.Equal(t, "medias/go.svg", media.RelativePath)
 	assert.Equal(t, KindPicture, media.MediaKind)
 	assert.Equal(t, false, media.Dangling)
-	assert.Equal(t, 0, media.Links)
 	assert.Equal(t, ".svg", media.Extension)
 	assert.NotEmpty(t, media.MTime)
 	assert.Equal(t, "974a75814a1339c82cb497ea1ab56383", media.Hash)

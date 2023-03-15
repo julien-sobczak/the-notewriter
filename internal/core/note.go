@@ -19,22 +19,20 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type NoteKind int
+type NoteKind string
 
 const (
-	KindFree       NoteKind = 0
-	KindReference  NoteKind = 1
-	KindNote       NoteKind = 2
-	KindFlashcard  NoteKind = 3
-	KindCheatsheet NoteKind = 4
-	KindQuote      NoteKind = 5
-	KindJournal    NoteKind = 6
-	KindTodo       NoteKind = 7
-	KindArtwork    NoteKind = 8
-	KindSnippet    NoteKind = 9
+	KindFree       NoteKind = "free"
+	KindReference  NoteKind = "reference"
+	KindNote       NoteKind = "note"
+	KindFlashcard  NoteKind = "flashcard"
+	KindCheatsheet NoteKind = "cheatsheet"
+	KindQuote      NoteKind = "quote"
+	KindJournal    NoteKind = "journal"
+	KindTodo       NoteKind = "todo"
+	KindArtwork    NoteKind = "artwork"
+	KindSnippet    NoteKind = "snippet"
 )
-
-var AllKinds = []NoteKind{KindFree, KindReference, KindNote, KindFlashcard, KindCheatsheet, KindQuote, KindJournal, KindTodo, KindArtwork, KindSnippet}
 
 var regexReference = regexp.MustCompile(`(?i)^Reference[-:_ ]\s*(.*)$`)
 var regexNote = regexp.MustCompile(`^(?i)Note[-:_ ]\s*(.*)$`)
@@ -951,7 +949,8 @@ func SearchNotes(q string) ([]*Note, error) {
 
 		// path?
 		if strings.HasPrefix(clause, "kind:") {
-			kinds = append(kinds, clause[len("kind:"):])
+			kind := NoteKind(clause[len("kind:"):])
+			kinds = append(kinds, string(kind))
 			continue
 		}
 
@@ -969,11 +968,11 @@ func SearchNotes(q string) ([]*Note, error) {
 	querySQL.WriteString("JOIN note on note.oid = note_fts.oid ")
 	querySQL.WriteString("WHERE note.oid IS NOT NULL ") // useless but simplify the query building
 	if len(kinds) > 0 {
-		var kindsInts []string
+		var kindsSQL []string
 		for _, kind := range kinds {
-			kindsInts = append(kindsInts, fmt.Sprintf("%d", ValueToNoteKind(kind)))
+			kindsSQL = append(kindsSQL, fmt.Sprintf(`"%s"`, kind))
 		}
-		querySQL.WriteString(fmt.Sprintf("AND note.kind IN (%s) ", strings.Join(kindsInts, ",")))
+		querySQL.WriteString(fmt.Sprintf("AND note.kind IN (%s) ", strings.Join(kindsSQL, ",")))
 	}
 	if len(tags) > 0 {
 		querySQL.WriteString("AND ( ")
@@ -1012,33 +1011,6 @@ func SearchNotes(q string) ([]*Note, error) {
 
 	query := "WHERE rowid IN (" + strings.Join(ids, ",") + ")"
 	return QueryNotes(query)
-}
-
-func ValueToNoteKind(value string) NoteKind {
-	// TODO refactor
-	switch value {
-	case "free":
-		return KindFree
-	case "reference":
-		return KindReference
-	case "note":
-		return KindNote
-	case "flashcard":
-		return KindFlashcard
-	case "cheatsheet":
-		return KindCheatsheet
-	case "quote":
-		return KindQuote
-	case "journal":
-		return KindJournal
-	case "todo":
-		return KindTodo
-	case "artwork":
-		return KindArtwork
-	case "snippet":
-		return KindSnippet
-	}
-	return KindFree
 }
 
 /* SQL Helpers */

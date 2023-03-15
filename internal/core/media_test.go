@@ -72,9 +72,8 @@ func TestMedia(t *testing.T) {
 		assert.Equal(t, strings.TrimSpace(`
 oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
 relative_path: medias/go.svg
-kind: 2
+kind: picture
 dangling: false
-links: 0
 extension: .svg
 mtime: 2023-01-01T01:12:30Z
 hash: 974a75814a1339c82cb497ea1ab56383

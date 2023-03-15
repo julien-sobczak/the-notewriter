@@ -187,7 +187,7 @@ objects:
       state: added
       mtime: 2023-01-01T01:12:30Z
       desc: 'note "Reference: Golang History" [93267c32147a4ab7a1100ce82faab56a99fca1cd]'
-      data: eJzEktFr2z4Qx9/1V9zPfUgLdSzJ+SW1SPOawV5G6dPGcM/WWRaxJSMrzQr744eTNGMwCmOFPZ70vQ+fk85braDI5XJV51IsVrjAaoVCcF7TnWwQq/+XWBRNjaLWrLEdlX/WMmAgF0vn47kzSdjOOq1AsGhjRwpmD9RQIFeTgq3v0Bn4YMfow8uMja0PsTwHf71kgTqM9pnKAWOrwPh5r9nB7mxn3U7BzPirN8gYY7DVPtKoGADA6PdhyrUxDqPKMnLziTWQtjj3wWRTlW19eT0EbwL2vXWmnJh7NHTDIpozKYX2bNhZRwruWO1dnF4h4EHB9/SYero6p57YsV7/l6Z/KwFpujnRvpzG/Xr9SjJ+ruk5077OILkyPjM+uYEDjqBptMaRhuoFHnxFIcI2kB2pp3A7ncAnu6NbQKfhIzl4bH0/jN4BRth6bzoC60ByvppfBm1xbBVU1YIvta7rouGVFJJkLgsUxIscUQp9ifcYdtofnILZvxGf/TSPfadgPWzWCG2g5j75jUgCx428f/XZnKTXGW7e22ydDZuLXKRv8bLJ7/53gTCSLjEqkFzmKRcpF49cKCFVzj+z/aDfDvwIAAD//yGtZ6U=
+      data: eJzEkk9r20wQh+/6FPMqBycQWatVXjtaHF9d6KWEnFqKMtKOVoulXbEaxw30wxf5XymUQGmgxxn95uEZ7XirFRS5XCzrXGZ3S7zDaolZJkRN97JBrP5fYFE0NWa1jhrbUflnIwMGclw6z6fJOI621mkFgRoK5GqK2HJHCmaP546Cje/QGfhgR/bhdRaNrQ9cnoK/fowCdcj2hcoBuVVg/LzX0d5ubWfdVsHM+Ks3yMgcbLVjGlUEADD6XZhyLfMwqjQlN59YA2mLcx9MOlXpxpfXQ/AmYN9bZ8qJuUNDNxGjOZESaE+GnXWk4D6qvePpbwTcK/ieHFLPV6fUc3SoV/8lyd9KQJKsj7Qvx3W/Xp9Jxs81vaTa1ynEV8anxsc3sMcRNI3WONJQvcKjrygwbALZkXoKt1MHPtkt3QI6DR/JwVPr+2H0DpBh473pCKwDKcRyflm0xbFVUFV3YqF1XReNqGQmSeaywIxEkSPKTF/iPYat9nunYPZvxGc/zbnvFKyG9QqhDdQ8xL8RieFwkQ9nn/VRepXi+r3NVumwvsgxfePLJb/72wVCJl0iK5BC5onIEpE9iUxlUuXic7Qb9NuBHwEAAP//raFrIw==
     - oid: 93267c32147a4ab7a1100ce82faab56a99fca1cd
       kind: flashcard
       state: added

@@ -34,18 +34,8 @@ CREATE TABLE note (
     -- Optional parent note containing the note
     note_oid TEXT,
 
-    -- Type of note:
-    --    0 Free (not persisted for now)
-    --    1 Reference
-    --    2 Note
-    --    3 Flashcard
-    --    4 Cheatsheet
-    --    5 Quote
-    --    6 Journal
-    --    7 TODO
-    --    8 Artwork
-    --    9 Snippet
-    kind INTEGER NOT NULL,
+    -- Type of note: free, reference, ...
+    kind TEXT NOT NULL,
 
     -- The relative path of the file containing the note (denormalized field)
     relative_path TEXT NOT NULL,
@@ -106,13 +96,8 @@ CREATE TABLE media (
     -- Relative path
     relative_path TEXT NOT NULL,
 
-    -- Type of media
-    --    0 unknown
-    --    1 audio
-    --    2 picture
-    --    3 video
-    --    4 document
-    kind INTEGER NOT NULL,
+    -- Type of media: unknown, audio, picture, video, document
+    kind TEXT NOT NULL,
 
     -- Media not present on disk
     dangling INTEGER NOT NULL DEFAULT 0,
@@ -125,9 +110,6 @@ CREATE TABLE media (
 
     -- Checksum
     hashsum TEXT NOT NULL,
-
-    -- How many notes references this file
-    links INTEGER NOT NULL DEFAULT 0,
 
     -- Size of the file
     size INTEGER NOT NULL,

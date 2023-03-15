@@ -21,14 +21,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type MediaKind int
+type MediaKind string
 
 const (
-	KindUnknown  MediaKind = 0
-	KindAudio    MediaKind = 1
-	KindPicture  MediaKind = 2
-	KindVideo    MediaKind = 3
-	KindDocument MediaKind = 4
+	KindUnknown  MediaKind = "unknown"
+	KindAudio    MediaKind = "audio"
+	KindPicture  MediaKind = "picture"
+	KindVideo    MediaKind = "video"
+	KindDocument MediaKind = "document"
 )
 
 // List of supported audio formats
@@ -57,9 +57,6 @@ type Media struct {
 
 	// Media exists on disk
 	Dangling bool `yaml:"dangling"`
-
-	// How many notes references this file
-	Links int `yaml:"links"`
 
 	// File extension in lowercase
 	Extension string `yaml:"extension"`
@@ -472,14 +469,13 @@ func (m *Media) InsertWithTx(tx *sql.Tx) error {
 			extension,
 			mtime,
 			hashsum,
-			links,
 			size,
 			mode,
 			created_at,
 			updated_at,
 			last_checked_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 	_, err := tx.Exec(query,
 		m.OID,
@@ -489,7 +485,6 @@ func (m *Media) InsertWithTx(tx *sql.Tx) error {
 		m.Extension,
 		timeToSQL(m.MTime),
 		m.Hash,
-		m.Links,
 		m.Size,
 		m.Mode,
 		timeToSQL(m.CreatedAt),
@@ -564,7 +559,6 @@ func (m *Media) UpdateWithTx(tx *sql.Tx) error {
 			extension = ?,
 			mtime = ?,
 			hashsum = ?,
-			links = ?,
 			size = ?,
 			mode = ?,
 			created_at = ?,
@@ -579,7 +573,6 @@ func (m *Media) UpdateWithTx(tx *sql.Tx) error {
 		m.Extension,
 		timeToSQL(m.MTime),
 		m.Hash,
-		m.Links,
 		m.Size,
 		m.Mode,
 		timeToSQL(m.CreatedAt),
@@ -697,7 +690,6 @@ func QueryMedia(whereClause string, args ...any) (*Media, error) {
 			extension,
 			mtime,
 			hashsum,
-			links,
 			size,
 			mode,
 			created_at,
@@ -713,7 +705,6 @@ func QueryMedia(whereClause string, args ...any) (*Media, error) {
 			&m.Extension,
 			&mTime,
 			&m.Hash,
-			&m.Links,
 			&m.Size,
 			&m.Mode,
 			&createdAt,
@@ -755,7 +746,6 @@ func QueryMedias(whereClause string, args ...any) ([]*Media, error) {
 			extension,
 			mtime,
 			hashsum,
-			links,
 			size,
 			mode,
 			created_at,
@@ -782,7 +772,6 @@ func QueryMedias(whereClause string, args ...any) ([]*Media, error) {
 			&m.Extension,
 			&mTime,
 			&m.Hash,
-			&m.Links,
 			&m.Size,
 			&m.Mode,
 			&createdAt,

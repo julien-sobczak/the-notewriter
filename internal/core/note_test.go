@@ -424,7 +424,7 @@ func TestNote(t *testing.T) {
 oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
 file_oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
 parent_note_oid: ""
-kind: 7
+kind: todo
 title: 'TODO: Backlog'
 short_title: Backlog
 relative_path: example.md
