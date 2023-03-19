@@ -315,7 +315,7 @@ func NoAmbiguousWikilink(file *ParsedFile, args []string) ([]*Violation, error) 
 			searchedPath = text.TrimExtension(file.RelativePath)
 		}
 
-		for path, _ := range sectionsInventory {
+		for path := range sectionsInventory {
 			if strings.HasSuffix(path, searchedPath) {
 				// potentially found the link
 				foundMatchingPaths += 1

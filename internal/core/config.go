@@ -6,10 +6,13 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
+	"runtime"
 	"strings"
 
 	"github.com/julien-sobczak/the-notetaker/internal/medias"
 	"github.com/julien-sobczak/the-notetaker/pkg/resync"
+	"github.com/julien-sobczak/the-notetaker/pkg/text"
 	"github.com/pelletier/go-toml/v2"
 	"gopkg.in/yaml.v3"
 )
@@ -100,30 +103,88 @@ func (f *ConfigFile) ConfigureS3Remote(bucketName, accessKey, secretKey string) 
 }
 
 type IgnoreFile struct {
-	Entries []GlobPath
+	Entries GlobPaths
 }
 
-func (f *IgnoreFile) Include(path string) bool {
-	for _, entry := range f.Entries {
-		if entry.Match(path) {
-			return false
-		}
+func (i *IgnoreFile) MustExcludeFile(path string, dir bool) bool {
+	path = strings.Trim(path, "/")
+	if dir {
+		path += "/"
 	}
-	return true
+	return i.Entries.Match(path)
 }
 
 type GlobPath string
 
+func (g GlobPath) Negate() bool {
+	return strings.HasPrefix(string(g), "!")
+}
+
+func (g GlobPath) Expr() string {
+	return strings.TrimPrefix(string(g), "!")
+}
+
+// Match tests a given path. NB: Directories must have a trailing /.
 func (g GlobPath) Match(path string) bool {
-	// FIXME What about !entries???
-	// TODO Go standard library doesn't support the same Git syntax (ex: ** is missing).
+	// The Go standard library doesn't support the same Git syntax (ex: ** is missing).
 	// Compare https://git-scm.com/docs/gitignore with https://go.dev/src/path/filepath/match.go
-	match, err := filepath.Match(string(g), path)
+	// We fallback to a custom implementation.
+
+	if runtime.GOOS == "windows" {
+		path = filepath.ToSlash(path)
+	}
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+
+	expr := g.Expr()
+	leadingSlash := strings.HasPrefix(expr, "/")
+	trailingSlash := strings.HasSuffix(expr, "/")
+	// Adapt slightly the expression to have a correct regex (ex: "projects/" => `/projects/.*?` to match "projects/index.md" but not "myprojects/"")
+	if !leadingSlash {
+		expr = "/" + expr
+	}
+	if trailingSlash {
+		expr = expr + "**/"
+	}
+
+	parts := strings.Split(expr, "**/")
+	var partsPatterns []string
+	for _, part := range parts {
+		subparts := strings.Split(part, "*")
+		partsPatterns = append(partsPatterns, strings.Join(subparts, "[^/]*?")) // * => [^/]*
+	}
+	pattern := strings.Join(partsPatterns, ".*?") // ** => .*?
+
+	if leadingSlash {
+		pattern = "^" + pattern
+	}
+
+	rePattern, err := regexp.Compile(pattern)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Invalid glob pattern %q: %v\n", string(g), err)
+		fmt.Fprintf(os.Stderr, "Invalid glob pattern %q: %v\n", g, err)
 		os.Exit(1)
 	}
-	return match
+
+	return rePattern.MatchString(path)
+}
+
+type GlobPaths []GlobPath
+
+// Match tests if a file path satisfies the conditions.
+func (g GlobPaths) Match(path string) bool {
+	foundMatch := false
+	for _, entry := range g {
+		// Test all lines to find a match (if a line match = the path must be included)
+		if entry.Match(path) {
+			if entry.Negate() {
+				// An exclusion matched, the file must no longer be included.
+				return false
+			}
+			foundMatch = true
+		}
+	}
+	return foundMatch
 }
 
 type LintFile struct {
@@ -142,7 +203,7 @@ type ConfigLintRule struct {
 
 	// PathRestrictions returns on which paths to evaluate the rule.
 	// Glob expressions are supported and ! as prefix indicated to exclude.
-	Includes []GlobPath `yaml:"includes"`
+	Includes GlobPaths `yaml:"includes"`
 }
 
 type Config struct {
@@ -357,6 +418,10 @@ func parseIgnoreFile(content string) (*IgnoreFile, error) {
 	scanner := bufio.NewScanner(strings.NewReader(content))
 	for scanner.Scan() {
 		line := scanner.Text()
+		if text.IsBlank(line) {
+			// ignore blank line
+			continue
+		}
 		if strings.HasPrefix(line, "#") {
 			// ignore comment
 			continue

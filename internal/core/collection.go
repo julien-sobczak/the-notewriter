@@ -147,7 +147,7 @@ func (c *Collection) walk(path string, fn func(path string, stat fs.FileInfo) er
 			return nil
 		}
 
-		if !config.IgnoreFile.Include(relpath) {
+		if config.IgnoreFile.MustExcludeFile(relpath, info.IsDir()) {
 			return nil
 		}
 

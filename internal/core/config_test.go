@@ -9,6 +9,39 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestGlobPaths(t *testing.T) {
+	var g GlobPaths = []GlobPath{
+		"archives/",
+		"!archives/index.md",
+
+		"projects/**/*.tmp",
+		"projects/*/*.png",
+
+		"/todos/",
+		"/todos.md",
+	}
+
+	assert.True(t, g.Match("archives/toto/"))
+	assert.False(t, g.Match("archives.md"))       // No rule
+	assert.False(t, g.Match("archives/index.md")) // Using negation
+
+	assert.False(t, g.Match("myprojects/test.tmp"))       // No rule
+	assert.True(t, g.Match("projects/test.tmp"))          // ** matches 0-n directories
+	assert.True(t, g.Match("projects/sub/test.tmp"))      // ** matches 0-n directories
+	assert.True(t, g.Match("projects/sub/sub/test.tmp"))  // ** matches 0-n directories
+	assert.False(t, g.Match("projects/test.png"))         // matches 1 directory
+	assert.True(t, g.Match("projects/sub/test.png"))      // matches 1 directory
+	assert.False(t, g.Match("projects/sub/sub/test.png")) // matches 1 directory
+
+	assert.False(t, g.Match("sub/todos/index.md")) // no† root directory
+	assert.False(t, g.Match("sub/todos.md"))       // not root directory
+	assert.True(t, g.Match("todos.md"))            // root
+	assert.True(t, g.Match("todos/index.md"))      // root
+
+	ignoreFile := IgnoreFile{Entries: g}
+	assert.True(t, ignoreFile.MustExcludeFile("archives/toto", true))
+}
+
 func TestReadConfigFromDirectory(t *testing.T) {
 
 	t.Run("Config present", func(t *testing.T) {
