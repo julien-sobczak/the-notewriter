@@ -122,3 +122,58 @@ function markdownToHTML(text) {
 ## Flashcards
 
 See [Anki SRS algorithm explained](https://github.com/julien-sobczak/anki-srs-under-the-hood/blob/main/anki/schedv2_annotated.py)
+
+
+## Metadata
+
+### Solution: Use code for tags and HTML comments for attributes
+
+```markdown
+## Dorothy P. Lathrop - Animals of the Bible (1938) - Winner
+
+<!-- title: Animals of the Bible -->
+<!-- year: 1965 -->
+<!-- author: Helen Dean Fish -->
+<!-- illustrator: Dorothy P. Lathrop -->
+
+![Cover](medias/animals-of-the-bible-cover.png)
+![Page](medias/animals-of-the-bible-page1.png)
+![Page](medias/animals-of-the-bible-page2.png)
+
+* Story: Collection of some of the Bible's most extraordinary animals
+* Comment: Drawings are impressive but there is no story per se.
+
+`#book` `#religion` `#animal` `#lesson` `#b&w` `#collection`
+```
+
+Pro(s):
+* Different colors in IDE
+
+Con(s):
+* Attributes not editable using Markdown rich editors.
+
+
+### Solution: Use code for tags and attributes
+
+```markdown
+## Dorothy P. Lathrop - Animals of the Bible (1938) - Winner
+
+`@title: Animals of the Bible` `@year: 1965` `@author: Helen Dean Fish` `@illustrator: Dorothy P. Lathrop`
+`#book` `#religion` `#animal` `#lesson` `#b&w` `#collection`
+
+![Cover](medias/animals-of-the-bible-cover.png)
+![Page](medias/animals-of-the-bible-page1.png)
+![Page](medias/animals-of-the-bible-page2.png)
+
+* Story: Collection of some of the Bible's most extraordinary animals
+* Comment: Drawings are impressive but there is no story per se.
+```
+
+* Pro(s):
+  * Single syntax with symmetry (`#` for tag and `@` for attributes)
+  * Consistency
+  * Syntatic Sugar (`#favorite` is the same as `@tags: favorite`, `#high` is the same as `@priority: high`, etc.)
+  * Can put several attributes/tags on the same line
+  * Can reuse the same syntax in queries `kind:quote #favorite @name:Epitectus`
+* Con(s):
+  * Less beautiful 🤷‍♂️
