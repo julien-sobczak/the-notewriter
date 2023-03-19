@@ -324,6 +324,7 @@ func TestGetNotes(t *testing.T) {
 }
 
 func TestFileInheritance(t *testing.T) {
+	// TOOD Complete using fixture TestInheritance/
 	filename := SetUpCollectionFromGoldenFile(t)
 
 	// Init the file
@@ -467,9 +468,13 @@ func TestFileSave(t *testing.T) {
 	assert.Equal(t, "go#Reference: Golang History", note.Wikilink)
 	assert.Equal(t, map[string]interface{}{
 		"source": "https://en.wikipedia.org/wiki/Go_(programming_language)",
-		"tags":   []interface{}{"go"},
 	}, note.Attributes)
-	assert.Equal(t, []string{"go", "history"}, note.GetTags())
+	assert.Equal(t, map[string]interface{}{
+		"source": "https://en.wikipedia.org/wiki/Go_(programming_language)",
+		"tags":   []interface{}{"go"},
+	}, note.AttributesFull)
+	assert.Equal(t, []string{"history"}, note.Tags)
+	assert.Equal(t, []string{"go", "history"}, note.TagsFull)
 	assert.Equal(t, 8, note.Line)
 	assert.Equal(t, "`#history`\n\n<!-- source: https://en.wikipedia.org/wiki/Go_(programming_language) -->\n\n[Golang](https://go.dev/doc/ \"#go/go\") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.", note.ContentRaw)
 	assert.Equal(t, "bb406ddcc9f0b212e2329a1e093aa21d", note.Hash)
@@ -640,4 +645,19 @@ updated_at: 2023-01-01T01:12:30Z
 		assert.EqualValues(t, fileSrc, fileDest)
 	})
 
+}
+
+func TestInheritance(t *testing.T) {
+	root := SetUpCollectionFromGoldenDir(t)
+
+	// Init the file
+	f, err := NewFileFromPath(filepath.Join(root, "skills/go.md"))
+	require.NoError(t, err)
+	n := f.FindNoteByKindAndShortTitle(KindReference, "History")
+	require.NotNil(t, n)
+	assert.EqualValues(t, []string{"go", "history"}, n.GetTags())
+	assert.EqualValues(t, map[string]interface{}{
+		"subject": "language",
+		"tags":    []interface{}{"go"},
+	}, n.GetAttributes())
 }

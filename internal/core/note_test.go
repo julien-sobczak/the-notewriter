@@ -429,7 +429,6 @@ title: 'TODO: Backlog'
 short_title: Backlog
 relative_path: example.md
 wikilink: 'example.md#TODO: Backlog'
-attributes: {}
 line: 2
 content_raw: '* [ ] Test'
 content_hash: 40c0dbcb392522d74c890ff92bcb3fec

@@ -68,10 +68,16 @@ type Note struct {
 	Wikilink string `yaml:"wikilink"`
 
 	// Note-specific attributes. Use GetAttributes() to get all merged attributes
-	Attributes map[string]interface{} `yaml:"attributes"`
+	Attributes map[string]interface{} `yaml:"attributes,omitempty"`
+
+	// Merged attributes. Same as GetAttributes()
+	AttributesFull map[string]interface{} `yaml:"attributes_full,omitempty"`
 
 	// Note-specific tags. Use GetTags() to get all merged tags
 	Tags []string `yaml:"tags,omitempty"`
+
+	// Merged tags. Same as GetTags()
+	TagsFull []string `yaml:"tags_full,omitempty"`
 
 	// Line number (1-based index) of the note section title
 	Line int `yaml:"line"`
@@ -272,10 +278,9 @@ func (n *Note) updateContent(rawContent string) {
 	content, tags, attributes := n.parseContentRaw()
 
 	n.Tags = tags
-	if n.GetFile() != nil {
-		n.Attributes = n.GetFile().GetAttributes()
-	}
-	n.Attributes = mergeAttributes(n.Attributes, attributes)
+	n.TagsFull = n.GetTags()
+	n.Attributes = attributes
+	n.AttributesFull = n.GetAttributes()
 	n.ContentMarkdown = markdown.ToMarkdown(content)
 	n.ContentHTML = markdown.ToHTML(n.ContentMarkdown) // Use processed md to use <h2>, <h3>, ... whatever the note level
 	n.ContentText = markdown.ToText(n.ContentMarkdown)
@@ -724,7 +729,10 @@ func (n *Note) InsertWithTx(tx *sql.Tx) error {
 			short_title,
 			attributes_yaml,
 			attributes_json,
+			attributes_full_yaml,
+			attributes_full_json,
 			tags,
+			tags_full,
 			"line",
 			content_raw,
 			hashsum,
@@ -734,7 +742,7 @@ func (n *Note) InsertWithTx(tx *sql.Tx) error {
 			created_at,
 			updated_at,
 			last_checked_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 
 	attributesYAML, err := n.AttributesYAML()
@@ -742,6 +750,15 @@ func (n *Note) InsertWithTx(tx *sql.Tx) error {
 		return err
 	}
 	attributesJSON, err := n.AttributesJSON()
+	if err != nil {
+		return err
+	}
+
+	attributesFullYAML, err := n.AttributesFullYAML()
+	if err != nil {
+		return err
+	}
+	attributesFullJSON, err := n.AttributesFullJSON()
 	if err != nil {
 		return err
 	}
@@ -757,7 +774,10 @@ func (n *Note) InsertWithTx(tx *sql.Tx) error {
 		n.ShortTitle,
 		attributesYAML,
 		attributesJSON,
+		attributesFullYAML,
+		attributesFullJSON,
 		strings.Join(n.Tags, ","),
+		strings.Join(n.TagsFull, ","),
 		n.Line,
 		n.ContentRaw,
 		n.Hash,
@@ -789,7 +809,10 @@ func (n *Note) UpdateWithTx(tx *sql.Tx) error {
 			short_title = ?,
 			attributes_yaml = ?,
 			attributes_json = ?,
+			attributes_full_yaml = ?,
+			attributes_full_json = ?,
 			tags = ?,
+			tags_full = ?,
 			"line" = ?,
 			content_raw = ?,
 			hashsum = ?,
@@ -809,6 +832,14 @@ func (n *Note) UpdateWithTx(tx *sql.Tx) error {
 	if err != nil {
 		return err
 	}
+	attributesFullYAML, err := n.AttributesFullYAML()
+	if err != nil {
+		return err
+	}
+	attributesFullJSON, err := n.AttributesFullJSON()
+	if err != nil {
+		return err
+	}
 
 	_, err = tx.Exec(query,
 		n.FileOID,
@@ -820,7 +851,10 @@ func (n *Note) UpdateWithTx(tx *sql.Tx) error {
 		n.ShortTitle,
 		attributesYAML,
 		attributesJSON,
+		attributesFullYAML,
+		attributesFullJSON,
 		strings.Join(n.Tags, ","),
+		strings.Join(n.TagsFull, ","),
 		n.Line,
 		n.ContentRaw,
 		n.Hash,
@@ -864,20 +898,36 @@ func (n *Note) DeleteWithTx(tx *sql.Tx) error {
 }
 
 func (n *Note) AttributesJSON() (string, error) {
+	return attributesJSON(n.Attributes)
+}
+
+func (n *Note) AttributesYAML() (string, error) {
+	return attributesYAML(n.Attributes)
+}
+
+func (n *Note) AttributesFullJSON() (string, error) {
+	return attributesJSON(n.AttributesFull)
+}
+
+func (n *Note) AttributesFullYAML() (string, error) {
+	return attributesYAML(n.AttributesFull)
+}
+
+func attributesJSON(attributes map[string]interface{}) (string, error) {
 	var buf bytes.Buffer
 	bufEncoder := json.NewEncoder(&buf)
-	err := bufEncoder.Encode(n.Attributes)
+	err := bufEncoder.Encode(attributes)
 	if err != nil {
 		return "", err
 	}
 	return buf.String(), nil
 }
 
-func (n *Note) AttributesYAML() (string, error) {
+func attributesYAML(attributes map[string]interface{}) (string, error) {
 	var buf bytes.Buffer
 	bufEncoder := yaml.NewEncoder(&buf)
 	bufEncoder.SetIndent(Indent)
-	err := bufEncoder.Encode(n.Attributes)
+	err := bufEncoder.Encode(attributes)
 	if err != nil {
 		return "", err
 	}
@@ -990,7 +1040,7 @@ func SearchNotes(q string) ([]*Note, error) {
 	if len(tags) > 0 {
 		querySQL.WriteString("AND ( ")
 		for _, tag := range tags {
-			querySQL.WriteString(fmt.Sprintf("  note.tags LIKE '%%%s%%' ", tag))
+			querySQL.WriteString(fmt.Sprintf("  note.tags_full LIKE '%%%s%%' ", tag))
 		}
 		querySQL.WriteString(") ")
 	}
@@ -1003,7 +1053,7 @@ func SearchNotes(q string) ([]*Note, error) {
 			}
 			name := strings.TrimSpace(parts[0])
 			value := strings.TrimSpace(parts[1])
-			querySQL.WriteString(fmt.Sprintf(`  json_extract(note.attributes_json, "$.%s") = "%s" `, name, value))
+			querySQL.WriteString(fmt.Sprintf(`  json_extract(note.attributes_full_json, "$.%s") = "%s" `, name, value))
 		}
 		querySQL.WriteString(") ")
 	}
@@ -1049,7 +1099,9 @@ func QueryNote(whereClause string, args ...any) (*Note, error) {
 	var updatedAt string
 	var lastCheckedAt string
 	var tagsRaw string
+	var tagsFullRaw string
 	var attributesRaw string
+	var attributesFullRaw string
 
 	// Query for a value based on a single row.
 	if err := db.QueryRow(fmt.Sprintf(`
@@ -1063,7 +1115,9 @@ func QueryNote(whereClause string, args ...any) (*Note, error) {
 			title,
 			short_title,
 			attributes_yaml,
+			attributes_full_yaml,
 			tags,
+			tags_full,
 			"line",
 			content_raw,
 			hashsum,
@@ -1085,7 +1139,9 @@ func QueryNote(whereClause string, args ...any) (*Note, error) {
 			&n.Title,
 			&n.ShortTitle,
 			&attributesRaw,
+			&attributesFullRaw,
 			&tagsRaw,
+			&tagsFullRaw,
 			&n.Line,
 			&n.ContentRaw,
 			&n.Hash,
@@ -1107,9 +1163,16 @@ func QueryNote(whereClause string, args ...any) (*Note, error) {
 	if err != nil {
 		return nil, err
 	}
+	var attributesFull map[string]interface{}
+	err = yaml.Unmarshal([]byte(attributesFullRaw), &attributesFull)
+	if err != nil {
+		return nil, err
+	}
 
 	n.Attributes = attributes
+	n.AttributesFull = attributesFull
 	n.Tags = strings.Split(tagsRaw, ",")
+	n.TagsFull = strings.Split(tagsFullRaw, ",")
 	n.CreatedAt = timeFromSQL(createdAt)
 	n.UpdatedAt = timeFromSQL(updatedAt)
 	n.LastCheckedAt = timeFromSQL(lastCheckedAt)
@@ -1133,7 +1196,9 @@ func QueryNotes(whereClause string, args ...any) ([]*Note, error) {
 			title,
 			short_title,
 			attributes_yaml,
+			attributes_full_yaml,
 			tags,
+			tags_full,
 			"line",
 			content_raw,
 			hashsum,
@@ -1155,7 +1220,9 @@ func QueryNotes(whereClause string, args ...any) ([]*Note, error) {
 		var updatedAt string
 		var lastCheckedAt string
 		var tagsRaw string
+		var tagsFullRaw string
 		var attributesRaw string
+		var attributesFullRaw string
 
 		err = rows.Scan(
 			&n.OID,
@@ -1167,7 +1234,9 @@ func QueryNotes(whereClause string, args ...any) ([]*Note, error) {
 			&n.Title,
 			&n.ShortTitle,
 			&attributesRaw,
+			&attributesFullRaw,
 			&tagsRaw,
+			&tagsFullRaw,
 			&n.Line,
 			&n.ContentRaw,
 			&n.Hash,
@@ -1187,9 +1256,16 @@ func QueryNotes(whereClause string, args ...any) ([]*Note, error) {
 		if err != nil {
 			return nil, err
 		}
+		var attributesFull map[string]interface{}
+		err = yaml.Unmarshal([]byte(attributesRaw), &attributesFull)
+		if err != nil {
+			return nil, err
+		}
 
 		n.Attributes = attributes
+		n.AttributesFull = attributesFull
 		n.Tags = strings.Split(tagsRaw, ",")
+		n.TagsFull = strings.Split(tagsFullRaw, ",")
 		n.CreatedAt = timeFromSQL(createdAt)
 		n.UpdatedAt = timeFromSQL(updatedAt)
 		n.LastCheckedAt = timeFromSQL(lastCheckedAt)

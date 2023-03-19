@@ -48,12 +48,17 @@ CREATE TABLE note (
     -- Same as title without the kind
     short_title TEXT NOT NULL,
 
-    -- Merged attributes
+    -- Note-specific attributes
     attributes_yaml TEXT NOT NULL,
     attributes_json TEXT NOT NULL,
+    -- Merged attributes
+    attributes_full_yaml TEXT NOT NULL,
+    attributes_full_json TEXT NOT NULL,
 
-    -- Comma-separated list of tags
+    -- Note-specific comma-separated list of tags
     tags TEXT NOT NULL,
+    -- Merged comma-separated list of tags
+    tags_full TEXT NOT NULL,
 
     -- Line number (1-based index) of the note section title
     "line" INTEGER NOT NULL,
