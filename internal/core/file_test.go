@@ -68,7 +68,7 @@ func TestNewFileFromPath(t *testing.T) {
 		var tests = []struct {
 			name          string // name
 			rawContent    string // input
-			actualContent string // output
+			actualBody string // output
 		}{
 
 			{
@@ -77,7 +77,7 @@ func TestNewFileFromPath(t *testing.T) {
 
 Hello World!
 `,
-				actualContent: `# Hello
+				actualBody: `# Hello
 
 Hello World!
 `,
@@ -93,7 +93,7 @@ tags: [test]
 
 Hello World!
 `,
-				actualContent: `# Hello
+				actualBody: `# Hello
 
 Hello World!
 `,
@@ -109,7 +109,7 @@ What is the question?
 ---
 The answer
 `,
-				actualContent: `# Hello
+				actualBody: `# Hello
 
 ## Flashcard: Demo
 
@@ -125,7 +125,7 @@ The answer
 				filename := SetUpCollectionFromFileContent(t, "test.md", tt.rawContent)
 				f, err := NewFileFromPath(filename)
 				require.NoError(t, err)
-				assert.Equal(t, strings.TrimSpace(tt.actualContent), strings.TrimSpace(f.Content))
+				assert.Equal(t, strings.TrimSpace(tt.actualBody), strings.TrimSpace(f.Body))
 			})
 		}
 	})
@@ -444,8 +444,8 @@ func TestFileSave(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expectedFrontMatter, actualFrontMatter)
 	assert.Equal(t, []string{"go"}, actual.GetTags())
-	assert.Contains(t, actual.Content, "# Go", actual.Content)
-	assert.Equal(t, 6, actual.ContentLine)
+	assert.Contains(t, actual.Body, "# Go", actual.Body)
+	assert.Equal(t, 6, actual.BodyLine)
 	assert.Equal(t, f.Mode, actual.Mode)
 	assert.Equal(t, f.Size, actual.Size)
 	assert.Equal(t, f.Hash, actual.Hash)
@@ -588,7 +588,10 @@ func TestFile(t *testing.T) {
 oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
 relative_path: go.md
 wikilink: go
-content: |-
+front_matter:
+    tags:
+        - go
+body: |-
     # Go
 
     ## Reference: Golang History
@@ -614,7 +617,7 @@ content: |-
     ## TODO: Conferences
 
     * [Gophercon Europe](https://gophercon.eu/) `+"`"+`#reminder-2023-06-26`+"`"+`
-content_line: 6
+body_line: 6
 mode: 420
 size: 469
 hash: 40bba27f3783ba6f8d94b288c8e1b216
@@ -629,8 +632,8 @@ updated_at: 2023-01-01T01:12:30Z
 		require.NoError(t, err)
 
 		// Compare ignoreing a few attributes
-		fileSrc.frontMatter = nil
-		fileDest.frontMatter = nil
+		fileSrc.FrontMatter = nil
+		fileDest.FrontMatter = nil
 		fileSrc.new = false
 		fileSrc.stale = false
 		assert.EqualValues(t, fileSrc, fileDest)

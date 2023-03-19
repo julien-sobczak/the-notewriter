@@ -139,7 +139,7 @@ func assertFrontMatterEqual(t *testing.T, expected string, file *File) {
 }
 
 func assertContentEqual(t *testing.T, expected string, file *File) {
-	actual := file.Content
+	actual := file.Body
 	assertTrimEqual(t, expected, actual)
 }
 

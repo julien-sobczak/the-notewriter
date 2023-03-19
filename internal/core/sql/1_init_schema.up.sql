@@ -10,8 +10,8 @@ CREATE TABLE file (
     front_matter TEXT NOT NULL,
 
     -- Raw file content
-    content TEXT NOT NULL,
-    content_line INTEGER NOT NULL,
+    body TEXT NOT NULL,
+    body_line INTEGER NOT NULL,
 
     -- Timestamps to track changes
     created_at TEXT NOT NULL,

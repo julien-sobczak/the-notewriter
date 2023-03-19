@@ -38,11 +38,11 @@ type File struct {
 	Wikilink string `yaml:"wikilink"`
 
 	// The FrontMatter for the note file
-	frontMatter *yaml.Node `yaml:"front_matter"`
+	FrontMatter *yaml.Node `yaml:"front_matter"`
 
-	Content     string  `yaml:"content"`
-	ContentLine int     `yaml:"content_line"`
-	notes       []*Note `yaml:"-"`
+	Body     string  `yaml:"body"`
+	BodyLine int     `yaml:"body_line"`
+	notes    []*Note `yaml:"-"`
 
 	// Permission of the file (required to save back)
 	Mode fs.FileMode `yaml:"mode"`
@@ -114,15 +114,15 @@ func NewFileFromPath(filepath string) (*File, error) {
 		Size:         parsedFile.LStat.Size(),
 		Hash:         helpers.Hash(parsedFile.Bytes),
 		MTime:        parsedFile.LStat.ModTime(),
-		Content:      parsedFile.Body,
-		ContentLine:  parsedFile.BodyLine,
+		Body:         parsedFile.Body,
+		BodyLine:     parsedFile.BodyLine,
 		CreatedAt:    clock.Now(),
 		UpdatedAt:    clock.Now(),
 		stale:        true,
 		new:          true,
 	}
 	if parsedFile.FrontMatter.Kind > 0 { // Happen when no Front Matter is present
-		file.frontMatter = parsedFile.FrontMatter.Content[0]
+		file.FrontMatter = parsedFile.FrontMatter.Content[0]
 	}
 
 	return file, nil
@@ -239,13 +239,13 @@ func (f *File) Update() error {
 	f.Size = fileInfo.Size()
 	f.Hash = helpers.Hash(parsedFile.Bytes)
 	if parsedFile.FrontMatter.Kind > 0 {
-		f.frontMatter = parsedFile.FrontMatter
+		f.FrontMatter = parsedFile.FrontMatter
 	} else {
-		f.frontMatter = nil
+		f.FrontMatter = nil
 	}
 	f.MTime = fileInfo.ModTime()
-	f.Content = parsedFile.Body
-	f.ContentLine = parsedFile.BodyLine
+	f.Body = parsedFile.Body
+	f.BodyLine = parsedFile.BodyLine
 
 	return nil
 }
@@ -267,7 +267,7 @@ func (f *File) FrontMatterString() (string, error) {
 	var buf bytes.Buffer
 	bufEncoder := yaml.NewEncoder(&buf)
 	bufEncoder.SetIndent(Indent)
-	err := bufEncoder.Encode(f.frontMatter)
+	err := bufEncoder.Encode(f.FrontMatter)
 	if err != nil {
 		return "", err
 	}
@@ -276,15 +276,15 @@ func (f *File) FrontMatterString() (string, error) {
 
 // GetAttributes parses the front matter to extract typed attributes.
 func (f *File) GetAttributes() map[string]interface{} {
-	if f.frontMatter == nil {
+	if f.FrontMatter == nil {
 		return nil
 	}
 
 	result := make(map[string]interface{})
 	i := 0
-	for i < len(f.frontMatter.Content)-1 {
-		keyNode := f.frontMatter.Content[i]
-		valueNode := f.frontMatter.Content[i+1]
+	for i < len(f.FrontMatter.Content)-1 {
+		keyNode := f.FrontMatter.Content[i]
+		valueNode := f.FrontMatter.Content[i+1]
 		result[keyNode.Value] = toSafeYAMLValue(valueNode)
 		i += 2
 	}
@@ -294,13 +294,13 @@ func (f *File) GetAttributes() map[string]interface{} {
 
 // GetAttribute extracts a single attribute value at the top.
 func (f *File) GetAttribute(key string) interface{} {
-	if f.frontMatter == nil {
+	if f.FrontMatter == nil {
 		return nil
 	}
 	i := 0
-	for i < len(f.frontMatter.Content)-1 {
-		keyNode := f.frontMatter.Content[i]
-		valueNode := f.frontMatter.Content[i+1]
+	for i < len(f.FrontMatter.Content)-1 {
+		keyNode := f.FrontMatter.Content[i]
+		valueNode := f.FrontMatter.Content[i+1]
 		i += 2
 		if keyNode.Value == key {
 			return toSafeYAMLValue(valueNode)
@@ -313,18 +313,18 @@ func (f *File) GetAttribute(key string) interface{} {
 
 // SetAttribute overrides or defines a single attribute.
 func (f *File) SetAttribute(key string, value interface{}) {
-	if f.frontMatter == nil {
+	if f.FrontMatter == nil {
 		var frontMatterContent []*yaml.Node
-		f.frontMatter = &yaml.Node{
+		f.FrontMatter = &yaml.Node{
 			Kind:    yaml.MappingNode,
 			Content: frontMatterContent,
 		}
 	}
 
 	found := false
-	for i := 0; i < len(f.frontMatter.Content)/2; i++ {
-		keyNode := f.frontMatter.Content[i*2]
-		valueNode := f.frontMatter.Content[i*2+1]
+	for i := 0; i < len(f.FrontMatter.Content)/2; i++ {
+		keyNode := f.FrontMatter.Content[i*2]
+		valueNode := f.FrontMatter.Content[i*2+1]
 		if keyNode.Value != key {
 			continue
 		}
@@ -342,16 +342,16 @@ func (f *File) SetAttribute(key string, value interface{}) {
 	}
 
 	if !found {
-		f.frontMatter.Content = append(f.frontMatter.Content, &yaml.Node{
+		f.FrontMatter.Content = append(f.FrontMatter.Content, &yaml.Node{
 			Kind:  yaml.ScalarNode,
 			Value: key,
 		})
 		newValueNode := toSafeYAMLNode(value)
 		switch newValueNode.Kind {
 		case yaml.DocumentNode:
-			f.frontMatter.Content = append(f.frontMatter.Content, newValueNode.Content[0])
+			f.FrontMatter.Content = append(f.FrontMatter.Content, newValueNode.Content[0])
 		case yaml.ScalarNode:
-			f.frontMatter.Content = append(f.frontMatter.Content, newValueNode)
+			f.FrontMatter.Content = append(f.FrontMatter.Content, newValueNode)
 		default:
 			fmt.Printf("Unexcepted type %v\n", newValueNode.Kind)
 			os.Exit(1)
@@ -387,7 +387,7 @@ func (f *File) GetNotes() []*Note {
 		return f.notes
 	}
 
-	parsedNotes := ParseNotes(f.Content)
+	parsedNotes := ParseNotes(f.Body)
 
 	if len(parsedNotes) == 0 {
 		return nil
@@ -403,7 +403,7 @@ func (f *File) GetNotes() []*Note {
 			}
 		}
 
-		noteLine := f.ContentLine + currentNote.Line - 1
+		noteLine := f.BodyLine + currentNote.Line - 1
 		note := NewOrExistingNote(f, currentNote.LongTitle, currentNote.Body, noteLine)
 		if parentNoteIndex != -1 {
 			note.ParentNote = notes[parentNoteIndex]
@@ -565,7 +565,7 @@ func (f *File) GetFlashcards() []*Flashcard {
 
 // GetMedias extracts medias from the file.
 func (f *File) GetMedias() []*Media {
-	return extractMediasFromMarkdown(f.RelativePath, f.Content)
+	return extractMediasFromMarkdown(f.RelativePath, f.Body)
 }
 
 /* Parsing */
@@ -585,7 +585,7 @@ type ParsedFile struct {
 	// The YAML Front Matter
 	FrontMatter *yaml.Node
 
-	// The content excluding the front matter
+	// The body (= content minus the front matter)
 	Body     string
 	BodyLine int
 }
@@ -675,7 +675,7 @@ func (f *File) SaveOnDisk() error {
 	sb.WriteString("---\n")
 	sb.WriteString(frontMatter)
 	sb.WriteString("---\n")
-	sb.WriteString(f.Content)
+	sb.WriteString(f.Body)
 
 	if f.RelativePath == "" {
 		return errors.New("unable to save file as no path is defined")
@@ -782,8 +782,8 @@ func (f *File) InsertWithTx(tx *sql.Tx) error {
 			relative_path,
 			wikilink,
 			front_matter,
-			content,
-			content_line,
+			body,
+			body_line,
 			created_at,
 			updated_at,
 			last_checked_at,
@@ -803,8 +803,8 @@ func (f *File) InsertWithTx(tx *sql.Tx) error {
 		f.RelativePath,
 		f.Wikilink,
 		frontMatter,
-		f.Content,
-		f.ContentLine,
+		f.Body,
+		f.BodyLine,
 		timeToSQL(f.CreatedAt),
 		timeToSQL(f.UpdatedAt),
 		timeToSQL(f.LastCheckedAt),
@@ -828,8 +828,8 @@ func (f *File) UpdateWithTx(tx *sql.Tx) error {
 			relative_path = ?,
 			wikilink = ?,
 			front_matter = ?,
-			content = ?,
-			content_line = ?,
+			body = ?,
+			body_line = ?,
 			updated_at = ?,
 			last_checked_at = ?,
 			mtime = ?,
@@ -846,8 +846,8 @@ func (f *File) UpdateWithTx(tx *sql.Tx) error {
 		f.RelativePath,
 		f.Wikilink,
 		frontMatter,
-		f.Content,
-		f.ContentLine,
+		f.Body,
+		f.BodyLine,
 		timeToSQL(f.UpdatedAt),
 		timeToSQL(f.LastCheckedAt),
 		timeToSQL(f.MTime),
@@ -938,8 +938,8 @@ func QueryFile(whereClause string, args ...any) (*File, error) {
 			relative_path,
 			wikilink,
 			front_matter,
-			content,
-			content_line,
+			body,
+			body_line,
 			created_at,
 			updated_at,
 			last_checked_at,
@@ -954,8 +954,8 @@ func QueryFile(whereClause string, args ...any) (*File, error) {
 			&f.RelativePath,
 			&f.Wikilink,
 			&rawFrontMatter,
-			&f.Content,
-			&f.ContentLine,
+			&f.Body,
+			&f.BodyLine,
 			&createdAt,
 			&updatedAt,
 			&lastCheckedAt,
@@ -977,7 +977,7 @@ func QueryFile(whereClause string, args ...any) (*File, error) {
 	}
 
 	if frontMatter.Kind > 0 { // Happen when no Front Matter is present
-		f.frontMatter = frontMatter.Content[0]
+		f.FrontMatter = frontMatter.Content[0]
 	}
 	f.CreatedAt = timeFromSQL(createdAt)
 	f.UpdatedAt = timeFromSQL(updatedAt)
@@ -998,8 +998,8 @@ func QueryFiles(whereClause string, args ...any) ([]*File, error) {
 			relative_path,
 			wikilink,
 			front_matter,
-			content,
-			content_line,
+			body,
+			body_line,
 			created_at,
 			updated_at,
 			last_checked_at,
@@ -1026,8 +1026,8 @@ func QueryFiles(whereClause string, args ...any) ([]*File, error) {
 			&f.RelativePath,
 			&f.Wikilink,
 			&rawFrontMatter,
-			&f.Content,
-			&f.ContentLine,
+			&f.Body,
+			&f.BodyLine,
 			&createdAt,
 			&updatedAt,
 			&lastCheckedAt,
@@ -1047,7 +1047,7 @@ func QueryFiles(whereClause string, args ...any) ([]*File, error) {
 		}
 
 		if frontMatter.Kind > 0 { // Happen when no Front Matter is present
-			f.frontMatter = frontMatter.Content[0]
+			f.FrontMatter = frontMatter.Content[0]
 		}
 		f.CreatedAt = timeFromSQL(createdAt)
 		f.UpdatedAt = timeFromSQL(updatedAt)
