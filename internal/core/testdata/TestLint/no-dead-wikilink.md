@@ -3,7 +3,7 @@
 ## Note: A
 
 [[#B]]
-[[file.md]]
+[[#Note: B]]
 [[sub/file.md]]
 [[no-dead-wikilink/sub/file.md]]
 [[no-dead-wikilink/sub/file#A File]]

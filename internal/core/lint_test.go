@@ -79,8 +79,8 @@ func TestNoFreeNote(t *testing.T) {
 	require.Equal(t, []*Violation{
 		{
 			RelativePath: "no-free-note.md",
-			Message:      `XXX`,
-			Line:         1,
+			Message:      `free note "A free note" not allowed`,
+			Line:         3,
 		},
 	}, violations)
 }
@@ -118,8 +118,28 @@ func TestNoDeadWikilink(t *testing.T) {
 	require.Equal(t, []*Violation{
 		{
 			RelativePath: "no-dead-wikilink.md",
-			Message:      `XXX`,
-			Line:         1,
+			Message:      "section not found for wikilink [[#B]]",
+			Line:         5,
+		},
+		{
+			RelativePath: "no-dead-wikilink.md",
+			Message:      "section not found for wikilink [[no-dead-wikilink/sub/file#An Unknown Note]]",
+			Line:         12,
+		},
+		{
+			RelativePath: "no-dead-wikilink.md",
+			Message:      "file not found for wikilink [[no-dead-wikilink/sub/unknown]]",
+			Line:         13,
+		},
+		{
+			RelativePath: "no-dead-wikilink.md",
+			Message:      "file not found for wikilink [[sub/unknown]]",
+			Line:         14,
+		},
+		{
+			RelativePath: "no-dead-wikilink.md",
+			Message:      "file not found for wikilink [[unknown.md]]",
+			Line:         15,
 		},
 	}, violations)
 }
@@ -135,8 +155,40 @@ func TestNoExtensionWikilink(t *testing.T) {
 	require.Equal(t, []*Violation{
 		{
 			RelativePath: "no-extension-wikilink.md",
-			Message:      `XXX`,
-			Line:         1,
+			Message:      `extension found in wikilink [[no-extension-wikilink.md#Note: Link 1]]`,
+			Line:         13,
+		},
+		{
+			RelativePath: "no-extension-wikilink.md",
+			Message:      `extension found in wikilink [[no-extension-wikilink.md]]`,
+			Line:         21,
+		},
+		{
+			RelativePath: "no-extension-wikilink.md",
+			Message:      `extension found in wikilink [[dir/dangling/file.md]]`,
+			Line:         25,
+		},
+	}, violations)
+}
+
+func TestNoAmbiguousWikilink(t *testing.T) {
+	root := SetUpCollectionFromGoldenDirNamed(t, "TestLint")
+
+	file, err := ParseFile(filepath.Join(root, "no-ambiguous-wikilink.md"))
+	require.NoError(t, err)
+
+	violations, err := NoAmbiguousWikilink(file, nil)
+	require.NoError(t, err)
+	require.Equal(t, []*Violation{
+		{
+			RelativePath: "no-ambiguous-wikilink.md",
+			Message:      `ambiguous reference for wikilink [[books.md]]`,
+			Line:         3,
+		},
+		{
+			RelativePath: "no-ambiguous-wikilink.md",
+			Message:      `ambiguous reference for wikilink [[books.md#Treasure Island by Robert Louis Stevenson]]`,
+			Line:         6,
 		},
 	}, violations)
 }

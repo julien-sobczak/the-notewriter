@@ -3,12 +3,16 @@ package core
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
 
+	"github.com/julien-sobczak/the-notetaker/pkg/markdown"
+	"github.com/julien-sobczak/the-notetaker/pkg/resync"
 	"github.com/julien-sobczak/the-notetaker/pkg/text"
+	"golang.org/x/exp/slices"
 )
 
 type LintResult struct {
@@ -65,9 +69,14 @@ var LintRules = map[string]LintRuleDefinition{
 		Eval: NoDeadWikilink,
 	},
 
-	// No extension in wikilink
+	// No extension in wikilinks
 	"no-extension-wikilink": {
 		Eval: NoExtensionWikilink,
+	},
+
+	// No ambigiuty in wikilinks
+	"no-ambiguous-wikilink": {
+		Eval: NoAmbiguousWikilink,
 	},
 }
 
@@ -199,14 +208,129 @@ func NoDanglingMedia(file *ParsedFile, args []string) ([]*Violation, error) {
 	return violations, nil
 }
 
+/* Keep an inventory of all Markdown sections to determine easily if a wikilink is dead.  */
+
+var sectionsInventory map[string][]string // path without extension => section titles (without the leading characters)
+var sectionsInventoryOnce resync.Once     // Build the inventory on first occurrence only.
+
+func buildSectionsInventory() {
+	sectionsInventory = make(map[string][]string)
+	CurrentCollection().walk(CurrentConfig().RootDirectory, func(path string, stat fs.FileInfo) error {
+		relativePath, err := CurrentCollection().GetFileRelativePath(path)
+		if err != nil {
+			return err
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		// Extract all sections
+		var sections []string
+		lines := strings.Split(string(data), "\n")
+		for _, line := range lines {
+			if ok, longTitle, _ := markdown.IsHeading(line); ok {
+				sections = append(sections, longTitle)
+			}
+		}
+
+		sectionsInventory[text.TrimExtension(relativePath)] = sections
+
+		return nil
+	})
+}
+
 // NoDeadWikilink implements the rule "no-dead-wikilink".
 func NoDeadWikilink(file *ParsedFile, args []string) ([]*Violation, error) {
-	// TODO now implement
-	return nil, nil
+	sectionsInventoryOnce.Do(buildSectionsInventory)
+
+	var violations []*Violation
+
+	wikilinks := ParseWikilinks(file.Body)
+	for _, wikilink := range wikilinks {
+		foundPath := false
+
+		searchedPath := text.TrimExtension(wikilink.Path())
+		if wikilink.Anchored() {
+			searchedPath = text.TrimExtension(file.RelativePath)
+		}
+
+		for path, sections := range sectionsInventory {
+			if strings.HasSuffix(path, searchedPath) {
+				// found the link
+				foundPath = true
+
+				if wikilink.Section() != "" && !slices.Contains(sections, wikilink.Section()) {
+					violations = append(violations, &Violation{
+						RelativePath: file.RelativePath,
+						Message:      fmt.Sprintf("section not found for wikilink %s", wikilink),
+						Line:         wikilink.Line,
+					})
+				}
+			}
+		}
+		if !foundPath {
+			violations = append(violations, &Violation{
+				RelativePath: file.RelativePath,
+				Message:      fmt.Sprintf("file not found for wikilink %s", wikilink),
+				Line:         wikilink.Line,
+			})
+
+		}
+	}
+
+	return violations, nil
 }
 
 // NoExtensionWikilink implements the rule "no-extension-wikilink".
 func NoExtensionWikilink(file *ParsedFile, args []string) ([]*Violation, error) {
-	// TODO now implement
-	return nil, nil
+	var violations []*Violation
+
+	wikilinks := ParseWikilinks(file.Body)
+	for _, wikilink := range wikilinks {
+		if wikilink.ContainsExtension() {
+			violations = append(violations, &Violation{
+				RelativePath: file.RelativePath,
+				Message:      fmt.Sprintf("extension found in wikilink %s", wikilink),
+				Line:         wikilink.Line,
+			})
+		}
+	}
+
+	return violations, nil
+}
+
+// NoAmbiguousWikilink implements the rule "no-ambiguous-wikilink"
+func NoAmbiguousWikilink(file *ParsedFile, args []string) ([]*Violation, error) {
+	sectionsInventoryOnce.Do(buildSectionsInventory)
+
+	var violations []*Violation
+
+	wikilinks := ParseWikilinks(file.Body)
+	for _, wikilink := range wikilinks {
+		foundMatchingPaths := 0
+
+		searchedPath := text.TrimExtension(wikilink.Path())
+		if wikilink.Anchored() {
+			searchedPath = text.TrimExtension(file.RelativePath)
+		}
+
+		for path, _ := range sectionsInventory {
+			if strings.HasSuffix(path, searchedPath) {
+				// potentially found the link
+				foundMatchingPaths += 1
+			}
+		}
+
+		if foundMatchingPaths > 1 {
+			violations = append(violations, &Violation{
+				RelativePath: file.RelativePath,
+				Message:      fmt.Sprintf("ambiguous reference for wikilink %s", wikilink),
+				Line:         wikilink.Line,
+			})
+
+		}
+	}
+
+	return violations, nil
 }

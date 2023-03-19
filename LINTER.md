@@ -9,6 +9,7 @@ Here is a list of rules:
 * `no-dangling-media` => Path to media files must exist
 * `no-dead-wikilink` => Links between notes must exist
 * `no-extension-wikilink` => No extension in wikilink
+* `no-ambiguous-wikilink` => Force wikilinks to be qualified enough
 
 We need to configure if rules are `warn` (commit/push OK), `error` (push KO) or `off` (do not run the rule).
 We need to restrict the rules on a subjet of note files.
@@ -129,4 +130,7 @@ rules:
 # No extension in wikilink
 - name: no-extension-wikilink
   severity: warning
+
+# No ambiguity in wikilinks
+- name: no-ambiguous-wikilink
 ```
