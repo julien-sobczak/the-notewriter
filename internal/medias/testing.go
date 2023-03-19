@@ -15,6 +15,10 @@ func NewRandomConverter() *RandomConverter {
 	return &RandomConverter{}
 }
 
+func (c *RandomConverter) OnPreGeneration(fn func(cmd string, args ...string)) {
+	// do nothing
+}
+
 func (c *RandomConverter) ToAVIF(src, dest string, dimensions Dimensions) error {
 	return c.toFakeFile(dest)
 }

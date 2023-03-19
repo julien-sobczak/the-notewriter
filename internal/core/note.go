@@ -272,7 +272,10 @@ func (n *Note) updateContent(rawContent string) {
 	content, tags, attributes := n.parseContentRaw()
 
 	n.Tags = tags
-	n.Attributes = attributes
+	if n.GetFile() != nil {
+		n.Attributes = n.GetFile().GetAttributes()
+	}
+	n.Attributes = mergeAttributes(n.Attributes, attributes)
 	n.ContentMarkdown = markdown.ToMarkdown(content)
 	n.ContentHTML = markdown.ToHTML(n.ContentMarkdown) // Use processed md to use <h2>, <h3>, ... whatever the note level
 	n.ContentText = markdown.ToText(n.ContentMarkdown)
@@ -928,6 +931,7 @@ func FindNotesLastCheckedBefore(point time.Time, path string) ([]*Note, error) {
 //	tag:favorite kind:reference kind:note path:projects/
 func SearchNotes(q string) ([]*Note, error) {
 	var kinds []string
+	var attributes []string
 	var tags []string
 	var path string
 	var terms []string
@@ -937,6 +941,15 @@ func SearchNotes(q string) ([]*Note, error) {
 		// tag?
 		if strings.HasPrefix(clause, "tag:") {
 			tags = append(tags, clause[len("tag:"):])
+			continue
+		}
+		if strings.HasPrefix(clause, "#") {
+			tags = append(tags, clause[len("#"):])
+		}
+
+		// attributes?
+		if strings.HasPrefix(clause, "@") {
+			attributes = append(attributes, clause[len("@"):])
 			continue
 		}
 
@@ -978,6 +991,19 @@ func SearchNotes(q string) ([]*Note, error) {
 		querySQL.WriteString("AND ( ")
 		for _, tag := range tags {
 			querySQL.WriteString(fmt.Sprintf("  note.tags LIKE '%%%s%%' ", tag))
+		}
+		querySQL.WriteString(") ")
+	}
+	if len(attributes) > 0 {
+		querySQL.WriteString("AND ( ")
+		for _, attribute := range attributes {
+			parts := strings.Split(attribute, ":")
+			if len(parts) != 2 {
+				return nil, fmt.Errorf("invalid attribute clause %q", attribute)
+			}
+			name := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+			querySQL.WriteString(fmt.Sprintf(`  json_extract(note.attributes_json, "$.%s") = "%s" `, name, value))
 		}
 		querySQL.WriteString(") ")
 	}

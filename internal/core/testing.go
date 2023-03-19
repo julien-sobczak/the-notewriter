@@ -18,6 +18,7 @@ func Reset() {
 	dbClientOnce.Reset()
 	dbOnce.Reset()
 	loggerOnce.Reset()
+	sectionsInventoryOnce.Reset()
 }
 
 /* Reproducible Tests */

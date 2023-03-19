@@ -66,8 +66,8 @@ func TestNewFileFromPath(t *testing.T) {
 
 	t.Run("Extract content", func(t *testing.T) {
 		var tests = []struct {
-			name          string // name
-			rawContent    string // input
+			name       string // name
+			rawContent string // input
 			actualBody string // output
 		}{
 
@@ -467,6 +467,7 @@ func TestFileSave(t *testing.T) {
 	assert.Equal(t, "go#Reference: Golang History", note.Wikilink)
 	assert.Equal(t, map[string]interface{}{
 		"source": "https://en.wikipedia.org/wiki/Go_(programming_language)",
+		"tags":   []interface{}{"go"},
 	}, note.Attributes)
 	assert.Equal(t, []string{"go", "history"}, note.GetTags())
 	assert.Equal(t, 8, note.Line)

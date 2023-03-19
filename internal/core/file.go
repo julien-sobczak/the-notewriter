@@ -427,6 +427,7 @@ type ParsedNote struct {
 	Body       string
 }
 
+// ParseNotes extracts the notes from a file body.
 func ParseNotes(fileBody string) []*ParsedNote {
 	type Section struct {
 		level      int

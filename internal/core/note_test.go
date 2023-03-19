@@ -447,10 +447,21 @@ updated_at: 2023-01-01T01:12:30Z
 		noteDest := new(Note)
 		err = noteDest.Read(buf)
 		require.NoError(t, err)
-		noteSrc.File = nil
-		noteSrc.new = false
-		noteSrc.stale = false
-		assert.EqualValues(t, noteSrc, noteDest)
+		assert.EqualValues(t, cleanNote(noteSrc), cleanNote(noteDest))
 	})
 
+}
+
+/* Test Helpers */
+
+// cleanNote ignore some values as EqualValues is very strict.
+func cleanNote(n *Note) *Note {
+	// Do not compare state management attributes
+	n.File = nil // Do not recurse on file
+	n.new = false
+	n.stale = false
+	if len(n.Attributes) == 0 {
+		n.Attributes = nil // nil or empty is the same
+	}
+	return n
 }

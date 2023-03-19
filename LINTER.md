@@ -316,6 +316,7 @@ schemas:
           type: string|number|object|array|bool # https://www.w3schools.com/js/js_json_datatypes.asp
           pattern: .* # Only for string attributes
         - name: author
+          aliases: [artist, writer, author]
       - optional:
           name: year
           pattern: \d{4}

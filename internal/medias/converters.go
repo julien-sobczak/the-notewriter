@@ -72,6 +72,7 @@ func ReadImageDimensions(path string) (Dimensions, error) {
 }
 
 type Converter interface {
+	OnPreGeneration(func(cmd string, args ...string))
 	ToAVIF(src, dest string, dimensions Dimensions) error
 	ToMP3(src, dest string) error
 	ToWebM(src, dest string) error

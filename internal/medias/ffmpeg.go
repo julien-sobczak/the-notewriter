@@ -14,7 +14,8 @@ import (
 )
 
 type FFmpegConverter struct {
-	exe string
+	exe       string
+	listeners []func(cmd string, args ...string)
 }
 
 func NewFFmpegConverter() (*FFmpegConverter, error) {
@@ -26,6 +27,16 @@ func NewFFmpegConverter() (*FFmpegConverter, error) {
 	return &FFmpegConverter{
 		exe: path,
 	}, nil
+}
+
+func (c *FFmpegConverter) OnPreGeneration(fn func(cmd string, args ...string)) {
+	c.listeners = append(c.listeners, fn)
+}
+
+func (c *FFmpegConverter) notifyListeners(cmd string, args ...string) {
+	for _, fn := range c.listeners {
+		fn(cmd, args...)
+	}
 }
 
 /*
@@ -100,6 +111,7 @@ func (c *FFmpegConverter) ToAVIF(srcPath string, destPath string, dimensions Dim
 	args = append(args, filtersArgs...)
 	args = append(args, destPath)
 
+	c.notifyListeners(c.exe, args...)
 	cmd := exec.CommandContext(context.Background(), c.exe, args...)
 
 	return cmd.Run()
@@ -118,6 +130,7 @@ func (c *FFmpegConverter) ToMP3(srcPath string, destPath string) error {
 		return err
 	}
 
+	c.notifyListeners(c.exe, "-i", srcPath, destPath)
 	cmd := exec.CommandContext(context.Background(), c.exe, "-i", srcPath, destPath)
 
 	return cmd.Run()
@@ -136,6 +149,7 @@ func (c *FFmpegConverter) ToWebM(srcPath string, destPath string) error {
 		return err
 	}
 
+	c.notifyListeners(c.exe, "-i", srcPath, destPath)
 	cmd := exec.CommandContext(context.Background(), c.exe, "-i", srcPath, destPath)
 
 	return cmd.Run()

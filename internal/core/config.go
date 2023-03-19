@@ -262,6 +262,9 @@ func (c *Config) Converter() medias.Converter {
 		if err != nil {
 			log.Fatal(err)
 		}
+		converter.OnPreGeneration(func(cmd string, args ...string) {
+			CurrentLogger().Debug("Running command", cmd, args)
+		})
 		return converter
 	case "random":
 		return medias.NewRandomConverter()
