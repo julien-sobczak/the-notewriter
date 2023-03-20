@@ -39,7 +39,7 @@ An average plan vigorously executed is far better than a brilliant plan on which
 
 ## Note: The Momentum Principle of Success
 
-<!-- see_also: https://en.wikipedia.org/wiki/Momentum_theory -->
+`@see_also: https://en.wikipedia.org/wiki/Momentum_theory`
 
 The _Momentum Principle of Success_ says that although it may take tremendous amounts of energy to overcome inertia and get started initially, it then takes far less energy to keep going.
 

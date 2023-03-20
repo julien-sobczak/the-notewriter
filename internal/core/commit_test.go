@@ -134,7 +134,7 @@ commits:
 }
 
 func TestObjectData(t *testing.T) {
-	noteSrc := NewNote(NewEmptyFile("todo.md"), "TODO: Backlog", "* [ ] Test ObjectData", 2)
+	noteSrc := NewNote(NewEmptyFile("todo.md"), nil, "TODO: Backlog", "* [ ] Test ObjectData", 2)
 	dataSrc, err := NewObjectData(noteSrc)
 	require.NoError(t, err)
 
@@ -165,7 +165,7 @@ func TestCommit(t *testing.T) {
 	t.Run("New commit", func(t *testing.T) {
 		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
 
-		f, err := NewFileFromPath(filepath.Join(root, "go.md"))
+		f, err := NewFileFromPath(nil, filepath.Join(root, "go.md"))
 		require.NoError(t, err)
 
 		cSrc := NewCommit()
@@ -187,7 +187,7 @@ objects:
       state: added
       mtime: 2023-01-01T01:12:30Z
       desc: 'note "Reference: Golang History" [93267c32147a4ab7a1100ce82faab56a99fca1cd]'
-      data: eJzEk1Fr2zwUhu/9K87nXqSFOpblfk0t0txmsJtRerUx3GPrWBaxdYysNCvsxw+nadrCKIwF5ju9fvX4scRhqxUUubxe1LnMrhZ4hdUCs0yImm5kg1j9f41F0dSY1TpqbEfln20Z0JMLpeNw2BnH0cY6rcBTQ55cTVGwoSMFs7uXRMGaO3QGPtkxsH+aRWPLPpSH4vuXkacOg32kcsDQKjA873W0sxvbWbdRMDN89gEZQ/C22gYaVQQAMPLWT702hGFUaUpuPrEG0hbn7E06rdI1l+eDZ+Ox760z5cTcoqGLN7yy2XbdaaATI6A5KE5PAoaj1yiB9nAaU/bmy/ve+0ZnHSm4iWp2YbobjzsFP5N96+Hs0HqI9uvlf0nyt/aQJKtn2rfnw/9+/kIyPNf0mGquU4jPDKeG4wvY4QiaRmscaaie4I4r8gHWnuxIPfnLKYEvdkOXgE7DZ3Jw33I/jOwAA6yZTUdgHUghFvPjj7Y4tgqq6kpca13XRSMqmUmSuSwwI1HkiDLTx3qPfqN55xTM/o347NU89J2C5bBaIrSemtv4NyIx7Ofj9sVn9Sy9THF1arNlOqyOcoF+hONcnfzuPGEgXWJQIIXME5ElIrsXmcqkysXXaDvojwu/AgAA///tRpgn
+      data: eJzEkk9r20wQxu/6FINycAKxtZL/yF4c8978Qi8l5NRSlJF2tFos7YjVOm6gH77Ilu0WQqA00L3N7PM8/GZ32CgJq2mySItpEs9SnGGeYhwLUdAyKRHz+QJXq7LAuFBBaWrK/szSoiPrM8t+cIZhsDNWSXBUkiNbUOCNr0nC6PHckbDlGq2G/03n2b2Ogq5i57NB+Ptl4KhGb14oa9FXEjRPGhUczM7Uxu4kjDTfvJOM3juT7z11MgAA6Hjvel3lfdvJKCI76bNaUgYn7HTUV9GWs9vWsXbYNMbqrM/co6a7Y4ZHPaT1ZwyafymqAfsofHOgq/1ivdpqY0nCMijY+v5lHR4k/BgfVc83g+o5ONX//eU0Q87XE+C323OM5omil0hxEUF4oznSHN7BATtQ1BltSUH+Co+ck/OwdWQ6asjd9x34bHZ0D2gVfCILTxU3bccW0MOWWdcExkIiRDq5jFhhV0mgdJYIUczzco6qpJwWS5ql6aws0iQtaH6RN+h2ig9WwujfgI+u5L6pJazbzRqhclQ+hG+AhKc1eDjzbE7Q6wg3H022jtrNBc7Td3/ZvQ//O0foSWXoJSQimY5FPBbxk4hlnMip+BLsW/W+4GcAAAD//yWOfhQ=
     - oid: 93267c32147a4ab7a1100ce82faab56a99fca1cd
       kind: flashcard
       state: added
@@ -236,7 +236,7 @@ func TestIndex(t *testing.T) {
 
 		idx := NewIndex()
 
-		f, err := NewFileFromPath(filepath.Join(root, "go.md"))
+		f, err := NewFileFromPath(nil, filepath.Join(root, "go.md"))
 		require.NoError(t, err)
 
 		c := NewCommit()
@@ -266,7 +266,7 @@ Guido van Rossum
 		require.NoError(t, err)
 
 		// Stage the new file
-		f, err = NewFileFromPath(filepath.Join(root, "python.md"))
+		f, err = NewFileFromPath(nil, filepath.Join(root, "python.md"))
 		require.NoError(t, err)
 		idx.StageObject(f)
 		for _, obj := range f.SubObjects() {
@@ -286,7 +286,7 @@ Guido van Rossum
 
 		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
 
-		f, err := NewFileFromPath(filepath.Join(root, "go.md"))
+		f, err := NewFileFromPath(nil, filepath.Join(root, "go.md"))
 		require.NoError(t, err)
 
 		idx := NewIndex()

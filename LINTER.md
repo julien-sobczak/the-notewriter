@@ -311,41 +311,32 @@ schemas:
   - name: Quotes must be attributed # Do not use a comment to be able to include this message when reporting violations
     query: kind:quote
     attributes:
-      - oneOf:
-        - name: name
-          type: string|number|object|array|bool # https://www.w3schools.com/js/js_json_datatypes.asp
-          pattern: .* # Only for string attributes
-        - name: author
-          aliases: [artist, writer, author]
-      - optional:
-          name: year
-          pattern: \d{4}
-      - required:
-          name: source
+      - name: name
+        type: string|number|object|array|bool # https://www.w3schools.com/js/js_json_datatypes.asp
+        aliases: [artist, writer, author]
+        pattern: .* # Only for string attributes
+        required: true
+      - name: year
+        pattern: \d{4}
+      - name: source
+        required: true
 
   - name: Tags
     attributes:
-      - optional:
-          name: tags
-          type: array
-          inherit: true
-  - name: References
+      - name: tags
+        type: array
+        inherit: true
+
+  - name: Links
     attributes:
-      - optional:
-          name: references
-          type: array
-          inherit: true
-  - name: Source
-    attributes:
-      - optional:
-          name: source
-          inherit: true
-  - name: Inspirations
-    attributes:
-      - optional:
-          name: inspirations
-          type: array
-          inherit: true
+      - name: references
+        type: array
+        inherit: true
+      - name: source
+        inherit: true
+      - name: inspirations
+        type: array
+        inherit: true
 ```
 
 💡 Inline schema! Let file includes a schema in their Front Matter to validate all notes inside the file against it.

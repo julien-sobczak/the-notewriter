@@ -1,6 +1,9 @@
 CREATE TABLE file (
     oid TEXT PRIMARY KEY,
 
+    -- Parent file
+    file_oid TEXT,
+
     -- Relative file path to the file
     relative_path TEXT NOT NULL,
     -- The full wikilink to this note
@@ -8,6 +11,9 @@ CREATE TABLE file (
 
     -- YAML document representing the Front Matter
     front_matter TEXT NOT NULL,
+
+    -- Merged attributes in JSON
+    attributes TEXT NOT NULL,
 
     -- Raw file content
     body TEXT NOT NULL,
@@ -48,17 +54,11 @@ CREATE TABLE note (
     -- Same as title without the kind
     short_title TEXT NOT NULL,
 
-    -- Note-specific attributes
-    attributes_yaml TEXT NOT NULL,
-    attributes_json TEXT NOT NULL,
-    -- Merged attributes
-    attributes_full_yaml TEXT NOT NULL,
-    attributes_full_json TEXT NOT NULL,
+    -- Merged attributes in JSON
+    attributes TEXT NOT NULL,
 
-    -- Note-specific comma-separated list of tags
+    -- Merged tags in a comma-separated list
     tags TEXT NOT NULL,
-    -- Merged comma-separated list of tags
-    tags_full TEXT NOT NULL,
 
     -- Line number (1-based index) of the note section title
     "line" INTEGER NOT NULL,

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log"
 	"os"
 	"regexp"
 	"strconv"
@@ -22,7 +23,21 @@ type LintResult struct {
 	Errors        []*Violation
 }
 
+// Append merges new violations into the current result.
+func (r *LintResult) Append(violations ...*Violation) {
+	lintFile := CurrentConfig().LintFile
+	for _, violation := range violations {
+		if lintFile.Severity(violation.Name) == "warning" {
+			r.Warnings = append(r.Warnings, violation)
+		} else {
+			r.Errors = append(r.Errors, violation)
+		}
+	}
+}
+
 type Violation struct {
+	// The name of the violation
+	Name string
 	// The human-readable description of the violation
 	Message string
 	// The relative path to the file containing the violation
@@ -78,7 +93,99 @@ var LintRules = map[string]LintRuleDefinition{
 	"no-ambiguous-wikilink": {
 		Eval: NoAmbiguousWikilink,
 	},
+
+	// Attributes must satisfy their schema if defined
+	"check-attribute": {
+		Eval: CheckAttribute,
+	},
 }
+
+/* Schemas */
+
+// GetSchemaAttributeTypes returns all declared attributes with their JSON types.
+func GetSchemaAttributeTypes() map[string]string {
+	results := make(map[string]string)
+	for _, schema := range CurrentConfig().LintFile.Schemas {
+		for _, attribute := range schema.Attributes {
+			// Potential conflicting types are already checked after config parsing.
+			results[attribute.Name] = attribute.Type
+		}
+	}
+	return results
+}
+
+// GetSchemaAttributes calculates the list of declared attributes for a given note.
+func GetSchemaAttributes(relativePath string, kind NoteKind) []*ConfigLintSchemaAttribute {
+	// We must find the most specific definition for every attributes.
+	//
+	// Ex:
+	// schemas:
+	// - name: Attributes
+	//   attributes:
+	//   - name: author
+	//     type: string
+	//
+	// - name: Books
+	//   path: references/books/
+	//   attributes:
+	//   - name: author
+	//     required: true
+	//
+	// We must use the second schema when both apply.
+
+	var matchingSchemas []ConfigLintSchema
+	for _, schema := range CurrentConfig().LintFile.Schemas {
+		if schema.Path != "" && !strings.HasPrefix(relativePath, schema.Path) {
+			// Path does not match
+			continue
+		}
+		if schema.Kind != "" && string(kind) != schema.Kind {
+			// Kind does not match
+			continue
+		}
+		matchingSchemas = append(matchingSchemas, schema)
+	}
+	if len(matchingSchemas) == 0 {
+		// No attributes defined in schemas
+		return nil
+	}
+
+	// Sort from most specific to least specific
+	slices.SortFunc(matchingSchemas, func(a, b ConfigLintSchema) bool {
+		// Most specific path first
+		if a.Path != b.Path {
+			return strings.HasPrefix(a.Path, b.Path)
+		}
+		if a.Kind != "" && b.Kind == "" {
+			return true
+		} else if a.Kind == "" && b.Kind != "" {
+			return false
+		}
+		return false // both have same priority... (NB: SortFunc is not stable...)
+	})
+
+	resultsMap := make(map[string]*ConfigLintSchemaAttribute)
+	// Iterate from least to most specific so that more specific definitions override previous ones.
+	for i := len(matchingSchemas) - 1; i >= 0; i-- {
+		schema := matchingSchemas[i]
+		for _, definition := range schema.Attributes {
+			resultsMap[definition.Name] = definition
+		}
+	}
+
+	// Return values
+	var results []*ConfigLintSchemaAttribute
+	for _, definition := range resultsMap {
+		results = append(results, definition)
+	}
+	// Sort by name
+	slices.SortFunc(results, func(a, b *ConfigLintSchemaAttribute) bool {
+		return a.Name < b.Name
+	})
+	return results
+}
+
+/* Rules */
 
 // NoDuplicateNoteTitle implements the rule "no-duplicate-note-title".
 func NoDuplicateNoteTitle(file *ParsedFile, args []string) ([]*Violation, error) {
@@ -89,6 +196,7 @@ func NoDuplicateNoteTitle(file *ParsedFile, args []string) ([]*Violation, error)
 	for _, note := range notes {
 		if _, ok := uniqueNoteTitles[note.LongTitle]; ok {
 			violations = append(violations, &Violation{
+				Name:         "no-duplicate-note-title",
 				Message:      fmt.Sprintf("duplicated note with title %q", note.ShortTitle),
 				RelativePath: file.RelativePath,
 				Line:         note.Line,
@@ -128,6 +236,7 @@ func MinLinesBetweenNotes(file *ParsedFile, args []string) ([]*Violation, error)
 			lineIndex := lineNumber - 1
 			if lineIndex < 0 || !text.IsBlank(lines[lineIndex]) {
 				violations = append(violations, &Violation{
+					Name:         "min-lines-between-notes",
 					RelativePath: file.RelativePath,
 					Message:      fmt.Sprintf("missing blank lines before note %q", note.LongTitle),
 					Line:         note.Line,
@@ -161,6 +270,7 @@ func NoteTitleMatch(file *ParsedFile, args []string) ([]*Violation, error) {
 		}
 		if !re.MatchString(note.LongTitle) {
 			violations = append(violations, &Violation{
+				Name:         "note-title-match",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("note title %q does not match regex %q", note.LongTitle, args[0]),
 				Line:         note.Line,
@@ -179,6 +289,7 @@ func NoFreeNote(file *ParsedFile, args []string) ([]*Violation, error) {
 	for _, note := range notes {
 		if note.Kind == KindFree {
 			violations = append(violations, &Violation{
+				Name:         "no-free-note",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("free note %q not allowed", note.LongTitle),
 				Line:         note.Line,
@@ -198,6 +309,7 @@ func NoDanglingMedia(file *ParsedFile, args []string) ([]*Violation, error) {
 		_, err := os.Stat(media.AbsolutePath)
 		if errors.Is(err, os.ErrNotExist) {
 			violations = append(violations, &Violation{
+				Name:         "no-dangling-media",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("dangling media %s detected in %s", media.RawPath, file.RelativePath),
 				Line:         file.BodyLine + media.Line - 1,
@@ -215,7 +327,7 @@ var sectionsInventoryOnce resync.Once     // Build the inventory on first occurr
 
 func buildSectionsInventory() {
 	sectionsInventory = make(map[string][]string)
-	CurrentCollection().walk(CurrentConfig().RootDirectory, func(path string, stat fs.FileInfo) error {
+	err := CurrentCollection().walk(CurrentConfig().RootDirectory, func(path string, stat fs.FileInfo) error {
 		relativePath, err := CurrentCollection().GetFileRelativePath(path)
 		if err != nil {
 			return err
@@ -238,6 +350,9 @@ func buildSectionsInventory() {
 
 		return nil
 	})
+	if err != nil {
+		log.Fatalf("Unable to build sections inventory: %v", err)
+	}
 }
 
 // NoDeadWikilink implements the rule "no-dead-wikilink".
@@ -262,6 +377,7 @@ func NoDeadWikilink(file *ParsedFile, args []string) ([]*Violation, error) {
 
 				if wikilink.Section() != "" && !slices.Contains(sections, wikilink.Section()) {
 					violations = append(violations, &Violation{
+						Name:         "no-dead-wikilink",
 						RelativePath: file.RelativePath,
 						Message:      fmt.Sprintf("section not found for wikilink %s", wikilink),
 						Line:         wikilink.Line,
@@ -271,6 +387,7 @@ func NoDeadWikilink(file *ParsedFile, args []string) ([]*Violation, error) {
 		}
 		if !foundPath {
 			violations = append(violations, &Violation{
+				Name:         "no-dead-wikilink",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("file not found for wikilink %s", wikilink),
 				Line:         wikilink.Line,
@@ -290,6 +407,7 @@ func NoExtensionWikilink(file *ParsedFile, args []string) ([]*Violation, error) 
 	for _, wikilink := range wikilinks {
 		if wikilink.ContainsExtension() {
 			violations = append(violations, &Violation{
+				Name:         "no-extension-wikilink",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("extension found in wikilink %s", wikilink),
 				Line:         wikilink.Line,
@@ -324,12 +442,204 @@ func NoAmbiguousWikilink(file *ParsedFile, args []string) ([]*Violation, error) 
 
 		if foundMatchingPaths > 1 {
 			violations = append(violations, &Violation{
+				Name:         "no-ambiguous-wikilink",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("ambiguous reference for wikilink %s", wikilink),
 				Line:         wikilink.Line,
 			})
 
 		}
+	}
+
+	return violations, nil
+}
+
+// CheckAttribute implements the rule "check-attribute"
+func CheckAttribute(file *ParsedFile, args []string) ([]*Violation, error) {
+	var violations []*Violation
+
+	notes := ParseNotes(file.Body)
+	for _, note := range notes {
+
+		definitions := GetSchemaAttributes(file.RelativePath, note.Kind)
+		for _, definition := range definitions {
+
+			fileValue, presentOnFile := file.FileAttributes[definition.Name]
+			noteValue, presentOnNote := note.NoteAttributes[definition.Name]
+
+			// Check required
+			if *definition.Required && !presentOnFile && !presentOnNote {
+				violations = append(violations, &Violation{
+					Name:         "check-attribute",
+					RelativePath: file.RelativePath,
+					Message:      fmt.Sprintf("attribute %q missing on note %q in file %q", definition.Name, note.LongTitle, file.RelativePath),
+				})
+
+				// Nothing more to check
+				continue
+			}
+
+			// Check type
+			if presentOnFile {
+				line := text.LineNumber(file.Content(), definition.Name+":")
+				switch definition.Type {
+				case "array":
+					if !IsArray(fileValue) && !IsPrimitive(fileValue) {
+						violations = append(violations, &Violation{
+							Name:         "check-attribute",
+							RelativePath: file.RelativePath,
+							Message:      fmt.Sprintf("attribute %q in file %q is not an array and cannot be converted", definition.Name, file.RelativePath),
+							Line:         line,
+						})
+					}
+				case "string":
+					if !IsString(fileValue) && !IsPrimitive(fileValue) {
+						violations = append(violations, &Violation{
+							Name:         "check-attribute",
+							RelativePath: file.RelativePath,
+							Message:      fmt.Sprintf("attribute %q in file %q is not a string and cannot be converted", definition.Name, file.RelativePath),
+							Line:         line,
+						})
+					}
+				case "object":
+					if !IsObject(fileValue) {
+						violations = append(violations, &Violation{
+							Name:         "check-attribute",
+							RelativePath: file.RelativePath,
+							Message:      fmt.Sprintf("attribute %q in file %q is not an object", definition.Name, file.RelativePath),
+							Line:         line,
+						})
+					}
+				case "number":
+					if !IsNumber(fileValue) {
+						violations = append(violations, &Violation{
+							Name:         "check-attribute",
+							RelativePath: file.RelativePath,
+							Message:      fmt.Sprintf("attribute %q in file %q is not a number", definition.Name, file.RelativePath),
+							Line:         line,
+						})
+					}
+				case "bool":
+					if !IsBool(fileValue) {
+						violations = append(violations, &Violation{
+							Name:         "check-attribute",
+							RelativePath: file.RelativePath,
+							Message:      fmt.Sprintf("attribute %q in file %q is not a bool", definition.Name, file.RelativePath),
+							Line:         line,
+						})
+					}
+				}
+			}
+			if presentOnNote {
+				line := file.BodyLine + text.LineNumber(note.Body, "@"+definition.Name)
+				switch definition.Type {
+				case "array":
+					if !IsArray(noteValue) && !IsPrimitive(noteValue) {
+						violations = append(violations, &Violation{
+							Name:         "check-attribute",
+							RelativePath: file.RelativePath,
+							Message:      fmt.Sprintf("attribute %q in file %q is not an array and cannot be converted", definition.Name, file.RelativePath),
+							Line:         line,
+						})
+					}
+				case "string":
+					if !IsString(noteValue) && !IsPrimitive(noteValue) {
+						violations = append(violations, &Violation{
+							Name:         "check-attribute",
+							RelativePath: file.RelativePath,
+							Message:      fmt.Sprintf("attribute %q in file %q is not a string and cannot be converted", definition.Name, file.RelativePath),
+							Line:         line,
+						})
+					}
+				case "object":
+					if !IsObject(noteValue) {
+						violations = append(violations, &Violation{
+							Name:         "check-attribute",
+							RelativePath: file.RelativePath,
+							Message:      fmt.Sprintf("attribute %q in file %q is not an object", definition.Name, file.RelativePath),
+							Line:         line,
+						})
+					}
+				case "number":
+					if !IsNumber(noteValue) {
+						violations = append(violations, &Violation{
+							Name:         "check-attribute",
+							RelativePath: file.RelativePath,
+							Message:      fmt.Sprintf("attribute %q in file %q is not a number", definition.Name, file.RelativePath),
+							Line:         line,
+						})
+					}
+				case "bool":
+					if !IsBool(noteValue) {
+						violations = append(violations, &Violation{
+							Name:         "check-attribute",
+							RelativePath: file.RelativePath,
+							Message:      fmt.Sprintf("attribute %q in file %q is not a bool", definition.Name, file.RelativePath),
+							Line:         line,
+						})
+					}
+				}
+			}
+
+			// Check pattern
+			if definition.Pattern != "" {
+				regexAttribute := regexp.MustCompile(definition.Pattern)
+				if presentOnFile {
+					// Convert value to string
+					fileStringValue := fmt.Sprintf("%s", fileValue)
+					if !regexAttribute.MatchString(fileStringValue) {
+						violations = append(violations, &Violation{
+							Name:         "check-attribute",
+							RelativePath: file.RelativePath,
+							Message:      fmt.Sprintf("attribute %q in file %q does not match pattern %q", definition.Name, file.RelativePath, definition.Pattern),
+							Line:         text.LineNumber(file.Content(), definition.Name+":"),
+						})
+					}
+				}
+				if presentOnNote {
+					// Convert value to string
+					noteStringValue := fmt.Sprintf("%s", noteValue)
+					if !regexAttribute.MatchString(noteStringValue) {
+						violations = append(violations, &Violation{
+							Name:         "check-attribute",
+							RelativePath: file.RelativePath,
+							Message:      fmt.Sprintf("attribute %q in note %q in file %q does not match pattern %q", definition.Name, note.LongTitle, file.RelativePath, definition.Pattern),
+							Line:         note.Line + text.LineNumber(note.Body, "@"+definition.Name),
+						})
+					}
+				}
+			}
+		}
+	}
+
+	return violations, nil
+}
+
+/* ParsedFile */
+
+func (f *ParsedFile) Lint() ([]*Violation, error) {
+	var violations []*Violation
+
+	rules := CurrentConfig().LintFile.Rules
+	for _, configRule := range rules {
+		rule := LintRules[configRule.Name]
+
+		// Check path restrictions
+		matchAllIncludes := true
+		for _, include := range configRule.Includes {
+			if !include.Match(f.RelativePath) {
+				matchAllIncludes = false
+			}
+		}
+		if !matchAllIncludes {
+			continue
+		}
+
+		newViolations, err := rule.Eval(f, configRule.Args)
+		if err != nil {
+			return nil, err
+		}
+		violations = append(violations, newViolations...)
 	}
 
 	return violations, nil

@@ -20,8 +20,8 @@ _The NoteTaker_ is an unobstrusive application to organize all kinds of notes.
 
 `#favorite` `#life-changing`
 
-<!-- name: Gustave Flaubert -->
-<!-- references: https://fortelabs.com/blog/tiagos-favorite-second-brain-quotes/ -->
+`@name: Gustave Flaubert`
+`@references: https://fortelabs.com/blog/tiagos-favorite-second-brain-quotes/`
 
 Be regular and orderly in your life so that you may be violent and original in your work.
 

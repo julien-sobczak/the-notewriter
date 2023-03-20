@@ -3,10 +3,13 @@ package core
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/julien-sobczak/the-notetaker/pkg/text"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 func TestGlobPaths(t *testing.T) {
@@ -64,6 +67,15 @@ rules:
   includes: # default to root
   - todo/
   - "!todo/misc"
+
+schemas:
+- name: Relations
+  attributes:
+  - name: source
+    inherit: false
+    required: true
+  - name: references
+    type: array
 `,
 
 			".ntignore": `README.md`,
@@ -84,8 +96,12 @@ Blablabla`,
 		c, err = ReadConfigFromDirectory(dir)
 		require.NoError(t, err)
 		require.NotNil(t, c)
+
+		// Check .ntignore
 		assert.Contains(t, c.IgnoreFile.Entries, GlobPath("README.md"))
-		assert.Len(t, c.LintFile.Rules, 2)
+
+		// Check .nt/lint rules
+		require.Len(t, c.LintFile.Rules, 2)
 		rule1 := c.LintFile.Rules[0]
 		rule2 := c.LintFile.Rules[1]
 		assert.Equal(t, "min-lines-between-notes", rule1.Name)
@@ -94,6 +110,28 @@ Blablabla`,
 		assert.Equal(t, "no-free-note", rule2.Name)
 		assert.Equal(t, "", rule2.Severity)
 		assert.EqualValues(t, []GlobPath{"todo/", "!todo/misc"}, rule2.Includes)
+
+		// Check .nt/lint schemas
+		require.Len(t, c.LintFile.Schemas, 1)
+		schemaActual := c.LintFile.Schemas[0]
+		schemaExpected := ConfigLintSchema{
+			Name: "Relations",
+			Attributes: []*ConfigLintSchemaAttribute{
+				{
+					Name:     "source",
+					Type:     "string", // default value
+					Inherit:  BoolPointer(false),
+					Required: BoolPointer(true),
+				},
+				{
+					Name:     "references",
+					Type:     "array",
+					Inherit:  BoolPointer(true),  // default value
+					Required: BoolPointer(false), // default value
+				},
+			},
+		}
+		assert.Equal(t, schemaExpected, schemaActual)
 	})
 
 	t.Run("Config missing", func(t *testing.T) {
@@ -113,6 +151,134 @@ Blablabla`,
 		c, err := ReadConfigFromDirectory(filepath.Join(dir, "journal"))
 		require.NoError(t, err)
 		require.Nil(t, c)
+	})
+
+	t.Run("Default files", func(t *testing.T) {
+		dir := populate(t, map[string]interface{}{
+			".nt/config": `
+[core]
+extensions=["md"]`,
+
+			// No files .ntignore or .nt/lint defined
+		})
+
+		c, err := ReadConfigFromDirectory(dir)
+		require.NoError(t, err)
+		require.NotNil(t, c)
+
+		// Check all default entries are present
+		iEntry := 0
+		for _, line := range strings.Split(DefaultIgnore, "\n") {
+			if text.IsBlank(line) || strings.HasPrefix(line, "#") {
+				continue
+			}
+			assert.Equal(t, line, string(c.IgnoreFile.Entries[iEntry]))
+			iEntry++
+		}
+
+		// Check all default lint rule are present
+		var defaultLint = make(map[string]interface{})
+		err = yaml.Unmarshal([]byte(DefaultLint), &defaultLint)
+		require.NoError(t, err)
+		if rulesRaw, ok := defaultLint["rules"]; ok {
+			rules := rulesRaw.([]interface{})
+			assert.Len(t, c.LintFile.Rules, len(rules))
+		} else {
+			assert.Empty(t, c.LintFile.Rules)
+		}
+		// Check all default lint schemas are present
+		if schemasRaw, ok := defaultLint["schemas"]; ok {
+			schemas := schemasRaw.([]interface{})
+			assert.Len(t, c.LintFile.Schemas, len(schemas))
+		} else {
+			assert.Empty(t, c.LintFile.Schemas)
+		}
+	})
+
+}
+
+func TestCheckConfig(t *testing.T) {
+
+	t.Run("Unknown Lint", func(t *testing.T) {
+		dir := populate(t, map[string]interface{}{
+
+			".nt/lint": `
+rules:
+
+- name: unknown-rule
+  severity: warning
+`,
+		})
+
+		c, err := ReadConfigFromDirectory(dir)
+		require.NoError(t, err)
+
+		err = c.Check()
+		require.ErrorContains(t, err, "unknown lint rule")
+	})
+
+	t.Run("Invalid severity", func(t *testing.T) {
+		dir := populate(t, map[string]interface{}{
+
+			".nt/lint": `
+rules:
+
+- name: check-attribute
+  severity: info
+`,
+		})
+
+		c, err := ReadConfigFromDirectory(dir)
+		require.NoError(t, err)
+
+		err = c.Check()
+		require.ErrorContains(t, err, "unknown severity")
+	})
+
+	t.Run("Conflicting schema types", func(t *testing.T) {
+		dir := populate(t, map[string]interface{}{
+
+			".nt/lint": `
+schemas:
+
+- name: Books
+  attributes:
+  - name: title
+    type: string
+
+- name: Persons
+  attributes:
+  - name: title
+    type: array
+`,
+		})
+
+		c, err := ReadConfigFromDirectory(dir)
+		require.NoError(t, err)
+
+		err = c.Check()
+		require.ErrorContains(t, err, "conflicting type for attribute")
+	})
+
+	t.Run("Invalid pattern in schema", func(t *testing.T) {
+		dir := populate(t, map[string]interface{}{
+
+			".nt/lint": `
+schemas:
+
+- name: Books
+  attributes:
+  - name: isbn
+    type: string
+    pattern: "(\\d{10,13"
+`,
+		})
+
+		c, err := ReadConfigFromDirectory(dir)
+		require.NoError(t, err)
+
+		err = c.Check()
+		require.ErrorContains(t, err, "invalid pattern")
 	})
 
 }

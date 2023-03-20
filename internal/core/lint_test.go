@@ -4,8 +4,86 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestGetSchemaAttributes(t *testing.T) {
+	root := SetUpCollectionFromGoldenDirNamed(t, "TestLint")
+
+	file, err := ParseFile(filepath.Join(root, "check-attribute/check-attribute.md"))
+	require.NoError(t, err)
+	notes := ParseNotes(file.Body)
+	require.Equal(t, "Quote: Steve Jobs on Life", notes[0].LongTitle)
+	definitions := GetSchemaAttributes(file.RelativePath, notes[0].Kind)
+	assert.Equal(t, []*ConfigLintSchemaAttribute{
+		{
+			Name:     "isbn",
+			Type:     "string",
+			Pattern:  "^([0-9-]{10}|[0-9]{3}-[0-9]{10})$",
+			Required: BoolPointer(false),
+			Inherit:  BoolPointer(true),
+		},
+		{
+			Name:     "name",
+			Type:     "string",
+			Required: BoolPointer(true),
+			Inherit:  BoolPointer(true),
+		},
+		{
+			Name:     "references",
+			Type:     "array",
+			Required: BoolPointer(false),
+			Inherit:  BoolPointer(true),
+		},
+		{
+			Name:     "source",
+			Type:     "string",
+			Required: BoolPointer(false),
+			Inherit:  BoolPointer(true),
+		},
+		{
+			Name:     "tags",
+			Type:     "array",
+			Required: BoolPointer(false),
+			Inherit:  BoolPointer(true),
+		},
+	}, definitions)
+
+	file, err = ParseFile(filepath.Join(root, "check-attribute.md"))
+	require.NoError(t, err)
+	notes = ParseNotes(file.Body)
+	require.Equal(t, "Note: _Steve Jobs_ by Walter Isaacson", notes[1].LongTitle)
+	definitions = GetSchemaAttributes(file.RelativePath, notes[1].Kind)
+	assert.Equal(t, []*ConfigLintSchemaAttribute{
+		{
+			Name:     "isbn",
+			Type:     "string",
+			Pattern:  "^([0-9-]{10}|[0-9]{3}-[0-9]{10})$",
+			Required: BoolPointer(false),
+			Inherit:  BoolPointer(true),
+		},
+		// Name does not match
+		{
+			Name:     "references",
+			Type:     "array",
+			Required: BoolPointer(false),
+			Inherit:  BoolPointer(true),
+		},
+		{
+			Name:     "source",
+			Type:     "string",
+			Required: BoolPointer(false),
+			Inherit:  BoolPointer(true),
+		},
+		{
+			Name:     "tags",
+			Type:     "array",
+			Required: BoolPointer(false),
+			Inherit:  BoolPointer(true),
+		},
+	}, definitions)
+}
 
 func TestNoDuplicateNoteTitle(t *testing.T) {
 	root := SetUpCollectionFromGoldenDirNamed(t, "TestLint")
@@ -189,6 +267,38 @@ func TestNoAmbiguousWikilink(t *testing.T) {
 			RelativePath: "no-ambiguous-wikilink.md",
 			Message:      `ambiguous reference for wikilink [[books.md#Treasure Island by Robert Louis Stevenson]]`,
 			Line:         6,
+		},
+	}, violations)
+}
+
+func TestCheckAttribute(t *testing.T) {
+	root := SetUpCollectionFromGoldenDirNamed(t, "TestLint")
+
+	fileRoot, err := ParseFile(filepath.Join(root, "check-attribute.md"))
+	require.NoError(t, err)
+	fileSub, err := ParseFile(filepath.Join(root, "check-attribute/check-attribute.md"))
+	require.NoError(t, err)
+
+	violations, err := CheckAttribute(fileRoot, nil)
+	require.NoError(t, err)
+	require.Len(t, violations, 1)
+	require.Equal(t, []*Violation{
+		{
+			Name:         "check-attribute",
+			Message:      `attribute "isbn" in note "Note: _Steve Jobs_ by Walter Isaacson" in file "check-attribute.md" does not match pattern "^([0-9-]{10}|[0-9]{3}-[0-9]{10})$"`,
+			RelativePath: "check-attribute.md",
+			Line:         14,
+		},
+	}, violations)
+
+	violations, err = CheckAttribute(fileSub, nil)
+	require.NoError(t, err)
+	require.Equal(t, []*Violation{
+		{
+			Name:         "check-attribute",
+			Message:      `attribute "name" missing on note "Quote: Steve Jobs on Life" in file "check-attribute/check-attribute.md"`,
+			RelativePath: "check-attribute/check-attribute.md",
+			Line:         0,
 		},
 	}, violations)
 }

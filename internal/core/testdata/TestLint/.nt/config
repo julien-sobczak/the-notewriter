@@ -1,0 +1,5 @@
+[core]
+extensions=["md", "markdown"]
+
+[medias]
+command="random"

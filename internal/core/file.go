@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"log"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
@@ -32,6 +33,10 @@ type File struct {
 	// A unique identifier among all files
 	OID string `yaml:"oid"`
 
+	// Optional parent file (= index.md)
+	ParentFileOID string `yaml:"file_oid"`
+	ParentFile    *File  `yaml:"-"` // Lazy-loaded
+
 	// A relative path to the collection directory
 	RelativePath string `yaml:"relative_path"`
 	// The full wikilink to this file (without the extension)
@@ -39,6 +44,9 @@ type File struct {
 
 	// The FrontMatter for the note file
 	FrontMatter *yaml.Node `yaml:"front_matter"`
+
+	// Merged attributes
+	Attributes map[string]interface{} `yaml:"attributes,omitempty"`
 
 	Body     string  `yaml:"body"`
 	BodyLine int     `yaml:"body_line"`
@@ -62,22 +70,22 @@ type File struct {
 	stale bool
 }
 
-func NewOrExistingFile(path string) (*File, error) {
+func NewOrExistingFile(parent *File, path string) (*File, error) {
 	relpath, err := CurrentCollection().GetFileRelativePath(path)
 	if err != nil {
 		log.Fatal(err)
 	}
-	existingFile, err := LoadFileByPath(relpath)
+	existingFile, err := LoadFileByPath(CurrentDB().Client(), relpath)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	if existingFile != nil {
-		existingFile.Update()
+		existingFile.Update(parent)
 		return existingFile, nil
 	}
 
-	return NewFileFromPath(path)
+	return NewFileFromPath(parent, path)
 }
 
 /* Creation */
@@ -89,18 +97,24 @@ func NewEmptyFile(name string) *File {
 		new:          true,
 		Wikilink:     name,
 		RelativePath: name,
+		Attributes:   make(map[string]interface{}),
 	}
 }
 
-func NewFileFromAttributes(name string, attributes []Attribute) *File {
+func NewFileFromAttributes(parent *File, name string, attributes []Attribute) *File {
 	file := NewEmptyFile(name)
+	if parent != nil {
+		file.ParentFile = parent
+		file.ParentFileOID = parent.OID
+		file.Attributes = parent.GetAttributes()
+	}
 	for _, attribute := range attributes {
 		file.SetAttribute(attribute.Key, attribute.Value)
 	}
 	return file
 }
 
-func NewFileFromPath(filepath string) (*File, error) {
+func NewFileFromPath(parent *File, filepath string) (*File, error) {
 	parsedFile, err := ParseFile(filepath)
 	if err != nil {
 		return nil, err
@@ -114,6 +128,7 @@ func NewFileFromPath(filepath string) (*File, error) {
 		Size:         parsedFile.LStat.Size(),
 		Hash:         helpers.Hash(parsedFile.Bytes),
 		MTime:        parsedFile.LStat.ModTime(),
+		Attributes:   make(map[string]interface{}),
 		Body:         parsedFile.Body,
 		BodyLine:     parsedFile.BodyLine,
 		CreatedAt:    clock.Now(),
@@ -121,11 +136,54 @@ func NewFileFromPath(filepath string) (*File, error) {
 		stale:        true,
 		new:          true,
 	}
+	if parent != nil {
+		file.ParentFileOID = parent.OID
+		file.ParentFile = parent
+	}
 	if parsedFile.FrontMatter.Kind > 0 { // Happen when no Front Matter is present
 		file.FrontMatter = parsedFile.FrontMatter.Content[0]
 	}
+	newAttributes := parsedFile.FileAttributes
+	if parent != nil {
+		newAttributes = file.mergeAttributes(parent.GetAttributes(), newAttributes)
+	}
+	file.Attributes = newAttributes
 
 	return file, nil
+}
+
+func (f *File) mergeAttributes(attributes ...map[string]interface{}) map[string]interface{} {
+	results := make(map[string]interface{})
+	for _, attributesSet := range attributes {
+		for key, value := range attributesSet {
+			_, ok := results[key]
+
+			// Still not present, simply add the new value
+			if !ok {
+				results[key] = value
+				continue
+			}
+
+			if IsArray(results[key]) {
+				if arrayValue, ok := value.([]string); ok {
+					arrayResult := results[key].([]string)
+					arrayResult = append(arrayResult, arrayValue...)
+					results[key] = arrayResult
+				}
+				if arrayValue, ok := value.([]interface{}); ok {
+					arrayResult := results[key].([]interface{})
+					arrayResult = append(arrayResult, arrayValue...)
+					results[key] = arrayResult
+				}
+				// Other types are not supported... override for now.
+				results[key] = value
+			} else {
+				// TODO now merge values!!!!
+				results[key] = value
+			}
+		}
+	}
+	return results
 }
 
 /* Object */
@@ -216,36 +274,45 @@ func (f File) String() string {
 
 /* Update */
 
-func (f *File) Update() error {
+func (f *File) Update(parent *File) error {
 	abspath := CurrentCollection().GetAbsolutePath(f.RelativePath)
-	fileInfo, err := os.Lstat(abspath) // NB: os.Stat follows symlinks
-	if err != nil {
-		return err
-	}
-
-	if f.MTime == fileInfo.ModTime() && f.Size == fileInfo.Size() {
-		// No file change
-		return nil
-	}
-
-	f.stale = true
-
 	parsedFile, err := ParseFile(abspath)
 	if err != nil {
 		return err
 	}
 
-	f.Mode = fileInfo.Mode()
-	f.Size = fileInfo.Size()
-	f.Hash = helpers.Hash(parsedFile.Bytes)
-	if parsedFile.FrontMatter.Kind > 0 {
-		f.FrontMatter = parsedFile.FrontMatter
-	} else {
-		f.FrontMatter = nil
+	newAttributes := parsedFile.FileAttributes
+	if parent != nil {
+		newAttributes = f.mergeAttributes(parent.GetAttributes(), f.Attributes)
 	}
-	f.MTime = fileInfo.ModTime()
-	f.Body = parsedFile.Body
-	f.BodyLine = parsedFile.BodyLine
+
+	// Check if parent attributes have changed
+	if !reflect.DeepEqual(newAttributes, f.Attributes) {
+		f.stale = true
+		f.Attributes = newAttributes
+	}
+
+	// Check if local file has changed
+	if f.MTime != parsedFile.LStat.ModTime() || f.Size != parsedFile.LStat.Size() {
+		// file change
+		f.stale = true
+
+		f.Mode = parsedFile.LStat.Mode()
+		f.Size = parsedFile.LStat.Size()
+		f.Hash = helpers.Hash(parsedFile.Bytes)
+		if parsedFile.FrontMatter.Kind > 0 {
+			f.FrontMatter = parsedFile.FrontMatter
+		} else {
+			f.FrontMatter = nil
+		}
+		f.Attributes = parsedFile.FileAttributes
+		if parent != nil {
+			f.Attributes = f.mergeAttributes(parent.GetAttributes(), f.Attributes)
+		}
+		f.MTime = parsedFile.LStat.ModTime()
+		f.Body = parsedFile.Body
+		f.BodyLine = parsedFile.BodyLine
+	}
 
 	return nil
 }
@@ -274,41 +341,18 @@ func (f *File) FrontMatterString() (string, error) {
 	return CompactYAML(buf.String()), nil
 }
 
-// GetAttributes parses the front matter to extract typed attributes.
+// GetAttributes returns all file-specific and inherited attributes.
 func (f *File) GetAttributes() map[string]interface{} {
-	if f.FrontMatter == nil {
-		return nil
-	}
-
-	result := make(map[string]interface{})
-	i := 0
-	for i < len(f.FrontMatter.Content)-1 {
-		keyNode := f.FrontMatter.Content[i]
-		valueNode := f.FrontMatter.Content[i+1]
-		result[keyNode.Value] = toSafeYAMLValue(valueNode)
-		i += 2
-	}
-
-	return result
+	return f.Attributes
 }
 
 // GetAttribute extracts a single attribute value at the top.
 func (f *File) GetAttribute(key string) interface{} {
-	if f.FrontMatter == nil {
+	value, ok := f.Attributes[key]
+	if !ok {
 		return nil
 	}
-	i := 0
-	for i < len(f.FrontMatter.Content)-1 {
-		keyNode := f.FrontMatter.Content[i]
-		valueNode := f.FrontMatter.Content[i+1]
-		i += 2
-		if keyNode.Value == key {
-			return toSafeYAMLValue(valueNode)
-		}
-	}
-
-	// Not found
-	return nil
+	return value
 }
 
 // SetAttribute overrides or defines a single attribute.
@@ -357,6 +401,9 @@ func (f *File) SetAttribute(key string, value interface{}) {
 			os.Exit(1)
 		}
 	}
+
+	// Don't forget to append in parsed attributes too
+	f.Attributes[key] = value
 }
 
 // GetTags returns all defined tags.
@@ -404,10 +451,11 @@ func (f *File) GetNotes() []*Note {
 		}
 
 		noteLine := f.BodyLine + currentNote.Line - 1
-		note := NewOrExistingNote(f, currentNote.LongTitle, currentNote.Body, noteLine)
+		var parent *Note
 		if parentNoteIndex != -1 {
-			note.ParentNote = notes[parentNoteIndex]
+			parent = notes[parentNoteIndex]
 		}
+		note := NewOrExistingNote(f, parent, currentNote.LongTitle, currentNote.Body, noteLine)
 		notes = append(notes, note)
 	}
 
@@ -419,12 +467,14 @@ func (f *File) GetNotes() []*Note {
 
 // ParsedNote represents a single raw note inside a file.
 type ParsedNote struct {
-	Level      int
-	Kind       NoteKind
-	LongTitle  string
-	ShortTitle string
-	Line       int
-	Body       string
+	Level          int
+	Kind           NoteKind
+	LongTitle      string
+	ShortTitle     string
+	Line           int
+	Body           string
+	NoteAttributes map[string]interface{}
+	NoteTags       []string
 }
 
 // ParseNotes extracts the notes from a file body.
@@ -516,18 +566,22 @@ func ParseNotes(fileBody string) []*ParsedNote {
 		}
 
 		noteContent := text.ExtractLines(fileBody, lineStart, lineEnd)
+
+		tags, attributes := extractBlockTagsAndAttributes(noteContent)
+
 		notes = append(notes, &ParsedNote{
-			Level:      section.level,
-			Kind:       section.kind,
-			LongTitle:  section.longTitle,
-			ShortTitle: section.shortTitle,
-			Line:       section.lineNumber,
-			Body:       noteContent,
+			Level:          section.level,
+			Kind:           section.kind,
+			LongTitle:      section.longTitle,
+			ShortTitle:     section.shortTitle,
+			Line:           section.lineNumber,
+			NoteAttributes: CastAttributes(attributes),
+			NoteTags:       tags,
+			Body:           noteContent,
 		})
 	}
 
 	return notes
-
 }
 
 // FindNoteByKindAndShortTitle searches for a given note based on its kind and title.
@@ -585,12 +639,15 @@ type ParsedFile struct {
 
 	// The YAML Front Matter
 	FrontMatter *yaml.Node
+	// File attributes extracted from the Front Matter
+	FileAttributes map[string]interface{}
 
 	// The body (= content minus the front matter)
 	Body     string
 	BodyLine int
 }
 
+// ParseFile contains the main logic to parse a raw note file.
 func ParseFile(filepath string) (*ParsedFile, error) {
 	relativePath, err := CurrentCollection().GetFileRelativePath(filepath)
 	if err != nil {
@@ -646,22 +703,96 @@ func ParseFile(filepath string) (*ParsedFile, error) {
 		}
 	}
 
-	var frontMatter yaml.Node
-	err = yaml.Unmarshal(rawFrontMatter.Bytes(), &frontMatter)
+	var frontMatter = new(yaml.Node)
+	err = yaml.Unmarshal(rawFrontMatter.Bytes(), frontMatter)
+	if err != nil {
+		return nil, err
+	}
+	if frontMatter.Kind > 0 { // Happen when no Front Matter is present
+		frontMatter = frontMatter.Content[0]
+	}
+
+	var attributes = make(map[string]interface{})
+	err = yaml.Unmarshal(rawFrontMatter.Bytes(), attributes)
 	if err != nil {
 		return nil, err
 	}
 
+	// i := 0
+	// for i < len(frontMatter.Content)-1 {
+	// 	keyNode := frontMatter.Content[i]
+	// 	valueNode := frontMatter.Content[i+1]
+	// 	valueSafe := toSafeYAMLValue(valueNode)
+	// 	attributes[keyNode.Value] = valueSafe
+	// 	i += 2
+	// }
+
 	return &ParsedFile{
-		AbsolutePath: absolutePath,
-		RelativePath: relativePath,
-		Stat:         stat,
-		LStat:        lstat,
-		Bytes:        contentBytes,
-		FrontMatter:  &frontMatter,
-		Body:         strings.TrimSpace(rawContent.String()),
-		BodyLine:     bodyStartLineNumber,
+		AbsolutePath:   absolutePath,
+		RelativePath:   relativePath,
+		Stat:           stat,
+		LStat:          lstat,
+		Bytes:          contentBytes,
+		FrontMatter:    frontMatter,
+		FileAttributes: CastAttributes(attributes),
+		Body:           strings.TrimSpace(rawContent.String()),
+		BodyLine:       bodyStartLineNumber,
 	}, nil
+}
+
+// Content returns the raw file content.
+func (f *ParsedFile) Content() string {
+	return string(f.Bytes)
+}
+
+// GetFileAttributesProcessed returns attributes with the right type when applicable.
+// Run linter first to ensure all attributes are correctly typed.
+// FIXME remove
+func (f *ParsedFile) GetFileAttributesProcessedTOREMOVE() map[string]interface{} {
+	lintFile := CurrentConfig().LintFile
+	result := make(map[string]interface{})
+	for attributeName, attributeValueRaw := range f.FileAttributes {
+		definition := lintFile.GetAttributeDefinition(attributeName, func(schema ConfigLintSchema) bool {
+			if schema.Path == "" {
+				return true
+			}
+			return strings.HasPrefix(f.RelativePath, schema.Path)
+		})
+		if definition == nil {
+			// No processing
+			result[attributeName] = attributeValueRaw
+			continue
+		}
+
+		switch definition.Type {
+		case "array":
+			if !IsArray(attributeValueRaw) {
+				result[attributeName] = []interface{}{attributeValueRaw}
+			} else {
+				// Processing not possible
+				result[attributeName] = attributeValueRaw
+			}
+		case "string":
+			if IsPrimitive(attributeValueRaw) {
+				typedValue := fmt.Sprintf("%s", attributeValueRaw)
+				result[attributeName] = typedValue
+			} else {
+				// Processing not possible
+				result[attributeName] = attributeValueRaw
+			}
+		case "object":
+			// Nothing can be done
+			result[attributeName] = attributeValueRaw
+		case "number":
+			// Nothing can be done
+			result[attributeName] = attributeValueRaw
+		case "bool":
+			// Nothing can be done
+			result[attributeName] = attributeValueRaw
+		}
+	}
+
+	return result
 }
 
 /* Data Management */
@@ -780,9 +911,11 @@ func (f *File) InsertWithTx(tx *sql.Tx) error {
 	query := `
 		INSERT INTO file(
 			oid,
+			file_oid,
 			relative_path,
 			wikilink,
 			front_matter,
+			attributes,
 			body,
 			body_line,
 			created_at,
@@ -793,17 +926,24 @@ func (f *File) InsertWithTx(tx *sql.Tx) error {
 			hashsum,
 			mode
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 	frontMatter, err := f.FrontMatterString()
 	if err != nil {
 		return err
 	}
+	attributesJSON, err := AttributesJSON(f.Attributes)
+	if err != nil {
+		return err
+	}
+
 	_, err = tx.Exec(query,
 		f.OID,
+		f.ParentFileOID,
 		f.RelativePath,
 		f.Wikilink,
 		frontMatter,
+		attributesJSON,
 		f.Body,
 		f.BodyLine,
 		timeToSQL(f.CreatedAt),
@@ -826,9 +966,11 @@ func (f *File) UpdateWithTx(tx *sql.Tx) error {
 	query := `
 		UPDATE file
 		SET
+		    file_oid = ?,
 			relative_path = ?,
 			wikilink = ?,
 			front_matter = ?,
+			attributes = ?,
 			body = ?,
 			body_line = ?,
 			updated_at = ?,
@@ -843,10 +985,16 @@ func (f *File) UpdateWithTx(tx *sql.Tx) error {
 	if err != nil {
 		return err
 	}
+	attributesJSON, err := AttributesJSON(f.Attributes)
+	if err != nil {
+		return err
+	}
 	_, err = tx.Exec(query,
+		f.ParentFileOID,
 		f.RelativePath,
 		f.Wikilink,
 		frontMatter,
+		attributesJSON,
 		f.Body,
 		f.BodyLine,
 		timeToSQL(f.UpdatedAt),
@@ -888,24 +1036,24 @@ func (f *File) DeleteWithTx(tx *sql.Tx) error {
 	return err
 }
 
-func LoadFileByPath(relativePath string) (*File, error) {
-	return QueryFile(`WHERE relative_path = ?`, relativePath)
+func LoadFileByPath(db Queryable, relativePath string) (*File, error) {
+	return QueryFile(db, `WHERE relative_path = ?`, relativePath)
 }
 
-func LoadFileByOID(oid string) (*File, error) {
-	return QueryFile(`WHERE oid = ?`, oid)
+func LoadFileByOID(db Queryable, oid string) (*File, error) {
+	return QueryFile(db, `WHERE oid = ?`, oid)
 }
 
 func LoadFilesByRelativePathPrefix(relativePathPrefix string) ([]*File, error) {
-	return QueryFiles(`WHERE relative_path LIKE ?`, relativePathPrefix+"%")
+	return QueryFiles(CurrentDB().Client(), `WHERE relative_path LIKE ?`, relativePathPrefix+"%")
 }
 
 func FindFilesByWikilink(wikilink string) ([]*File, error) {
-	return QueryFiles(`WHERE wikilink LIKE ?`, "%"+wikilink)
+	return QueryFiles(CurrentDB().Client(), `WHERE wikilink LIKE ?`, "%"+wikilink)
 }
 
 func FindFilesLastCheckedBefore(point time.Time, path string) ([]*File, error) {
-	return QueryFiles(`WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
+	return QueryFiles(CurrentDB().Client(), `WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 // CountFiles returns the total number of files.
@@ -922,23 +1070,29 @@ func CountFiles() (int, error) {
 
 /* SQL Helpers */
 
-func QueryFile(whereClause string, args ...any) (*File, error) {
-	db := CurrentDB().Client()
+type Queryable interface {
+	QueryRow(query string, args ...any) *sql.Row
+	Query(query string, args ...any) (*sql.Rows, error)
+}
 
+func QueryFile(db Queryable, whereClause string, args ...any) (*File, error) {
 	var f File
 	var rawFrontMatter string
 	var createdAt string
 	var updatedAt string
 	var lastCheckedAt string
 	var mTime string
+	var attributesRaw string
 
 	// Query for a value based on a single row.
 	if err := db.QueryRow(fmt.Sprintf(`
 		SELECT
 			oid,
+			file_oid,
 			relative_path,
 			wikilink,
 			front_matter,
+			attributes,
 			body,
 			body_line,
 			created_at,
@@ -952,9 +1106,11 @@ func QueryFile(whereClause string, args ...any) (*File, error) {
 		%s;`, whereClause), args...).
 		Scan(
 			&f.OID,
+			&f.ParentFileOID,
 			&f.RelativePath,
 			&f.Wikilink,
 			&rawFrontMatter,
+			&attributesRaw,
 			&f.Body,
 			&f.BodyLine,
 			&createdAt,
@@ -976,10 +1132,16 @@ func QueryFile(whereClause string, args ...any) (*File, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	if frontMatter.Kind > 0 { // Happen when no Front Matter is present
 		f.FrontMatter = frontMatter.Content[0]
 	}
+
+	attributes, err := UnmarshalAttributes(attributesRaw)
+	if err != nil {
+		return nil, err
+	}
+
+	f.Attributes = attributes
 	f.CreatedAt = timeFromSQL(createdAt)
 	f.UpdatedAt = timeFromSQL(updatedAt)
 	f.LastCheckedAt = timeFromSQL(lastCheckedAt)
@@ -988,17 +1150,17 @@ func QueryFile(whereClause string, args ...any) (*File, error) {
 	return &f, nil
 }
 
-func QueryFiles(whereClause string, args ...any) ([]*File, error) {
-	db := CurrentDB().Client()
-
+func QueryFiles(db Queryable, whereClause string, args ...any) ([]*File, error) {
 	var files []*File
 
 	rows, err := db.Query(fmt.Sprintf(`
 		SELECT
 			oid,
+			file_oid,
 			relative_path,
 			wikilink,
 			front_matter,
+			attributes,
 			body,
 			body_line,
 			created_at,
@@ -1021,12 +1183,15 @@ func QueryFiles(whereClause string, args ...any) ([]*File, error) {
 		var updatedAt string
 		var lastCheckedAt string
 		var mTime string
+		var attributesRaw string
 
 		err = rows.Scan(
 			&f.OID,
+			&f.ParentFileOID,
 			&f.RelativePath,
 			&f.Wikilink,
 			&rawFrontMatter,
+			&attributesRaw,
 			&f.Body,
 			&f.BodyLine,
 			&createdAt,
@@ -1046,10 +1211,16 @@ func QueryFiles(whereClause string, args ...any) ([]*File, error) {
 		if err != nil {
 			return nil, err
 		}
-
 		if frontMatter.Kind > 0 { // Happen when no Front Matter is present
 			f.FrontMatter = frontMatter.Content[0]
 		}
+
+		attributes, err := UnmarshalAttributes(attributesRaw)
+		if err != nil {
+			return nil, err
+		}
+
+		f.Attributes = attributes
 		f.CreatedAt = timeFromSQL(createdAt)
 		f.UpdatedAt = timeFromSQL(updatedAt)
 		f.LastCheckedAt = timeFromSQL(lastCheckedAt)

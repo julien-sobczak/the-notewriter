@@ -16,7 +16,7 @@ func TestLink(t *testing.T) {
 	FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
 
 	t.Run("YAML", func(t *testing.T) {
-		noteSrc := NewNote(NewEmptyFile("example.md"), "TODO: Backlog", "* [ ] Test", 2)
+		noteSrc := NewNote(NewEmptyFile("example.md"), nil, "TODO: Backlog", "* [ ] Test", 2)
 		linkSrc := NewLink(noteSrc, "click here", "https://www.google.com", "", "g")
 
 		// Marshall

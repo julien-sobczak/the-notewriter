@@ -34,14 +34,24 @@ const (
 	KindSnippet    NoteKind = "snippet"
 )
 
-var regexReference = regexp.MustCompile(`(?i)^Reference[-:_ ]\s*(.*)$`)
-var regexNote = regexp.MustCompile(`^(?i)Note[-:_ ]\s*(.*)$`)
-var regexFlashcard = regexp.MustCompile(`^(?i)Flashcard[-:_ ]\s*(.*)$`)
-var regexCheatsheet = regexp.MustCompile(`^(?i)Cheatsheet[-:_ ]\s*(.*)$`)
-var regexQuote = regexp.MustCompile(`^(?i)Quote[-:_ ]\s*(.*)$`)
-var regexTodo = regexp.MustCompile(`^(?i)Todo[-:_ ]\s*(.*)$`)
-var regexArtwork = regexp.MustCompile(`^(?i)Artwork[-:_ ]\s*(.*)$`)
-var regexSnippet = regexp.MustCompile(`^(?i)Snippet[-:_ ]\s*(.*)$`)
+// Regex to validate and/or extract information from notes
+var (
+	// Kinds
+	regexReference  = regexp.MustCompile(`(?i)^Reference[-:_ ]\s*(.*)$`)  // Ex: `# Reference: Go History`
+	regexNote       = regexp.MustCompile(`^(?i)Note[-:_ ]\s*(.*)$`)       // Ex: `# Note: On Go Logo`
+	regexFlashcard  = regexp.MustCompile(`^(?i)Flashcard[-:_ ]\s*(.*)$`)  // Ex: `# Flashcard: Goroutines Syntax`
+	regexCheatsheet = regexp.MustCompile(`^(?i)Cheatsheet[-:_ ]\s*(.*)$`) // Ex: `# Cheatsheet: How to start a goroutine`
+	regexQuote      = regexp.MustCompile(`^(?i)Quote[-:_ ]\s*(.*)$`)      // Ex: `# Quote: Marcus Aurelius on Doing`
+	regexTodo       = regexp.MustCompile(`^(?i)Todo[-:_ ]\s*(.*)$`)       // Ex: `# Todo: Backlog`
+	regexArtwork    = regexp.MustCompile(`^(?i)Artwork[-:_ ]\s*(.*)$`)    // Ex: `# Artwork: Vincent van Gogh`
+	regexSnippet    = regexp.MustCompile(`^(?i)Snippet[-:_ ]\s*(.*)$`)    // Ex: `# Snippet: Ideas for post title`
+	regexChecklist  = regexp.MustCompile(`^(?i)Checklist[-:_ ]\s*(.*)$`)  // Ex: `# Checklist: Travel`
+
+	// Metadata
+	regexTags                   = regexp.MustCompile("`#(\\S+)`")                          // Ex: `#favorite`
+	regexAttributes             = regexp.MustCompile("`@([a-zA-Z0-9_.-]+)\\s*:\\s*(.+?)`") // Ex: `@source: _A Book_`, `@isbn: 9780807014271`
+	regexBlockTagAttributesLine = regexp.MustCompile("^\\s*(`.*?`\\s+)*`.*?`\\s*$")        // Ex: `#favorite` `@isbn: 9780807014271`
+)
 
 type Note struct {
 	OID string `yaml:"oid"`
@@ -67,17 +77,11 @@ type Note struct {
 	// The full wikilink to this note (without the extension)
 	Wikilink string `yaml:"wikilink"`
 
-	// Note-specific attributes. Use GetAttributes() to get all merged attributes
+	// Merged attributes
 	Attributes map[string]interface{} `yaml:"attributes,omitempty"`
 
-	// Merged attributes. Same as GetAttributes()
-	AttributesFull map[string]interface{} `yaml:"attributes_full,omitempty"`
-
-	// Note-specific tags. Use GetTags() to get all merged tags
+	// Merged tags
 	Tags []string `yaml:"tags,omitempty"`
-
-	// Merged tags. Same as GetTags()
-	TagsFull []string `yaml:"tags_full,omitempty"`
 
 	// Line number (1-based index) of the note section title
 	Line int `yaml:"line"`
@@ -99,7 +103,8 @@ type Note struct {
 	stale bool
 }
 
-func NewOrExistingNote(f *File, title string, content string, lineNumber int) *Note {
+// NewOrExistingNote loads and updates an existing note or creates a new one if new.
+func NewOrExistingNote(f *File, parent *Note, title string, content string, lineNumber int) *Note {
 	content = strings.TrimSpace(content)
 
 	note, _ := FindNoteByWikilink(f.RelativePath + "#" + title)
@@ -115,30 +120,33 @@ func NewOrExistingNote(f *File, title string, content string, lineNumber int) *N
 		return note
 	}
 
-	return NewNote(f, title, content, lineNumber)
+	return NewNote(f, parent, title, content, lineNumber)
 }
 
-func NewNote(f *File, title string, content string, lineNumber int) *Note {
+// NewNote creates a new note from given attributes.
+func NewNote(f *File, parent *Note, title string, content string, lineNumber int) *Note {
 	rawContent := strings.TrimSpace(content)
 
 	_, kind, shortTitle := isSupportedNote(title)
 
 	n := &Note{
-		OID:           NewOID(),
-		FileOID:       f.OID,
-		File:          f,
-		ParentNoteOID: "",
-		ParentNote:    nil,
-		NoteKind:      kind,
-		Title:         title,
-		ShortTitle:    shortTitle,
-		RelativePath:  f.RelativePath,
-		Wikilink:      f.Wikilink + "#" + strings.TrimSpace(title),
-		Line:          lineNumber,
-		CreatedAt:     clock.Now(),
-		UpdatedAt:     clock.Now(),
-		new:           true,
-		stale:         true,
+		OID:          NewOID(),
+		FileOID:      f.OID,
+		File:         f,
+		NoteKind:     kind,
+		Title:        title,
+		ShortTitle:   shortTitle,
+		RelativePath: f.RelativePath,
+		Wikilink:     f.Wikilink + "#" + strings.TrimSpace(title),
+		Line:         lineNumber,
+		CreatedAt:    clock.Now(),
+		UpdatedAt:    clock.Now(),
+		new:          true,
+		stale:        true,
+	}
+	if parent != nil {
+		n.ParentNote = parent
+		n.ParentNoteOID = parent.OID
 	}
 
 	n.updateContent(rawContent)
@@ -258,40 +266,145 @@ func (n *Note) Updated() bool {
 
 /* Parsing */
 
-func (n *Note) parseContentRaw() (string, []string, map[string]interface{}) {
-	var tags []string
-	var attributes map[string]interface{}
-	var content string
-
-	content, tags = extractTags(n.ContentRaw)
-	content, attributes = extractAttributes(content)
-	content = strings.TrimSpace(content)
+func (n *Note) parseContentRaw() string {
+	content := stripBlockTagsAndAttributes(n.ContentRaw)
 	content = n.expandSyntaxSugar(content)
 
-	return content, tags, attributes
+	return content
 }
 
 func (n *Note) updateContent(rawContent string) {
 	n.ContentRaw = strings.TrimSpace(rawContent)
 	n.Hash = helpers.Hash([]byte(n.ContentRaw))
 
-	content, tags, attributes := n.parseContentRaw()
+	tags, attributes := extractBlockTagsAndAttributes(n.ContentRaw)
+
+	// Append tags in attributes (tags are attributes with syntaxic sugar)
+	if len(tags) > 0 {
+		attributes["tags"] = tags
+	}
+	// Append note title in a attribute title if not already present
+	if _, ok := attributes["title"]; !ok {
+		attributes["title"] = n.ShortTitle
+	}
+
+	// Merge with parent attributes
+	if n.ParentNoteOID == "" {
+		attributes = n.mergeAttributes(n.GetFile().GetAttributes(), nil, attributes)
+	} else {
+		attributes = n.mergeAttributes(n.GetFile().GetAttributes(), n.GetParentNote().GetNoteAttributes(), attributes)
+	}
+
+	// Merge with parent tags
+	if n.ParentNoteOID == "" {
+		tags = mergeTags(n.GetFile().GetTags(), tags)
+	} else {
+		tags = mergeTags(n.GetParentNote().GetTags(), tags)
+	}
 
 	n.Tags = tags
-	n.TagsFull = n.GetTags()
 	n.Attributes = attributes
-	n.AttributesFull = n.GetAttributes()
+
+	// Reread content as tags and attributes previously defined on the note can influence the output.
+	content := n.parseContentRaw()
 	n.ContentMarkdown = markdown.ToMarkdown(content)
 	n.ContentHTML = markdown.ToHTML(n.ContentMarkdown) // Use processed md to use <h2>, <h3>, ... whatever the note level
 	n.ContentText = markdown.ToText(n.ContentMarkdown)
 }
 
-func (n *Note) SetParent(parent *Note) {
-	if parent == nil {
-		return
+// mergeAttributes is similar to generic mergeAttributes function but filter to exclude non-inheritable attributes.
+func (n *Note) mergeAttributes(fileAttributes, parentNoteAttributes, noteAttributes map[string]interface{}) map[string]interface{} {
+	definitions := GetSchemaAttributes(n.RelativePath, n.NoteKind)
+
+	attributeTypes := make(map[string]string)
+	attributeInherit := make(map[string]bool)
+	for _, definition := range definitions {
+		attributeTypes[definition.Name] = definition.Type
+		attributeInherit[definition.Name] = *definition.Inherit
 	}
-	n.ParentNote = parent
-	n.ParentNoteOID = parent.OID
+
+	results := make(map[string]interface{})
+
+	// Process file attributes
+	for key, value := range fileAttributes {
+		results[key] = value
+	}
+
+	// Process parent note attributes
+	for key, value := range parentNoteAttributes {
+		// Skip non inheritable attributes
+		if !attributeInherit[key] {
+			continue
+		}
+
+		_, ok := results[key]
+
+		// Still not present, simply add the new value
+		if !ok {
+			results[key] = value
+			continue
+		}
+
+		if IsArray(results[key]) {
+			if arrayValue, ok := value.([]string); ok {
+				arrayResult := results[key].([]string)
+				arrayResult = append(arrayResult, arrayValue...)
+				results[key] = arrayResult
+			}
+			if arrayValue, ok := value.([]interface{}); ok {
+				arrayResult := results[key].([]interface{})
+				arrayResult = append(arrayResult, arrayValue...)
+				results[key] = arrayResult
+			}
+			// Other types are not supported... override for now.
+			results[key] = value
+		} else {
+			results[key] = value
+		}
+	}
+
+	// Process note own attributes
+	for key, value := range noteAttributes {
+		_, ok := results[key]
+
+		// Still not present, simply add the new value
+		if !ok {
+			results[key] = value
+			continue
+		}
+
+		// Can require to merge values
+		if IsArray(results[key]) {
+			if arrayValue, ok := value.([]string); ok {
+				arrayResult := results[key].([]string)
+				arrayResult = append(arrayResult, arrayValue...)
+				results[key] = arrayResult
+			}
+			if arrayValue, ok := value.([]interface{}); ok {
+				arrayResult := results[key].([]interface{})
+				arrayResult = append(arrayResult, arrayValue...)
+				results[key] = arrayResult
+			}
+			// Other types are not supported... override for now.
+			results[key] = value
+		} else {
+			results[key] = value
+		}
+	}
+
+	return results
+}
+
+// GetNoteAttributes returns the attributes specifically present on the note.
+func (n *Note) GetNoteAttributes() map[string]interface{} {
+	_, attributes := extractBlockTagsAndAttributes(n.ContentRaw)
+	return CastAttributes(attributes)
+}
+
+// GetNoteTags returns the tags specifically present on the note.
+func (n *Note) GetNoteTags() []string {
+	tags, _ := extractBlockTagsAndAttributes(n.ContentRaw)
+	return tags
 }
 
 // GetFile returns the containing file, loading it from database if necessary.
@@ -300,7 +413,7 @@ func (n *Note) GetFile() *File {
 		return nil
 	}
 	if n.File == nil {
-		file, err := LoadFileByOID(n.FileOID)
+		file, err := LoadFileByOID(CurrentDB().Client(), n.FileOID)
 		if err != nil {
 			log.Fatalf("Unable to find file %q: %v", n.FileOID, err)
 		}
@@ -325,15 +438,21 @@ func (n *Note) GetParentNote() *Note {
 }
 
 func (n *Note) GetAttributes() map[string]interface{} {
-	if n.ParentNoteOID == "" {
-		return mergeAttributes(n.GetFile().GetAttributes(), n.Attributes)
+	// Present to be consistent with File.GetAttributes()
+	return n.Attributes
+}
 
-	}
-	return mergeAttributes(n.GetParentNote().GetAttributes(), n.Attributes)
+func (n *Note) HasAttribute(name string) bool {
+	_, ok := n.Attributes[name]
+	return ok
+}
+
+func (n *Note) SetAttribute(name string, value interface{}) {
+	n.Attributes[name] = value
 }
 
 func (n *Note) GetAttribute(name string) interface{} {
-	if value, ok := n.GetAttributes()[name]; ok {
+	if value, ok := n.Attributes[name]; ok {
 		return value
 	}
 	return nil
@@ -348,99 +467,8 @@ func (n *Note) GetAttributeString(name, defaultValue string) string {
 }
 
 func (n *Note) GetTags() []string {
-	if n.ParentNoteOID == "" {
-		return mergeTags(n.GetFile().GetTags(), n.Tags)
-	}
-	return mergeTags(n.GetParentNote().GetTags(), n.Tags)
-}
-
-func mergeTags(tags ...[]string) []string {
-	var result []string
-	for _, items := range tags {
-		for _, item := range items {
-			found := false
-			for _, existingItem := range result {
-				if existingItem == item {
-					found = true
-					break
-				}
-			}
-			if !found {
-				result = append(result, item)
-			}
-		}
-	}
-	return result
-}
-
-func mergeAttributes(attributes ...map[string]interface{}) map[string]interface{} {
-	// Implementation: THe code is obscure due to untyped elements.
-	// We don't want to always replace old values when the old value is a slice
-	// that can accept these new values too.
-	//
-	// Examples:
-	//   ---
-	//   tags: [a]
-	//   references: []
-	//   ---
-	//
-	//   `#b`
-	//   <!-- references: https://example.org -->
-	//
-	// Should be the same as:
-	//   ---
-	//   tags: [a, b]
-	//   references: [https://example.org]
-	//   ---
-	//
-	// Most of the code tries to manage this use case.
-
-	result := make(map[string]interface{})
-	empty := true
-	for _, m := range attributes {
-		for newKey, newValue := range m {
-			// Check if the attribute was already defined
-			if currentValue, ok := result[newKey]; ok {
-
-				// If the tyoe is a slice, append the new value instead of overriding
-				switch x := currentValue.(type) {
-				case []interface{}:
-					switch y := newValue.(type) {
-					case []interface{}:
-						result[newKey] = append(x, y...)
-					case []string:
-						for _, item := range y {
-							result[newKey] = append(x, fmt.Sprintf("%v", item))
-						}
-					default:
-						result[newKey] = append(x, newValue)
-					}
-				case []string:
-					switch y := newValue.(type) {
-					case []interface{}:
-						for _, item := range y {
-							result[newKey] = append(x, fmt.Sprintf("%v", item))
-						}
-					case []string:
-						result[newKey] = append(x, y...)
-					default:
-						result[newKey] = append(x, fmt.Sprintf("%v", newValue))
-					}
-
-				default:
-					// override
-					result[newKey] = newValue
-				}
-			} else {
-				result[newKey] = newValue
-			}
-			empty = false
-		}
-	}
-	if empty {
-		return nil
-	}
-	return result
+	// Present to be consistent with File.GetTags()
+	return n.Tags
 }
 
 func isSupportedNote(text string) (bool, NoteKind, string) {
@@ -466,6 +494,9 @@ func isSupportedNote(text string) (bool, NoteKind, string) {
 		return true, KindArtwork, m[1]
 	}
 	if m := regexSnippet.FindStringSubmatch(text); m != nil {
+		return true, KindArtwork, m[1]
+	}
+	if m := regexChecklist.FindStringSubmatch(text); m != nil {
 		return true, KindArtwork, m[1]
 	}
 	// FIXME what about Journal notes?
@@ -521,32 +552,58 @@ func (n *Note) expandSyntaxSugar(rawContent string) string {
 	return rawContent
 }
 
-// extractTags searches for all tags and remove lines containing only tags.
-func extractTags(content string) (string, []string) {
-	var tags []string
+// extractBlockTagsAndAttributes searches for all tags and attributes declared on standalone lines
+// (in comparison with tags/attributes defined, for example, on To-Do list items).
+func extractBlockTagsAndAttributes(content string) ([]string, map[string]interface{}) {
 
-	reTags := regexp.MustCompile("`#(\\S+)`")
-	reOnlyTags := regexp.MustCompile("^(`#\\S+`\\s*)+$")
-	var res bytes.Buffer
-	for _, line := range strings.Split(content, "\n") {
-		matches := reTags.FindAllStringSubmatch(line, -1)
+	// Collect tags and attributes
+	var tags []string
+	var attributes map[string]interface{} = make(map[string]interface{})
+
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+
+		// only tags and attributes?
+		if text.IsBlank(line) || !regexBlockTagAttributesLine.MatchString(line) {
+			continue
+		}
+
+		// Append tags and attributes to collected ones
+		matches := regexTags.FindAllStringSubmatch(line, -1)
 		for _, match := range matches {
 			tags = append(tags, match[1])
 		}
-		if !reOnlyTags.MatchString(line) {
+		matches = regexAttributes.FindAllStringSubmatch(line, -1)
+		for _, match := range matches {
+			attributes[match[1]] = match[2]
+		}
+	}
+
+	return tags, attributes
+}
+
+// stripTagsAndAttributes remove all tags and attributes.
+func stripBlockTagsAndAttributes(content string) string {
+	var res bytes.Buffer
+
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+
+		// not only tags and attributes?
+		if text.IsBlank(line) || !regexBlockTagAttributesLine.MatchString(line) {
 			res.WriteString(line + "\n")
 		}
 	}
 
-	return text.SquashBlankLines(res.String()), tags
+	return strings.TrimSpace(text.SquashBlankLines(res.String()))
 }
 
-// removeTags removes all tags from a text.
-func removeTags(content string) string {
-	reTags := regexp.MustCompile("`#(\\S+)`")
+// removeTagsAndAttributes removes all tags and attributes from a text.
+func removeTagsAndAttributes(content string) string {
 	var res bytes.Buffer
 	for _, line := range strings.Split(content, "\n") {
-		newLine := reTags.ReplaceAllLiteralString(line, "")
+		newLine := regexTags.ReplaceAllLiteralString(line, "")
+		newLine = regexAttributes.ReplaceAllLiteralString(newLine, "")
 		if !text.IsBlank(newLine) {
 			res.WriteString(newLine + "\n")
 		}
@@ -554,22 +611,7 @@ func removeTags(content string) string {
 	return strings.TrimSpace(text.SquashBlankLines(res.String()))
 }
 
-func extractAttributes(content string) (string, map[string]interface{}) {
-	attributes := make(map[string]interface{})
-
-	reAttribute := regexp.MustCompile(`<!--\s*(\w+)\s*:\s*(.*?)\s*-->\s*$`)
-
-	var res bytes.Buffer
-	for _, line := range strings.Split(content, "\n") {
-		match := reAttribute.FindStringSubmatch(line)
-		if match != nil {
-			attributes[match[1]] = match[2]
-		} else {
-			res.WriteString(line + "\n")
-		}
-	}
-	return text.SquashBlankLines(res.String()), attributes
-}
+/* Sub Objects */
 
 // GetMedias extracts medias from the note.
 func (n *Note) GetMedias() []*Media {
@@ -621,7 +663,7 @@ func (n *Note) GetReminders() []*Reminder {
 			submatch := reList.FindStringSubmatch(line)
 			if submatch != nil {
 				// Reminder for a list element
-				description = removeTags(submatch[1]) // Remove tags
+				description = removeTagsAndAttributes(submatch[1]) // Remove tags
 			}
 
 			reminder, err := NewOrExistingReminder(n, description, tag)
@@ -727,12 +769,8 @@ func (n *Note) InsertWithTx(tx *sql.Tx) error {
 			wikilink,
 			title,
 			short_title,
-			attributes_yaml,
-			attributes_json,
-			attributes_full_yaml,
-			attributes_full_json,
+			attributes,
 			tags,
-			tags_full,
 			"line",
 			content_raw,
 			hashsum,
@@ -742,23 +780,10 @@ func (n *Note) InsertWithTx(tx *sql.Tx) error {
 			created_at,
 			updated_at,
 			last_checked_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 
-	attributesYAML, err := n.AttributesYAML()
-	if err != nil {
-		return err
-	}
-	attributesJSON, err := n.AttributesJSON()
-	if err != nil {
-		return err
-	}
-
-	attributesFullYAML, err := n.AttributesFullYAML()
-	if err != nil {
-		return err
-	}
-	attributesFullJSON, err := n.AttributesFullJSON()
+	attributesJSON, err := AttributesJSON(n.Attributes)
 	if err != nil {
 		return err
 	}
@@ -772,12 +797,8 @@ func (n *Note) InsertWithTx(tx *sql.Tx) error {
 		n.Wikilink,
 		n.Title,
 		n.ShortTitle,
-		attributesYAML,
 		attributesJSON,
-		attributesFullYAML,
-		attributesFullJSON,
 		strings.Join(n.Tags, ","),
-		strings.Join(n.TagsFull, ","),
 		n.Line,
 		n.ContentRaw,
 		n.Hash,
@@ -807,12 +828,8 @@ func (n *Note) UpdateWithTx(tx *sql.Tx) error {
 			wikilink = ?,
 			title = ?,
 			short_title = ?,
-			attributes_yaml = ?,
-			attributes_json = ?,
-			attributes_full_yaml = ?,
-			attributes_full_json = ?,
+			attributes = ?,
 			tags = ?,
-			tags_full = ?,
 			"line" = ?,
 			content_raw = ?,
 			hashsum = ?,
@@ -824,19 +841,7 @@ func (n *Note) UpdateWithTx(tx *sql.Tx) error {
 		WHERE oid = ?;
 	`
 
-	attributesYAML, err := n.AttributesYAML()
-	if err != nil {
-		return err
-	}
-	attributesJSON, err := n.AttributesJSON()
-	if err != nil {
-		return err
-	}
-	attributesFullYAML, err := n.AttributesFullYAML()
-	if err != nil {
-		return err
-	}
-	attributesFullJSON, err := n.AttributesFullJSON()
+	attributesJSON, err := AttributesJSON(n.Attributes)
 	if err != nil {
 		return err
 	}
@@ -849,12 +854,8 @@ func (n *Note) UpdateWithTx(tx *sql.Tx) error {
 		n.Wikilink,
 		n.Title,
 		n.ShortTitle,
-		attributesYAML,
 		attributesJSON,
-		attributesFullYAML,
-		attributesFullJSON,
 		strings.Join(n.Tags, ","),
-		strings.Join(n.TagsFull, ","),
 		n.Line,
 		n.ContentRaw,
 		n.Hash,
@@ -895,43 +896,6 @@ func (n *Note) DeleteWithTx(tx *sql.Tx) error {
 	query := `DELETE FROM note WHERE oid = ?;`
 	_, err := tx.Exec(query, n.OID)
 	return err
-}
-
-func (n *Note) AttributesJSON() (string, error) {
-	return attributesJSON(n.Attributes)
-}
-
-func (n *Note) AttributesYAML() (string, error) {
-	return attributesYAML(n.Attributes)
-}
-
-func (n *Note) AttributesFullJSON() (string, error) {
-	return attributesJSON(n.AttributesFull)
-}
-
-func (n *Note) AttributesFullYAML() (string, error) {
-	return attributesYAML(n.AttributesFull)
-}
-
-func attributesJSON(attributes map[string]interface{}) (string, error) {
-	var buf bytes.Buffer
-	bufEncoder := json.NewEncoder(&buf)
-	err := bufEncoder.Encode(attributes)
-	if err != nil {
-		return "", err
-	}
-	return buf.String(), nil
-}
-
-func attributesYAML(attributes map[string]interface{}) (string, error) {
-	var buf bytes.Buffer
-	bufEncoder := yaml.NewEncoder(&buf)
-	bufEncoder.SetIndent(Indent)
-	err := bufEncoder.Encode(attributes)
-	if err != nil {
-		return "", err
-	}
-	return buf.String(), nil
 }
 
 // CountNotes returns the total number of notes.
@@ -1040,7 +1004,7 @@ func SearchNotes(q string) ([]*Note, error) {
 	if len(tags) > 0 {
 		querySQL.WriteString("AND ( ")
 		for _, tag := range tags {
-			querySQL.WriteString(fmt.Sprintf("  note.tags_full LIKE '%%%s%%' ", tag))
+			querySQL.WriteString(fmt.Sprintf("  note.tags LIKE '%%%s%%' ", tag))
 		}
 		querySQL.WriteString(") ")
 	}
@@ -1053,7 +1017,7 @@ func SearchNotes(q string) ([]*Note, error) {
 			}
 			name := strings.TrimSpace(parts[0])
 			value := strings.TrimSpace(parts[1])
-			querySQL.WriteString(fmt.Sprintf(`  json_extract(note.attributes_full_json, "$.%s") = "%s" `, name, value))
+			querySQL.WriteString(fmt.Sprintf(`  json_extract(note.attributes, "$.%s") = "%s" `, name, value))
 		}
 		querySQL.WriteString(") ")
 	}
@@ -1099,9 +1063,7 @@ func QueryNote(whereClause string, args ...any) (*Note, error) {
 	var updatedAt string
 	var lastCheckedAt string
 	var tagsRaw string
-	var tagsFullRaw string
 	var attributesRaw string
-	var attributesFullRaw string
 
 	// Query for a value based on a single row.
 	if err := db.QueryRow(fmt.Sprintf(`
@@ -1114,10 +1076,8 @@ func QueryNote(whereClause string, args ...any) (*Note, error) {
 			wikilink,
 			title,
 			short_title,
-			attributes_yaml,
-			attributes_full_yaml,
+			attributes,
 			tags,
-			tags_full,
 			"line",
 			content_raw,
 			hashsum,
@@ -1139,9 +1099,7 @@ func QueryNote(whereClause string, args ...any) (*Note, error) {
 			&n.Title,
 			&n.ShortTitle,
 			&attributesRaw,
-			&attributesFullRaw,
 			&tagsRaw,
-			&tagsFullRaw,
 			&n.Line,
 			&n.ContentRaw,
 			&n.Hash,
@@ -1158,21 +1116,13 @@ func QueryNote(whereClause string, args ...any) (*Note, error) {
 		return nil, err
 	}
 
-	var attributes map[string]interface{}
-	err := yaml.Unmarshal([]byte(attributesRaw), &attributes)
-	if err != nil {
-		return nil, err
-	}
-	var attributesFull map[string]interface{}
-	err = yaml.Unmarshal([]byte(attributesFullRaw), &attributesFull)
+	attributes, err := UnmarshalAttributes(attributesRaw)
 	if err != nil {
 		return nil, err
 	}
 
 	n.Attributes = attributes
-	n.AttributesFull = attributesFull
 	n.Tags = strings.Split(tagsRaw, ",")
-	n.TagsFull = strings.Split(tagsFullRaw, ",")
 	n.CreatedAt = timeFromSQL(createdAt)
 	n.UpdatedAt = timeFromSQL(updatedAt)
 	n.LastCheckedAt = timeFromSQL(lastCheckedAt)
@@ -1195,10 +1145,8 @@ func QueryNotes(whereClause string, args ...any) ([]*Note, error) {
 			wikilink,
 			title,
 			short_title,
-			attributes_yaml,
-			attributes_full_yaml,
+			attributes,
 			tags,
-			tags_full,
 			"line",
 			content_raw,
 			hashsum,
@@ -1220,9 +1168,7 @@ func QueryNotes(whereClause string, args ...any) ([]*Note, error) {
 		var updatedAt string
 		var lastCheckedAt string
 		var tagsRaw string
-		var tagsFullRaw string
 		var attributesRaw string
-		var attributesFullRaw string
 
 		err = rows.Scan(
 			&n.OID,
@@ -1234,9 +1180,7 @@ func QueryNotes(whereClause string, args ...any) ([]*Note, error) {
 			&n.Title,
 			&n.ShortTitle,
 			&attributesRaw,
-			&attributesFullRaw,
 			&tagsRaw,
-			&tagsFullRaw,
 			&n.Line,
 			&n.ContentRaw,
 			&n.Hash,
@@ -1251,21 +1195,13 @@ func QueryNotes(whereClause string, args ...any) ([]*Note, error) {
 			return nil, err
 		}
 
-		var attributes map[string]interface{}
-		err := yaml.Unmarshal([]byte(attributesRaw), &attributes)
-		if err != nil {
-			return nil, err
-		}
-		var attributesFull map[string]interface{}
-		err = yaml.Unmarshal([]byte(attributesRaw), &attributesFull)
+		attributes, err := UnmarshalAttributes(attributesRaw)
 		if err != nil {
 			return nil, err
 		}
 
 		n.Attributes = attributes
-		n.AttributesFull = attributesFull
 		n.Tags = strings.Split(tagsRaw, ",")
-		n.TagsFull = strings.Split(tagsFullRaw, ",")
 		n.CreatedAt = timeFromSQL(createdAt)
 		n.UpdatedAt = timeFromSQL(updatedAt)
 		n.LastCheckedAt = timeFromSQL(lastCheckedAt)

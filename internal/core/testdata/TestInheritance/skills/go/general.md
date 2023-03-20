@@ -1,7 +1,7 @@
 ---
 subject: language
 tags:
-- go
+- programming
 ---
 
 # Go Programming Language
@@ -12,3 +12,12 @@ tags:
 
 Go is a statically typed, compiled high-level programming language designed at Google by Robert Griesemer, Rob Pike, and Ken Thompson.
 
+### Flashcard: Golang creation
+
+`@title: Golang Creation`
+
+(Go) **When** was created Go?
+
+---
+
+2009

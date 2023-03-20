@@ -60,5 +60,9 @@ func Execute() {
 }
 
 func CheckConfig() {
-	core.CurrentConfig()
+	err := core.CurrentConfig().Check()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }

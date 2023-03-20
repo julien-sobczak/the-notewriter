@@ -9,7 +9,7 @@ tags:
 
 `#history`
 
-<!-- source: https://en.wikipedia.org/wiki/Go_(programming_language) -->
+`@source: https://en.wikipedia.org/wiki/Go_(programming_language)`
 
 [Golang](https://go.dev/doc/ "#go/go") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.
 

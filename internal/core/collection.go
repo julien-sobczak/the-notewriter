@@ -15,6 +15,7 @@ import (
 	"github.com/julien-sobczak/the-notetaker/internal/reference/zotero"
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/julien-sobczak/the-notetaker/pkg/resync"
+	"github.com/julien-sobczak/the-notetaker/pkg/text"
 
 	"golang.org/x/exp/slices"
 )
@@ -86,7 +87,7 @@ func (c *Collection) CreateNewReferenceFile(identifier string, kind string) (*Fi
 		})
 	}
 
-	return NewFileFromAttributes("", attributes), nil // FIXME use a name
+	return NewFileFromAttributes(nil, "", attributes), nil // FIXME use a name
 }
 
 /* Reference Management */
@@ -123,10 +124,39 @@ func (c *Collection) GetAbsolutePath(path string) string {
 
 /* Commands */
 
-func (c *Collection) walk(path string, fn func(path string, stat fs.FileInfo) error) {
+type MatchedFile struct {
+	Path         string
+	RelativePath string
+	DirEntry     fs.DirEntry
+	FileInfo     fs.FileInfo
+}
+
+// IndexFilesFirst ensures index files are processed first.
+var IndexFilesFirst = func(a, b string) bool {
+	dirA := filepath.Dir(a)
+	dirB := filepath.Dir(b)
+	if dirA != dirB {
+		return a < b
+	}
+	baseA := text.TrimExtension(filepath.Base(a))
+	baseB := text.TrimExtension(filepath.Base(b))
+	// move index files up
+	if strings.EqualFold(baseA, "index") {
+		return true
+	} else if strings.EqualFold(baseB, "index") {
+		return false
+	}
+	return a < b // os.WalkDir already returns file in lexical order
+}
+
+func (c *Collection) walk(path string, fn func(path string, stat fs.FileInfo) error) error {
 	config := CurrentConfig()
 
 	CurrentLogger().Infof("Reading %s...\n", path)
+
+	var matchedFiles []string
+	var fileInfos = make(map[string]*fs.FileInfo)
+	var filePaths = make(map[string]string)
 
 	filepath.WalkDir(path, func(path string, info fs.DirEntry, err error) error {
 		if err != nil {
@@ -169,12 +199,22 @@ func (c *Collection) walk(path string, fn func(path string, stat fs.FileInfo) er
 			return nil
 		}
 
-		if err := fn(path, fileInfo); err != nil {
-			return err
-		}
+		// A file found to process!
+		fileInfos[relpath] = &fileInfo
+		filePaths[relpath] = path
+		matchedFiles = append(matchedFiles, relpath)
 
 		return nil
 	})
+
+	slices.SortFunc(matchedFiles, IndexFilesFirst)
+	for _, matchedFile := range matchedFiles {
+		err := fn(filePaths[matchedFile], *fileInfos[matchedFile])
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Add implements the command `nt add`.`
@@ -205,10 +245,19 @@ func (c *Collection) Add(paths ...string) error {
 			path = CurrentCollection().GetAbsolutePath(path)
 		}
 
-		c.walk(path, func(path string, stat fs.FileInfo) error {
+		err = c.walk(path, func(path string, stat fs.FileInfo) error {
 			CurrentLogger().Debugf("Processing %s...\n", path)
 
-			file, err := NewOrExistingFile(path)
+			parentRelativePath, err := c.GetFileRelativePath(filepath.Join(filepath.Dir(path), "index.md"))
+			if err != nil {
+				return err
+			}
+			parent, err := LoadFileByPath(tx, parentRelativePath)
+			if err != nil {
+				return err
+			}
+
+			file, err := NewOrExistingFile(parent, path)
 			if err != nil {
 				return err
 			}
@@ -241,6 +290,9 @@ func (c *Collection) Add(paths ...string) error {
 
 			return nil
 		})
+		if err != nil {
+			return err
+		}
 
 		deletions, err := c.findObjectsLastCheckedBefore(buildTime, path)
 		if err != nil {
@@ -350,7 +402,7 @@ func (c *Collection) Status() (string, error) {
 	uncommittedFiles := make(map[string]ObjectStatus)
 
 	root := CurrentConfig().RootDirectory
-	c.walk(root, func(path string, stat fs.FileInfo) error {
+	err := c.walk(root, func(path string, stat fs.FileInfo) error {
 		relpath, err := CurrentCollection().GetFileRelativePath(path)
 		if err != nil {
 			return err
@@ -385,6 +437,10 @@ func (c *Collection) Status() (string, error) {
 
 		return nil
 	})
+	if err != nil {
+		return "", err
+	}
+
 	// Traverse index to find known files not traversed by the walk
 	for relpath, indexObject := range CurrentDB().index.filesRef {
 		_, found := uncommittedFiles[relpath]
@@ -431,19 +487,6 @@ func (c *Collection) Lint(paths ...string) (*LintResult, error) {
 	 * not added since.
 	 */
 	var result LintResult
-	rules := CurrentConfig().LintFile.Rules
-
-	// Check all rules are valid before checking anything else
-	for _, rule := range rules {
-		ruleName := rule.Name
-		_, ok := LintRules[ruleName]
-		if !ok {
-			return nil, fmt.Errorf("unknown lint rule %q", rule.Name)
-		}
-		if rule.Severity != "" && slices.Contains([]string{"error", "warning"}, rule.Severity) {
-			return nil, fmt.Errorf("unknown severity %q for lint rule %q", rule.Severity, rule.Name)
-		}
-	}
 
 	// Traverse all given paths
 	for _, path := range paths {
@@ -455,7 +498,7 @@ func (c *Collection) Lint(paths ...string) (*LintResult, error) {
 			path = CurrentCollection().GetAbsolutePath(path)
 		}
 
-		c.walk(path, func(path string, stat fs.FileInfo) error {
+		err := c.walk(path, func(path string, stat fs.FileInfo) error {
 			CurrentLogger().Debugf("Processing %s...\n", path)
 
 			// Work without the database
@@ -464,44 +507,22 @@ func (c *Collection) Lint(paths ...string) (*LintResult, error) {
 				return err
 			}
 
-			foundViolations := false
-
-			for _, configRule := range rules {
-				rule := LintRules[configRule.Name]
-
-				// Check path restrictions
-				matchAllIncludes := true
-				for _, include := range configRule.Includes {
-					if !include.Match(file.RelativePath) {
-						matchAllIncludes = false
-					}
-				}
-				if !matchAllIncludes {
-					continue
-				}
-
-				violations, err := rule.Eval(file, configRule.Args)
-				if err != nil {
-					return err
-				}
-				if len(violations) > 0 {
-					foundViolations = true
-				}
-				if configRule.Severity == "warning" {
-					result.Warnings = append(result.Warnings, violations...)
-				} else {
-					result.Errors = append(result.Errors, violations...)
-				}
+			// Check file
+			violations, err := file.Lint()
+			if err != nil {
+				return err
 			}
-
-			// Update stats
-			if foundViolations {
+			if len(violations) > 0 {
+				result.Append(violations...)
 				result.AffectedFiles += 1
 			}
 			result.AnalyzedFiles += 1
 
 			return nil
 		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &result, nil

@@ -14,6 +14,7 @@ import (
 	"github.com/julien-sobczak/the-notetaker/pkg/resync"
 	"github.com/julien-sobczak/the-notetaker/pkg/text"
 	"github.com/pelletier/go-toml/v2"
+	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 )
 
@@ -34,6 +35,25 @@ name="Favorite Quotes"
 const DefaultIgnore = `
 build/
 README.md
+`
+
+const DefaultLint = `
+# No rules by default
+
+schemas:
+  - name: Tags
+    attributes:
+      - name: tags
+        type: array
+
+  - name: Relations
+    attributes:
+      - name: source
+        inherit: false
+      - name: references
+        type: array
+      - name: inspirations
+        type: array
 `
 
 var (
@@ -189,7 +209,10 @@ func (g GlobPaths) Match(path string) bool {
 
 type LintFile struct {
 	Rules []ConfigLintRule `yaml:"rules"`
+
+	Schemas []ConfigLintSchema `yaml:"schemas"`
 }
+
 type ConfigLintRule struct {
 
 	// Name of the rule. Must exists in the registry of rules.
@@ -205,6 +228,131 @@ type ConfigLintRule struct {
 	// Glob expressions are supported and ! as prefix indicated to exclude.
 	Includes GlobPaths `yaml:"includes"`
 }
+
+type ConfigLintSchema struct {
+	// Name of the schema used when reporting violations.
+	Name       string                       `yaml:"name"`
+	Kind       string                       `yaml:"kind"`
+	Path       string                       `yaml:"path"`
+	Attributes []*ConfigLintSchemaAttribute `yaml:"attributes"`
+}
+type ConfigLintSchemaAttribute struct {
+	Name     string   `yaml:"name"`
+	Type     string   `yaml:"type"`
+	Aliases  []string `yaml:"aliases"`
+	Pattern  string   `yaml:"pattern"`
+	Required *bool    `yaml:"required"`
+	Inherit  *bool    `yaml:"inherit"`
+}
+
+func (a ConfigLintSchemaAttribute) String() string {
+	var specs []string
+	if a.Type != "" {
+		specs = append(specs, a.Type)
+	}
+	if a.Pattern != "" {
+		specs = append(specs, a.Pattern)
+	}
+	if *a.Required {
+		specs = append(specs, "required")
+	}
+	if *a.Inherit {
+		specs = append(specs, "inherit")
+	}
+	return strings.Join(specs, ",")
+}
+
+func (c ConfigLintSchema) MatchesPath(path string) bool {
+	// TODO support glob patterns instead?
+	if c.Path == "" {
+		// No path defined = apply to all files
+		return true
+	}
+	return strings.HasPrefix(c.Path, path)
+}
+
+// TODO refacto move these methods below to attributes.go to avoid having too much logic inside config.go????
+
+// IsInheritableAttribute returns if an attribute can be inherited between files/notes.
+func (l *LintFile) IsInheritableAttribute(attributeName string, filePath string) bool {
+	for _, schema := range l.Schemas {
+		if !schema.MatchesPath(filePath) {
+			continue
+		}
+		for _, attribute := range schema.Attributes {
+			if attribute.Name == attributeName {
+				return *attribute.Inherit
+			}
+		}
+	}
+	return true // Inheritable by default to limit schemas to write
+}
+
+// Severity returns the severity of a lint rule.
+func (l *LintFile) Severity(name string) string {
+	for _, rule := range l.Rules {
+		if rule.Name == name {
+			return rule.Severity
+		}
+	}
+	return "error" // must not happen but default to error
+}
+
+// GetAttributeDefinition returns the attribute definition to use.
+func (l *LintFile) GetAttributeDefinition(name string, filter func(schema ConfigLintSchema) bool) *ConfigLintSchemaAttribute {
+	// We must find the most specific definition.
+	//
+	// Ex:
+	// schemas:
+	// - name: Attributes
+	//   attributes:
+	//   - name: author
+	//     type: string
+	//
+	// - name: Books
+	//   path: references/books/
+	//   attributes:
+	//   - name: author
+	//     required: true
+	//
+	// We must use the second schema when both apply.
+
+	var matchingSchemas []ConfigLintSchema
+	for _, schema := range l.Schemas {
+		if !filter(schema) {
+			continue
+		}
+		if slices.ContainsFunc(schema.Attributes, func(a *ConfigLintSchemaAttribute) bool {
+			return a.Name == name
+		}) {
+			matchingSchemas = append(matchingSchemas, schema)
+		}
+	}
+	if len(matchingSchemas) == 0 {
+		// Not explicitely defined in schemas
+		return nil
+	}
+
+	// Sort from most specific to least specific
+	slices.SortFunc(matchingSchemas, func(a, b ConfigLintSchema) bool {
+		// Most specific path first
+		if a.Path != b.Path {
+			return strings.HasPrefix(a.Path, b.Path)
+		}
+		return false // The last must win but SortFunc is not stable...
+	})
+
+	schemaToUse := matchingSchemas[0]
+	for _, definition := range schemaToUse.Attributes {
+		if definition.Name == name {
+			return definition
+		}
+	}
+
+	return nil
+}
+
+/* Main config */
 
 type Config struct {
 	// Absolute top directory containing the .nt sub-directory
@@ -352,7 +500,10 @@ func ReadConfigFromDirectory(path string) (*Config, error) {
 	_, err = os.Stat(ntLintConfigPath)
 	var lintFile *LintFile
 	if os.IsNotExist(err) {
-		// No default file to apply
+		lintFile, err = parseLintFile(DefaultLint)
+		if err != nil {
+			return nil, fmt.Errorf("default configuration is broken: %v", err)
+		}
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to check for .nt/lint file: %v", err)
 	} else {
@@ -413,6 +564,22 @@ func parseLintFile(content string) (*LintFile, error) {
 	d := yaml.NewDecoder(r)
 	var result LintFile
 	err := d.Decode(&result)
+
+	// Apply default values
+	for _, schema := range result.Schemas {
+		for _, attribute := range schema.Attributes {
+			if attribute.Type == "" {
+				attribute.Type = "string"
+			}
+			if attribute.Inherit == nil {
+				attribute.Inherit = BoolPointer(true)
+			}
+			if attribute.Required == nil {
+				attribute.Required = BoolPointer(false)
+			}
+		}
+	}
+
 	return &result, err
 }
 
@@ -474,4 +641,50 @@ func InitConfigFromDirectory(path string) (*Config, error) {
 
 	// Reread configuration
 	return ReadConfigFromDirectory(path)
+}
+
+func (c *Config) Check() error {
+
+	// Check all rules are valid
+	for _, rule := range c.LintFile.Rules {
+		ruleName := rule.Name
+		_, ok := LintRules[ruleName]
+		if !ok {
+			return fmt.Errorf("unknown lint rule %q", rule.Name)
+		}
+		if rule.Severity != "" && !slices.Contains([]string{"error", "warning"}, rule.Severity) {
+			return fmt.Errorf("unknown severity %q for lint rule %q", rule.Severity, rule.Name)
+		}
+	}
+
+	// Check for conflicting types in schemas
+	attributesTypes := make(map[string]string)
+	for _, schema := range c.LintFile.Schemas {
+		for _, attribute := range schema.Attributes {
+			attributeKnownType, found := attributesTypes[attribute.Name]
+			if found && attributeKnownType != attribute.Type {
+				return fmt.Errorf("conflicting type for attribute %q: found %s and %s", attribute.Name, attribute.Type, attributeKnownType)
+			}
+			attributesTypes[attribute.Name] = attribute.Type
+		}
+	}
+
+	// Check for invalid patterns
+	for _, schema := range c.LintFile.Schemas {
+		for _, attribute := range schema.Attributes {
+			if attribute.Pattern != "string" {
+				if _, err := regexp.Compile(attribute.Pattern); err != nil {
+					return fmt.Errorf("invalid pattern %q for attribute %q: %v", attribute.Pattern, attribute.Name, err)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+/* Helpers */
+
+func BoolPointer(b bool) *bool {
+	return &b
 }

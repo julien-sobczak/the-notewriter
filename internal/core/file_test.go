@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 func TestFrontMatterString(t *testing.T) {
@@ -39,7 +41,7 @@ key2: 2`,
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			file := NewFileFromAttributes("", tt.input)
+			file := NewFileFromAttributes(nil, "", tt.input)
 			actual, err := file.FrontMatterString()
 			require.NoError(t, err)
 			assert.Equal(t, strings.TrimSpace(tt.expected), strings.TrimSpace(actual))
@@ -123,7 +125,7 @@ The answer
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				filename := SetUpCollectionFromFileContent(t, "test.md", tt.rawContent)
-				f, err := NewFileFromPath(filename)
+				f, err := NewFileFromPath(nil, filename)
 				require.NoError(t, err)
 				assert.Equal(t, strings.TrimSpace(tt.actualBody), strings.TrimSpace(f.Body))
 			})
@@ -211,7 +213,7 @@ Flashcard
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				filename := SetUpCollectionFromFileContent(t, "test.md", tt.rawContent)
-				f, err := NewFileFromPath(filename)
+				f, err := NewFileFromPath(nil, filename)
 				require.NoError(t, err)
 				tt.check(t, f)
 			})
@@ -224,7 +226,7 @@ func TestEditFileFrontMatter(t *testing.T) {
 	filename := SetUpCollectionFromGoldenFile(t)
 
 	// Init the file
-	f, err := NewFileFromPath(filename)
+	f, err := NewFileFromPath(nil, filename)
 	require.NoError(t, err)
 	assert.Equal(t, int64(46), f.Size)
 	assert.Equal(t, "d610783465f779858b00bc3f8133ebd5", f.Hash)
@@ -272,7 +274,7 @@ tags: [favorite, inspiration] # Custom tags
 `)
 
 	// Init the file
-	f, err := NewFileFromPath(filename)
+	f, err := NewFileFromPath(nil, filename)
 	require.NoError(t, err)
 
 	// Change attributes
@@ -292,7 +294,7 @@ func TestGetNotes(t *testing.T) {
 	filename := SetUpCollectionFromGoldenFile(t)
 
 	// Init the file
-	f, err := NewFileFromPath(filename)
+	f, err := NewFileFromPath(nil, filename)
 	require.NoError(t, err)
 
 	notes := f.GetNotes()
@@ -308,7 +310,7 @@ func TestGetNotes(t *testing.T) {
 	assert.Nil(t, notes[1].ParentNote)
 	assert.Equal(t, 19, notes[1].Line)
 	assert.Equal(t, "Quote: Gustave Flaubert on Order", notes[1].Title)
-	assert.Equal(t, notes[1].ContentRaw, "`#favorite` `#life-changing`\n\n<!-- name: Gustave Flaubert -->\n<!-- references: https://fortelabs.com/blog/tiagos-favorite-second-brain-quotes/ -->\n\nBe regular and orderly in your life so that you may be violent and original in your work.")
+	assert.Equal(t, notes[1].ContentRaw, "`#favorite` `#life-changing`\n\n`@name: Gustave Flaubert`\n`@references: https://fortelabs.com/blog/tiagos-favorite-second-brain-quotes/`\n\nBe regular and orderly in your life so that you may be violent and original in your work.")
 
 	assert.Equal(t, KindFlashcard, notes[2].NoteKind)
 	assert.Equal(t, notes[1], notes[2].ParentNote)
@@ -328,7 +330,7 @@ func TestFileInheritance(t *testing.T) {
 	filename := SetUpCollectionFromGoldenFile(t)
 
 	// Init the file
-	f, err := NewFileFromPath(filename)
+	f, err := NewFileFromPath(nil, filename)
 	require.NoError(t, err)
 
 	notes := f.GetNotes()
@@ -343,7 +345,7 @@ func TestGetFlashcards(t *testing.T) {
 	filename := SetUpCollectionFromGoldenFileNamed(t, "TestGetNotes.md")
 
 	// Init the file
-	f, err := NewFileFromPath(filename)
+	f, err := NewFileFromPath(nil, filename)
 	require.NoError(t, err)
 
 	notes := f.GetNotes()
@@ -367,7 +369,7 @@ func TestGetMedias(t *testing.T) {
 	root := SetUpCollectionFromGoldenDir(t)
 
 	// Init the file
-	f, err := NewFileFromPath(filepath.Join(root, "medias.md"))
+	f, err := NewFileFromPath(nil, filepath.Join(root, "medias.md"))
 	require.NoError(t, err)
 
 	// Step 1: Check medias on a file
@@ -413,7 +415,7 @@ func TestFileSave(t *testing.T) {
 	assertNoMedias(t)
 
 	// Init the file
-	f, err := NewFileFromPath(filepath.Join(root, "go.md"))
+	f, err := NewFileFromPath(nil, filepath.Join(root, "go.md"))
 	require.NoError(t, err)
 
 	tx, err := CurrentDB().Client().BeginTx(context.Background(), nil)
@@ -434,7 +436,7 @@ func TestFileSave(t *testing.T) {
 	require.Equal(t, 1, mustCountReminders(t))
 
 	// Check the file
-	actual, err := LoadFileByPath(f.RelativePath)
+	actual, err := LoadFileByPath(CurrentDB().Client(), f.RelativePath)
 	require.NoError(t, err)
 	assert.NotEqual(t, "", actual.OID)
 	assert.Equal(t, "go.md", actual.RelativePath)
@@ -445,6 +447,7 @@ func TestFileSave(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expectedFrontMatter, actualFrontMatter)
 	assert.Equal(t, []string{"go"}, actual.GetTags())
+
 	assert.Contains(t, actual.Body, "# Go", actual.Body)
 	assert.Equal(t, 6, actual.BodyLine)
 	assert.Equal(t, f.Mode, actual.Mode)
@@ -468,16 +471,13 @@ func TestFileSave(t *testing.T) {
 	assert.Equal(t, "go#Reference: Golang History", note.Wikilink)
 	assert.Equal(t, map[string]interface{}{
 		"source": "https://en.wikipedia.org/wiki/Go_(programming_language)",
+		"tags":   []interface{}{"go", "history"},
+		"title":  "Golang History",
 	}, note.Attributes)
-	assert.Equal(t, map[string]interface{}{
-		"source": "https://en.wikipedia.org/wiki/Go_(programming_language)",
-		"tags":   []interface{}{"go"},
-	}, note.AttributesFull)
-	assert.Equal(t, []string{"history"}, note.Tags)
-	assert.Equal(t, []string{"go", "history"}, note.TagsFull)
+	assert.Equal(t, []string{"go", "history"}, note.Tags)
 	assert.Equal(t, 8, note.Line)
-	assert.Equal(t, "`#history`\n\n<!-- source: https://en.wikipedia.org/wiki/Go_(programming_language) -->\n\n[Golang](https://go.dev/doc/ \"#go/go\") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.", note.ContentRaw)
-	assert.Equal(t, "bb406ddcc9f0b212e2329a1e093aa21d", note.Hash)
+	assert.Equal(t, "`#history`\n\n`@source: https://en.wikipedia.org/wiki/Go_(programming_language)`\n\n[Golang](https://go.dev/doc/ \"#go/go\") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.", note.ContentRaw)
+	assert.Equal(t, "e74200c5bf5adfebe68e4774fc727ce5", note.Hash)
 	assert.Equal(t, `[Golang](https://go.dev/doc/ "#go/go") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.`, note.ContentMarkdown)
 	assert.Equal(t, "<p><a href=\"https://go.dev/doc/\" title=\"#go/go\">Golang</a> was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.</p>", note.ContentHTML)
 	assert.Equal(t, "Golang was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.", note.ContentText)
@@ -575,13 +575,33 @@ func TestFileSave(t *testing.T) {
 
 func TestFile(t *testing.T) {
 
+	t.Run("New", func(t *testing.T) {
+		SetUpCollectionFromTempDir(t)
+
+		// Preconditions
+		require.False(t, CurrentConfig().LintFile.IsInheritableAttribute("source", "index.md"))
+
+		parent := NewFileFromAttributes(nil, "index.md", []Attribute{
+			{Key: "tags", Value: "go"},
+			{Key: "source", Value: "go.dev"}, // not inheritable
+		})
+		child := NewFileFromAttributes(parent, "go.md", []Attribute{
+			{Key: "tags", Value: "language"},
+		})
+		actual := child.GetAttributes()
+		expected := map[string]interface{}{
+			"tags": []interface{}{"go", "language"},
+		}
+		assert.Equal(t, expected, actual)
+	})
+
 	t.Run("YAML", func(t *testing.T) {
 		// Make tests reproductible
 		UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
 		FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
 		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
 
-		fileSrc, err := NewFileFromPath(filepath.Join(root, "go.md"))
+		fileSrc, err := NewFileFromPath(nil, filepath.Join(root, "go.md"))
 		require.NoError(t, err)
 		fileSrc.MTime = clock.Now()
 
@@ -604,7 +624,7 @@ body: |-
 
     `+"`"+`#history`+"`"+`
 
-    <!-- source: https://en.wikipedia.org/wiki/Go_(programming_language) -->
+    `+"`"+`@source: https://en.wikipedia.org/wiki/Go_(programming_language)`+"`"+`
 
     [Golang](https://go.dev/doc/ "#go/go") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.
 
@@ -625,8 +645,8 @@ body: |-
     * [Gophercon Europe](https://gophercon.eu/) `+"`"+`#reminder-2023-06-26`+"`"+`
 body_line: 6
 mode: 420
-size: 469
-hash: 40bba27f3783ba6f8d94b288c8e1b216
+size: 463
+hash: 34b2342f764c46c0eecfbe598314b8a3
 mtime: 2023-01-01T01:12:30Z
 created_at: 2023-01-01T01:12:30Z
 updated_at: 2023-01-01T01:12:30Z
@@ -647,17 +667,227 @@ updated_at: 2023-01-01T01:12:30Z
 
 }
 
-func TestInheritance(t *testing.T) {
-	root := SetUpCollectionFromGoldenDir(t)
-
-	// Init the file
-	f, err := NewFileFromPath(filepath.Join(root, "skills/go.md"))
+func TestToREMOVE(t *testing.T) {
+	input := `
+tags:
+- programming
+- test
+`
+	data := make(map[string]interface{})
+	err := yaml.Unmarshal([]byte(input), data)
 	require.NoError(t, err)
-	n := f.FindNoteByKindAndShortTitle(KindReference, "History")
-	require.NotNil(t, n)
-	assert.EqualValues(t, []string{"go", "history"}, n.GetTags())
+
+	result := make(map[string]interface{})
+	for key, value := range data {
+		switch v := value.(type) {
+		case []interface{}:
+			var typeElem reflect.Type
+			sameType := true
+			// Check if all elements have the same type
+			for _, elem := range v {
+				newTypeElem := reflect.TypeOf(elem)
+				if typeElem == nil {
+					typeElem = newTypeElem
+				} else if typeElem != newTypeElem {
+					sameType = false
+				}
+			}
+			if sameType {
+				// Recreate a new slice using the right type
+				slice := reflect.MakeSlice(reflect.SliceOf(typeElem), 0, 0)
+				for _, elem := range v {
+					elemValue := reflect.ValueOf(elem)
+					slice = reflect.Append(slice, elemValue)
+				}
+				result[key] = slice.Interface()
+			} else {
+				// Stay with the []interface{} type...
+				result[key] = value
+			}
+		default:
+			result[key] = value
+		}
+	}
+
+	assert.IsType(t, []interface{}{}, data["tags"])
+	assert.Equal(t, []string{"programming", "test"}, result["tags"])
+}
+
+func TestInheritance(t *testing.T) {
+	// TODO now debug
+	SetUpCollectionFromGoldenDir(t)
+
+	err := CurrentCollection().Add(".")
+	require.NoError(t, err)
+
+	// Check how attributes are inherited in files
+	fileIndex, err := LoadFileByPath(CurrentDB().Client(), "index.md")
+	require.NoError(t, err)
+	require.NotNil(t, fileIndex)
+	fileGoIndex, err := LoadFileByPath(CurrentDB().Client(), "skills/go/index.md")
+	require.NoError(t, err)
+	require.NotNil(t, fileGoIndex)
+	fileGoGeneral, err := LoadFileByPath(CurrentDB().Client(), "skills/go/general.md")
+	require.NoError(t, err)
+	require.NotNil(t, fileGoGeneral)
+	fileGoGoroutines, err := LoadFileByPath(CurrentDB().Client(), "skills/go/goroutines.md")
+	require.NoError(t, err)
+	require.NotNil(t, fileGoGoroutines)
+
+	assert.EqualValues(t, map[string]interface{}{
+		"source": "https://github.com/julien-sobczak/the-notetaker",
+		"tags":   []string{"test"},
+	}, fileIndex.GetAttributes())
+	assert.EqualValues(t, map[string]interface{}{
+		"tags": []string{"go"},
+	}, fileGoIndex.GetAttributes())
 	assert.EqualValues(t, map[string]interface{}{
 		"subject": "language",
-		"tags":    []interface{}{"go"},
-	}, n.GetAttributes())
+		"tags":    []string{"go", "programming"},
+	}, fileGoGeneral.GetAttributes())
+	assert.EqualValues(t, map[string]interface{}{
+		"tags": []string{"go"},
+	}, fileGoGoroutines.GetAttributes())
+
+	// Check how attributes and tags are inherited in notes
+	languagesNotes, err := SearchNotes("path:skills/go/language.md")
+	require.NoError(t, err)
+	require.Len(t, languagesNotes, 1)
+	goroutinesNotes, err := SearchNotes("path:skills/go/goroutines.md")
+	require.NoError(t, err)
+	require.Len(t, goroutinesNotes, 1)
+
+	historyNote := languagesNotes[0]
+	require.Equal(t, "History", historyNote.ShortTitle)
+	assert.EqualValues(t, []string{"go", "history"}, historyNote.GetTags())
+	assert.EqualValues(t, map[string]interface{}{
+		"subject": "language", // Inherited from file
+		"source":  "https://en.wikipedia.org/wiki/Go_(programming_language)",
+		"tags":    []interface{}{"go", "history"},
+		"title":   "History", // Copied from note's title
+	}, historyNote.GetAttributes())
+
+	creationNote := languagesNotes[1]
+	require.Equal(t, "Golang Creation", creationNote)
+	assert.EqualValues(t, []string{"go", "history"}, creationNote.GetTags())
+	assert.EqualValues(t, map[string]interface{}{
+		"subject": "language",
+		"source":  "https://en.wikipedia.org/wiki/Go_(programming_language)",
+		"tags":    []interface{}{"go", "history"},
+		"title":   "Golang Creation", // Specific attribute is preserved if defined explicitely
+	}, creationNote.GetAttributes())
+
+	goroutineNote := goroutinesNotes[0]
+	require.Equal(t, "Start a goroutine", historyNote.ShortTitle)
+	assert.EqualValues(t, []string{"go", "history"}, goroutineNote.GetTags())
+	assert.EqualValues(t, map[string]interface{}{
+		"subject": "language",
+		"source":  "https://en.wikipedia.org/wiki/Go_(programming_language)",
+		"tags":    []interface{}{"go", "history"},
+		"title":   "Golang Creation", // Specific attribute is preserved if defined explicitely
+	}, goroutineNote.GetAttributes())
+}
+
+func TestPostProcessing(t *testing.T) {
+	t.Skip() // FIXME remove
+	SetUpCollectionFromGoldenDir(t)
+
+	err := CurrentCollection().Add(".")
+	require.NoError(t, err)
+
+	t.Run("Quotes Formatting", func(t *testing.T) {
+		notes, err := SearchNotes("path:quotes/walt-disney.md")
+		require.NoError(t, err)
+		require.Len(t, notes, 1)
+		quoteWaltDisney := notes[0]
+		assert.Equal(t, `
+<figure>
+	<blockquote>
+		<p>The way to get started is to quit talking and begin doing.</p>
+	</blockquote>
+	<figcaption>— Walt Disney</figcaption>
+</figure>
+	`, quoteWaltDisney.ContentHTML)
+	})
+
+	t.Run("Attributed Quotes Formatting", func(t *testing.T) {
+		// See https://developer.mozilla.org/en-US/docs/Web/HTML/Element/cite
+		notes, err := SearchNotes(`kind:quote @title:"J.R.R. Tolkein on Life"`)
+		require.NoError(t, err)
+		quoteTolkein := notes[0]
+		assert.Equal(t, `
+<figure>
+	<blockquote>
+		<p>All we have to decide is what to do with the time that is given us.</p>
+	</blockquote>
+	<figcaption>— J.R.R. Tolkein<cite><em>The Fellowship of the Ring</em></cite></figcaption>
+</figure>
+		`, quoteTolkein.ContentHTML)
+	})
+
+	t.Run("Note Inclusion", func(t *testing.T) {
+		notes, err := SearchNotes(`@title:"Commonplace book"`)
+		require.NoError(t, err)
+		note := notes[0]
+		assert.Equal(t, `
+<p>Commonplace books compile knowledge by writing information into books.</p>
+
+<p><em>Hypomnema</em> is a Greek word with several translations into English including a reminder, a note, a public record, a commentary, an anecdotal record, a draft, a copy, and other variations on those terms.</p>
+		`, note.ContentHTML)
+	})
+
+	t.Run("Quote Inclusion", func(t *testing.T) {
+		notes, err := SearchNotes(`kind:note @title:"On Doing"`)
+		require.NoError(t, err)
+		note := notes[0]
+		assert.Equal(t, `
+<figure>
+	<blockquote>
+		<p>The way to get started is to quit talking and begin doing.</p>
+	</blockquote>
+	<figcaption>— Walt Disney</figcaption>
+</figure>
+
+<p>Only motion can get you closer to your goal.</p>
+		`, note.ContentHTML)
+	})
+
+	t.Run("Media URL Replacement", func(t *testing.T) {
+		notes, err := SearchNotes(`@title:Gopher`)
+		require.NoError(t, err)
+		note := notes[0]
+		assert.Equal(t, `
+Gophers are rodents of the family **Geomyidae.**
+
+![A Gopher](oid:4044044044044044044044044044044044044040)
+
+The Golang programming language uses the image of a gopher as logo:
+
+![Golang Logo](oid:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)
+		`, note.ContentMarkdown)
+	})
+
+	t.Run("Comment Formatting", func(t *testing.T) {
+		notes, err := SearchNotes(`@title:"Allen Saunders on Life"`)
+		require.NoError(t, err)
+		note := notes[0]
+		assert.Equal(t, `
+> Life is what happens when you're busy making other plans.
+> — Allen Saunders
+
+> Life is about doing.
+> — Me
+		`, note.ContentMarkdown)
+		assert.Equal(t, `
+<figure>
+	<blockquote>
+		<p>Life is what happens when you're busy making other plans.</p>
+	</blockquote>
+	<figcaption>— Allen Saunders</figcaption>
+</figure>
+
+<p class="comment"><q>Life is about doing.</q></p>
+		`, note.ContentHTML)
+	})
+
 }
