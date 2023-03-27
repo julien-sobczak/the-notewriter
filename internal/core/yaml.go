@@ -46,7 +46,7 @@ func CompactYAML(doc string) string {
 	return buf.String()
 }
 
-func toSafeYAMLNode(value interface{}) *yaml.Node {
+func ToSafeYAMLNode(value interface{}) *yaml.Node {
 	var result yaml.Node
 	rawValue, err := yaml.Marshal(value)
 	if err != nil {
@@ -59,7 +59,7 @@ func toSafeYAMLNode(value interface{}) *yaml.Node {
 	return &result
 }
 
-func toSafeYAMLValue(node *yaml.Node) interface{} {
+func ToSafeYAMLValue(node *yaml.Node) interface{} {
 	var result interface{}
 	rawValue, err := yaml.Marshal(node)
 	if err != nil {

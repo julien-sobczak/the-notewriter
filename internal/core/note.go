@@ -2,7 +2,6 @@ package core
 
 import (
 	"bytes"
-	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -107,16 +106,16 @@ type Note struct {
 func NewOrExistingNote(f *File, parent *Note, title string, content string, lineNumber int) *Note {
 	content = strings.TrimSpace(content)
 
-	note, _ := FindNoteByWikilink(f.RelativePath + "#" + title)
+	note, _ := CurrentCollection().FindNoteByWikilink(f.RelativePath + "#" + title)
 	if note != nil {
-		note.Update(f, title, content, lineNumber)
+		note.update(f, title, content, lineNumber)
 		return note
 	}
 
 	hash := helpers.Hash([]byte(content))
-	note, _ = FindMatchingNotes(title, hash)
+	note, _ = CurrentCollection().FindMatchingNotes(title, hash)
 	if note != nil {
-		note.Update(f, title, content, lineNumber)
+		note.update(f, title, content, lineNumber)
 		return note
 	}
 
@@ -236,7 +235,7 @@ func (n Note) String() string {
 
 /* Update */
 
-func (n *Note) Update(f *File, title string, content string, lineNumber int) {
+func (n *Note) update(f *File, title string, content string, lineNumber int) {
 	rawContent := strings.TrimSpace(content)
 
 	if f.OID != n.FileOID {
@@ -334,7 +333,7 @@ func (n *Note) GetFile() *File {
 		return nil
 	}
 	if n.File == nil {
-		file, err := LoadFileByOID(CurrentDB().Client(), n.FileOID)
+		file, err := CurrentCollection().LoadFileByOID(n.FileOID)
 		if err != nil {
 			log.Fatalf("Unable to find file %q: %v", n.FileOID, err)
 		}
@@ -349,7 +348,7 @@ func (n *Note) GetParentNote() *Note {
 		return nil
 	}
 	if n.ParentNote == nil {
-		note, err := LoadNoteByOID(n.ParentNoteOID)
+		note, err := CurrentCollection().LoadNoteByOID(n.ParentNoteOID)
 		if err != nil {
 			log.Fatalf("Unable to note file %q: %v", n.ParentNoteOID, err)
 		}
@@ -539,77 +538,56 @@ func (n *Note) GetReminders() []*Reminder {
 	return reminders
 }
 
-// TODO add SetParent method and traverse the hierachy to merge attributes/tags
+/* State Management */
 
 func (n *Note) Check() error {
-	db := CurrentDB().Client()
-	tx, err := db.BeginTx(context.Background(), nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	err = n.CheckWithTx(tx)
-	if err != nil {
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
-	return nil
-
-}
-
-func (n *Note) CheckWithTx(tx *sql.Tx) error {
 	CurrentLogger().Debugf("Checking note %s...", n.Wikilink)
 	n.LastCheckedAt = clock.Now()
 	query := `
 		UPDATE note
 		SET last_checked_at = ?
 		WHERE oid = ?;`
-	if _, err := tx.Exec(query, timeToSQL(n.LastCheckedAt), n.OID); err != nil {
+	if _, err := CurrentDB().Client().Exec(query, timeToSQL(n.LastCheckedAt), n.OID); err != nil {
 		return err
 	}
 	query = `
 		UPDATE flashcard
 		SET last_checked_at = ?
 		WHERE note_oid = ?;`
-	if _, err := tx.Exec(query, timeToSQL(n.LastCheckedAt), n.OID); err != nil {
+	if _, err := CurrentDB().Client().Exec(query, timeToSQL(n.LastCheckedAt), n.OID); err != nil {
 		return err
 	}
 	query = `
 		UPDATE link
 		SET last_checked_at = ?
 		WHERE note_oid = ?;`
-	if _, err := tx.Exec(query, timeToSQL(n.LastCheckedAt), n.OID); err != nil {
+	if _, err := CurrentDB().Client().Exec(query, timeToSQL(n.LastCheckedAt), n.OID); err != nil {
 		return err
 	}
 	query = `
 		UPDATE reminder
 		SET last_checked_at = ?
 		WHERE note_oid = ?;`
-	if _, err := tx.Exec(query, timeToSQL(n.LastCheckedAt), n.OID); err != nil {
+	if _, err := CurrentDB().Client().Exec(query, timeToSQL(n.LastCheckedAt), n.OID); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (n *Note) Save(tx *sql.Tx) error {
+func (n *Note) Save() error {
 	var err error
 	n.UpdatedAt = clock.Now()
 	n.LastCheckedAt = clock.Now()
 	switch n.State() {
 	case Added:
-		err = n.InsertWithTx(tx)
+		err = n.Insert()
 	case Modified:
-		err = n.UpdateWithTx(tx)
+		err = n.Update()
 	case Deleted:
-		err = n.DeleteWithTx(tx)
+		err = n.Delete()
 	default:
-		err = n.CheckWithTx(tx)
+		err = n.Check()
 	}
 	if err != nil {
 		return err
@@ -619,7 +597,7 @@ func (n *Note) Save(tx *sql.Tx) error {
 	return nil
 }
 
-func (n *Note) InsertWithTx(tx *sql.Tx) error {
+func (n *Note) Insert() error {
 	CurrentLogger().Debugf("Inserting note %s...", n.Wikilink)
 	query := `
 		INSERT INTO note(
@@ -650,7 +628,7 @@ func (n *Note) InsertWithTx(tx *sql.Tx) error {
 		return err
 	}
 
-	_, err = tx.Exec(query,
+	_, err = CurrentDB().Client().Exec(query,
 		n.OID,
 		n.FileOID,
 		n.ParentNoteOID,
@@ -678,7 +656,7 @@ func (n *Note) InsertWithTx(tx *sql.Tx) error {
 	return nil
 }
 
-func (n *Note) UpdateWithTx(tx *sql.Tx) error {
+func (n *Note) Update() error {
 	CurrentLogger().Debugf("Updating note %s...", n.Wikilink)
 	query := `
 		UPDATE note
@@ -708,7 +686,7 @@ func (n *Note) UpdateWithTx(tx *sql.Tx) error {
 		return err
 	}
 
-	_, err = tx.Exec(query,
+	_, err = CurrentDB().Client().Exec(query,
 		n.FileOID,
 		n.ParentNoteOID,
 		n.NoteKind,
@@ -733,71 +711,48 @@ func (n *Note) UpdateWithTx(tx *sql.Tx) error {
 }
 
 func (n *Note) Delete() error {
-	db := CurrentDB().Client()
-	tx, err := db.BeginTx(context.Background(), nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	err = n.DeleteWithTx(tx)
-	if err != nil {
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (n *Note) DeleteWithTx(tx *sql.Tx) error {
 	CurrentLogger().Debugf("Deleting note %s...", n.Wikilink)
 	query := `DELETE FROM note WHERE oid = ?;`
-	_, err := tx.Exec(query, n.OID)
+	_, err := CurrentDB().Client().Exec(query, n.OID)
 	return err
 }
 
 // CountNotes returns the total number of notes.
-func CountNotes() (int, error) {
-	db := CurrentDB().Client()
-
+func (c *Collection) CountNotes() (int, error) {
 	var count int
-	if err := db.QueryRow(`SELECT count(*) FROM note`).Scan(&count); err != nil {
+	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM note`).Scan(&count); err != nil {
 		return 0, err
 	}
 
 	return count, nil
 }
 
-func LoadNoteByOID(oid string) (*Note, error) {
-	return QueryNote(`WHERE oid = ?`, oid)
+func (c *Collection) LoadNoteByOID(oid string) (*Note, error) {
+	return QueryNote(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
-func FindNoteByTitle(title string) (*Note, error) {
-	return QueryNote(`WHERE title = ?`, title)
+func (c *Collection) FindNoteByTitle(title string) (*Note, error) {
+	return QueryNote(CurrentDB().Client(), `WHERE title = ?`, title)
 }
 
-func FindNoteByHash(hash string) (*Note, error) {
-	return QueryNote(`WHERE hashsum = ?`, hash)
+func (c *Collection) FindNoteByHash(hash string) (*Note, error) {
+	return QueryNote(CurrentDB().Client(), `WHERE hashsum = ?`, hash)
 }
 
-func FindMatchingNotes(title, hash string) (*Note, error) {
-	return QueryNote(`WHERE title = ? OR hashsum = ?`, title, hash)
+func (c *Collection) FindMatchingNotes(title, hash string) (*Note, error) {
+	return QueryNote(CurrentDB().Client(), `WHERE title = ? OR hashsum = ?`, title, hash)
 }
 
-func FindNoteByWikilink(wikilink string) (*Note, error) {
-	return QueryNote(`WHERE wikilink LIKE ?`, "%"+wikilink)
+func (c *Collection) FindNoteByWikilink(wikilink string) (*Note, error) {
+	return QueryNote(CurrentDB().Client(), `WHERE wikilink LIKE ?`, "%"+wikilink)
 }
 
-func FindNotesByWikilink(wikilink string) ([]*Note, error) {
-	return QueryNotes(`WHERE wikilink LIKE ?`, "%"+wikilink)
+func (c *Collection) FindNotesByWikilink(wikilink string) ([]*Note, error) {
+	return QueryNotes(CurrentDB().Client(), `WHERE wikilink LIKE ?`, "%"+wikilink)
 }
 
-func FindNotesLastCheckedBefore(point time.Time, path string) ([]*Note, error) {
-	return QueryNotes(`WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
+func (c *Collection) FindNotesLastCheckedBefore(point time.Time, path string) ([]*Note, error) {
+	return QueryNotes(CurrentDB().Client(), `WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 // SearchNotes query notes to find the ones matching a list of criteria.
@@ -805,7 +760,7 @@ func FindNotesLastCheckedBefore(point time.Time, path string) ([]*Note, error) {
 // Examples:
 //
 //	tag:favorite kind:reference kind:note path:projects/
-func SearchNotes(q string) ([]*Note, error) {
+func (c *Collection) SearchNotes(q string) ([]*Note, error) {
 	var kinds []string
 	var attributes []string
 	var tags []string
@@ -849,8 +804,6 @@ func SearchNotes(q string) ([]*Note, error) {
 
 	// Prepare SQL values
 
-	db := CurrentDB().Client()
-
 	var querySQL strings.Builder
 	querySQL.WriteString("SELECT note_fts.rowid ")
 	querySQL.WriteString("FROM note_fts ")
@@ -892,7 +845,7 @@ func SearchNotes(q string) ([]*Note, error) {
 
 	querySQL.WriteString("ORDER BY rank LIMIT 10;")
 	CurrentLogger().Debug(querySQL.String())
-	queryFTS, err := db.Prepare(querySQL.String())
+	queryFTS, err := CurrentDB().Client().Prepare(querySQL.String())
 	if err != nil {
 		return nil, err
 	}
@@ -912,14 +865,12 @@ func SearchNotes(q string) ([]*Note, error) {
 	}
 
 	query := "WHERE rowid IN (" + strings.Join(ids, ",") + ")"
-	return QueryNotes(query)
+	return QueryNotes(CurrentDB().Client(), query)
 }
 
 /* SQL Helpers */
 
-func QueryNote(whereClause string, args ...any) (*Note, error) {
-	db := CurrentDB().Client()
-
+func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 	var n Note
 	var createdAt string
 	var updatedAt string
@@ -992,9 +943,7 @@ func QueryNote(whereClause string, args ...any) (*Note, error) {
 	return &n, nil
 }
 
-func QueryNotes(whereClause string, args ...any) ([]*Note, error) {
-	db := CurrentDB().Client()
-
+func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) {
 	var notes []*Note
 
 	rows, err := db.Query(fmt.Sprintf(`

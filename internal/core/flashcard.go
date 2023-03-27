@@ -2,7 +2,6 @@ package core
 
 import (
 	"bytes"
-	"context"
 	"database/sql"
 	"fmt"
 	"io"
@@ -136,7 +135,7 @@ func NewOrExistingFlashcard(file *File, note *Note) *Flashcard {
 	}
 
 	// Flashcard may already exists
-	flashcard, err := LoadFlashcardByNoteOID(note.OID)
+	flashcard, err := CurrentCollection().LoadFlashcardByNoteOID(note.OID)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -145,7 +144,7 @@ func NewOrExistingFlashcard(file *File, note *Note) *Flashcard {
 		return NewFlashcard(file, note)
 	}
 	if note.stale {
-		flashcard.Update(file, note)
+		flashcard.update(file, note)
 	}
 	return flashcard
 }
@@ -267,7 +266,7 @@ func (f *Flashcard) updateContent(frontMarkdown, backMarkdown string) {
 	f.BackText = markdown.ToText(backMarkdown)
 }
 
-func (f *Flashcard) Update(file *File, note *Note) {
+func (f *Flashcard) update(file *File, note *Note) {
 	if f.ShortTitle != note.ShortTitle {
 		f.ShortTitle = note.ShortTitle
 		f.stale = true
@@ -335,34 +334,13 @@ func (f *Flashcard) GetMedias() []*Media {
 }
 
 func (f *Flashcard) Check() error {
-	db := CurrentDB().Client()
-	tx, err := db.BeginTx(context.Background(), nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	err = f.CheckWithTx(tx)
-	if err != nil {
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
-	return nil
-
-}
-
-func (f *Flashcard) CheckWithTx(tx *sql.Tx) error {
 	CurrentLogger().Debugf("Checking flashcard %s...", f.ShortTitle)
 	f.LastCheckedAt = clock.Now()
 	query := `
 		UPDATE flashcard
 		SET last_checked_at = ?
 		WHERE oid = ?;`
-	_, err := tx.Exec(query,
+	_, err := CurrentDB().Client().Exec(query,
 		timeToSQL(f.LastCheckedAt),
 		f.OID,
 	)
@@ -370,19 +348,19 @@ func (f *Flashcard) CheckWithTx(tx *sql.Tx) error {
 	return err
 }
 
-func (f *Flashcard) Save(tx *sql.Tx) error {
+func (f *Flashcard) Save() error {
 	var err error
 	f.UpdatedAt = clock.Now()
 	f.LastCheckedAt = clock.Now()
 	switch f.State() {
 	case Added:
-		err = f.InsertWithTx(tx)
+		err = f.Insert()
 	case Modified:
-		err = f.UpdateWithTx(tx)
+		err = f.Update()
 	case Deleted:
-		err = f.DeleteWithTx(tx)
+		err = f.Delete()
 	default:
-		err = f.CheckWithTx(tx)
+		err = f.Check()
 	}
 	if err != nil {
 		return err
@@ -392,7 +370,7 @@ func (f *Flashcard) Save(tx *sql.Tx) error {
 	return nil
 }
 
-func (f *Flashcard) InsertWithTx(tx *sql.Tx) error {
+func (f *Flashcard) Insert() error {
 	CurrentLogger().Debugf("Inserting flashcard %s...", f.ShortTitle)
 	query := `
 		INSERT INTO flashcard(
@@ -422,7 +400,7 @@ func (f *Flashcard) InsertWithTx(tx *sql.Tx) error {
 		)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 		`
-	_, err := tx.Exec(query,
+	_, err := CurrentDB().Client().Exec(query,
 		f.OID,
 		f.FileOID,
 		f.NoteOID,
@@ -453,7 +431,7 @@ func (f *Flashcard) InsertWithTx(tx *sql.Tx) error {
 	return nil
 }
 
-func (f *Flashcard) UpdateWithTx(tx *sql.Tx) error {
+func (f *Flashcard) Update() error {
 	CurrentLogger().Debugf("Updating flashcard %s...", f.ShortTitle)
 	query := `
 		UPDATE flashcard
@@ -481,7 +459,7 @@ func (f *Flashcard) UpdateWithTx(tx *sql.Tx) error {
 			last_checked_at = ?
 		WHERE oid = ?;
 		`
-	_, err := tx.Exec(query,
+	_, err := CurrentDB().Client().Exec(query,
 		f.FileOID,
 		f.NoteOID,
 		f.RelativePath,
@@ -509,35 +487,14 @@ func (f *Flashcard) UpdateWithTx(tx *sql.Tx) error {
 }
 
 func (f *Flashcard) Delete() error {
-	db := CurrentDB().Client()
-	tx, err := db.BeginTx(context.Background(), nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	err = f.DeleteWithTx(tx)
-	if err != nil {
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (f *Flashcard) DeleteWithTx(tx *sql.Tx) error {
 	CurrentLogger().Debugf("Deleting flashcard %s...", f.ShortTitle)
 	query := `DELETE FROM flashcard WHERE oid = ?;`
-	_, err := tx.Exec(query, f.OID)
+	_, err := CurrentDB().Client().Exec(query, f.OID)
 	return err
 }
 
 // CountFlashcards returns the total number of flashcards.
-func CountFlashcards() (int, error) {
+func (c *Collection) CountFlashcards() (int, error) {
 	db := CurrentDB().Client()
 
 	var count int
@@ -548,31 +505,29 @@ func CountFlashcards() (int, error) {
 	return count, nil
 }
 
-func LoadFlashcardByOID(oid string) (*Flashcard, error) {
-	return QueryFlashcard(`WHERE oid = ?`, oid)
+func (c *Collection) LoadFlashcardByOID(oid string) (*Flashcard, error) {
+	return QueryFlashcard(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
-func LoadFlashcardByNoteOID(noteID string) (*Flashcard, error) {
-	return QueryFlashcard(`WHERE note_oid = ?`, noteID)
+func (c *Collection) LoadFlashcardByNoteOID(noteID string) (*Flashcard, error) {
+	return QueryFlashcard(CurrentDB().Client(), `WHERE note_oid = ?`, noteID)
 }
 
-func FindFlashcardByShortTitle(shortTitle string) (*Flashcard, error) {
-	return QueryFlashcard(`WHERE short_title = ?`, shortTitle)
+func (c *Collection) FindFlashcardByShortTitle(shortTitle string) (*Flashcard, error) {
+	return QueryFlashcard(CurrentDB().Client(), `WHERE short_title = ?`, shortTitle)
 }
 
-func FindFlashcardByHash(hash string) (*Flashcard, error) {
-	return QueryFlashcard(`WHERE hash = ?`, hash)
+func (c *Collection) FindFlashcardByHash(hash string) (*Flashcard, error) {
+	return QueryFlashcard(CurrentDB().Client(), `WHERE hash = ?`, hash)
 }
 
-func FindFlashcardsLastCheckedBefore(point time.Time, path string) ([]*Flashcard, error) {
-	return QueryFlashcards(`WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
+func (c *Collection) FindFlashcardsLastCheckedBefore(point time.Time, path string) ([]*Flashcard, error) {
+	return QueryFlashcards(CurrentDB().Client(), `WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 /* SQL Helpers */
 
-func QueryFlashcard(whereClause string, args ...any) (*Flashcard, error) {
-	db := CurrentDB().Client()
-
+func QueryFlashcard(db SQLClient, whereClause string, args ...any) (*Flashcard, error) {
 	var f Flashcard
 	var tagsRaw string
 	var createdAt string
@@ -646,9 +601,7 @@ func QueryFlashcard(whereClause string, args ...any) (*Flashcard, error) {
 	return &f, nil
 }
 
-func QueryFlashcards(whereClause string, args ...any) ([]*Flashcard, error) {
-	db := CurrentDB().Client()
-
+func QueryFlashcards(db SQLClient, whereClause string, args ...any) ([]*Flashcard, error) {
 	var flashcards []*Flashcard
 
 	rows, err := db.Query(fmt.Sprintf(`

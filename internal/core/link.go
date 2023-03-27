@@ -1,7 +1,6 @@
 package core
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"io"
@@ -43,12 +42,12 @@ type Link struct {
 }
 
 func NewOrExistingLink(note *Note, text, url, title, goName string) *Link {
-	link, err := FindLinkByGoName(goName)
+	link, err := CurrentCollection().FindLinkByGoName(goName)
 	if err != nil {
 		log.Fatal(err)
 	}
 	if link != nil {
-		link.Update(note, text, url, title, goName)
+		link.update(note, text, url, title, goName)
 		return link
 	}
 	return NewLink(note, text, url, title, goName)
@@ -141,7 +140,7 @@ func (l Link) String() string {
 
 /* Update */
 
-func (l *Link) Update(note *Note, text, url, title, goName string) {
+func (l *Link) update(note *Note, text, url, title, goName string) {
 	if l.NoteOID != note.OID {
 		l.NoteOID = note.OID
 		l.stale = true
@@ -177,34 +176,13 @@ func (l *Link) Updated() bool {
 /* Database Management */
 
 func (l *Link) Check() error {
-	db := CurrentDB().Client()
-	tx, err := db.BeginTx(context.Background(), nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	err = l.CheckWithTx(tx)
-	if err != nil {
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
-	return nil
-
-}
-
-func (l *Link) CheckWithTx(tx *sql.Tx) error {
 	CurrentLogger().Debugf("Checking link %s...", l.GoName)
 	l.LastCheckedAt = clock.Now()
 	query := `
 		UPDATE link
 		SET last_checked_at = ?
 		WHERE oid = ?;`
-	_, err := tx.Exec(query,
+	_, err := CurrentDB().Client().Exec(query,
 		timeToSQL(l.LastCheckedAt),
 		l.OID,
 	)
@@ -212,19 +190,19 @@ func (l *Link) CheckWithTx(tx *sql.Tx) error {
 	return err
 }
 
-func (l *Link) Save(tx *sql.Tx) error {
+func (l *Link) Save() error {
 	var err error
 	l.UpdatedAt = clock.Now()
 	l.LastCheckedAt = clock.Now()
 	switch l.State() {
 	case Added:
-		err = l.InsertWithTx(tx)
+		err = l.Insert()
 	case Modified:
-		err = l.UpdateWithTx(tx)
+		err = l.Update()
 	case Deleted:
-		err = l.DeleteWithTx(tx)
+		err = l.Delete()
 	default:
-		err = l.CheckWithTx(tx)
+		err = l.Check()
 	}
 	if err != nil {
 		return err
@@ -234,7 +212,7 @@ func (l *Link) Save(tx *sql.Tx) error {
 	return nil
 }
 
-func (l *Link) InsertWithTx(tx *sql.Tx) error {
+func (l *Link) Insert() error {
 	CurrentLogger().Debugf("Creating link %s...", l.GoName)
 	query := `
 		INSERT INTO link(
@@ -251,7 +229,7 @@ func (l *Link) InsertWithTx(tx *sql.Tx) error {
 		)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 		`
-	_, err := tx.Exec(query,
+	_, err := CurrentDB().Client().Exec(query,
 		l.OID,
 		l.NoteOID,
 		l.RelativePath,
@@ -270,7 +248,7 @@ func (l *Link) InsertWithTx(tx *sql.Tx) error {
 	return nil
 }
 
-func (l *Link) UpdateWithTx(tx *sql.Tx) error {
+func (l *Link) Update() error {
 	CurrentLogger().Debugf("Updating link %s...", l.GoName)
 	query := `
 		UPDATE link
@@ -286,7 +264,7 @@ func (l *Link) UpdateWithTx(tx *sql.Tx) error {
 		)
 		WHERE oid = ?;
 		`
-	_, err := tx.Exec(query,
+	_, err := CurrentDB().Client().Exec(query,
 		l.NoteOID,
 		l.RelativePath,
 		l.Text,
@@ -302,66 +280,41 @@ func (l *Link) UpdateWithTx(tx *sql.Tx) error {
 }
 
 func (l *Link) Delete() error {
-	db := CurrentDB().Client()
-	tx, err := db.BeginTx(context.Background(), nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	err = l.DeleteWithTx(tx)
-	if err != nil {
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (l *Link) DeleteWithTx(tx *sql.Tx) error {
 	CurrentLogger().Debugf("Deleting link %s...", l.GoName)
 	query := `DELETE FROM link WHERE oid = ?;`
-	_, err := tx.Exec(query, l.OID)
+	_, err := CurrentDB().Client().Exec(query, l.OID)
 	return err
 }
 
 // CountLinks returns the total number of links.
-func CountLinks() (int, error) {
-	db := CurrentDB().Client()
-
+func (c *Collection) CountLinks() (int, error) {
 	var count int
-	if err := db.QueryRow(`SELECT count(*) FROM link`).Scan(&count); err != nil {
+	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM link`).Scan(&count); err != nil {
 		return 0, err
 	}
 
 	return count, nil
 }
 
-func LoadLinkByOID(oid string) (*Link, error) {
-	return QueryLink("WHERE oid = ?", oid)
+func (c *Collection) LoadLinkByOID(oid string) (*Link, error) {
+	return QueryLink(CurrentDB().Client(), "WHERE oid = ?", oid)
 }
 
-func FindLinkByGoName(goName string) (*Link, error) {
-	return QueryLink("WHERE go_name = ?", goName)
+func (c *Collection) FindLinkByGoName(goName string) (*Link, error) {
+	return QueryLink(CurrentDB().Client(), "WHERE go_name = ?", goName)
 }
 
-func FindLinksByText(text string) ([]*Link, error) {
-	return QueryLinks("WHERE text = ?", text)
+func (c *Collection) FindLinksByText(text string) ([]*Link, error) {
+	return QueryLinks(CurrentDB().Client(), "WHERE text = ?", text)
 }
 
-func FindLinksLastCheckedBefore(point time.Time, path string) ([]*Link, error) {
-	return QueryLinks(`WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
+func (c *Collection) FindLinksLastCheckedBefore(point time.Time, path string) ([]*Link, error) {
+	return QueryLinks(CurrentDB().Client(), `WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 /* SQL Helpers */
 
-func QueryLink(whereClause string, args ...any) (*Link, error) {
-	db := CurrentDB().Client()
-
+func QueryLink(db SQLClient, whereClause string, args ...any) (*Link, error) {
 	var l Link
 	var createdAt string
 	var updatedAt string
@@ -407,9 +360,7 @@ func QueryLink(whereClause string, args ...any) (*Link, error) {
 	return &l, nil
 }
 
-func QueryLinks(whereClause string, args ...any) ([]*Link, error) {
-	db := CurrentDB().Client()
-
+func QueryLinks(db SQLClient, whereClause string, args ...any) ([]*Link, error) {
 	var links []*Link
 
 	rows, err := db.Query(fmt.Sprintf(`

@@ -41,6 +41,9 @@ type DB struct {
 	origin Remote
 	// .nt/database.sql
 	client *sql.DB
+
+	// In-progress transaction
+	tx *sql.Tx
 }
 
 func CurrentDB() *DB {
@@ -113,6 +116,51 @@ func (db *DB) Close() error {
 	}
 	return nil
 }
+
+/* Transaction Management */
+
+// BeginTransaction starts a new transaction.
+func (db *DB) BeginTransaction() error {
+	tx, err := db.initClient().BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	db.tx = tx
+	return nil
+}
+
+// RollbackTransaction aborts the current transaction.
+func (db *DB) RollbackTransaction() error {
+	if db.tx == nil {
+		return errors.New("no transaction started")
+	}
+	return db.tx.Rollback()
+}
+
+// CommitTransaction ends the current transaction.
+func (db *DB) CommitTransaction() error {
+	if db.tx == nil {
+		return errors.New("no transaction started")
+	}
+	err := db.tx.Commit()
+	if err != nil {
+		return err
+	}
+	db.tx = nil
+	return nil
+}
+
+// Client returns the client to use to query the database.
+func (db *DB) Client() SQLClient {
+	if db.tx != nil {
+		// Execute queries in current transaction
+		return db.tx
+	}
+	// Basic client = no transaction
+	return db.initClient()
+}
+
+/* File Management */
 
 // ReadCommit reads an object file on disk.
 func (db *DB) ReadCommit(oid string) (*Commit, error) {
@@ -206,7 +254,7 @@ func (db *DB) Origin() Remote {
 	return db.origin
 }
 
-func (db *DB) Client() *sql.DB {
+func (db *DB) initClient() *sql.DB {
 	dbClientOnce.Do(func() {
 		config := CurrentConfig()
 		db, err := sql.Open("sqlite3", filepath.Join(config.RootDirectory, ".nt/database.db"))
@@ -330,11 +378,11 @@ func (db *DB) Pull() error {
 	for _, oid := range commitOIDs {
 
 		// Download each commit in a single transaction
-		tx, err := db.Client().BeginTx(context.Background(), nil)
+		err := db.BeginTransaction()
 		if err != nil {
 			return err
 		}
-		defer tx.Rollback()
+		defer db.RollbackTransaction()
 
 		data, err = origin.GetObject(OIDToPath(oid))
 		if errors.Is(err, ErrObjectNotExist) {
@@ -377,10 +425,10 @@ func (db *DB) Pull() error {
 			remoteObject.ForceState(newState)
 
 			// Add in SQL database
-			remoteObject.Save(tx)
+			remoteObject.Save()
 		}
 
-		if err := tx.Commit(); err != nil {
+		if err := db.CommitTransaction(); err != nil {
 			return err
 		}
 
@@ -509,11 +557,11 @@ func (db *DB) Push() error {
 // Restore reverts the latest add command.
 func (db *DB) Restore() error {
 	// Run all queries inside the same transaction
-	tx, err := db.Client().BeginTx(context.Background(), nil)
+	err := db.BeginTransaction()
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer db.RollbackTransaction()
 
 	// We must clear the staging area
 	for _, obj := range db.index.StagingArea.Added {
@@ -523,7 +571,7 @@ func (db *DB) Restore() error {
 		}
 		// Mark for deletion
 		object.ForceState(Deleted)
-		if err := object.Save(tx); err != nil {
+		if err := object.Save(); err != nil {
 			return err
 		}
 	}
@@ -543,7 +591,7 @@ func (db *DB) Restore() error {
 		}
 		// Mark for restoration
 		originalObject.ForceState(Added)
-		originalObject.Save(tx)
+		originalObject.Save()
 	}
 	for _, obj := range db.index.StagingArea.Modified {
 		// Re-read object from latest commit
@@ -561,11 +609,11 @@ func (db *DB) Restore() error {
 		}
 		// Nothing to change. Simply save back.
 		originalObject.ForceState(Modified)
-		originalObject.Save(tx)
+		originalObject.Save()
 	}
 
 	// Don't forget to commit
-	if err := tx.Commit(); err != nil {
+	if err := db.CommitTransaction(); err != nil {
 		return err
 	}
 	// And to persist the index

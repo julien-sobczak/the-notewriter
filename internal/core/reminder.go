@@ -1,7 +1,6 @@
 package core
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"io"
@@ -58,13 +57,13 @@ type Reminder struct {
 func NewOrExistingReminder(note *Note, descriptionRaw, tag string) (*Reminder, error) {
 	descriptionRaw = strings.TrimSpace(descriptionRaw)
 
-	reminders, err := FindRemindersMatching(note.OID, descriptionRaw)
+	reminders, err := CurrentCollection().FindRemindersMatching(note.OID, descriptionRaw)
 	if err != nil {
 		log.Fatal(err)
 	}
 	if len(reminders) == 1 {
 		reminder := reminders[0]
-		err = reminder.Update(note, descriptionRaw, tag)
+		err = reminder.update(note, descriptionRaw, tag)
 		return reminder, err
 	}
 	return NewReminder(note, descriptionRaw, tag)
@@ -172,7 +171,7 @@ func (r *Reminder) updateContent(descriptionRaw string) {
 	r.DescriptionText = markdown.ToText(r.DescriptionMarkdown)
 }
 
-func (r *Reminder) Update(note *Note, descriptionRaw, tag string) error {
+func (r *Reminder) update(note *Note, descriptionRaw, tag string) error {
 	if r.FileOID != note.FileOID {
 		r.FileOID = note.FileOID
 		r.File = note.File
@@ -593,34 +592,13 @@ func generateDates(yearExpr, monthExpr, dayExpr string) []time.Time {
 /* Database Management */
 
 func (r *Reminder) Check() error {
-	db := CurrentDB().Client()
-	tx, err := db.BeginTx(context.Background(), nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	err = r.CheckWithTx(tx)
-	if err != nil {
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
-	return nil
-
-}
-
-func (r *Reminder) CheckWithTx(tx *sql.Tx) error {
 	CurrentLogger().Debugf("Checking reminder %s...", r.DescriptionRaw)
 	r.LastCheckedAt = clock.Now()
 	query := `
 		UPDATE reminder
 		SET last_checked_at = ?
 		WHERE oid = ?;`
-	_, err := tx.Exec(query,
+	_, err := CurrentDB().Client().Exec(query,
 		timeToSQL(r.LastCheckedAt),
 		r.OID,
 	)
@@ -628,19 +606,19 @@ func (r *Reminder) CheckWithTx(tx *sql.Tx) error {
 	return err
 }
 
-func (r *Reminder) Save(tx *sql.Tx) error {
+func (r *Reminder) Save() error {
 	var err error
 	r.UpdatedAt = clock.Now()
 	r.LastCheckedAt = clock.Now()
 	switch r.State() {
 	case Added:
-		err = r.InsertWithTx(tx)
+		err = r.Insert()
 	case Modified:
-		err = r.UpdateWithTx(tx)
+		err = r.Update()
 	case Deleted:
-		err = r.DeleteWithTx(tx)
+		err = r.Delete()
 	default:
-		err = r.CheckWithTx(tx)
+		err = r.Check()
 	}
 	if err != nil {
 		return err
@@ -650,7 +628,7 @@ func (r *Reminder) Save(tx *sql.Tx) error {
 	return nil
 }
 
-func (r *Reminder) InsertWithTx(tx *sql.Tx) error {
+func (r *Reminder) Insert() error {
 	CurrentLogger().Debugf("Inserting reminder %s...", r.DescriptionRaw)
 	query := `
 		INSERT INTO reminder(
@@ -671,7 +649,7 @@ func (r *Reminder) InsertWithTx(tx *sql.Tx) error {
 		)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
-	_, err := tx.Exec(query,
+	_, err := CurrentDB().Client().Exec(query,
 		r.OID,
 		r.FileOID,
 		r.NoteOID,
@@ -694,7 +672,7 @@ func (r *Reminder) InsertWithTx(tx *sql.Tx) error {
 	return nil
 }
 
-func (r *Reminder) UpdateWithTx(tx *sql.Tx) error {
+func (r *Reminder) Update() error {
 	CurrentLogger().Debugf("Updating reminder %s...", r.DescriptionRaw)
 	query := `
 		UPDATE reminder
@@ -713,7 +691,7 @@ func (r *Reminder) UpdateWithTx(tx *sql.Tx) error {
 			last_checked_at = ?
 		WHERE oid = ?;
 	`
-	_, err := tx.Exec(query,
+	_, err := CurrentDB().Client().Exec(query,
 		r.FileOID,
 		r.NoteOID,
 		r.RelativePath,
@@ -733,70 +711,44 @@ func (r *Reminder) UpdateWithTx(tx *sql.Tx) error {
 }
 
 func (r *Reminder) Delete() error {
-	db := CurrentDB().Client()
-	tx, err := db.BeginTx(context.Background(), nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	err = r.DeleteWithTx(tx)
-	if err != nil {
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (r *Reminder) DeleteWithTx(tx *sql.Tx) error {
 	CurrentLogger().Debugf("Deleting reminder %s...", r.DescriptionRaw)
 	query := `DELETE FROM reminder WHERE oid = ?;`
-	_, err := tx.Exec(query, r.OID)
+	_, err := CurrentDB().Client().Exec(query, r.OID)
 	return err
 }
 
 // CountReminders returns the total number of reminders.
-func CountReminders() (int, error) {
-	db := CurrentDB().Client()
-
+func (c *Collection) CountReminders() (int, error) {
 	var count int
-	if err := db.QueryRow(`SELECT count(*) FROM reminder`).Scan(&count); err != nil {
+	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM reminder`).Scan(&count); err != nil {
 		return 0, err
 	}
-
 	return count, nil
 }
 
-func FindReminders() ([]*Reminder, error) {
-	return QueryReminders("")
+func (c *Collection) FindReminders() ([]*Reminder, error) {
+	return QueryReminders(CurrentDB().Client(), "")
 }
 
-func FindRemindersMatching(noteOID string, descriptionRaw string) ([]*Reminder, error) {
-	return QueryReminders(`WHERE note_oid = ? and description_raw`, noteOID, descriptionRaw)
+func (c *Collection) FindRemindersMatching(noteOID string, descriptionRaw string) ([]*Reminder, error) {
+	return QueryReminders(CurrentDB().Client(), `WHERE note_oid = ? and description_raw`, noteOID, descriptionRaw)
 }
 
-func LoadReminderByOID(oid string) (*Reminder, error) {
-	return QueryReminder(`WHERE oid = ?`, oid)
+func (c *Collection) LoadReminderByOID(oid string) (*Reminder, error) {
+	return QueryReminder(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
-func FindRemindersByUpcomingDate(deadline time.Time) ([]*Reminder, error) {
-	return QueryReminders(`WHERE next_performed_at > ?`, timeToSQL(deadline))
+func (c *Collection) FindRemindersByUpcomingDate(deadline time.Time) ([]*Reminder, error) {
+	return QueryReminders(CurrentDB().Client(), `WHERE next_performed_at > ?`, timeToSQL(deadline))
 }
 
-func FindRemindersLastCheckedBefore(point time.Time, path string) ([]*Reminder, error) {
-	return QueryReminders(`WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
+func (c *Collection) FindRemindersLastCheckedBefore(point time.Time, path string) ([]*Reminder, error) {
+	return QueryReminders(CurrentDB().Client(), `WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 /* SQL Helpers */
 
-func QueryReminder(whereClause string, args ...any) (*Reminder, error) {
-	db := CurrentDB().Client()
-
+func QueryReminder(db SQLClient, whereClause string, args ...any) (*Reminder, error) {
 	var r Reminder
 	var lastPerformedAt string
 	var nextPerformedAt string
@@ -854,9 +806,7 @@ func QueryReminder(whereClause string, args ...any) (*Reminder, error) {
 	return &r, nil
 }
 
-func QueryReminders(whereClause string, args ...any) ([]*Reminder, error) {
-	db := CurrentDB().Client()
-
+func QueryReminders(db SQLClient, whereClause string, args ...any) ([]*Reminder, error) {
 	var reminders []*Reminder
 
 	rows, err := db.Query(fmt.Sprintf(`

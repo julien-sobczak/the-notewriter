@@ -2,7 +2,6 @@ package core
 
 import (
 	"bytes"
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -418,15 +417,15 @@ func TestFileSave(t *testing.T) {
 	f, err := NewFileFromPath(nil, filepath.Join(root, "go.md"))
 	require.NoError(t, err)
 
-	tx, err := CurrentDB().Client().BeginTx(context.Background(), nil)
+	err = CurrentDB().BeginTransaction()
 	require.NoError(t, err)
-	err = f.Save(tx)
+	err = f.Save()
 	require.NoError(t, err)
 	for _, object := range f.SubObjects() {
-		err := object.Save(tx)
+		err := object.Save()
 		require.NoError(t, err)
 	}
-	err = tx.Commit()
+	err = CurrentDB().CommitTransaction()
 	require.NoError(t, err)
 	require.Equal(t, 1, mustCountFiles(t))
 	require.Equal(t, 3, mustCountNotes(t))
@@ -436,7 +435,7 @@ func TestFileSave(t *testing.T) {
 	require.Equal(t, 1, mustCountReminders(t))
 
 	// Check the file
-	actual, err := LoadFileByPath(CurrentDB().Client(), f.RelativePath)
+	actual, err := CurrentCollection().LoadFileByPath(f.RelativePath)
 	require.NoError(t, err)
 	assert.NotEqual(t, "", actual.OID)
 	assert.Equal(t, "go.md", actual.RelativePath)
@@ -459,7 +458,7 @@ func TestFileSave(t *testing.T) {
 	assert.WithinDuration(t, clock.Now(), actual.LastCheckedAt, 1*time.Second)
 
 	// Check a note
-	note, err := FindNoteByTitle("Reference: Golang History")
+	note, err := CurrentCollection().FindNoteByTitle("Reference: Golang History")
 	require.NoError(t, err)
 	assert.NotEqual(t, "", note.OID)
 	assert.Equal(t, actual.OID, note.FileOID)
@@ -487,9 +486,9 @@ func TestFileSave(t *testing.T) {
 	assert.NotEmpty(t, note.LastCheckedAt)
 
 	// Check the flashcard
-	flashcardNote, err := FindNoteByTitle("Flashcard: Golang Logo")
+	flashcardNote, err := CurrentCollection().FindNoteByTitle("Flashcard: Golang Logo")
 	require.NoError(t, err)
-	flashcard, err := FindFlashcardByShortTitle("Golang Logo")
+	flashcard, err := CurrentCollection().FindFlashcardByShortTitle("Golang Logo")
 	require.NoError(t, err)
 	assert.NotEqual(t, "", flashcard.OID)
 	assert.Equal(t, "Golang Logo", flashcard.ShortTitle)
@@ -516,7 +515,7 @@ func TestFileSave(t *testing.T) {
 	assert.NotEmpty(t, flashcard.LastCheckedAt)
 
 	// Check the media
-	media, err := FindMediaByRelativePath("medias/go.svg")
+	media, err := CurrentCollection().FindMediaByRelativePath("medias/go.svg")
 	require.NoError(t, err)
 	assert.NotEqual(t, "", media.OID)
 	assert.Equal(t, "medias/go.svg", media.RelativePath)
@@ -533,11 +532,11 @@ func TestFileSave(t *testing.T) {
 	assert.NotEmpty(t, media.LastCheckedAt)
 
 	// Check the link
-	links, err := FindLinksByText("Golang")
+	links, err := CurrentCollection().FindLinksByText("Golang")
 	require.NoError(t, err)
 	require.Len(t, links, 1)
 	link := links[0]
-	linkNote, err := FindNoteByTitle("Reference: Golang History")
+	linkNote, err := CurrentCollection().FindNoteByTitle("Reference: Golang History")
 	require.NoError(t, err)
 	assert.NotEqual(t, "", link.OID)
 	assert.Equal(t, linkNote.OID, link.NoteOID)
@@ -551,11 +550,11 @@ func TestFileSave(t *testing.T) {
 	assert.NotEmpty(t, link.LastCheckedAt)
 
 	// Check the reminder
-	reminders, err := FindReminders()
+	reminders, err := CurrentCollection().FindReminders()
 	require.NoError(t, err)
 	require.Len(t, reminders, 1)
 	reminder := reminders[0]
-	reminderNote, err := FindNoteByTitle("TODO: Conferences")
+	reminderNote, err := CurrentCollection().FindNoteByTitle("TODO: Conferences")
 	require.NoError(t, err)
 	assert.NotEqual(t, "", reminder.OID)
 	assert.Equal(t, reminderNote.OID, reminder.NoteOID)
@@ -678,16 +677,16 @@ func TestInheritance(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check how attributes are inherited in files
-	fileIndex, err := LoadFileByPath(CurrentDB().Client(), "index.md")
+	fileIndex, err := CurrentCollection().LoadFileByPath("index.md")
 	require.NoError(t, err)
 	require.NotNil(t, fileIndex)
-	fileGoIndex, err := LoadFileByPath(CurrentDB().Client(), "skills/go/index.md")
+	fileGoIndex, err := CurrentCollection().LoadFileByPath("skills/go/index.md")
 	require.NoError(t, err)
 	require.NotNil(t, fileGoIndex)
-	fileGoGeneral, err := LoadFileByPath(CurrentDB().Client(), "skills/go/general.md")
+	fileGoGeneral, err := CurrentCollection().LoadFileByPath("skills/go/general.md")
 	require.NoError(t, err)
 	require.NotNil(t, fileGoGeneral)
-	fileGoGoroutines, err := LoadFileByPath(CurrentDB().Client(), "skills/go/goroutines.md")
+	fileGoGoroutines, err := CurrentCollection().LoadFileByPath("skills/go/goroutines.md")
 	require.NoError(t, err)
 	require.NotNil(t, fileGoGoroutines)
 
@@ -707,10 +706,10 @@ func TestInheritance(t *testing.T) {
 	}, fileGoGoroutines.GetAttributes())
 
 	// Check how attributes and tags are inherited in notes
-	generalNotes, err := SearchNotes("path:skills/go/general.md")
+	generalNotes, err := CurrentCollection().SearchNotes("path:skills/go/general.md")
 	require.NoError(t, err)
 	require.Len(t, generalNotes, 2)
-	goroutinesNotes, err := SearchNotes("path:skills/go/goroutines.md")
+	goroutinesNotes, err := CurrentCollection().SearchNotes("path:skills/go/goroutines.md")
 	require.NoError(t, err)
 	require.Len(t, goroutinesNotes, 1)
 
@@ -752,7 +751,7 @@ func TestPostProcessing(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Quotes Formatting", func(t *testing.T) {
-		notes, err := SearchNotes("path:quotes/walt-disney.md")
+		notes, err := CurrentCollection().SearchNotes("path:quotes/walt-disney.md")
 		require.NoError(t, err)
 		require.Len(t, notes, 1)
 		quoteWaltDisney := notes[0]
@@ -768,7 +767,7 @@ func TestPostProcessing(t *testing.T) {
 
 	t.Run("Attributed Quotes Formatting", func(t *testing.T) {
 		// See https://developer.mozilla.org/en-US/docs/Web/HTML/Element/cite
-		notes, err := SearchNotes(`kind:quote @title:"J.R.R. Tolkein on Life"`)
+		notes, err := CurrentCollection().SearchNotes(`kind:quote @title:"J.R.R. Tolkein on Life"`)
 		require.NoError(t, err)
 		quoteTolkein := notes[0]
 		assert.Equal(t, `
@@ -782,7 +781,7 @@ func TestPostProcessing(t *testing.T) {
 	})
 
 	t.Run("Note Inclusion", func(t *testing.T) {
-		notes, err := SearchNotes(`@title:"Commonplace book"`)
+		notes, err := CurrentCollection().SearchNotes(`@title:"Commonplace book"`)
 		require.NoError(t, err)
 		note := notes[0]
 		assert.Equal(t, `
@@ -793,7 +792,7 @@ func TestPostProcessing(t *testing.T) {
 	})
 
 	t.Run("Quote Inclusion", func(t *testing.T) {
-		notes, err := SearchNotes(`kind:note @title:"On Doing"`)
+		notes, err := CurrentCollection().SearchNotes(`kind:note @title:"On Doing"`)
 		require.NoError(t, err)
 		note := notes[0]
 		assert.Equal(t, `
@@ -809,7 +808,7 @@ func TestPostProcessing(t *testing.T) {
 	})
 
 	t.Run("Media URL Replacement", func(t *testing.T) {
-		notes, err := SearchNotes(`@title:Gopher`)
+		notes, err := CurrentCollection().SearchNotes(`@title:Gopher`)
 		require.NoError(t, err)
 		note := notes[0]
 		assert.Equal(t, `
@@ -824,7 +823,7 @@ The Golang programming language uses the image of a gopher as logo:
 	})
 
 	t.Run("Comment Formatting", func(t *testing.T) {
-		notes, err := SearchNotes(`@title:"Allen Saunders on Life"`)
+		notes, err := CurrentCollection().SearchNotes(`@title:"Allen Saunders on Life"`)
 		require.NoError(t, err)
 		note := notes[0]
 		assert.Equal(t, `

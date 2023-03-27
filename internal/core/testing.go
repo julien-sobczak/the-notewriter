@@ -62,73 +62,73 @@ func UseSequenceOID(t *testing.T) {
 /* Test Helpers */
 
 func mustCountFiles(t *testing.T) int {
-	count, err := CountFiles()
+	count, err := CurrentCollection().CountFiles()
 	require.NoError(t, err)
 	return count
 }
 
 func mustCountMedias(t *testing.T) int {
-	count, err := CountMedias()
+	count, err := CurrentCollection().CountMedias()
 	require.NoError(t, err)
 	return count
 }
 
 func mustCountNotes(t *testing.T) int {
-	count, err := CountNotes()
+	count, err := CurrentCollection().CountNotes()
 	require.NoError(t, err)
 	return count
 }
 
 func mustCountLinks(t *testing.T) int {
-	count, err := CountLinks()
+	count, err := CurrentCollection().CountLinks()
 	require.NoError(t, err)
 	return count
 }
 
 func mustCountFlashcards(t *testing.T) int {
-	count, err := CountFlashcards()
+	count, err := CurrentCollection().CountFlashcards()
 	require.NoError(t, err)
 	return count
 }
 
 func mustCountReminders(t *testing.T) int {
-	count, err := CountReminders()
+	count, err := CurrentCollection().CountReminders()
 	require.NoError(t, err)
 	return count
 }
 
 func assertNoFiles(t *testing.T) {
-	count, err := CountFiles()
+	count, err := CurrentCollection().CountFiles()
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 }
 
 func assertNoNotes(t *testing.T) {
-	count, err := CountNotes()
+	count, err := CurrentCollection().CountNotes()
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 }
 
 func assertNoFlashcards(t *testing.T) {
-	count, err := CountFlashcards()
+	count, err := CurrentCollection().CountFlashcards()
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 }
 
 func assertNoLinks(t *testing.T) {
-	count, err := CountLinks()
+	count, err := CurrentCollection().CountLinks()
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 }
 
 func assertNoReminders(t *testing.T) {
-	count, err := CountReminders()
+	count, err := CurrentCollection().CountReminders()
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 }
 
 func assertNoMedias(t *testing.T) {
-	count, err := CountMedias()
+	count, err := CurrentCollection().CountMedias()
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 }

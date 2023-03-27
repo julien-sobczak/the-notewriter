@@ -1,7 +1,6 @@
 package core
 
 import (
-	"database/sql"
 	"io"
 	"os"
 	"path/filepath"
@@ -58,7 +57,7 @@ type StatefulObject interface {
 	ForceState(newState State)
 
 	// Save persists to DB.
-	Save(tx *sql.Tx) error
+	Save() error
 }
 
 type BlobFile struct {

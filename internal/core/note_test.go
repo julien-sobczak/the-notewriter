@@ -2,7 +2,6 @@ package core
 
 import (
 	"bytes"
-	"context"
 	"strings"
 	"testing"
 	"time"
@@ -338,47 +337,46 @@ func TestNoteFormat(t *testing.T) {
 func TestSearchNotes(t *testing.T) {
 	SetUpCollectionFromGoldenDirNamed(t, "TestNoteFTS")
 
-	db := CurrentDB().Client()
 	CurrentLogger().SetVerboseLevel(VerboseTrace)
 
 	// Insert a note
 	note := NewNote(NewEmptyFile("example.md"), nil, "Reference: FTS5", "TODO", 2)
-	tx, err := db.BeginTx(context.Background(), nil)
+	err := CurrentDB().BeginTransaction()
 	require.NoError(t, err)
-	err = note.InsertWithTx(tx)
+	err = note.Insert()
 	require.NoError(t, err)
-	err = tx.Commit()
+	err = CurrentDB().CommitTransaction()
 	require.NoError(t, err)
 
 	// Search the note using a full-text query
-	notes, err := SearchNotes("kind:reference fts5")
+	notes, err := CurrentCollection().SearchNotes("kind:reference fts5")
 	require.NoError(t, err)
 	assert.Len(t, notes, 1)
 
 	// Update the note content
 	note.updateContent("full-text")
-	tx, err = db.BeginTx(context.Background(), nil)
+	err = CurrentDB().BeginTransaction()
 	require.NoError(t, err)
-	err = note.UpdateWithTx(tx)
+	err = note.Update()
 	require.NoError(t, err)
-	err = tx.Commit()
+	err = CurrentDB().CommitTransaction()
 	require.NoError(t, err)
 
 	// Search the note using a full-text query
-	notes, err = SearchNotes("kind:reference full")
+	notes, err = CurrentCollection().SearchNotes("kind:reference full")
 	require.NoError(t, err)
 	assert.Len(t, notes, 1)
 
 	// Delete the note
-	tx, err = db.BeginTx(context.Background(), nil)
+	err = CurrentDB().BeginTransaction()
 	require.NoError(t, err)
-	err = note.DeleteWithTx(tx)
+	err = note.Delete()
 	require.NoError(t, err)
-	err = tx.Commit()
+	err = CurrentDB().CommitTransaction()
 	require.NoError(t, err)
 
 	// Check the note is no longer
-	notes, err = SearchNotes("kind:reference full")
+	notes, err = CurrentCollection().SearchNotes("kind:reference full")
 	require.NoError(t, err)
 	assert.Len(t, notes, 0)
 }

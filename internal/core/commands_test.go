@@ -118,7 +118,7 @@ func TestCommandAdd(t *testing.T) {
 			"medias/aurora.mp4",
 		}
 		for _, expectedMedia := range referencedMedias {
-			media, err := FindMediaByRelativePath(expectedMedia)
+			media, err := CurrentCollection().FindMediaByRelativePath(expectedMedia)
 			require.NoError(t, err)
 			require.NotNil(t, media)
 			for _, blob := range media.Blobs() {
@@ -132,7 +132,7 @@ func TestCommandAdd(t *testing.T) {
 			"medias/branch-portrait.avif",
 		}
 		for _, unreferencedMedia := range unreferencedMedias {
-			media, err := FindMediaByRelativePath(unreferencedMedia)
+			media, err := CurrentCollection().FindMediaByRelativePath(unreferencedMedia)
 			require.NoError(t, err)
 			require.Nil(t, media)
 		}
@@ -159,7 +159,7 @@ func TestCommandRestore(t *testing.T) {
 		require.Len(t, idx.Objects, 0)
 
 		// Check database
-		file, err := LoadFileByPath(CurrentDB().Client(), "go.md")
+		file, err := CurrentCollection().LoadFileByPath("go.md")
 		require.NoError(t, err)
 		require.NotEqual(t, 0, file.MTime)
 
@@ -173,7 +173,7 @@ func TestCommandRestore(t *testing.T) {
 		require.Equal(t, 0, idx.CountChanges())
 
 		// Check database is empty
-		file, err = LoadFileByPath(CurrentDB().Client(), "go.md")
+		file, err = CurrentCollection().LoadFileByPath("go.md")
 		require.NoError(t, err)
 		require.Nil(t, file)
 	})
@@ -444,7 +444,7 @@ func TestCommandGC(t *testing.T) {
 		require.NoError(t, err)
 		err = CurrentDB().Push()
 		require.NoError(t, err)
-		logo, err := FindMediaByRelativePath("medias/go.svg")
+		logo, err := CurrentCollection().FindMediaByRelativePath("medias/go.svg")
 		require.NoError(t, err)
 		require.NotNil(t, logo)
 		require.Len(t, logo.BlobRefs, 3)
@@ -477,10 +477,10 @@ A **gopher**.
 		err = CurrentDB().Push()
 		require.NoError(t, err)
 
-		logo, err = FindMediaByRelativePath("medias/go.svg")
+		logo, err = CurrentCollection().FindMediaByRelativePath("medias/go.svg")
 		require.NoError(t, err)
 		require.NotNil(t, logo) // Must still exists as we delay the deletion until next gc
-		logo, err = FindMediaByRelativePath("medias/go.png")
+		logo, err = CurrentCollection().FindMediaByRelativePath("medias/go.png")
 		require.NoError(t, err)
 		require.NotNil(t, logo)
 		require.Len(t, logo.BlobRefs, 2)

@@ -35,7 +35,7 @@ var getNoteCmd = &cobra.Command{
 		}
 
 		wikilink := args[0]
-		notes, err := core.FindNotesByWikilink(wikilink)
+		notes, err := core.CurrentCollection().FindNotesByWikilink(wikilink)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

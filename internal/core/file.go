@@ -2,7 +2,6 @@ package core
 
 import (
 	"bytes"
-	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -75,13 +74,13 @@ func NewOrExistingFile(parent *File, path string) (*File, error) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	existingFile, err := LoadFileByPath(CurrentDB().Client(), relpath)
+	existingFile, err := CurrentCollection().LoadFileByPath(relpath)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	if existingFile != nil {
-		existingFile.Update(parent)
+		existingFile.update(parent)
 		return existingFile, nil
 	}
 
@@ -259,7 +258,7 @@ func (f File) String() string {
 
 /* Update */
 
-func (f *File) Update(parent *File) error {
+func (f *File) update(parent *File) error {
 	abspath := CurrentCollection().GetAbsolutePath(f.RelativePath)
 	parsedFile, err := ParseFile(abspath)
 	if err != nil {
@@ -360,7 +359,7 @@ func (f *File) SetAttribute(key string, value interface{}) {
 
 		found = true
 
-		newValueNode := toSafeYAMLNode(value)
+		newValueNode := ToSafeYAMLNode(value)
 		if newValueNode.Kind == yaml.ScalarNode {
 			valueNode.Value = newValueNode.Value
 		} else if newValueNode.Kind == yaml.DocumentNode {
@@ -375,7 +374,7 @@ func (f *File) SetAttribute(key string, value interface{}) {
 			Kind:  yaml.ScalarNode,
 			Value: key,
 		})
-		newValueNode := toSafeYAMLNode(value)
+		newValueNode := ToSafeYAMLNode(value)
 		switch newValueNode.Kind {
 		case yaml.DocumentNode:
 			f.FrontMatter.Content = append(f.FrontMatter.Content, newValueNode.Content[0])
@@ -816,74 +815,54 @@ func (f *File) SaveOnDisk() error {
 }
 
 func (f *File) Check() error {
-	db := CurrentDB().Client()
-	tx, err := db.BeginTx(context.Background(), nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	err = f.CheckWithTx(tx)
-	if err != nil {
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
-	return nil
-
-}
-
-func (f *File) CheckWithTx(tx *sql.Tx) error {
+	client := CurrentDB().Client()
 	CurrentLogger().Debugf("Checking file %s...", f.RelativePath)
 	f.LastCheckedAt = clock.Now()
 	query := `
 		UPDATE file
 		SET last_checked_at = ?
 		WHERE oid = ?;`
-	if _, err := tx.Exec(query, timeToSQL(f.LastCheckedAt), f.OID); err != nil {
+	if _, err := client.Exec(query, timeToSQL(f.LastCheckedAt), f.OID); err != nil {
 		return err
 	}
 	query = `
 		UPDATE note
 		SET last_checked_at = ?
 		WHERE file_oid = ?;`
-	if _, err := tx.Exec(query, timeToSQL(f.LastCheckedAt), f.OID); err != nil {
+	if _, err := client.Exec(query, timeToSQL(f.LastCheckedAt), f.OID); err != nil {
 		return err
 	}
 	query = `
 		UPDATE flashcard
 		SET last_checked_at = ?
 		WHERE file_oid = ?;`
-	if _, err := tx.Exec(query, timeToSQL(f.LastCheckedAt), f.OID); err != nil {
+	if _, err := client.Exec(query, timeToSQL(f.LastCheckedAt), f.OID); err != nil {
 		return err
 	}
 	query = `
 		UPDATE reminder
 		SET last_checked_at = ?
 		WHERE file_oid = ?;`
-	if _, err := tx.Exec(query, timeToSQL(f.LastCheckedAt), f.OID); err != nil {
+	if _, err := client.Exec(query, timeToSQL(f.LastCheckedAt), f.OID); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (f *File) Save(tx *sql.Tx) error {
+func (f *File) Save() error {
 	var err error
 	f.UpdatedAt = clock.Now()
 	f.LastCheckedAt = clock.Now()
 	switch f.State() {
 	case Added:
-		err = f.InsertWithTx(tx)
+		err = f.Insert()
 	case Modified:
-		err = f.UpdateWithTx(tx)
+		err = f.Update()
 	case Deleted:
-		err = f.DeleteWithTx(tx)
+		err = f.Delete()
 	default:
-		err = f.CheckWithTx(tx)
+		err = f.Check()
 	}
 	if err != nil {
 		return err
@@ -893,7 +872,7 @@ func (f *File) Save(tx *sql.Tx) error {
 	return nil
 }
 
-func (f *File) InsertWithTx(tx *sql.Tx) error {
+func (f *File) Insert() error {
 	CurrentLogger().Debugf("Inserting file %s...", f.RelativePath)
 	query := `
 		INSERT INTO file(
@@ -924,7 +903,7 @@ func (f *File) InsertWithTx(tx *sql.Tx) error {
 		return err
 	}
 
-	_, err = tx.Exec(query,
+	_, err = CurrentDB().Client().Exec(query,
 		f.OID,
 		f.ParentFileOID,
 		f.RelativePath,
@@ -948,7 +927,7 @@ func (f *File) InsertWithTx(tx *sql.Tx) error {
 	return nil
 }
 
-func (f *File) UpdateWithTx(tx *sql.Tx) error {
+func (f *File) Update() error {
 	CurrentLogger().Debugf("Updating file %s...", f.RelativePath)
 	query := `
 		UPDATE file
@@ -976,7 +955,7 @@ func (f *File) UpdateWithTx(tx *sql.Tx) error {
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(query,
+	_, err = CurrentDB().Client().Exec(query,
 		f.ParentFileOID,
 		f.RelativePath,
 		f.Wikilink,
@@ -996,55 +975,34 @@ func (f *File) UpdateWithTx(tx *sql.Tx) error {
 }
 
 func (f *File) Delete() error {
-	db := CurrentDB().Client()
-	tx, err := db.BeginTx(context.Background(), nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	err = f.DeleteWithTx(tx)
-	if err != nil {
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (f *File) DeleteWithTx(tx *sql.Tx) error {
 	CurrentLogger().Debugf("Deleting file %s...", f.RelativePath)
 	query := `DELETE FROM file WHERE oid = ?;`
-	_, err := tx.Exec(query, f.OID)
+	_, err := CurrentDB().Client().Exec(query, f.OID)
 	return err
 }
 
-func LoadFileByPath(db Queryable, relativePath string) (*File, error) {
-	return QueryFile(db, `WHERE relative_path = ?`, relativePath)
+func (c *Collection) LoadFileByPath(relativePath string) (*File, error) {
+	return QueryFile(CurrentDB().Client(), `WHERE relative_path = ?`, relativePath)
 }
 
-func LoadFileByOID(db Queryable, oid string) (*File, error) {
-	return QueryFile(db, `WHERE oid = ?`, oid)
+func (c *Collection) LoadFileByOID(oid string) (*File, error) {
+	return QueryFile(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
-func LoadFilesByRelativePathPrefix(relativePathPrefix string) ([]*File, error) {
+func (c *Collection) LoadFilesByRelativePathPrefix(relativePathPrefix string) ([]*File, error) {
 	return QueryFiles(CurrentDB().Client(), `WHERE relative_path LIKE ?`, relativePathPrefix+"%")
 }
 
-func FindFilesByWikilink(wikilink string) ([]*File, error) {
+func (c *Collection) FindFilesByWikilink(wikilink string) ([]*File, error) {
 	return QueryFiles(CurrentDB().Client(), `WHERE wikilink LIKE ?`, "%"+wikilink)
 }
 
-func FindFilesLastCheckedBefore(point time.Time, path string) ([]*File, error) {
+func (c *Collection) FindFilesLastCheckedBefore(point time.Time, path string) ([]*File, error) {
 	return QueryFiles(CurrentDB().Client(), `WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 // CountFiles returns the total number of files.
-func CountFiles() (int, error) {
+func (c *Collection) CountFiles() (int, error) {
 	db := CurrentDB().Client()
 
 	var count int
@@ -1057,12 +1015,7 @@ func CountFiles() (int, error) {
 
 /* SQL Helpers */
 
-type Queryable interface {
-	QueryRow(query string, args ...any) *sql.Row
-	Query(query string, args ...any) (*sql.Rows, error)
-}
-
-func QueryFile(db Queryable, whereClause string, args ...any) (*File, error) {
+func QueryFile(db SQLClient, whereClause string, args ...any) (*File, error) {
 	var f File
 	var rawFrontMatter string
 	var createdAt string
@@ -1137,7 +1090,7 @@ func QueryFile(db Queryable, whereClause string, args ...any) (*File, error) {
 	return &f, nil
 }
 
-func QueryFiles(db Queryable, whereClause string, args ...any) ([]*File, error) {
+func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) {
 	var files []*File
 
 	rows, err := db.Query(fmt.Sprintf(`

@@ -1,7 +1,6 @@
 package core
 
 import (
-	"context"
 	"fmt"
 	"io/fs"
 	"os"
@@ -229,11 +228,11 @@ func (c *Collection) Add(paths ...string) error {
 	traversedObjects := make(map[string]bool)
 
 	// Run all queries inside the same transaction
-	tx, err := db.Client().BeginTx(context.Background(), nil)
+	err := db.BeginTransaction()
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer db.RollbackTransaction()
 
 	// Traverse all given paths
 	for _, path := range paths {
@@ -252,7 +251,7 @@ func (c *Collection) Add(paths ...string) error {
 			if err != nil {
 				return err
 			}
-			parent, err := LoadFileByPath(tx, parentRelativePath)
+			parent, err := c.LoadFileByPath(parentRelativePath)
 			if err != nil {
 				return err
 			}
@@ -268,7 +267,7 @@ func (c *Collection) Add(paths ...string) error {
 				}
 			}
 			traversedObjects[file.UniqueOID()] = true
-			if err := file.Save(tx); err != nil {
+			if err := file.Save(); err != nil {
 				return nil
 			}
 
@@ -283,7 +282,7 @@ func (c *Collection) Add(paths ...string) error {
 					}
 				}
 				traversedObjects[object.UniqueOID()] = true
-				if err := object.Save(tx); err != nil {
+				if err := object.Save(); err != nil {
 					return err
 				}
 			}
@@ -302,7 +301,7 @@ func (c *Collection) Add(paths ...string) error {
 		// For example, when adding a file, it can contains references to medias stored in a directory outside the given path.
 		if path == CurrentConfig().RootDirectory { // nt add .
 			// As we walked the whole hierarchy, all medias must have be checked.
-			mediaDeletions, err := FindMediasLastCheckedBefore(buildTime)
+			mediaDeletions, err := CurrentCollection().FindMediasLastCheckedBefore(buildTime)
 			if err != nil {
 				return err
 			}
@@ -319,7 +318,7 @@ func (c *Collection) Add(paths ...string) error {
 	}
 
 	// Don't forget to commit
-	if err := tx.Commit(); err != nil {
+	if err := db.CommitTransaction(); err != nil {
 		return err
 	}
 	// And to persist the index
@@ -335,35 +334,35 @@ func (c *Collection) findObjectsLastCheckedBefore(buildTime time.Time, path stri
 	// Search for deleted objects...
 	var deletions []StatefulObject
 
-	links, err := FindLinksLastCheckedBefore(buildTime, path)
+	links, err := CurrentCollection().FindLinksLastCheckedBefore(buildTime, path)
 	if err != nil {
 		return nil, err
 	}
 	for _, object := range links {
 		deletions = append(deletions, object)
 	}
-	reminders, err := FindRemindersLastCheckedBefore(buildTime, path)
+	reminders, err := CurrentCollection().FindRemindersLastCheckedBefore(buildTime, path)
 	if err != nil {
 		return nil, err
 	}
 	for _, object := range reminders {
 		deletions = append(deletions, object)
 	}
-	flashcards, err := FindFlashcardsLastCheckedBefore(buildTime, path)
+	flashcards, err := CurrentCollection().FindFlashcardsLastCheckedBefore(buildTime, path)
 	if err != nil {
 		return nil, err
 	}
 	for _, object := range flashcards {
 		deletions = append(deletions, object)
 	}
-	notes, err := FindNotesLastCheckedBefore(buildTime, path)
+	notes, err := CurrentCollection().FindNotesLastCheckedBefore(buildTime, path)
 	if err != nil {
 		return nil, err
 	}
 	for _, object := range notes {
 		deletions = append(deletions, object)
 	}
-	files, err := FindFilesLastCheckedBefore(buildTime, path)
+	files, err := CurrentCollection().FindFilesLastCheckedBefore(buildTime, path)
 	if err != nil {
 		return nil, err
 	}

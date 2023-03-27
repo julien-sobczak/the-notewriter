@@ -2,7 +2,6 @@ package core
 
 import (
 	"bytes"
-	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -139,7 +138,7 @@ func NewMedia(relpath string) *Media {
 	return m
 }
 
-func (m *Media) Update() {
+func (m *Media) update() {
 	abspath := CurrentCollection().GetAbsolutePath(m.RelativePath)
 	stat, err := os.Stat(abspath)
 	dangling := errors.Is(err, os.ErrNotExist)
@@ -421,12 +420,12 @@ func ParseMedias(fileRelativePath, fileBody string) []*ParsedMedia {
 }
 
 func NewOrExistingMedia(relpath string) *Media {
-	media, err := FindMediaByRelativePath(relpath)
+	media, err := CurrentCollection().FindMediaByRelativePath(relpath)
 	if err != nil {
 		log.Fatal(err)
 	}
 	if media != nil {
-		media.Update()
+		media.update()
 		return media
 	}
 
@@ -435,34 +434,13 @@ func NewOrExistingMedia(relpath string) *Media {
 }
 
 func (m *Media) Check() error {
-	db := CurrentDB().Client()
-	tx, err := db.BeginTx(context.Background(), nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	err = m.CheckWithTx(tx)
-	if err != nil {
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
-	return nil
-
-}
-
-func (m *Media) CheckWithTx(tx *sql.Tx) error {
 	CurrentLogger().Debugf("Checking media %s...", m.RelativePath)
 	m.LastCheckedAt = clock.Now()
 	query := `
 		UPDATE media
 		SET last_checked_at = ?
 		WHERE oid = ?;`
-	_, err := tx.Exec(query,
+	_, err := CurrentDB().Client().Exec(query,
 		timeToSQL(m.LastCheckedAt),
 		m.OID,
 	)
@@ -470,19 +448,19 @@ func (m *Media) CheckWithTx(tx *sql.Tx) error {
 	return err
 }
 
-func (m *Media) Save(tx *sql.Tx) error {
+func (m *Media) Save() error {
 	var err error
 	m.UpdatedAt = clock.Now()
 	m.LastCheckedAt = clock.Now()
 	switch m.State() {
 	case Added:
-		err = m.InsertWithTx(tx)
+		err = m.Insert()
 	case Modified:
-		err = m.UpdateWithTx(tx)
+		err = m.Update()
 	case Deleted:
-		err = m.DeleteWithTx(tx)
+		err = m.Delete()
 	default:
-		err = m.CheckWithTx(tx)
+		err = m.Check()
 	}
 	if err != nil {
 		return err
@@ -492,7 +470,7 @@ func (m *Media) Save(tx *sql.Tx) error {
 	return nil
 }
 
-func (m *Media) InsertWithTx(tx *sql.Tx) error {
+func (m *Media) Insert() error {
 	CurrentLogger().Debugf("Inserting media %s...", m.RelativePath)
 	query := `
 		INSERT INTO media(
@@ -511,7 +489,7 @@ func (m *Media) InsertWithTx(tx *sql.Tx) error {
 		)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
-	_, err := tx.Exec(query,
+	_, err := CurrentDB().Client().Exec(query,
 		m.OID,
 		m.RelativePath,
 		m.MediaKind,
@@ -530,20 +508,20 @@ func (m *Media) InsertWithTx(tx *sql.Tx) error {
 	}
 
 	// Insert blobs
-	m.InsertBlobsWithTx(tx)
+	m.InsertBlobs()
 
 	return nil
 }
 
-func (m *Media) InsertBlobsWithTx(tx *sql.Tx) error {
-	if err := m.DeleteBlobsWithTx(tx); err != nil {
+func (m *Media) InsertBlobs() error {
+	if err := m.DeleteBlobs(); err != nil {
 		return err
 	}
 	for _, b := range m.BlobRefs {
 		// Blobs are immutable and their OID is determined using a hashsum.
 		// Two medias can contains the same content and share the same blobs.
 
-		blob, err := FindBlobFromOID(b.OID)
+		blob, err := CurrentCollection().FindBlobFromOID(b.OID)
 		if err != nil {
 			return err
 		}
@@ -568,7 +546,7 @@ func (m *Media) InsertBlobsWithTx(tx *sql.Tx) error {
 			)
 			VALUES (?, ?, ?, ?, ?);
 		`
-		_, err = tx.Exec(query,
+		_, err = CurrentDB().Client().Exec(query,
 			b.OID,
 			m.OID,
 			b.MimeType,
@@ -582,7 +560,7 @@ func (m *Media) InsertBlobsWithTx(tx *sql.Tx) error {
 	return nil
 }
 
-func (m *Media) UpdateWithTx(tx *sql.Tx) error {
+func (m *Media) Update() error {
 	CurrentLogger().Debugf("Updating media %s...", m.RelativePath)
 	query := `
 		UPDATE media
@@ -600,7 +578,7 @@ func (m *Media) UpdateWithTx(tx *sql.Tx) error {
 			last_checked_at = ?
 		WHERE oid = ?;
 	`
-	_, err := tx.Exec(query,
+	_, err := CurrentDB().Client().Exec(query,
 		m.RelativePath,
 		m.MediaKind,
 		m.Dangling,
@@ -616,46 +594,25 @@ func (m *Media) UpdateWithTx(tx *sql.Tx) error {
 	)
 
 	// Insert blobs
-	m.InsertBlobsWithTx(tx)
+	m.InsertBlobs()
 
 	return err
 }
 
 func (m *Media) Delete() error {
-	db := CurrentDB().Client()
-	tx, err := db.BeginTx(context.Background(), nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	err = m.DeleteWithTx(tx)
-	if err != nil {
-		return err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (m *Media) DeleteWithTx(tx *sql.Tx) error {
-	if err := m.DeleteBlobsWithTx(tx); err != nil {
+	if err := m.DeleteBlobs(); err != nil {
 		return err
 	}
 	CurrentLogger().Debugf("Deleting media %s...", m.RelativePath)
 	query := `DELETE FROM media WHERE oid = ?;`
-	_, err := tx.Exec(query, m.OID)
+	_, err := CurrentDB().Client().Exec(query, m.OID)
 	return err
 }
 
-func (m *Media) DeleteBlobsWithTx(tx *sql.Tx) error {
+func (m *Media) DeleteBlobs() error {
 	CurrentLogger().Debugf("Deleting blobs for media %s...", m.OID)
 	query := `DELETE FROM blob WHERE media_oid = ?;`
-	res, err := tx.Exec(query, m.OID)
+	res, err := CurrentDB().Client().Exec(query, m.OID)
 	if err != nil {
 		return err
 	}
@@ -668,46 +625,42 @@ func (m *Media) DeleteBlobsWithTx(tx *sql.Tx) error {
 }
 
 // CountMedias returns the total number of medias.
-func CountMedias() (int, error) {
-	db := CurrentDB().Client()
-
+func (c *Collection) CountMedias() (int, error) {
 	var count int
-	if err := db.QueryRow(`SELECT count(*) FROM media`).Scan(&count); err != nil {
+	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM media`).Scan(&count); err != nil {
 		return 0, err
 	}
 
 	return count, nil
 }
 
-func LoadMediaByOID(oid string) (*Media, error) {
-	return QueryMedia(`WHERE oid = ?`, oid)
+func (c *Collection) LoadMediaByOID(oid string) (*Media, error) {
+	return QueryMedia(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
-func FindMediaByRelativePath(relativePath string) (*Media, error) {
-	return QueryMedia(`WHERE relative_path = ?`, relativePath)
+func (c *Collection) FindMediaByRelativePath(relativePath string) (*Media, error) {
+	return QueryMedia(CurrentDB().Client(), `WHERE relative_path = ?`, relativePath)
 }
 
-func FindMediaByHash(hash string) (*Media, error) {
-	return QueryMedia(`WHERE hashsum = ?`, hash)
+func (c *Collection) FindMediaByHash(hash string) (*Media, error) {
+	return QueryMedia(CurrentDB().Client(), `WHERE hashsum = ?`, hash)
 }
 
-func FindMediasLastCheckedBefore(point time.Time) ([]*Media, error) {
-	return QueryMedias(`WHERE last_checked_at < ?`, timeToSQL(point))
+func (c *Collection) FindMediasLastCheckedBefore(point time.Time) ([]*Media, error) {
+	return QueryMedias(CurrentDB().Client(), `WHERE last_checked_at < ?`, timeToSQL(point))
 }
 
-func FindBlobsFromMedia(mediaOID string) ([]*BlobRef, error) {
-	return QueryBlobs("WHERE media_oid = ?", mediaOID)
+func (c *Collection) FindBlobsFromMedia(mediaOID string) ([]*BlobRef, error) {
+	return QueryBlobs(CurrentDB().Client(), "WHERE media_oid = ?", mediaOID)
 }
 
-func FindBlobFromOID(oid string) (*BlobRef, error) {
-	return QueryBlob("WHERE oid = ?", oid)
+func (c *Collection) FindBlobFromOID(oid string) (*BlobRef, error) {
+	return QueryBlob(CurrentDB().Client(), "WHERE oid = ?", oid)
 }
 
 /* SQL Helpers */
 
-func QueryMedia(whereClause string, args ...any) (*Media, error) {
-	db := CurrentDB().Client()
-
+func QueryMedia(db SQLClient, whereClause string, args ...any) (*Media, error) {
 	var m Media
 	var createdAt string
 	var updatedAt string
@@ -757,7 +710,7 @@ func QueryMedia(whereClause string, args ...any) (*Media, error) {
 	m.MTime = timeFromSQL(mTime)
 
 	// Load blobs
-	blobs, err := FindBlobsFromMedia(m.OID)
+	blobs, err := CurrentCollection().FindBlobsFromMedia(m.OID)
 	if err != nil {
 		return nil, err
 	}
@@ -766,9 +719,7 @@ func QueryMedia(whereClause string, args ...any) (*Media, error) {
 	return &m, nil
 }
 
-func QueryMedias(whereClause string, args ...any) ([]*Media, error) {
-	db := CurrentDB().Client()
-
+func QueryMedias(db SQLClient, whereClause string, args ...any) ([]*Media, error) {
 	var medias []*Media
 
 	rows, err := db.Query(fmt.Sprintf(`
@@ -822,7 +773,7 @@ func QueryMedias(whereClause string, args ...any) ([]*Media, error) {
 		m.MTime = timeFromSQL(mTime)
 
 		// Load blobs
-		blobs, err := FindBlobsFromMedia(m.OID)
+		blobs, err := CurrentCollection().FindBlobsFromMedia(m.OID)
 		if err != nil {
 			return nil, err
 		}
@@ -839,9 +790,7 @@ func QueryMedias(whereClause string, args ...any) ([]*Media, error) {
 	return medias, err
 }
 
-func QueryBlob(whereClause string, args ...any) (*BlobRef, error) {
-	db := CurrentDB().Client()
-
+func QueryBlob(db SQLClient, whereClause string, args ...any) (*BlobRef, error) {
 	var b BlobRef
 	var attributesRaw string
 	var tagsRaw string
@@ -878,9 +827,7 @@ func QueryBlob(whereClause string, args ...any) (*BlobRef, error) {
 	return &b, nil
 }
 
-func QueryBlobs(whereClause string, args ...any) ([]*BlobRef, error) {
-	db := CurrentDB().Client()
-
+func QueryBlobs(db SQLClient, whereClause string, args ...any) ([]*BlobRef, error) {
 	var blobs []*BlobRef
 
 	rows, err := db.Query(fmt.Sprintf(`
