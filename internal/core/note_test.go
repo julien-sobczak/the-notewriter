@@ -12,6 +12,8 @@ import (
 )
 
 func TestNewNoteQuote(t *testing.T) {
+	// TODO migrate to TestPostProcessing?
+	SetUpCollectionFromTempDir(t)
 	f := NewEmptyFile("example.md")
 	f.SetAttribute("tags", []string{"favorite"})
 	f.SetAttribute("name", "Austin Kleon")
@@ -24,123 +26,6 @@ func TestNewNoteQuote(t *testing.T) {
 	// FIXME https://stackoverflow.com/a/49212532 put the author in <p> outside the blockquote
 	assert.Equal(t, "\"When people give you advice, they’re really just talking to themselves in the past.\n-- Austin Kleon\"", note.ContentText)
 	// FIXME put the author output the quotation marks
-}
-
-func TestMergeTags(t *testing.T) {
-	var tests = []struct {
-		name     string // name
-		inputA   []string
-		inputB   []string
-		expected []string
-	}{
-		{
-			"empty slices",
-			nil,
-			nil,
-			nil,
-		},
-		{
-			"empty slice",
-			[]string{"favorite"},
-			nil,
-			[]string{"favorite"},
-		},
-		{
-			"single value",
-			[]string{"favorite"},
-			[]string{"life-changing"},
-			[]string{"favorite", "life-changing"},
-		},
-		{
-			"multiple values",
-			[]string{"a", "b"},
-			[]string{"c", "d"},
-			[]string{"a", "b", "c", "d"},
-		},
-		{
-			"duplicates",
-			[]string{"a", "b"},
-			[]string{"b", "c"},
-			[]string{"a", "b", "c"},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			actual := mergeTags(tt.inputA, tt.inputB)
-			assert.Equal(t, tt.expected, actual)
-		})
-	}
-}
-
-func TestMergeAttributes(t *testing.T) {
-	var tests = []struct {
-		name     string // name
-		inputA   map[string]interface{}
-		inputB   map[string]interface{}
-		expected map[string]interface{}
-	}{
-		{
-			"nil maps",
-			nil,
-			nil,
-			nil,
-		},
-		{
-			"append in slices",
-			map[string]interface{}{
-				"tags": []string{"a", "b"},
-			},
-			map[string]interface{}{
-				"tags": "c",
-			},
-			map[string]interface{}{
-				"tags": []string{"a", "b", "c"},
-			},
-		},
-		{
-			"append in slices",
-			map[string]interface{}{
-				"tags": []string{"a", "b"},
-			},
-			map[string]interface{}{
-				"tags": []string{"c", "d"},
-			},
-			map[string]interface{}{
-				"tags": []string{"a", "b", "c", "d"},
-			},
-		},
-		{
-			"override basic value",
-			map[string]interface{}{
-				"tags": "a",
-			},
-			map[string]interface{}{
-				"tags": "b",
-			},
-			map[string]interface{}{
-				"tags": "b",
-			},
-		},
-		{
-			"add new keys",
-			map[string]interface{}{
-				"a": "a",
-			},
-			map[string]interface{}{
-				"b": "b",
-			},
-			map[string]interface{}{
-				"a": "a",
-				"b": "b",
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			actual := mergeAttributes(tt.inputA, tt.inputB)
-			assert.Equal(t, tt.expected, actual)
-		})
-	}
 }
 
 func TestParsing(t *testing.T) {
@@ -157,8 +42,11 @@ func TestParsing(t *testing.T) {
 				input: "\n" +
 					"`#favorite` `#life-changing` `#0Aa-1Bb`\n" +
 					"\n",
-				tags:       []string{"favorite", "life-changing", `0Aa-1Bb`},
-				attributes: nil,
+				tags: []string{"favorite", "life-changing", `0Aa-1Bb`},
+				attributes: map[string]interface{}{
+					"tags":  []interface{}{"favorite", "life-changing", `0Aa-1Bb`},
+					"title": "Only tags",
+				},
 			},
 
 			{
@@ -171,6 +59,7 @@ func TestParsing(t *testing.T) {
 					"isbn":   "9780807014271",
 					"name":   "Viktor Frankl",
 					"source": "https://en.wikipedia.org/wiki/Man%27s_Search_for_Meaning",
+					"title":  "Only attributes",
 				},
 			},
 
@@ -181,8 +70,10 @@ func TestParsing(t *testing.T) {
 					"\n",
 				tags: []string{"favorite", "life-changing"},
 				attributes: map[string]interface{}{
-					"isbn": "9780807014271",
-					"name": "Viktor Frankl",
+					"isbn":  "9780807014271",
+					"name":  "Viktor Frankl",
+					"tags":  []interface{}{"favorite", "life-changing"},
+					"title": "Mixed on single lines",
 				},
 			},
 
@@ -194,28 +85,32 @@ func TestParsing(t *testing.T) {
 					"\n",
 				tags: []string{"favorite", "life-changing"},
 				attributes: map[string]interface{}{
-					"isbn": "9780807014271",
-					"name": "Viktor Frankl",
+					"isbn":  "9780807014271",
+					"name":  "Viktor Frankl",
+					"tags":  []interface{}{"favorite", "life-changing"},
+					"title": "Mixed on different lines",
 				},
 			},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				tags, attributes := extractBlockTagsAndAttributes(tt.input)
+				SetUpCollectionFromTempDir(t)
+				file := NewEmptyFile("example.md")
+				actual := NewNote(file, nil, tt.name, tt.input, 10)
 				if len(tt.tags) == 0 {
 					tt.tags = nil
 				}
-				if len(tags) == 0 {
-					tags = nil
+				if len(actual.Tags) == 0 {
+					actual.Tags = nil
 				}
 				if len(tt.attributes) == 0 {
 					tt.attributes = nil
 				}
-				if len(attributes) == 0 {
-					attributes = nil
+				if len(actual.Attributes) == 0 {
+					actual.Attributes = nil
 				}
-				assert.EqualValues(t, tt.tags, tags)
-				assert.EqualValues(t, tt.attributes, attributes)
+				assert.EqualValues(t, tt.tags, actual.Tags)
+				assert.EqualValues(t, tt.attributes, actual.Attributes)
 			})
 		}
 	})
@@ -276,8 +171,8 @@ Quality means doing it right when no one is looking.`,
 			{
 				name: "Quote: With attribute",
 				input: `
-`+ "`@source: https://jamesclear.com/3-2-1/july-14-2022`" + `
-`+ "`@author: James Clear`" + `
+` + "`@source: https://jamesclear.com/3-2-1/july-14-2022`" + `
+` + "`@author: James Clear`" + `
 
 Knowledge is making the right choice with all the information.
 Wisdom is making the right choice without all the information.
@@ -289,6 +184,7 @@ Wisdom is making the right choice without all the information.
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
+				SetUpCollectionFromTempDir(t)
 				file := NewEmptyFile("example.md")
 				actual := NewNote(file, nil, tt.name, tt.input, 10)
 				content := actual.parseContentRaw()
@@ -399,6 +295,7 @@ func TestGetReminders(t *testing.T) {
 }
 
 func TestNoteFormat(t *testing.T) {
+	SetUpCollectionFromTempDir(t)
 	UseFixedOID(t, "16252dafd6355e678bf8ae44b127f657cd3cdd0e")
 
 	var tests = []struct {
@@ -487,11 +384,14 @@ func TestSearchNotes(t *testing.T) {
 }
 
 func TestNote(t *testing.T) {
-	// Make tests reproductible
-	UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
-	FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
 
 	t.Run("YAML", func(t *testing.T) {
+		SetUpCollectionFromTempDir(t)
+
+		// Make tests reproductible
+		UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
+		FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
+
 		noteSrc := NewNote(NewEmptyFile("example.md"), nil, "TODO: Backlog", "* [ ] Test", 2)
 
 		// Marshall

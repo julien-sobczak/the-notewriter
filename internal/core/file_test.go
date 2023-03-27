@@ -5,7 +5,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -13,7 +12,6 @@ import (
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 )
 
 func TestFrontMatterString(t *testing.T) {
@@ -41,6 +39,7 @@ key2: 2`,
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			SetUpCollectionFromTempDir(t)
 			file := NewFileFromAttributes(nil, "", tt.input)
 			actual, err := file.FrontMatterString()
 			require.NoError(t, err)
@@ -50,8 +49,9 @@ key2: 2`,
 }
 
 func TestNewFile(t *testing.T) {
+	SetUpCollectionFromTempDir(t)
 	f := NewEmptyFile("")
-	f.SetAttribute("tags", []string{"toto"})
+	f.SetAttribute("tags", []interface{}{"toto"})
 
 	assert.Equal(t, []interface{}{"toto"}, f.GetAttribute("tags"))
 	assert.Equal(t, []string{"toto"}, f.GetTags())
@@ -590,7 +590,8 @@ func TestFile(t *testing.T) {
 		})
 		actual := child.GetAttributes()
 		expected := map[string]interface{}{
-			"tags": []interface{}{"go", "language"},
+			"source": "go.dev", // File attributes are inheritable between files.
+			"tags":   []interface{}{"go", "language"},
 		}
 		assert.Equal(t, expected, actual)
 	})
@@ -615,6 +616,9 @@ oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
 relative_path: go.md
 wikilink: go
 front_matter:
+    tags:
+        - go
+attributes:
     tags:
         - go
 body: |-
@@ -667,54 +671,7 @@ updated_at: 2023-01-01T01:12:30Z
 
 }
 
-func TestToREMOVE(t *testing.T) {
-	input := `
-tags:
-- programming
-- test
-`
-	data := make(map[string]interface{})
-	err := yaml.Unmarshal([]byte(input), data)
-	require.NoError(t, err)
-
-	result := make(map[string]interface{})
-	for key, value := range data {
-		switch v := value.(type) {
-		case []interface{}:
-			var typeElem reflect.Type
-			sameType := true
-			// Check if all elements have the same type
-			for _, elem := range v {
-				newTypeElem := reflect.TypeOf(elem)
-				if typeElem == nil {
-					typeElem = newTypeElem
-				} else if typeElem != newTypeElem {
-					sameType = false
-				}
-			}
-			if sameType {
-				// Recreate a new slice using the right type
-				slice := reflect.MakeSlice(reflect.SliceOf(typeElem), 0, 0)
-				for _, elem := range v {
-					elemValue := reflect.ValueOf(elem)
-					slice = reflect.Append(slice, elemValue)
-				}
-				result[key] = slice.Interface()
-			} else {
-				// Stay with the []interface{} type...
-				result[key] = value
-			}
-		default:
-			result[key] = value
-		}
-	}
-
-	assert.IsType(t, []interface{}{}, data["tags"])
-	assert.Equal(t, []string{"programming", "test"}, result["tags"])
-}
-
 func TestInheritance(t *testing.T) {
-	// TODO now debug
 	SetUpCollectionFromGoldenDir(t)
 
 	err := CurrentCollection().Add(".")
@@ -736,55 +693,54 @@ func TestInheritance(t *testing.T) {
 
 	assert.EqualValues(t, map[string]interface{}{
 		"source": "https://github.com/julien-sobczak/the-notetaker",
-		"tags":   []string{"test"},
+		"tags":   []interface{}{"test"},
 	}, fileIndex.GetAttributes())
 	assert.EqualValues(t, map[string]interface{}{
-		"tags": []string{"go"},
+		"tags": []interface{}{"go"},
 	}, fileGoIndex.GetAttributes())
 	assert.EqualValues(t, map[string]interface{}{
 		"subject": "language",
-		"tags":    []string{"go", "programming"},
+		"tags":    []interface{}{"go", "programming"},
 	}, fileGoGeneral.GetAttributes())
 	assert.EqualValues(t, map[string]interface{}{
-		"tags": []string{"go"},
+		"tags": []interface{}{"go"},
 	}, fileGoGoroutines.GetAttributes())
 
 	// Check how attributes and tags are inherited in notes
-	languagesNotes, err := SearchNotes("path:skills/go/language.md")
+	generalNotes, err := SearchNotes("path:skills/go/general.md")
 	require.NoError(t, err)
-	require.Len(t, languagesNotes, 1)
+	require.Len(t, generalNotes, 2)
 	goroutinesNotes, err := SearchNotes("path:skills/go/goroutines.md")
 	require.NoError(t, err)
 	require.Len(t, goroutinesNotes, 1)
 
-	historyNote := languagesNotes[0]
+	historyNote := generalNotes[0]
 	require.Equal(t, "History", historyNote.ShortTitle)
-	assert.EqualValues(t, []string{"go", "history"}, historyNote.GetTags())
+	assert.EqualValues(t, []string{"go", "programming", "history"}, historyNote.GetTags())
 	assert.EqualValues(t, map[string]interface{}{
 		"subject": "language", // Inherited from file
 		"source":  "https://en.wikipedia.org/wiki/Go_(programming_language)",
-		"tags":    []interface{}{"go", "history"},
+		"tags":    []interface{}{"go", "programming", "history"},
 		"title":   "History", // Copied from note's title
 	}, historyNote.GetAttributes())
 
-	creationNote := languagesNotes[1]
-	require.Equal(t, "Golang Creation", creationNote)
-	assert.EqualValues(t, []string{"go", "history"}, creationNote.GetTags())
+	creationNote := generalNotes[1]
+	require.Equal(t, "Golang creation", creationNote.ShortTitle)
+	assert.EqualValues(t, []string{"go", "programming", "history"}, creationNote.GetTags())
 	assert.EqualValues(t, map[string]interface{}{
 		"subject": "language",
-		"source":  "https://en.wikipedia.org/wiki/Go_(programming_language)",
-		"tags":    []interface{}{"go", "history"},
-		"title":   "Golang Creation", // Specific attribute is preserved if defined explicitely
+		// source is not inheritable
+		"tags":  []interface{}{"go", "programming", "history"}, // Inherited from parent note
+		"title": "Golang Creation",                             // Specific attribute is preserved if defined explicitely
 	}, creationNote.GetAttributes())
 
 	goroutineNote := goroutinesNotes[0]
-	require.Equal(t, "Start a goroutine", historyNote.ShortTitle)
-	assert.EqualValues(t, []string{"go", "history"}, goroutineNote.GetTags())
+	require.Equal(t, "Start a goroutine", goroutineNote.ShortTitle)
+	assert.EqualValues(t, []string{"go"}, goroutineNote.GetTags())
 	assert.EqualValues(t, map[string]interface{}{
-		"subject": "language",
-		"source":  "https://en.wikipedia.org/wiki/Go_(programming_language)",
-		"tags":    []interface{}{"go", "history"},
-		"title":   "Golang Creation", // Specific attribute is preserved if defined explicitely
+		"example": "https://go.dev/tour/concurrency/1",
+		"tags":    []interface{}{"go"},
+		"title":   "Start a goroutine", // Specific attribute is preserved if defined explicitely
 	}, goroutineNote.GetAttributes())
 }
 

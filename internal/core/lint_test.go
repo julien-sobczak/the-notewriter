@@ -95,6 +95,7 @@ func TestNoDuplicateNoteTitle(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []*Violation{
 		{
+			Name:         "no-duplicate-note-title",
 			RelativePath: "no-duplicate-note-title.md",
 			Message:      `duplicated note with title "Long title must be unique inside a file"`,
 			Line:         15,
@@ -112,11 +113,13 @@ func TestMinLinesBetweenNotes(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []*Violation{
 		{
+			Name:         "min-lines-between-notes",
 			RelativePath: "min-lines-between-notes.md",
 			Message:      `missing blank lines before note "Note: Two"`,
 			Line:         7,
 		},
 		{
+			Name:         "min-lines-between-notes",
 			RelativePath: "min-lines-between-notes.md",
 			Message:      `missing blank lines before note "Note: Four"`,
 			Line:         15,
@@ -134,11 +137,13 @@ func TestNoteTitleMatch(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []*Violation{
 		{
+			Name:         "note-title-match",
 			RelativePath: "note-title-match.md",
 			Message:      `note title "Reference : Example" does not match regex "^(Note|Reference):\\s\\S.*$"`,
 			Line:         7,
 		},
 		{
+			Name:         "note-title-match",
 			RelativePath: "note-title-match.md",
 			Message:      `note title "reference: Example" does not match regex "^(Note|Reference):\\s\\S.*$"`,
 			Line:         11,
@@ -156,6 +161,7 @@ func TestNoFreeNote(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []*Violation{
 		{
+			Name:         "no-free-note",
 			RelativePath: "no-free-note.md",
 			Message:      `free note "A free note" not allowed`,
 			Line:         3,
@@ -173,11 +179,13 @@ func TestNoDanglingMedia(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []*Violation{
 		{
+			Name:         "no-dangling-media",
 			RelativePath: "no-dangling-media.md",
 			Message:      `dangling media pic.jpeg detected in no-dangling-media.md`,
 			Line:         3,
 		},
 		{
+			Name:         "no-dangling-media",
 			RelativePath: "no-dangling-media.md",
 			Message:      `dangling media no-dangling-media/pic.jpg detected in no-dangling-media.md`,
 			Line:         5,
@@ -195,26 +203,31 @@ func TestNoDeadWikilink(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []*Violation{
 		{
+			Name:         "no-dead-wikilink",
 			RelativePath: "no-dead-wikilink.md",
 			Message:      "section not found for wikilink [[#B]]",
 			Line:         5,
 		},
 		{
+			Name:         "no-dead-wikilink",
 			RelativePath: "no-dead-wikilink.md",
 			Message:      "section not found for wikilink [[no-dead-wikilink/sub/file#An Unknown Note]]",
 			Line:         12,
 		},
 		{
+			Name:         "no-dead-wikilink",
 			RelativePath: "no-dead-wikilink.md",
 			Message:      "file not found for wikilink [[no-dead-wikilink/sub/unknown]]",
 			Line:         13,
 		},
 		{
+			Name:         "no-dead-wikilink",
 			RelativePath: "no-dead-wikilink.md",
 			Message:      "file not found for wikilink [[sub/unknown]]",
 			Line:         14,
 		},
 		{
+			Name:         "no-dead-wikilink",
 			RelativePath: "no-dead-wikilink.md",
 			Message:      "file not found for wikilink [[unknown.md]]",
 			Line:         15,
@@ -232,16 +245,19 @@ func TestNoExtensionWikilink(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []*Violation{
 		{
+			Name:         "no-extension-wikilink",
 			RelativePath: "no-extension-wikilink.md",
 			Message:      `extension found in wikilink [[no-extension-wikilink.md#Note: Link 1]]`,
 			Line:         13,
 		},
 		{
+			Name:         "no-extension-wikilink",
 			RelativePath: "no-extension-wikilink.md",
 			Message:      `extension found in wikilink [[no-extension-wikilink.md]]`,
 			Line:         21,
 		},
 		{
+			Name:         "no-extension-wikilink",
 			RelativePath: "no-extension-wikilink.md",
 			Message:      `extension found in wikilink [[dir/dangling/file.md]]`,
 			Line:         25,
@@ -259,11 +275,13 @@ func TestNoAmbiguousWikilink(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []*Violation{
 		{
+			Name:         "no-ambiguous-wikilink",
 			RelativePath: "no-ambiguous-wikilink.md",
 			Message:      `ambiguous reference for wikilink [[books.md]]`,
 			Line:         3,
 		},
 		{
+			Name:         "no-ambiguous-wikilink",
 			RelativePath: "no-ambiguous-wikilink.md",
 			Message:      `ambiguous reference for wikilink [[books.md#Treasure Island by Robert Louis Stevenson]]`,
 			Line:         6,

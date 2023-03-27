@@ -11,11 +11,13 @@ import (
 )
 
 func TestLink(t *testing.T) {
-	// Make tests reproductible
-	UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
-	FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
 
 	t.Run("YAML", func(t *testing.T) {
+		SetUpCollectionFromTempDir(t)
+		// Make tests reproductible
+		UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
+		FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
+
 		noteSrc := NewNote(NewEmptyFile("example.md"), nil, "TODO: Backlog", "* [ ] Test", 2)
 		linkSrc := NewLink(noteSrc, "click here", "https://www.google.com", "", "g")
 

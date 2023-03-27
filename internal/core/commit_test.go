@@ -134,6 +134,7 @@ commits:
 }
 
 func TestObjectData(t *testing.T) {
+	SetUpCollectionFromTempDir(t)
 	noteSrc := NewNote(NewEmptyFile("todo.md"), nil, "TODO: Backlog", "* [ ] Test ObjectData", 2)
 	dataSrc, err := NewObjectData(noteSrc)
 	require.NoError(t, err)

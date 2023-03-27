@@ -34,7 +34,7 @@ type File struct {
 	OID string `yaml:"oid"`
 
 	// Optional parent file (= index.md)
-	ParentFileOID string `yaml:"file_oid"`
+	ParentFileOID string `yaml:"file_oid,omitempty"`
 	ParentFile    *File  `yaml:"-"` // Lazy-loaded
 
 	// A relative path to the collection directory
@@ -129,6 +129,7 @@ func NewFileFromPath(parent *File, filepath string) (*File, error) {
 		Hash:         helpers.Hash(parsedFile.Bytes),
 		MTime:        parsedFile.LStat.ModTime(),
 		Attributes:   make(map[string]interface{}),
+		FrontMatter:  parsedFile.FrontMatter,
 		Body:         parsedFile.Body,
 		BodyLine:     parsedFile.BodyLine,
 		CreatedAt:    clock.Now(),
@@ -140,9 +141,6 @@ func NewFileFromPath(parent *File, filepath string) (*File, error) {
 		file.ParentFileOID = parent.OID
 		file.ParentFile = parent
 	}
-	if parsedFile.FrontMatter.Kind > 0 { // Happen when no Front Matter is present
-		file.FrontMatter = parsedFile.FrontMatter.Content[0]
-	}
 	newAttributes := parsedFile.FileAttributes
 	if parent != nil {
 		newAttributes = file.mergeAttributes(parent.GetAttributes(), newAttributes)
@@ -153,37 +151,24 @@ func NewFileFromPath(parent *File, filepath string) (*File, error) {
 }
 
 func (f *File) mergeAttributes(attributes ...map[string]interface{}) map[string]interface{} {
-	results := make(map[string]interface{})
-	for _, attributesSet := range attributes {
-		for key, value := range attributesSet {
-			_, ok := results[key]
-
-			// Still not present, simply add the new value
-			if !ok {
-				results[key] = value
-				continue
-			}
-
-			if IsArray(results[key]) {
-				if arrayValue, ok := value.([]string); ok {
-					arrayResult := results[key].([]string)
-					arrayResult = append(arrayResult, arrayValue...)
-					results[key] = arrayResult
-				}
-				if arrayValue, ok := value.([]interface{}); ok {
-					arrayResult := results[key].([]interface{})
-					arrayResult = append(arrayResult, arrayValue...)
-					results[key] = arrayResult
-				}
-				// Other types are not supported... override for now.
-				results[key] = value
-			} else {
-				// TODO now merge values!!!!
-				results[key] = value
-			}
-		}
-	}
-	return results
+	// File attributes are always inheritable to top level-notes
+	// (NB: `source` is configured to be non-inheritable).
+	//
+	// Ex:
+	//   ---
+	//   source: XXX
+	//   ---
+	//   # Example
+	//   ## Note: Parent
+	//   ### Note: Child
+	//
+	// Is the same as:
+	//
+	//   # Example
+	//   ## Note: Parent
+	//   `@source:XXX`
+	//   ### Note: Child
+	return MergeAttributes(attributes...)
 }
 
 /* Object */
@@ -403,7 +388,9 @@ func (f *File) SetAttribute(key string, value interface{}) {
 	}
 
 	// Don't forget to append in parsed attributes too
-	f.Attributes[key] = value
+	newAttributes := map[string]interface{}{key: value}
+	newAttributes = CastAttributes(newAttributes, GetSchemaAttributeTypes())
+	f.Attributes = MergeAttributes(f.Attributes, newAttributes)
 }
 
 // GetTags returns all defined tags.
@@ -567,7 +554,7 @@ func ParseNotes(fileBody string) []*ParsedNote {
 
 		noteContent := text.ExtractLines(fileBody, lineStart, lineEnd)
 
-		tags, attributes := extractBlockTagsAndAttributes(noteContent)
+		tags, attributes := ExtractBlockTagsAndAttributes(noteContent)
 
 		notes = append(notes, &ParsedNote{
 			Level:          section.level,
@@ -575,7 +562,7 @@ func ParseNotes(fileBody string) []*ParsedNote {
 			LongTitle:      section.longTitle,
 			ShortTitle:     section.shortTitle,
 			Line:           section.lineNumber,
-			NoteAttributes: CastAttributes(attributes),
+			NoteAttributes: CastAttributes(attributes, GetSchemaAttributeTypes()),
 			NoteTags:       tags,
 			Body:           noteContent,
 		})
@@ -734,7 +721,7 @@ func ParseFile(filepath string) (*ParsedFile, error) {
 		LStat:          lstat,
 		Bytes:          contentBytes,
 		FrontMatter:    frontMatter,
-		FileAttributes: CastAttributes(attributes),
+		FileAttributes: CastAttributes(attributes, GetSchemaAttributeTypes()),
 		Body:           strings.TrimSpace(rawContent.String()),
 		BodyLine:       bodyStartLineNumber,
 	}, nil

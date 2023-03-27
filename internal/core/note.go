@@ -267,7 +267,7 @@ func (n *Note) Updated() bool {
 /* Parsing */
 
 func (n *Note) parseContentRaw() string {
-	content := stripBlockTagsAndAttributes(n.ContentRaw)
+	content := StripBlockTagsAndAttributes(n.ContentRaw)
 	content = n.expandSyntaxSugar(content)
 
 	return content
@@ -277,12 +277,8 @@ func (n *Note) updateContent(rawContent string) {
 	n.ContentRaw = strings.TrimSpace(rawContent)
 	n.Hash = helpers.Hash([]byte(n.ContentRaw))
 
-	tags, attributes := extractBlockTagsAndAttributes(n.ContentRaw)
+	tags, attributes := ExtractBlockTagsAndAttributes(n.ContentRaw)
 
-	// Append tags in attributes (tags are attributes with syntaxic sugar)
-	if len(tags) > 0 {
-		attributes["tags"] = tags
-	}
 	// Append note title in a attribute title if not already present
 	if _, ok := attributes["title"]; !ok {
 		attributes["title"] = n.ShortTitle
@@ -314,96 +310,21 @@ func (n *Note) updateContent(rawContent string) {
 
 // mergeAttributes is similar to generic mergeAttributes function but filter to exclude non-inheritable attributes.
 func (n *Note) mergeAttributes(fileAttributes, parentNoteAttributes, noteAttributes map[string]interface{}) map[string]interface{} {
-	definitions := GetSchemaAttributes(n.RelativePath, n.NoteKind)
-
-	attributeTypes := make(map[string]string)
-	attributeInherit := make(map[string]bool)
-	for _, definition := range definitions {
-		attributeTypes[definition.Name] = definition.Type
-		attributeInherit[definition.Name] = *definition.Inherit
-	}
-
-	results := make(map[string]interface{})
-
-	// Process file attributes
-	for key, value := range fileAttributes {
-		results[key] = value
-	}
-
-	// Process parent note attributes
-	for key, value := range parentNoteAttributes {
-		// Skip non inheritable attributes
-		if !attributeInherit[key] {
-			continue
-		}
-
-		_, ok := results[key]
-
-		// Still not present, simply add the new value
-		if !ok {
-			results[key] = value
-			continue
-		}
-
-		if IsArray(results[key]) {
-			if arrayValue, ok := value.([]string); ok {
-				arrayResult := results[key].([]string)
-				arrayResult = append(arrayResult, arrayValue...)
-				results[key] = arrayResult
-			}
-			if arrayValue, ok := value.([]interface{}); ok {
-				arrayResult := results[key].([]interface{})
-				arrayResult = append(arrayResult, arrayValue...)
-				results[key] = arrayResult
-			}
-			// Other types are not supported... override for now.
-			results[key] = value
-		} else {
-			results[key] = value
-		}
-	}
-
-	// Process note own attributes
-	for key, value := range noteAttributes {
-		_, ok := results[key]
-
-		// Still not present, simply add the new value
-		if !ok {
-			results[key] = value
-			continue
-		}
-
-		// Can require to merge values
-		if IsArray(results[key]) {
-			if arrayValue, ok := value.([]string); ok {
-				arrayResult := results[key].([]string)
-				arrayResult = append(arrayResult, arrayValue...)
-				results[key] = arrayResult
-			}
-			if arrayValue, ok := value.([]interface{}); ok {
-				arrayResult := results[key].([]interface{})
-				arrayResult = append(arrayResult, arrayValue...)
-				results[key] = arrayResult
-			}
-			// Other types are not supported... override for now.
-			results[key] = value
-		} else {
-			results[key] = value
-		}
-	}
-
-	return results
+	inheritableFileAttributes := fileAttributes
+	inheritableParentNoteAttributes := FilterNonInheritableAttributes(parentNoteAttributes, n.RelativePath, n.NoteKind)
+	ownAttributes := noteAttributes
+	return MergeAttributes(inheritableFileAttributes, inheritableParentNoteAttributes, ownAttributes)
 }
 
 // GetNoteAttributes returns the attributes specifically present on the note.
 func (n *Note) GetNoteAttributes() map[string]interface{} {
-	_, attributes := extractBlockTagsAndAttributes(n.ContentRaw)
-	return CastAttributes(attributes)
+	_, attributes := ExtractBlockTagsAndAttributes(n.ContentRaw)
+	return CastAttributes(attributes, GetSchemaAttributeTypes())
 }
 
 // GetNoteTags returns the tags specifically present on the note.
 func (n *Note) GetNoteTags() []string {
-	tags, _ := extractBlockTagsAndAttributes(n.ContentRaw)
+	tags, _ := ExtractBlockTagsAndAttributes(n.ContentRaw)
 	return tags
 }
 
@@ -500,7 +421,7 @@ func isSupportedNote(text string) (bool, NoteKind, string) {
 		return true, KindArtwork, m[1]
 	}
 	// FIXME what about Journal notes?
-	return false, KindFree, ""
+	return false, KindFree, text
 }
 
 func (n *Note) expandSyntaxSugar(rawContent string) string {
@@ -550,65 +471,6 @@ func (n *Note) expandSyntaxSugar(rawContent string) string {
 	}
 
 	return rawContent
-}
-
-// extractBlockTagsAndAttributes searches for all tags and attributes declared on standalone lines
-// (in comparison with tags/attributes defined, for example, on To-Do list items).
-func extractBlockTagsAndAttributes(content string) ([]string, map[string]interface{}) {
-
-	// Collect tags and attributes
-	var tags []string
-	var attributes map[string]interface{} = make(map[string]interface{})
-
-	lines := strings.Split(content, "\n")
-	for _, line := range lines {
-
-		// only tags and attributes?
-		if text.IsBlank(line) || !regexBlockTagAttributesLine.MatchString(line) {
-			continue
-		}
-
-		// Append tags and attributes to collected ones
-		matches := regexTags.FindAllStringSubmatch(line, -1)
-		for _, match := range matches {
-			tags = append(tags, match[1])
-		}
-		matches = regexAttributes.FindAllStringSubmatch(line, -1)
-		for _, match := range matches {
-			attributes[match[1]] = match[2]
-		}
-	}
-
-	return tags, attributes
-}
-
-// stripTagsAndAttributes remove all tags and attributes.
-func stripBlockTagsAndAttributes(content string) string {
-	var res bytes.Buffer
-
-	lines := strings.Split(content, "\n")
-	for _, line := range lines {
-
-		// not only tags and attributes?
-		if text.IsBlank(line) || !regexBlockTagAttributesLine.MatchString(line) {
-			res.WriteString(line + "\n")
-		}
-	}
-
-	return strings.TrimSpace(text.SquashBlankLines(res.String()))
-}
-
-// removeTagsAndAttributes removes all tags and attributes from a text.
-func removeTagsAndAttributes(content string) string {
-	var res bytes.Buffer
-	for _, line := range strings.Split(content, "\n") {
-		newLine := regexTags.ReplaceAllLiteralString(line, "")
-		newLine = regexAttributes.ReplaceAllLiteralString(newLine, "")
-		if !text.IsBlank(newLine) {
-			res.WriteString(newLine + "\n")
-		}
-	}
-	return strings.TrimSpace(text.SquashBlankLines(res.String()))
 }
 
 /* Sub Objects */
@@ -663,7 +525,7 @@ func (n *Note) GetReminders() []*Reminder {
 			submatch := reList.FindStringSubmatch(line)
 			if submatch != nil {
 				// Reminder for a list element
-				description = removeTagsAndAttributes(submatch[1]) // Remove tags
+				description = RemoveTagsAndAttributes(submatch[1]) // Remove tags
 			}
 
 			reminder, err := NewOrExistingReminder(n, description, tag)
@@ -1022,14 +884,14 @@ func SearchNotes(q string) ([]*Note, error) {
 		querySQL.WriteString(") ")
 	}
 	if path != "" {
-		querySQL.WriteString(fmt.Sprintf("AND note.relative_path LIKE '%s' ", path+"?"))
+		querySQL.WriteString(fmt.Sprintf("AND note.relative_path LIKE '%s' ", path+"%"))
 	}
 	if len(terms) > 0 {
 		querySQL.WriteString(fmt.Sprintf("AND note_fts MATCH '%s' ", strings.Join(terms, " AND ")))
 	}
 
 	querySQL.WriteString("ORDER BY rank LIMIT 10;")
-	fmt.Println(querySQL.String())
+	CurrentLogger().Debug(querySQL.String())
 	queryFTS, err := db.Prepare(querySQL.String())
 	if err != nil {
 		return nil, err
