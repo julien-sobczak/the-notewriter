@@ -148,172 +148,196 @@ var IndexFilesFirst = func(a, b string) bool {
 	return a < b // os.WalkDir already returns file in lexical order
 }
 
-func (c *Collection) walk(path string, fn func(path string, stat fs.FileInfo) error) error {
+func (c *Collection) walk(paths []string, fn func(path string, stat fs.FileInfo) error) error {
 	config := CurrentConfig()
-
-	CurrentLogger().Infof("Reading %s...\n", path)
 
 	var matchedFiles []string
 	var fileInfos = make(map[string]*fs.FileInfo)
 	var filePaths = make(map[string]string)
 
-	filepath.WalkDir(path, func(path string, info fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
+	for _, path := range paths {
+		CurrentLogger().Infof("Reading %s...\n", path)
+		filepath.WalkDir(path, func(path string, info fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
 
-		dirname := filepath.Base(path)
-		if dirname == ".nt" {
-			return fs.SkipDir // NB fs.SkipDir skip the parent dir when path is a file
-		}
-		if dirname == ".git" {
-			return fs.SkipDir
-		}
+			dirname := filepath.Base(path)
+			if dirname == ".nt" {
+				return fs.SkipDir // NB fs.SkipDir skip the parent dir when path is a file
+			}
+			if dirname == ".git" {
+				return fs.SkipDir
+			}
 
-		relpath, err := CurrentCollection().GetFileRelativePath(path)
-		if err != nil {
-			// ignore the file
+			relpath, err := CurrentCollection().GetFileRelativePath(path)
+			if err != nil {
+				// ignore the file
+				return nil
+			}
+
+			if config.IgnoreFile.MustExcludeFile(relpath, info.IsDir()) {
+				return nil
+			}
+
+			// We look for only specific extension
+			if !info.IsDir() && !config.ConfigFile.SupportExtension(relpath) {
+				// Nothing to do
+				return nil
+			}
+
+			// Ignore certain file modes like symlinks
+			fileInfo, err := os.Lstat(path) // NB: os.Stat follows symlinks
+			if err != nil {
+				// Ignore the file
+				return nil
+			}
+			if !fileInfo.Mode().IsRegular() {
+				// Exclude any file with a mode bit set (device, socket, named pipe, ...)
+				// See https://pkg.go.dev/io/fs#FileMode
+				return nil
+			}
+
+			// A file found to process!
+			fileInfos[relpath] = &fileInfo
+			filePaths[relpath] = path
+			matchedFiles = append(matchedFiles, relpath)
+
 			return nil
-		}
+		})
 
-		if config.IgnoreFile.MustExcludeFile(relpath, info.IsDir()) {
-			return nil
-		}
-
-		// We look for only specific extension
-		if !info.IsDir() && !config.ConfigFile.SupportExtension(relpath) {
-			// Nothing to do
-			return nil
-		}
-
-		// Ignore certain file modes like symlinks
-		fileInfo, err := os.Lstat(path) // NB: os.Stat follows symlinks
-		if err != nil {
-			// Ignore the file
-			return nil
-		}
-		if !fileInfo.Mode().IsRegular() {
-			// Exclude any file with a mode bit set (device, socket, named pipe, ...)
-			// See https://pkg.go.dev/io/fs#FileMode
-			return nil
-		}
-
-		// A file found to process!
-		fileInfos[relpath] = &fileInfo
-		filePaths[relpath] = path
-		matchedFiles = append(matchedFiles, relpath)
-
-		return nil
-	})
-
-	slices.SortFunc(matchedFiles, IndexFilesFirst)
-	for _, matchedFile := range matchedFiles {
-		err := fn(filePaths[matchedFile], *fileInfos[matchedFile])
-		if err != nil {
-			return err
+		slices.SortFunc(matchedFiles, IndexFilesFirst)
+		for _, matchedFile := range matchedFiles {
+			err := fn(filePaths[matchedFile], *fileInfos[matchedFile])
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
 }
 
+// normalizePaths converts to absolute paths.
+func (c *Collection) normalizePaths(paths ...string) []string {
+	var results []string
+	if len(paths) == 0 {
+		results = []string{"."}
+	}
+	for _, path := range paths {
+		if path == "." {
+			// Process all files in the root directory
+			path = CurrentConfig().RootDirectory
+		} else if !filepath.IsAbs(path) {
+			path = c.GetAbsolutePath(path)
+		}
+		results = append(results, path)
+	}
+	return results
+}
+
 // Add implements the command `nt add`.`
 func (c *Collection) Add(paths ...string) error {
+	// Start with command linter (do not stage invalid file)
+	linterResult, err := c.Lint(paths...)
+	if err != nil {
+		return err
+	}
+	if len(linterResult.Errors) > 0 {
+		return fmt.Errorf("%d linter errors detected. Run 'nt lint' first.", len(linterResult.Errors))
+	}
+
 	// Any object not updated after this date will be considered as deletions
 	buildTime := clock.Now()
-
 	db := CurrentDB()
+	paths = c.normalizePaths(paths...)
 
 	// Keep notes of processed objects to avoid duplication of effort
 	// when some objects like medias are referenced by different notes.
 	traversedObjects := make(map[string]bool)
 
 	// Run all queries inside the same transaction
-	err := db.BeginTransaction()
+	err = db.BeginTransaction()
 	if err != nil {
 		return err
 	}
 	defer db.RollbackTransaction()
 
-	// Traverse all given paths
-	for _, path := range paths {
+	// Traverse all given path to add files
+	err = c.walk(paths, func(path string, stat fs.FileInfo) error {
+		CurrentLogger().Debugf("Processing %s...\n", path)
 
-		if path == "." {
-			// Process all files in the root directory
-			path = CurrentConfig().RootDirectory
-		} else if !filepath.IsAbs(path) {
-			path = CurrentCollection().GetAbsolutePath(path)
+		parentRelativePath, err := c.GetFileRelativePath(filepath.Join(filepath.Dir(path), "index.md"))
+		if err != nil {
+			return err
+		}
+		parent, err := c.LoadFileByPath(parentRelativePath)
+		if err != nil {
+			return err
 		}
 
-		err = c.walk(path, func(path string, stat fs.FileInfo) error {
-			CurrentLogger().Debugf("Processing %s...\n", path)
+		file, err := NewOrExistingFile(parent, path)
+		if err != nil {
+			return err
+		}
 
-			parentRelativePath, err := c.GetFileRelativePath(filepath.Join(filepath.Dir(path), "index.md"))
-			if err != nil {
-				return err
+		if file.State() != None {
+			if err := db.StageObject(file); err != nil {
+				return fmt.Errorf("unable to stage modified object %s: %v", file, err)
 			}
-			parent, err := c.LoadFileByPath(parentRelativePath)
-			if err != nil {
-				return err
-			}
-
-			file, err := NewOrExistingFile(parent, path)
-			if err != nil {
-				return err
-			}
-
-			if file.State() != None {
-				if err := db.StageObject(file); err != nil {
-					return fmt.Errorf("unable to stage modified object %s: %v", file, err)
-				}
-			}
-			traversedObjects[file.UniqueOID()] = true
-			if err := file.Save(); err != nil {
-				return nil
-			}
-
-			for _, object := range file.SubObjects() {
-				if _, found := traversedObjects[object.UniqueOID()]; found {
-					// already processed
-					continue
-				}
-				if object.State() != None {
-					if err := db.StageObject(object); err != nil {
-						return fmt.Errorf("unable to stage modified object %s: %v", object, err)
-					}
-				}
-				traversedObjects[object.UniqueOID()] = true
-				if err := object.Save(); err != nil {
-					return err
-				}
-			}
-
+		}
+		traversedObjects[file.UniqueOID()] = true
+		if err := file.Save(); err != nil {
 			return nil
-		})
-		if err != nil {
-			return err
 		}
 
-		deletions, err := c.findObjectsLastCheckedBefore(buildTime, path)
+		for _, object := range file.SubObjects() {
+			if _, found := traversedObjects[object.UniqueOID()]; found {
+				// already processed
+				continue
+			}
+			if object.State() != None {
+				if err := db.StageObject(object); err != nil {
+					return fmt.Errorf("unable to stage modified object %s: %v", object, err)
+				}
+			}
+			traversedObjects[object.UniqueOID()] = true
+			if err := object.Save(); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	// Find objecst to delete for every path
+	var deletions []StatefulObject
+	for _, path := range paths {
+		pathDeletions, err := c.findObjectsLastCheckedBefore(buildTime, path)
 		if err != nil {
 			return err
 		}
-		// Check for dead medias only when adding the root directory.
-		// For example, when adding a file, it can contains references to medias stored in a directory outside the given path.
-		if path == CurrentConfig().RootDirectory { // nt add .
-			// As we walked the whole hierarchy, all medias must have be checked.
-			mediaDeletions, err := CurrentCollection().FindMediasLastCheckedBefore(buildTime)
-			if err != nil {
-				return err
-			}
-			for _, mediaDeletion := range mediaDeletions {
-				deletions = append(deletions, mediaDeletion)
-			}
+		deletions = append(deletions, pathDeletions...)
+	}
+	// Check for dead medias only when adding the root directory.
+	// For example, when adding a file, it can contains references to medias stored in a directory outside the given path.
+	if slices.Contains(paths, CurrentConfig().RootDirectory) { // ex: nt add .
+		// As we walked the whole hierarchy, all medias must have be checked.
+		mediaDeletions, err := CurrentCollection().FindMediasLastCheckedBefore(buildTime)
+		if err != nil {
+			return err
 		}
-		for _, deletion := range deletions {
-			deletion.ForceState(Deleted)
-			if err := db.StageObject(deletion); err != nil {
-				return fmt.Errorf("unable to stage deleted object %s: %v", deletion, err)
-			}
+		for _, mediaDeletion := range mediaDeletions {
+			deletions = append(deletions, mediaDeletion)
+		}
+	}
+
+	for _, deletion := range deletions {
+		deletion.ForceState(Deleted)
+		if err := db.StageObject(deletion); err != nil {
+			return fmt.Errorf("unable to stage deleted object %s: %v", deletion, err)
 		}
 	}
 
@@ -401,7 +425,7 @@ func (c *Collection) Status() (string, error) {
 	uncommittedFiles := make(map[string]ObjectStatus)
 
 	root := CurrentConfig().RootDirectory
-	err := c.walk(root, func(path string, stat fs.FileInfo) error {
+	err := c.walk([]string{root}, func(path string, stat fs.FileInfo) error {
 		relpath, err := CurrentCollection().GetFileRelativePath(path)
 		if err != nil {
 			return err
@@ -487,41 +511,31 @@ func (c *Collection) Lint(paths ...string) (*LintResult, error) {
 	 */
 	var result LintResult
 
-	// Traverse all given paths
-	for _, path := range paths {
+	paths = c.normalizePaths(paths...)
+	err := c.walk(paths, func(path string, stat fs.FileInfo) error {
+		CurrentLogger().Debugf("Processing %s...\n", path)
 
-		if path == "." {
-			// Process all files in the root directory
-			path = CurrentConfig().RootDirectory
-		} else if !filepath.IsAbs(path) {
-			path = CurrentCollection().GetAbsolutePath(path)
-		}
-
-		err := c.walk(path, func(path string, stat fs.FileInfo) error {
-			CurrentLogger().Debugf("Processing %s...\n", path)
-
-			// Work without the database
-			file, err := ParseFile(path)
-			if err != nil {
-				return err
-			}
-
-			// Check file
-			violations, err := file.Lint()
-			if err != nil {
-				return err
-			}
-			if len(violations) > 0 {
-				result.Append(violations...)
-				result.AffectedFiles += 1
-			}
-			result.AnalyzedFiles += 1
-
-			return nil
-		})
+		// Work without the database
+		file, err := ParseFile(path)
 		if err != nil {
-			return nil, err
+			return err
 		}
+
+		// Check file
+		violations, err := file.Lint()
+		if err != nil {
+			return err
+		}
+		if len(violations) > 0 {
+			result.Append(violations...)
+			result.AffectedFiles += 1
+		}
+		result.AnalyzedFiles += 1
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return &result, nil

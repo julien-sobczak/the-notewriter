@@ -40,8 +40,8 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.Flags().BoolVarP(&verboseInfo, "verbose", "v", false, "enable verbose info output")
-	rootCmd.Flags().BoolVarP(&verboseDebug, "verbose-debug", "vv", false, "enable verbose debug output")
-	rootCmd.Flags().BoolVarP(&verboseTrace, "verbose-trace", "vvv", false, "enable verbose trace output")
+	rootCmd.Flags().BoolVarP(&verboseDebug, "verbose-debug", "", false, "enable verbose debug output")
+	rootCmd.Flags().BoolVarP(&verboseTrace, "verbose-trace", "", false, "enable verbose trace output")
 	rootCmd.Flags().StringVarP(&CollectionDir, "collection", "c", "", "Collection directory (default is $HOME/notes)")
 }
 
