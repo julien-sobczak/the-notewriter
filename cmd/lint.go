@@ -29,10 +29,10 @@ var lintCmd = &cobra.Command{
 			len(result.Errors),
 			len(result.Warnings))
 		for _, violation := range result.Errors {
-			fmt.Printf("[WARNING] %s (%s#%d)\n", violation.Message, violation.RelativePath, violation.Line)
+			fmt.Printf("[WARNING] %s (%s:%d)\n", violation.Message, violation.RelativePath, violation.Line)
 		}
 		for _, violation := range result.Warnings {
-			fmt.Printf("[WARNING] %s (%s#%d)\n", violation.Message, violation.RelativePath, violation.Line)
+			fmt.Printf("[WARNING] %s (%s:%d)\n", violation.Message, violation.RelativePath, violation.Line)
 		}
 	},
 }

@@ -36,15 +36,16 @@ const (
 // Regex to validate and/or extract information from notes
 var (
 	// Kinds
-	regexReference  = regexp.MustCompile(`(?i)^Reference[-:_ ]\s*(.*)$`)  // Ex: `# Reference: Go History`
-	regexNote       = regexp.MustCompile(`^(?i)Note[-:_ ]\s*(.*)$`)       // Ex: `# Note: On Go Logo`
-	regexFlashcard  = regexp.MustCompile(`^(?i)Flashcard[-:_ ]\s*(.*)$`)  // Ex: `# Flashcard: Goroutines Syntax`
-	regexCheatsheet = regexp.MustCompile(`^(?i)Cheatsheet[-:_ ]\s*(.*)$`) // Ex: `# Cheatsheet: How to start a goroutine`
-	regexQuote      = regexp.MustCompile(`^(?i)Quote[-:_ ]\s*(.*)$`)      // Ex: `# Quote: Marcus Aurelius on Doing`
-	regexTodo       = regexp.MustCompile(`^(?i)Todo[-:_ ]\s*(.*)$`)       // Ex: `# Todo: Backlog`
-	regexArtwork    = regexp.MustCompile(`^(?i)Artwork[-:_ ]\s*(.*)$`)    // Ex: `# Artwork: Vincent van Gogh`
-	regexSnippet    = regexp.MustCompile(`^(?i)Snippet[-:_ ]\s*(.*)$`)    // Ex: `# Snippet: Ideas for post title`
-	regexChecklist  = regexp.MustCompile(`^(?i)Checklist[-:_ ]\s*(.*)$`)  // Ex: `# Checklist: Travel`
+	regexReference  = regexp.MustCompile(`^(?i)Reference:\s*(.*)$`) // Ex: `# Reference: Go History`
+	regexNote       = regexp.MustCompile(`^(?i)Note:\s*(.*)$`)       // Ex: `# Note: On Go Logo`
+	regexFlashcard  = regexp.MustCompile(`^(?i)Flashcard:\s*(.*)$`)  // Ex: `# Flashcard: Goroutines Syntax`
+	regexCheatsheet = regexp.MustCompile(`^(?i)Cheatsheet:\s*(.*)$`) // Ex: `# Cheatsheet: How to start a goroutine`
+	regexQuote      = regexp.MustCompile(`^(?i)Quote:\s*(.*)$`)      // Ex: `# Quote: Marcus Aurelius on Doing`
+	regexTodo       = regexp.MustCompile(`^(?i)Todo:\s*(.*)$`)       // Ex: `# Todo: Backlog`
+	regexArtwork    = regexp.MustCompile(`^(?i)Artwork:\s*(.*)$`)    // Ex: `# Artwork: Vincent van Gogh`
+	regexSnippet    = regexp.MustCompile(`^(?i)Snippet:\s*(.*)$`)    // Ex: `# Snippet: Ideas for post title`
+	regexChecklist  = regexp.MustCompile(`^(?i)Checklist:\s*(.*)$`)  // Ex: `# Checklist: Travel`
+	regexJournal    = regexp.MustCompile(`^(?i)Journal:\s*(.*)$`)    // Ex: `# Journal: 2023-01-01`
 
 	// Metadata
 	regexTags                   = regexp.MustCompile("`#(\\S+)`")                          // Ex: `#favorite`
@@ -419,7 +420,9 @@ func isSupportedNote(text string) (bool, NoteKind, string) {
 	if m := regexChecklist.FindStringSubmatch(text); m != nil {
 		return true, KindArtwork, m[1]
 	}
-	// FIXME what about Journal notes?
+	if m := regexJournal.FindStringSubmatch(text); m != nil {
+		return true, KindJournal, m[1]
+	}
 	return false, KindFree, text
 }
 

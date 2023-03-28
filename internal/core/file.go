@@ -381,7 +381,7 @@ func (f *File) SetAttribute(key string, value interface{}) {
 		case yaml.ScalarNode:
 			f.FrontMatter.Content = append(f.FrontMatter.Content, newValueNode)
 		default:
-			fmt.Printf("Unexcepted type %v\n", newValueNode.Kind)
+			fmt.Printf("Unexpected type %v\n", newValueNode.Kind)
 			os.Exit(1)
 		}
 	}
@@ -494,7 +494,7 @@ func ParseNotes(fileBody string) []*ParsedNote {
 
 	// Current line number during the parsing
 	var lineNumber int
-	insideTypedNote := false
+	insideNote := false
 	for _, line := range lines {
 		lineNumber++
 		if ok, longTitle, level := markdown.IsHeading(line); ok {
@@ -506,7 +506,7 @@ func ParseNotes(fileBody string) []*ParsedNote {
 				lastLevel = sections[len(sections)-1].level
 			}
 			if level <= lastLevel {
-				insideTypedNote = false
+				insideNote = false
 			}
 			ok, kind, shortTitle := isSupportedNote(longTitle)
 			if ok {
@@ -517,9 +517,9 @@ func ParseNotes(fileBody string) []*ParsedNote {
 					shortTitle: shortTitle,
 					lineNumber: lineNumber,
 				})
-				insideTypedNote = true
+				insideNote = true
 			} else { // block inside a note or a free note?
-				if !insideTypedNote { // new free note
+				if !insideNote { // new free note
 					sections = append(sections, &Section{
 						level:      level,
 						kind:       KindFree,
@@ -527,6 +527,7 @@ func ParseNotes(fileBody string) []*ParsedNote {
 						shortTitle: shortTitle,
 						lineNumber: lineNumber,
 					})
+					insideNote = true
 				}
 			}
 		}
@@ -552,10 +553,14 @@ func ParseNotes(fileBody string) []*ParsedNote {
 		}
 
 		noteContent := text.ExtractLines(fileBody, lineStart, lineEnd)
+		if text.IsBlank(noteContent) {
+			// skip sections without text (= category to organize notes, not really free notes)
+			continue
+		}
 
 		tags, attributes := ExtractBlockTagsAndAttributes(noteContent)
 
-		notes = append(notes, &ParsedNote{
+		parsedNote := &ParsedNote{
 			Level:          section.level,
 			Kind:           section.kind,
 			LongTitle:      section.longTitle,
@@ -564,7 +569,8 @@ func ParseNotes(fileBody string) []*ParsedNote {
 			NoteAttributes: CastAttributes(attributes, GetSchemaAttributeTypes()),
 			NoteTags:       tags,
 			Body:           noteContent,
-		})
+		}
+		notes = append(notes, parsedNote)
 	}
 
 	return notes

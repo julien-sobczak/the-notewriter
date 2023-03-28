@@ -219,10 +219,10 @@ func (c *Collection) walk(paths []string, fn func(path string, stat fs.FileInfo)
 
 // normalizePaths converts to absolute paths.
 func (c *Collection) normalizePaths(paths ...string) []string {
-	var results []string
 	if len(paths) == 0 {
-		results = []string{"."}
+		return []string{"."}
 	}
+	var results []string
 	for _, path := range paths {
 		if path == "." {
 			// Process all files in the root directory
@@ -243,7 +243,7 @@ func (c *Collection) Add(paths ...string) error {
 		return err
 	}
 	if len(linterResult.Errors) > 0 {
-		return fmt.Errorf("%d linter errors detected. Run 'nt lint' first.", len(linterResult.Errors))
+		return fmt.Errorf("%d linter errors detected", len(linterResult.Errors))
 	}
 
 	// Any object not updated after this date will be considered as deletions

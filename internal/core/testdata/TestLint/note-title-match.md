@@ -4,10 +4,6 @@
 
 A title matching the regular expression `(Reference|...):\s\S.*`.
 
-## Reference : Example
-
-An "invalid" space before the colon.
-
 ## reference: Example
 
-The kind is in lowercase.
+The kind is in lowercase (allowed but enforced by the linter).

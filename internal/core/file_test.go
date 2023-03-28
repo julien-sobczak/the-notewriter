@@ -870,3 +870,116 @@ i--
 	})
 
 }
+
+func TestParseNotes(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string                          // input
+		checkFn func(*testing.T, []*ParsedNote) // output
+	}{
+
+		{
+			name: "Comments are not notes",
+			input: `
+# Blocks
+
+## Note: First
+
+This note contains a block containing a comment:
+
+` + "```yaml" + `
+
+# A basic document
+
+key: value
+` + "```" + `
+
+## Note: Second
+
+This note contains nothing interesting.
+`,
+			checkFn: func(t *testing.T, notes []*ParsedNote) {
+				require.Len(t, notes, 2) // The comment inside the block code must not be considered like a free note
+				assert.Equal(t, "First", notes[0].ShortTitle)
+				assert.Equal(t, "Second", notes[1].ShortTitle)
+			},
+		},
+
+		{
+			name: "Free Note File",
+			input: `# My Project
+
+## TODO
+
+* [ ] Add licence GNU GPL
+`,
+			checkFn: func(t *testing.T, notes []*ParsedNote) {
+				require.Len(t, notes, 1) // No typed notes present inside the doc
+				assert.Equal(t, "My Project", notes[0].ShortTitle)
+				assert.Equal(t, KindFree, notes[0].Kind)
+			},
+		},
+
+		{
+			name: "Free Note Inside File",
+			input: `# My Project
+
+## TODO: A TODO Note
+
+* [ ] Add licence GNU GPL
+
+## A Free Note
+
+### Subsection
+
+This is a subsection of the free note.
+
+## Reference: A Reference Note
+
+### Subsection
+
+This is a subsection of the reference note.
+`,
+			checkFn: func(t *testing.T, notes []*ParsedNote) {
+				require.Len(t, notes, 3)
+				assert.Equal(t, "A TODO Note", notes[0].ShortTitle)
+				assert.Equal(t, "A Free Note", notes[1].ShortTitle)
+				assert.Equal(t, "A Reference Note", notes[2].ShortTitle)
+			},
+		},
+
+		{
+			name: "Category sections are not free notes",
+			input: `
+# My Project
+
+## TODO: Backlog
+
+* [ ] Add license GNU GPL
+
+## Features
+
+### Snippet: Idea A
+
+Presentation of idea A
+
+### Snippet: Idea B
+
+Presentation of idea B
+`,
+			checkFn: func(t *testing.T, notes []*ParsedNote) {
+				require.Len(t, notes, 3)
+				assert.Equal(t, "Backlog", notes[0].ShortTitle)
+				assert.Equal(t, "Idea A", notes[1].ShortTitle)
+				assert.Equal(t, "Idea B", notes[2].ShortTitle)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			SetUpCollectionFromTempDir(t)
+			notes := ParseNotes(tt.input)
+			tt.checkFn(t, notes)
+		})
+	}
+}

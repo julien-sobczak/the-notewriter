@@ -139,14 +139,8 @@ func TestNoteTitleMatch(t *testing.T) {
 		{
 			Name:         "note-title-match",
 			RelativePath: "note-title-match.md",
-			Message:      `note title "Reference : Example" does not match regex "^(Note|Reference):\\s\\S.*$"`,
-			Line:         7,
-		},
-		{
-			Name:         "note-title-match",
-			RelativePath: "note-title-match.md",
 			Message:      `note title "reference: Example" does not match regex "^(Note|Reference):\\s\\S.*$"`,
-			Line:         11,
+			Line:         7,
 		},
 	}, violations)
 }
