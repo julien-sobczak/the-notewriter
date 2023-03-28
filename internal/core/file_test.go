@@ -845,4 +845,28 @@ The Golang programming language uses the image of a gopher as logo:
 		`, note.ContentHTML)
 	})
 
+	t.Run("Asciidoc Text Replacements", func(t *testing.T) {
+		notes, err := CurrentCollection().SearchNotes(`@title:"Asciidoc Text replacements"`)
+		require.NoError(t, err)
+		note := notes[0]
+		// FIXME remove (About em dash: only replaced if between two word characters, between a word character and a line boundary, or flanked by spaces.
+		assert.Equal(t, strings.TrimSpace(`
+* Copyright: (C) ©
+* Registered: (R) ®
+* Trademark: (TM) ™
+* Em dash: -- —
+* Ellipses: ... …​
+* Single right arrow: -> →
+* Double right arrow: => ⇒
+* Single left arrow: <- ←
+* Double left arrow: <= ⇐
+
+Except when present in code block like `+"`i--`"+` or:
+
+`+"```c"+`
+i--
+`+"```"+`
+`), strings.TrimSpace(note.ContentMarkdown))
+	})
+
 }
