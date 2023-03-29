@@ -499,6 +499,7 @@ func (c *Collection) Status() (string, error) {
 	return sb.String(), nil
 }
 
+// Lint run linter rules on all files under the given paths.
 func (c *Collection) Lint(paths ...string) (*LintResult, error) {
 	/*
 	 * Implementation: The linter must only considering local files and
@@ -539,4 +540,66 @@ func (c *Collection) Lint(paths ...string) (*LintResult, error) {
 	}
 
 	return &result, nil
+}
+
+type Counters struct {
+	CountKind       map[string]int
+	CountTags       map[string]int
+	CountAttributes map[string]int
+}
+
+// Counters reports various statistics.
+func (c *Collection) Counters() (*Counters, error) {
+	var counters Counters
+
+	// Count object per kind
+	countFiles, err := c.CountFiles()
+	if err != nil {
+		return nil, err
+	}
+	countNotes, err := c.CountNotes()
+	if err != nil {
+		return nil, err
+	}
+	countFlashcards, err := c.CountFlashcards()
+	if err != nil {
+		return nil, err
+	}
+	countMedias, err := c.CountMedias()
+	if err != nil {
+		return nil, err
+	}
+	countLinks, err := c.CountLinks()
+	if err != nil {
+		return nil, err
+	}
+	countReminders, err := c.CountReminders()
+	if err != nil {
+		return nil, err
+	}
+
+	counters.CountKind = map[string]int{
+		"file":      countFiles,
+		"note":      countNotes,
+		"flashcard": countFlashcards,
+		"media":     countMedias,
+		"link":      countLinks,
+		"reminder":  countReminders,
+	}
+
+	// Count tags
+	countTags, err := c.CountTags()
+	if err != nil {
+		return nil, err
+	}
+	counters.CountTags = countTags
+
+	// Count attributes
+	countAttributes, err := c.CountAttributes()
+	if err != nil {
+		return nil, err
+	}
+	counters.CountAttributes = countAttributes
+
+	return &counters, nil
 }

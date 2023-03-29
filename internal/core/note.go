@@ -36,7 +36,7 @@ const (
 // Regex to validate and/or extract information from notes
 var (
 	// Kinds
-	regexReference  = regexp.MustCompile(`^(?i)Reference:\s*(.*)$`) // Ex: `# Reference: Go History`
+	regexReference  = regexp.MustCompile(`^(?i)Reference:\s*(.*)$`)  // Ex: `# Reference: Go History`
 	regexNote       = regexp.MustCompile(`^(?i)Note:\s*(.*)$`)       // Ex: `# Note: On Go Logo`
 	regexFlashcard  = regexp.MustCompile(`^(?i)Flashcard:\s*(.*)$`)  // Ex: `# Flashcard: Goroutines Syntax`
 	regexCheatsheet = regexp.MustCompile(`^(?i)Cheatsheet:\s*(.*)$`) // Ex: `# Cheatsheet: How to start a goroutine`
@@ -728,6 +728,87 @@ func (c *Collection) CountNotes() (int, error) {
 	}
 
 	return count, nil
+}
+
+// CountTags returns the tags with their associated count.
+func (c *Collection) CountTags() (map[string]int, error) {
+	result := make(map[string]int)
+
+	// See https://www.vivekkalyan.com/splitting-comma-seperated-fields-sqlite
+	rows, err := CurrentDB().Client().Query(`
+		WITH RECURSIVE split(tag, str) AS (
+			SELECT '', tags||',' FROM note
+			UNION ALL SELECT
+			substr(str, 0, instr(str, ',')),
+			substr(str, instr(str, ',')+1)
+			FROM split WHERE str!=''
+		)
+		SELECT distinct tag, count(*)
+		FROM split
+		WHERE tag!=''
+		group by tag;`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var tag string
+		var count int
+
+		err = rows.Scan(
+			&tag,
+			&count,
+		)
+		if err != nil {
+			return nil, err
+		}
+		result[tag] = count
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+// CountAttributes returns the attributes with their associated count.
+func (c *Collection) CountAttributes() (map[string]int, error) {
+	result := make(map[string]int)
+
+	// See https://www.vivekkalyan.com/splitting-comma-seperated-fields-sqlite
+	rows, err := CurrentDB().Client().Query(`
+		SELECT tt.attribute, count(*) FROM (
+			SELECT j.key as attribute, j.value
+			from note t, json_each(t.attributes) j
+		) AS tt
+		GROUP BY tt.attribute;
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var attribute string
+		var count int
+
+		err = rows.Scan(
+			&attribute,
+			&count,
+		)
+		if err != nil {
+			return nil, err
+		}
+		result[attribute] = count
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 func (c *Collection) LoadNoteByOID(oid string) (*Note, error) {
