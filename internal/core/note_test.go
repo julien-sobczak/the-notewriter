@@ -298,20 +298,20 @@ func TestNoteFormat(t *testing.T) {
 	UseFixedOID(t, "16252dafd6355e678bf8ae44b127f657cd3cdd0e")
 
 	var tests = []struct {
-		name             string // name
-		title            string // input
-		content          string // input
-		expectedJSON     string // output
-		expectedMarkdown string // output
-		expectedHTML     string // output
-		expectedText     string // output
+		name             string             // name
+		title            string             // input
+		content          string             // input
+		expectedJSON     string             // output
+		expectedMarkdown string             // output
+		expectedHTML     string             // output
+		expectedText     string             // output
 	}{
 		{
 			name:  "Basic note",
 			title: "TODO: **Activities**",
 			content: "\n" +
 				"* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`\n",
-			expectedJSON:     "{\n \"oid\": \"16252dafd6355e678bf8ae44b127f657cd3cdd0e\",\n \"relativePath\": \"\",\n \"wikilink\": \"#TODO: **Activities**\",\n \"frontMatter\": {\n  \"title\": \"**Activities**\"\n },\n \"tags\": null,\n \"contentRaw\": \"* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`\",\n \"contentMarkdown\": \"* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`\",\n \"contentHTML\": \"\\u003cul\\u003e\\n\\u003cli\\u003e[ ] Buy \\u003cstrong\\u003eLego Christmas\\u003c/strong\\u003e sets to create a village \\u003ccode\\u003e#reminder-2025-09\\u003c/code\\u003e\\u003c/li\\u003e\\n\\u003c/ul\\u003e\",\n \"contentText\": \"* [ ] Buy Lego Christmas sets to create a village `#reminder-2025-09`\"\n}",
+			expectedJSON:     "{\n \"oid\": \"16252dafd6355e678bf8ae44b127f657cd3cdd0e\",\n \"relativePath\": \"\",\n \"wikilink\": \"#TODO: **Activities**\",\n \"attributes\": {\n  \"title\": \"**Activities**\"\n },\n \"tags\": null,\n \"shortTitleRaw\": \"**Activities**\",\n \"shortTitleMarkdown\": \"**Activities**\",\n \"shortTitleHTML\": \"\\u003cp\\u003e\\u003cstrong\\u003eActivities\\u003c/strong\\u003e\\u003c/p\\u003e\",\n \"shortTitleText\": \"Activities\",\n \"contentRaw\": \"* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`\",\n \"contentMarkdown\": \"* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`\",\n \"contentHTML\": \"\\u003cul\\u003e\\n\\u003cli\\u003e[ ] Buy \\u003cstrong\\u003eLego Christmas\\u003c/strong\\u003e sets to create a village \\u003ccode\\u003e#reminder-2025-09\\u003c/code\\u003e\\u003c/li\\u003e\\n\\u003c/ul\\u003e\",\n \"contentText\": \"* [ ] Buy Lego Christmas sets to create a village `#reminder-2025-09`\"\n}",
 			expectedMarkdown: "# TODO: **Activities**\n\n* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`",
 			expectedHTML:     "<h1><p>TODO: <strong>Activities</strong></p></h1>\n\n<ul>\n<li>[ ] Buy <strong>Lego Christmas</strong> sets to create a village <code>#reminder-2025-09</code></li>\n</ul>",
 			expectedText:     "TODO: Activities\n\n* [ ] Buy Lego Christmas sets to create a village `#reminder-2025-09`",

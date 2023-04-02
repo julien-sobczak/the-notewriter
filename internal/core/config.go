@@ -41,6 +41,13 @@ const DefaultLint = `
 # No rules by default
 
 schemas:
+
+  - name: Hooks
+    attributes:
+    - name: hook
+      type: array
+      inherit: false
+
   - name: Tags
     attributes:
       - name: tags

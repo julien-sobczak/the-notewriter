@@ -777,7 +777,7 @@ func (c *Collection) CountTags() (map[string]int, error) {
 func (c *Collection) CountAttributes() (map[string]int, error) {
 	result := make(map[string]int)
 
-	// See https://www.vivekkalyan.com/splitting-comma-seperated-fields-sqlite
+	// See https://database.guide/sqlite-json_each/
 	rows, err := CurrentDB().Client().Query(`
 		SELECT tt.attribute, count(*) FROM (
 			SELECT j.key as attribute, j.value
@@ -1115,26 +1115,34 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 
 func (n *Note) FormatToJSON() string {
 	type NoteRepresentation struct {
-		OID             string                 `json:"oid"`
-		RelativePath    string                 `json:"relativePath"`
-		Wikilink        string                 `json:"wikilink"`
-		FrontMatter     map[string]interface{} `json:"frontMatter"`
-		Tags            []string               `json:"tags"`
-		ContentRaw      string                 `json:"contentRaw"`
-		ContentMarkdown string                 `json:"contentMarkdown"`
-		ContentHTML     string                 `json:"contentHTML"`
-		ContentText     string                 `json:"contentText"`
+		OID                string                 `json:"oid"`
+		RelativePath       string                 `json:"relativePath"`
+		Wikilink           string                 `json:"wikilink"`
+		Attributes         map[string]interface{} `json:"attributes"`
+		Tags               []string               `json:"tags"`
+		ShortTitleRaw      string                 `json:"shortTitleRaw"`
+		ShortTitleMarkdown string                 `json:"shortTitleMarkdown"`
+		ShortTitleHTML     string                 `json:"shortTitleHTML"`
+		ShortTitleText     string                 `json:"shortTitleText"`
+		ContentRaw         string                 `json:"contentRaw"`
+		ContentMarkdown    string                 `json:"contentMarkdown"`
+		ContentHTML        string                 `json:"contentHTML"`
+		ContentText        string                 `json:"contentText"`
 	}
 	repr := NoteRepresentation{
-		OID:             n.OID,
-		RelativePath:    n.RelativePath,
-		Wikilink:        n.Wikilink,
-		FrontMatter:     n.GetAttributes(),
-		Tags:            n.GetTags(),
-		ContentRaw:      n.ContentRaw,
-		ContentMarkdown: n.ContentMarkdown,
-		ContentHTML:     n.ContentHTML,
-		ContentText:     n.ContentText,
+		OID:                n.OID,
+		RelativePath:       n.RelativePath,
+		Wikilink:           n.Wikilink,
+		ShortTitleRaw:      n.ShortTitle,
+		ShortTitleMarkdown: markdown.ToMarkdown(n.ShortTitle),
+		ShortTitleHTML:     markdown.ToHTML(n.ShortTitle),
+		ShortTitleText:     markdown.ToText(n.ShortTitle),
+		Attributes:         n.GetAttributes(),
+		Tags:               n.GetTags(),
+		ContentRaw:         n.ContentRaw,
+		ContentMarkdown:    n.ContentMarkdown,
+		ContentHTML:        n.ContentHTML,
+		ContentText:        n.ContentText,
 	}
 	output, _ := json.MarshalIndent(repr, "", " ")
 	return string(output)
