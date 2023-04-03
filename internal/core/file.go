@@ -1004,6 +1004,9 @@ func (c *Collection) FindFilesByWikilink(wikilink string) ([]*File, error) {
 }
 
 func (c *Collection) FindFilesLastCheckedBefore(point time.Time, path string) ([]*File, error) {
+	if path == "." {
+		path = ""
+	}
 	return QueryFiles(CurrentDB().Client(), `WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 

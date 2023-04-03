@@ -743,6 +743,9 @@ func (c *Collection) FindRemindersByUpcomingDate(deadline time.Time) ([]*Reminde
 }
 
 func (c *Collection) FindRemindersLastCheckedBefore(point time.Time, path string) ([]*Reminder, error) {
+	if path == "." {
+		path = ""
+	}
 	return QueryReminders(CurrentDB().Client(), `WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 

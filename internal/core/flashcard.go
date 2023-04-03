@@ -522,6 +522,9 @@ func (c *Collection) FindFlashcardByHash(hash string) (*Flashcard, error) {
 }
 
 func (c *Collection) FindFlashcardsLastCheckedBefore(point time.Time, path string) ([]*Flashcard, error) {
+	if path == "." {
+		path = ""
+	}
 	return QueryFlashcards(CurrentDB().Client(), `WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 

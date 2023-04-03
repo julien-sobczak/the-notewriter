@@ -309,6 +309,9 @@ func (c *Collection) FindLinksByText(text string) ([]*Link, error) {
 }
 
 func (c *Collection) FindLinksLastCheckedBefore(point time.Time, path string) ([]*Link, error) {
+	if path == "." {
+		path = ""
+	}
 	return QueryLinks(CurrentDB().Client(), `WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 

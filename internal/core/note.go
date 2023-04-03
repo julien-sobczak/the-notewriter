@@ -836,6 +836,9 @@ func (c *Collection) FindNotesByWikilink(wikilink string) ([]*Note, error) {
 }
 
 func (c *Collection) FindNotesLastCheckedBefore(point time.Time, path string) ([]*Note, error) {
+	if path == "." {
+		path = ""
+	}
 	return QueryNotes(CurrentDB().Client(), `WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 

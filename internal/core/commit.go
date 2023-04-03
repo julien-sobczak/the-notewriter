@@ -74,6 +74,26 @@ type StagingArea struct {
 	Deleted  []*StagingObject `yaml:"edited"`
 }
 
+// ReadObject searches for the given object in staging area
+func (sa *StagingArea) ReadObject(objectOID string) (StatefulObject, bool) {
+	for _, obj := range sa.Added {
+		if obj.OID == objectOID {
+			return obj.ReadObject(), true
+		}
+	}
+	for _, obj := range sa.Modified {
+		if obj.OID == objectOID {
+			return obj.ReadObject(), true
+		}
+	}
+	for _, obj := range sa.Deleted {
+		if obj.OID == objectOID {
+			return obj.ReadObject(), true
+		}
+	}
+	return nil, false
+}
+
 // Objects returns all objects inside the staging area.
 func (sa *StagingArea) Objects() []*StagingObject {
 	var results []*StagingObject

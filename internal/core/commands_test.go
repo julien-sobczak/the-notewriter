@@ -5,7 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	godiffpatch "github.com/sourcegraph/go-diff-patch"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -551,4 +553,234 @@ func TestCommandCountObjects(t *testing.T) {
 		}, counters.CountAttributes)
 	})
 
+}
+
+func TestCommandDiff(t *testing.T) {
+
+	t.Run("Diff", func(t *testing.T) {
+		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+
+		// Step 1: Nothing staged
+
+		diff, err := CurrentCollection().Diff(true)
+		require.NoError(t, err)
+		assert.Equal(t, "", diff)
+
+		diff, err = CurrentCollection().Diff(false) // Must contains all new objects
+		require.NoError(t, err)
+		expected := "" +
+			"--- a/go.md\n" +
+			"+++ b/go.md\n" +
+			"@@ -0,0 +1,5 @@\n" +
+			"+`#history`\n" +
+			"+\n" +
+			"+`@source: https://en.wikipedia.org/wiki/Go_(programming_language)`\n" +
+			"+\n+[Golang](https://go.dev/doc/ \"#go/go\") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.\n" +
+			"\\ No newline at end of file\n" +
+			"--- a/go.md\n" +
+			"+++ b/go.md\n" +
+			"@@ -0,0 +1,7 @@\n" +
+			"+What does the **Golang logo** represent?\n" +
+			"+\n" +
+			"+---\n" +
+			"+\n" +
+			"+A **gopher**.\n" +
+			"+\n" +
+			"+![Logo](./medias/go.svg)\n" +
+			"\\ No newline at end of file\n" +
+			"--- a/go.md\n" +
+			"+++ b/go.md\n" +
+			"@@ -0,0 +1,1 @@\n" +
+			"+* [Gophercon Europe](https://gophercon.eu/) `#reminder-2023-06-26`\n" +
+			"\\ No newline at end of file\n"
+		assert.Equal(t, expected, diff) // No diff as no objects in staging area
+
+		// Step 2: Add a file
+
+		err = CurrentCollection().Add("go.md")
+		require.NoError(t, err)
+
+		diff, err = CurrentCollection().Diff(true) // Only the file staged must be returned
+		require.NoError(t, err)
+		expected = "--- a/go.md\n" +
+			"+++ b/go.md\n" +
+			"@@ -0,0 +1,5 @@\n" +
+			"+`#history`\n" +
+			"+\n" +
+			"+`@source: https://en.wikipedia.org/wiki/Go_(programming_language)`\n" +
+			"+\n" +
+			"+[Golang](https://go.dev/doc/ \"#go/go\") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.\n" +
+			"\\ No newline at end of file\n" +
+			"--- a/go.md\n" +
+			"+++ b/go.md\n" +
+			"@@ -0,0 +1,7 @@\n" +
+			"+What does the **Golang logo** represent?\n" +
+			"+\n" +
+			"+---\n" +
+			"+\n" +
+			"+A **gopher**.\n" +
+			"+\n" +
+			"+![Logo](./medias/go.svg)\n" +
+			"\\ No newline at end of file\n" +
+			"--- a/go.md\n" +
+			"+++ b/go.md\n" +
+			"@@ -0,0 +1,1 @@\n" +
+			"+* [Gophercon Europe](https://gophercon.eu/) `#reminder-2023-06-26`\n" +
+			"\\ No newline at end of file\n"
+		assert.Equal(t, expected, diff)
+
+		diff, err = CurrentCollection().Diff(false) // No other file are present, must be empty
+		require.NoError(t, err)
+		assert.Equal(t, "", diff)
+
+		// Step 3: Commit the staged file
+
+		err = CurrentDB().Commit("initial commit")
+		require.NoError(t, err)
+
+		diff, err = CurrentCollection().Diff(true) // Staging area is empty = must be empty
+		require.NoError(t, err)
+		assert.Equal(t, "", diff)
+
+		diff, err = CurrentCollection().Diff(false) // No local change = must be empty too
+		require.NoError(t, err)
+		assert.Equal(t, "", diff)
+
+		// Step 4: Edit a single note file
+
+		newFilepath := filepath.Join(root, "go.md")
+		err = os.WriteFile(newFilepath, []byte(`
+# Go
+
+## Reference: Golang History
+
+[Golang](https://go.dev/doc/ "#go/go") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.
+
+
+## TODO: Conferences
+
+* [Gophercon Europe](https://gophercon.eu/) `+"`#reminder-2023-06-26`"+`
+`), 0644)
+		require.NoError(t, err)
+
+		time.Sleep(2 * time.Second)
+
+		diff, err = CurrentCollection().Diff(true) // Staging area is empty = must be empty
+		require.NoError(t, err)
+		assert.Equal(t, "", diff)
+
+		diff, err = CurrentCollection().Diff(false) // Must report the updated and deleted notes
+		require.NoError(t, err)
+		expected = "--- a/go.md\n" +
+			"+++ b/go.md\n" +
+			"@@ -1,5 +1,1 @@\n" +
+			"-`#history`\n" +
+			"-\n" +
+			"-`@source: https://en.wikipedia.org/wiki/Go_(programming_language)`\n" +
+			"-\n" +
+			" [Golang](https://go.dev/doc/ \"#go/go\") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.\n" +
+			"\\ No newline at end of file\n" +
+			"--- a/go.md\n" +
+			"+++ b/go.md\n" +
+			"@@ -1,7 +0,0 @@\n" +
+			"-What does the **Golang logo** represent?\n" +
+			"-\n" +
+			"----\n" +
+			"-\n" +
+			"-A **gopher**.\n" +
+			"-\n" +
+			"-![Logo](./medias/go.svg)\n" +
+			"\\ No newline at end of file\n"
+		assert.Equal(t, expected, diff) // TODO BUG the deleted flashcard is missing
+	})
+
+}
+
+/* Learning Tests */
+
+func TestSourcegraphGoDiff(t *testing.T) {
+	// Learning test to demonstrate the working of the library
+	inputA := `
+{
+	SSID:      "CoffeeShopWiFi",
+	IPAddress: net.IPv4(192, 168, 0, 1),
+	NetMask:   net.IPv4Mask(255, 255, 0, 0),
+	Clients: []Client{{
+		Hostname:  "ristretto",
+		IPAddress: net.IPv4(192, 168, 0, 116),
+	}, {
+		Hostname:  "aribica",
+		IPAddress: net.IPv4(192, 168, 0, 104),
+		LastSeen:  time.Date(2009, time.November, 10, 23, 6, 32, 0, time.UTC),
+	}, {
+		Hostname:  "macchiato",
+		IPAddress: net.IPv4(192, 168, 0, 153),
+		LastSeen:  time.Date(2009, time.November, 10, 23, 39, 43, 0, time.UTC),
+	}, {
+		Hostname:  "espresso",
+		IPAddress: net.IPv4(192, 168, 0, 121),
+	}, {
+		Hostname:  "latte",
+		IPAddress: net.IPv4(192, 168, 0, 219),
+		LastSeen:  time.Date(2009, time.November, 10, 23, 0, 23, 0, time.UTC),
+	}, {
+		Hostname:  "americano",
+		IPAddress: net.IPv4(192, 168, 0, 188),
+		LastSeen:  time.Date(2009, time.November, 10, 23, 3, 5, 0, time.UTC),
+	}},
+}
+`
+	inputB := `
+{
+	SSID:      "CoffeeShopWiFi",
+	IPAddress: net.IPv4(192, 168, 0, 2),
+	NetMask:   net.IPv4Mask(255, 255, 0, 0),
+	Clients: []Client{{
+		Hostname:  "ristretto",
+		IPAddress: net.IPv4(192, 168, 0, 116),
+	}, {
+		Hostname:  "aribica",
+		IPAddress: net.IPv4(192, 168, 0, 104),
+		LastSeen:  time.Date(2009, time.November, 10, 23, 6, 32, 0, time.UTC),
+	}, {
+		Hostname:  "macchiato",
+		IPAddress: net.IPv4(192, 168, 0, 153),
+		LastSeen:  time.Date(2009, time.November, 10, 23, 39, 43, 0, time.UTC),
+	}, {
+		Hostname:  "espresso",
+		IPAddress: net.IPv4(192, 168, 0, 121),
+	}, {
+		Hostname:  "latte",
+		IPAddress: net.IPv4(192, 168, 0, 221),
+		LastSeen:  time.Date(2009, time.November, 10, 23, 0, 23, 0, time.UTC),
+	}},
+}
+`
+	patch := godiffpatch.GeneratePatch("test.txt", inputA, inputB)
+	expected := `--- a/test.txt
++++ b/test.txt
+@@ -1,7 +1,7 @@
+ 
+ {
+ 	SSID:      "CoffeeShopWiFi",
+-	IPAddress: net.IPv4(192, 168, 0, 1),
++	IPAddress: net.IPv4(192, 168, 0, 2),
+ 	NetMask:   net.IPv4Mask(255, 255, 0, 0),
+ 	Clients: []Client{{
+ 		Hostname:  "ristretto",
+@@ -19,11 +19,7 @@
+ 		IPAddress: net.IPv4(192, 168, 0, 121),
+ 	}, {
+ 		Hostname:  "latte",
+-		IPAddress: net.IPv4(192, 168, 0, 219),
++		IPAddress: net.IPv4(192, 168, 0, 221),
+ 		LastSeen:  time.Date(2009, time.November, 10, 23, 0, 23, 0, time.UTC),
+-	}, {
+-		Hostname:  "americano",
+-		IPAddress: net.IPv4(192, 168, 0, 188),
+-		LastSeen:  time.Date(2009, time.November, 10, 23, 3, 5, 0, time.UTC),
+ 	}},
+ }
+`
+	assert.Equal(t, expected, patch)
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/julien-sobczak/the-notetaker/pkg/resync"
+	godiffpatch "github.com/sourcegraph/go-diff-patch"
 )
 
 //go:embed sql/*.sql
@@ -161,6 +162,48 @@ func (db *DB) Client() SQLClient {
 }
 
 /* File Management */
+
+// ReadObject reads the last known committed version of stateful object on disk.
+func (db *DB) ReadObject(oid string) (StatefulObject, error) {
+	indexObject, ok := db.index.objectsRef[oid]
+	if !ok {
+		return nil, nil
+	}
+	commit, err := db.ReadCommit(indexObject.CommitOID)
+	if err != nil {
+		return nil, err
+	}
+	commitObject, ok := commit.GetCommitObject(oid)
+	if !ok {
+		return nil, nil
+	}
+	return commitObject.ReadObject(), nil
+}
+
+// ReadLastStagedOrCommittedObject reads the last known version of stateful object in staging area or in commits.
+func (db *DB) ReadLastStagedOrCommittedObject(oid string) (StatefulObject, error) {
+	// Check staging area first
+	stagedObject, ok := db.index.StagingArea.ReadObject(oid)
+	if ok {
+		return stagedObject, nil
+	}
+
+	// Check commits second
+	indexObject, ok := db.index.objectsRef[oid]
+	if !ok {
+		// No object in staging area and in commits
+		return nil, nil
+	}
+	commit, err := db.ReadCommit(indexObject.CommitOID)
+	if err != nil {
+		return nil, err
+	}
+	commitObject, ok := commit.GetCommitObject(oid)
+	if !ok {
+		return nil, nil
+	}
+	return commitObject.ReadObject(), nil
+}
 
 // ReadCommit reads an object file on disk.
 func (db *DB) ReadCommit(oid string) (*Commit, error) {
@@ -636,6 +679,32 @@ func (db *DB) Restore() error {
 	err = db.index.Save()
 
 	return err
+}
+
+// Diff show the changes in the staging area.
+func (db *DB) Diff() (string, error) {
+	var diff strings.Builder
+	for _, stagedObj := range db.index.StagingArea.Objects() {
+		if stagedObj.Kind != "note" {
+			continue
+		}
+		stagedNote := stagedObj.ReadObject().(*Note)
+
+		commitObj, err := db.ReadObject(stagedObj.OID)
+		if err != nil {
+			return "", err
+		}
+		noteContentBefore := ""
+		if commitObj != nil {
+			commitNote := commitObj.(*Note)
+			noteContentBefore = commitNote.ContentRaw
+		}
+		noteContentAfter := stagedNote.ContentRaw
+		patch := godiffpatch.GeneratePatch(stagedNote.RelativePath, noteContentBefore, noteContentAfter)
+		diff.WriteString(patch)
+	}
+
+	return diff.String(), nil
 }
 
 // GC removes non referenced objects/blobs in the local directory.

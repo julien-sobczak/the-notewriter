@@ -303,6 +303,7 @@ func TestNoteFormat(t *testing.T) {
 		title            string // input
 		content          string // input
 		expectedJSON     string // output
+		
 		expectedMarkdown string // output
 		expectedHTML     string // output
 		expectedText     string // output

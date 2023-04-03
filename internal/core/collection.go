@@ -15,7 +15,7 @@ import (
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/julien-sobczak/the-notetaker/pkg/resync"
 	"github.com/julien-sobczak/the-notetaker/pkg/text"
-
+	godiffpatch "github.com/sourcegraph/go-diff-patch"
 	"golang.org/x/exp/slices"
 )
 
@@ -312,10 +312,14 @@ func (c *Collection) Add(paths ...string) error {
 		return err
 	}
 
-	// Find objecst to delete for every path
+	// Find objects to delete for every path
 	var deletions []StatefulObject
 	for _, path := range paths {
-		pathDeletions, err := c.findObjectsLastCheckedBefore(buildTime, path)
+		relpath, err := c.GetFileRelativePath(path)
+		if err != nil {
+			return err
+		}
+		pathDeletions, err := c.findObjectsLastCheckedBefore(buildTime, relpath)
 		if err != nil {
 			return err
 		}
@@ -602,4 +606,122 @@ func (c *Collection) Counters() (*Counters, error) {
 	counters.CountAttributes = countAttributes
 
 	return &counters, nil
+}
+
+// Diff show changes between commits and working tree.
+func (c *Collection) Diff(staged bool) (string, error) {
+	if staged {
+		return CurrentDB().Diff()
+	}
+
+	// Any object not updated after this date will be considered as deletions
+	buildTime := clock.Now()
+	db := CurrentDB()
+	path := CurrentConfig().RootDirectory
+
+	// Keep notes of processed objects to avoid duplication of effort
+	// when some objects like medias are referenced by different notes.
+	traversedObjects := make(map[string]bool)
+
+	// We will update the last-checked date of objects to find the deleted ones
+	// and rollback the transaction to have no side-effects.
+	err := db.BeginTransaction()
+	if err != nil {
+		return "", err
+	}
+	defer db.RollbackTransaction()
+
+	// Traverse all given path to view note changes
+	var updatedNotes []*Note
+	err = c.walk([]string{path}, func(path string, stat fs.FileInfo) error {
+		CurrentLogger().Debugf("Processing %s...\n", path)
+
+		parentRelativePath, err := c.GetFileRelativePath(filepath.Join(filepath.Dir(path), "index.md"))
+		if err != nil {
+			return err
+		}
+		parent, err := c.LoadFileByPath(parentRelativePath)
+		if err != nil {
+			return err
+		}
+
+		file, err := NewOrExistingFile(parent, path)
+		if err != nil {
+			return err
+		}
+
+		if file.State() != None {
+			for _, note := range file.GetNotes() {
+				if note.State() != None {
+					updatedNotes = append(updatedNotes, note)
+				}
+			}
+		}
+		traversedObjects[file.UniqueOID()] = true
+		if err := file.Save(); err != nil { // to update last-checked timestamp to find deleted files later
+			return nil
+		}
+
+		for _, object := range file.SubObjects() {
+			if _, found := traversedObjects[object.UniqueOID()]; found {
+				// already processed
+				continue
+			}
+			traversedObjects[object.UniqueOID()] = true
+			if err := object.Save(); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+
+	// Find deleted notes for every path
+	relpath, err := c.GetFileRelativePath(path)
+	if err != nil {
+		return "", err
+	}
+	deletedNotes, err := c.FindNotesLastCheckedBefore(buildTime, relpath)
+	if err != nil {
+		return "", err
+	}
+
+	var diff strings.Builder
+	// Diff updated notes
+	for _, noteAfter := range updatedNotes {
+		objectBefore, err := db.ReadLastStagedOrCommittedObject(noteAfter.OID)
+		if err != nil {
+			return "", err
+		}
+		noteContentBefore := ""
+		if objectBefore != nil {
+			noteBefore := objectBefore.(*Note)
+			noteContentBefore = noteBefore.ContentRaw
+		}
+		noteContentAfter := noteAfter.ContentRaw
+		patch := godiffpatch.GeneratePatch(noteAfter.RelativePath, noteContentBefore, noteContentAfter)
+		diff.WriteString(patch)
+	}
+	// Diff deleted notes
+	for _, noteAfter := range deletedNotes {
+		objectBefore, err := db.ReadLastStagedOrCommittedObject(noteAfter.OID)
+		if err != nil {
+			return "", err
+		}
+		noteBefore := objectBefore.(*Note)
+		noteContentBefore := noteBefore.ContentRaw
+		noteContentAfter := ""
+		patch := godiffpatch.GeneratePatch(noteAfter.RelativePath, noteContentBefore, noteContentAfter)
+		diff.WriteString(patch)
+	}
+
+	// Don't forget to rollback
+	if err := db.RollbackTransaction(); err != nil {
+		return "", err
+	}
+
+	return diff.String(), nil
 }
