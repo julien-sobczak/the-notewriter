@@ -307,6 +307,19 @@ func (db *DB) Commit(msg string) error {
 		return errors.New(`nothing to commit (create/copy files and use "nt add" to track)`)
 	}
 
+	// Run Hooks first for user to fix note issues
+	// if a hook fails due to a malformed note.
+	for _, obj := range db.index.StagingArea.Objects() {
+		if obj.CommitObject.Kind != "note" {
+			// We execute hooks only on note objects
+			continue
+		}
+		note := obj.ReadObject().(*Note)
+		if err := note.RunHooks(); err != nil {
+			return err
+		}
+	}
+
 	// Convert the staging area to a new commit file
 	c := db.index.CreateCommitFromStagingArea()
 	if err := c.Save(); err != nil {

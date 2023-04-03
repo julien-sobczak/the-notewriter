@@ -1128,6 +1128,9 @@ func (n *Note) FormatToJSON() string {
 		ContentMarkdown    string                 `json:"contentMarkdown"`
 		ContentHTML        string                 `json:"contentHTML"`
 		ContentText        string                 `json:"contentText"`
+		CreatedAt          time.Time              `json:"createdAt"`
+		UpdatedAt          time.Time              `json:"updatedAt"`
+		DeletedAt          *time.Time             `json:"deletedAt"`
 	}
 	repr := NoteRepresentation{
 		OID:                n.OID,
@@ -1143,6 +1146,11 @@ func (n *Note) FormatToJSON() string {
 		ContentMarkdown:    n.ContentMarkdown,
 		ContentHTML:        n.ContentHTML,
 		ContentText:        n.ContentText,
+		CreatedAt:          n.CreatedAt,
+		UpdatedAt:          n.UpdatedAt,
+	}
+	if !n.DeletedAt.IsZero() {
+		repr.DeletedAt = &n.DeletedAt
 	}
 	output, _ := json.MarshalIndent(repr, "", " ")
 	return string(output)

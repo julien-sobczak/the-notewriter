@@ -15,6 +15,10 @@ import (
 // RunHooks triggers all hooks on the note.
 func (n *Note) RunHooks() error {
 	hookValue := n.GetAttribute("hook")
+	if hookValue == nil {
+		// No hooks on this note
+		return nil
+	}
 	hooks, ok := hookValue.([]interface{})
 	if !ok {
 		return fmt.Errorf("invalid type for hook attribute")
@@ -72,6 +76,7 @@ func (n *Note) RunHooks() error {
 	for _, hookNameRaw := range hooks {
 		hookName := hookNameRaw.(string)
 		exe := hookExecutables[hookName]
+		CurrentLogger().Infof("Running hook %q on %s...", hookName, n)
 		err := n.executeHook(exe)
 		if err != nil {
 			return err
