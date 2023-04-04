@@ -190,6 +190,10 @@ func (m *Media) update() {
 }
 
 func (m *Media) UpdateBlobs() {
+	if CurrentConfig().DryRun {
+		return
+	}
+
 	src := CurrentCollection().GetAbsolutePath(m.RelativePath)
 
 	tmpDir := CurrentConfig().TempDir()

@@ -3,7 +3,9 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
+	"github.com/fatih/color"
 	"github.com/julien-sobczak/the-notetaker/internal/core"
 	"github.com/spf13/cobra"
 )
@@ -33,6 +35,18 @@ var diffCmd = &cobra.Command{
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		fmt.Println(diff)
+		printDiff(diff)
 	},
+}
+
+func printDiff(diff string) {
+	for _, line := range strings.Split(diff, "\n") {
+		if strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---") {
+			color.Red(line)
+		} else if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {
+			color.Green(line)
+		} else {
+			println(line)
+		}
+	}
 }

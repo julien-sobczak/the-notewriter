@@ -610,6 +610,9 @@ func (c *Collection) Counters() (*Counters, error) {
 
 // Diff show changes between commits and working tree.
 func (c *Collection) Diff(staged bool) (string, error) {
+	// Enable dry-run mode to not generate blobs
+	CurrentConfig().DryRun = true
+
 	if staged {
 		return CurrentDB().Diff()
 	}

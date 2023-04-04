@@ -376,6 +376,9 @@ type Config struct {
 
 	// Temporary directory to generate blob files locally
 	tempDir string
+
+	// Toggle this flag to skip some side-effects
+	DryRun bool
 }
 
 func CurrentConfig() *Config {

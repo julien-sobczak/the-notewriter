@@ -389,6 +389,11 @@ func EvaluateTimeExpression(expr string) (time.Time, error) {
 		return possibleFutureDates[i].Before(possibleFutureDates[j])
 	})
 
+	if len(possibleFutureDates) == 0 {
+		// Must not happen
+		return time.Time{}, fmt.Errorf("no date can be determined for reminder %q", originalExpr)
+	}
+
 	return possibleFutureDates[0], nil
 }
 

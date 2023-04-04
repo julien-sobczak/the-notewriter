@@ -750,6 +750,8 @@ func TestPostProcessing(t *testing.T) {
 	err := CurrentCollection().Add(".")
 	require.NoError(t, err)
 
+	// TODO prepend by note long title 
+
 	t.Run("Quotes Formatting", func(t *testing.T) {
 		notes, err := CurrentCollection().SearchNotes("path:quotes/walt-disney.md")
 		require.NoError(t, err)
