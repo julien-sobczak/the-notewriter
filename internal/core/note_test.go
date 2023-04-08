@@ -299,11 +299,11 @@ func TestNoteFormat(t *testing.T) {
 	FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
 
 	var tests = []struct {
-		name             string // name
-		title            string // input
-		content          string // input
-		expectedJSON     string // output
-		
+		name         string // name
+		title        string // input
+		content      string // input
+		expectedJSON string // output
+
 		expectedMarkdown string // output
 		expectedHTML     string // output
 		expectedText     string // output
@@ -405,6 +405,7 @@ file_oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
 parent_note_oid: ""
 kind: todo
 title: 'TODO: Backlog'
+long_title: Backlog
 short_title: Backlog
 relative_path: example.md
 wikilink: 'example.md#TODO: Backlog'
@@ -430,6 +431,46 @@ updated_at: 2023-01-01T01:12:30Z
 		assert.EqualValues(t, cleanNote(noteSrc), cleanNote(noteDest))
 	})
 
+}
+
+func TestFormatLongTitle(t *testing.T) {
+	tests := []struct {
+		name      string
+		titles    []string // input
+		longTitle string   // output
+	}{
+		{
+			name:      "Basic",
+			titles:    []string{"Go", "History"},
+			longTitle: "Go / History",
+		},
+		{
+			name:      "Empty titles",
+			titles:    []string{"", "History"},
+			longTitle: "History",
+		},
+		{
+			name:      "Duplicate titles",
+			titles:    []string{"Go", "History", "History"},
+			longTitle: "Go / History",
+		},
+		{
+			name:      "Common prefix",
+			titles:    []string{"Go", "Go History"},
+			longTitle: "Go History",
+		},
+		{
+			name:      "Not common prefix",
+			titles:    []string{"Go", "Goroutines"},
+			longTitle: "Go / Goroutines",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := FormatLongTitle(tt.longTitle)
+			assert.Equal(t, tt.longTitle, actual)
+		})
+	}
 }
 
 /* Test Helpers */

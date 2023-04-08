@@ -465,6 +465,7 @@ func TestFileSave(t *testing.T) {
 	assert.EqualValues(t, "", note.ParentNoteOID) // 0 = new, -1 = nil
 	assert.Equal(t, KindReference, note.NoteKind)
 	assert.Equal(t, "Reference: Golang History", note.Title)
+	assert.Equal(t, "Golang History", note.LongTitle)
 	assert.Equal(t, "Golang History", note.ShortTitle)
 	assert.Equal(t, actual.RelativePath, note.RelativePath)
 	assert.Equal(t, "go#Reference: Golang History", note.Wikilink)
@@ -750,7 +751,7 @@ func TestPostProcessing(t *testing.T) {
 	err := CurrentCollection().Add(".")
 	require.NoError(t, err)
 
-	// TODO prepend by note long title 
+	// TODO prepend by note long title
 
 	t.Run("Quotes Formatting", func(t *testing.T) {
 		notes, err := CurrentCollection().SearchNotes("path:quotes/walt-disney.md")

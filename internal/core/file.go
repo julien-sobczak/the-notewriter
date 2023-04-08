@@ -47,6 +47,11 @@ type File struct {
 	// Merged attributes
 	Attributes map[string]interface{} `yaml:"attributes,omitempty"`
 
+	// Original title of the main heading without leading # characters
+	Title string `yaml:"title,omitempty"`
+	// Short title of the main heading without the kind prefix if present
+	ShortTitle string `yaml:"short_title,omitempty"`
+
 	Body     string  `yaml:"body"`
 	BodyLine int     `yaml:"body_line"`
 	notes    []*Note `yaml:"-"`
@@ -629,6 +634,10 @@ type ParsedFile struct {
 	// The raw file bytes
 	Bytes []byte
 
+	// Main Heading
+	Title      string
+	ShortTitle string
+
 	// The YAML Front Matter
 	FrontMatter *yaml.Node
 	// File attributes extracted from the Front Matter
@@ -710,24 +719,27 @@ func ParseFile(filepath string) (*ParsedFile, error) {
 		return nil, err
 	}
 
-	// i := 0
-	// for i < len(frontMatter.Content)-1 {
-	// 	keyNode := frontMatter.Content[i]
-	// 	valueNode := frontMatter.Content[i+1]
-	// 	valueSafe := toSafeYAMLValue(valueNode)
-	// 	attributes[keyNode.Value] = valueSafe
-	// 	i += 2
-	// }
+	body := strings.TrimSpace(rawContent.String())
+	// Extract title
+	title := ""
+	for _, line := range strings.Split(body, "\n") {
+		if ok, longTitle, _ := markdown.IsHeading(line); ok {
+			title = longTitle
+		}
+	}
+	_, _, shortTitle := isSupportedNote(title)
 
 	return &ParsedFile{
 		AbsolutePath:   absolutePath,
 		RelativePath:   relativePath,
 		Stat:           stat,
 		LStat:          lstat,
+		Title:          title,
+		ShortTitle:     shortTitle,
 		Bytes:          contentBytes,
 		FrontMatter:    frontMatter,
 		FileAttributes: CastAttributes(attributes, GetSchemaAttributeTypes()),
-		Body:           strings.TrimSpace(rawContent.String()),
+		Body:           body,
 		BodyLine:       bodyStartLineNumber,
 	}, nil
 }
@@ -888,6 +900,8 @@ func (f *File) Insert() error {
 			wikilink,
 			front_matter,
 			attributes,
+			title,
+			short_title,
 			body,
 			body_line,
 			created_at,
@@ -898,7 +912,7 @@ func (f *File) Insert() error {
 			hashsum,
 			mode
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 	frontMatter, err := f.FrontMatterString()
 	if err != nil {
@@ -916,6 +930,8 @@ func (f *File) Insert() error {
 		f.Wikilink,
 		frontMatter,
 		attributesJSON,
+		f.Title,
+		f.ShortTitle,
 		f.Body,
 		f.BodyLine,
 		timeToSQL(f.CreatedAt),
@@ -943,6 +959,8 @@ func (f *File) Update() error {
 			wikilink = ?,
 			front_matter = ?,
 			attributes = ?,
+			title = ?,
+			short_title = ?,
 			body = ?,
 			body_line = ?,
 			updated_at = ?,
@@ -967,6 +985,8 @@ func (f *File) Update() error {
 		f.Wikilink,
 		frontMatter,
 		attributesJSON,
+		f.Title,
+		f.ShortTitle,
 		f.Body,
 		f.BodyLine,
 		timeToSQL(f.UpdatedAt),
@@ -1042,6 +1062,8 @@ func QueryFile(db SQLClient, whereClause string, args ...any) (*File, error) {
 			wikilink,
 			front_matter,
 			attributes,
+			title,
+			short_title,
 			body,
 			body_line,
 			created_at,
@@ -1060,6 +1082,8 @@ func QueryFile(db SQLClient, whereClause string, args ...any) (*File, error) {
 			&f.Wikilink,
 			&rawFrontMatter,
 			&attributesRaw,
+			&f.Title,
+			&f.ShortTitle,
 			&f.Body,
 			&f.BodyLine,
 			&createdAt,
@@ -1110,6 +1134,8 @@ func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) 
 			wikilink,
 			front_matter,
 			attributes,
+			title,
+			short_title,
 			body,
 			body_line,
 			created_at,
@@ -1141,6 +1167,8 @@ func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) 
 			&f.Wikilink,
 			&rawFrontMatter,
 			&attributesRaw,
+			&f.Title,
+			&f.ShortTitle,
 			&f.Body,
 			&f.BodyLine,
 			&createdAt,

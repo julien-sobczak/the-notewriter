@@ -8,8 +8,10 @@ import (
 	"io"
 	"log"
 	"regexp"
+	"regexp/syntax"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/julien-sobczak/the-notetaker/internal/helpers"
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
@@ -17,6 +19,9 @@ import (
 	"github.com/julien-sobczak/the-notetaker/pkg/text"
 	"gopkg.in/yaml.v3"
 )
+
+// NoteLongTitleSeparator represents the separator when determine the long title of a note.
+const NoteLongTitleSeparator string = " / "
 
 type NoteKind string
 
@@ -69,6 +74,8 @@ type Note struct {
 
 	// Original title of the note without leading # characters
 	Title string `yaml:"title"`
+	// Long title of the note without the kind prefix but prefixed by parent note's short titles
+	LongTitle string `yaml:"long_title"`
 	// Short title of the note without the kind prefix
 	ShortTitle string `yaml:"short_title"`
 
@@ -129,12 +136,23 @@ func NewNote(f *File, parent *Note, title string, content string, lineNumber int
 
 	_, kind, shortTitle := isSupportedNote(title)
 
+	var titles []string
+	if f.ShortTitle != "" {
+		titles = append(titles, f.ShortTitle)
+	}
+	if parent != nil {
+		titles = append(titles, parent.ShortTitle)
+	}
+	titles = append(titles, shortTitle)
+	longTitle := FormatLongTitle(titles...)
+
 	n := &Note{
 		OID:          NewOID(),
 		FileOID:      f.OID,
 		File:         f,
 		NoteKind:     kind,
 		Title:        title,
+		LongTitle:    longTitle,
 		ShortTitle:   shortTitle,
 		RelativePath: f.RelativePath,
 		Wikilink:     f.Wikilink + "#" + strings.TrimSpace(title),
@@ -147,6 +165,7 @@ func NewNote(f *File, parent *Note, title string, content string, lineNumber int
 	if parent != nil {
 		n.ParentNote = parent
 		n.ParentNoteOID = parent.OID
+		n.LongTitle = parent.LongTitle + " / " + n.LongTitle
 	}
 
 	n.updateContent(rawContent)
@@ -611,6 +630,7 @@ func (n *Note) Insert() error {
 			relative_path,
 			wikilink,
 			title,
+			long_title,
 			short_title,
 			attributes,
 			tags,
@@ -623,7 +643,7 @@ func (n *Note) Insert() error {
 			created_at,
 			updated_at,
 			last_checked_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 
 	attributesJSON, err := AttributesJSON(n.Attributes)
@@ -639,6 +659,7 @@ func (n *Note) Insert() error {
 		n.RelativePath,
 		n.Wikilink,
 		n.Title,
+		n.LongTitle,
 		n.ShortTitle,
 		attributesJSON,
 		strings.Join(n.Tags, ","),
@@ -670,6 +691,7 @@ func (n *Note) Update() error {
 			relative_path = ?,
 			wikilink = ?,
 			title = ?,
+			long_title = ?,
 			short_title = ?,
 			attributes = ?,
 			tags = ?,
@@ -696,6 +718,7 @@ func (n *Note) Update() error {
 		n.RelativePath,
 		n.Wikilink,
 		n.Title,
+		n.LongTitle,
 		n.ShortTitle,
 		attributesJSON,
 		strings.Join(n.Tags, ","),
@@ -975,6 +998,7 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 			relative_path,
 			wikilink,
 			title,
+			long_title,
 			short_title,
 			attributes,
 			tags,
@@ -997,6 +1021,7 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 			&n.RelativePath,
 			&n.Wikilink,
 			&n.Title,
+			&n.LongTitle,
 			&n.ShortTitle,
 			&attributesRaw,
 			&tagsRaw,
@@ -1042,6 +1067,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			relative_path,
 			wikilink,
 			title,
+			long_title,
 			short_title,
 			attributes,
 			tags,
@@ -1076,6 +1102,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			&n.RelativePath,
 			&n.Wikilink,
 			&n.Title,
+			&n.LongTitle,
 			&n.ShortTitle,
 			&attributesRaw,
 			&tagsRaw,
@@ -1181,4 +1208,55 @@ func (n *Note) FormatToText() string {
 	sb.WriteRune('\n')
 	sb.WriteString(n.ContentText)
 	return sb.String()
+}
+
+// FormatLongTitle formats the long title of a note.
+func FormatLongTitle(titles ...string) string {
+	// Implementation: We concatenate the titles but we must avoid duplication.
+	//
+	// Ex:
+	//     # Subject
+	//     ## Note: Technique A
+	//     ### Flashcard: Technique A
+	//
+	// The long title must be "Subject / Technique A", not "Subject / Technique A / Technique A".
+	//
+	// Ex:
+	//     # Go
+	//     ## Note: Goroutines
+	//     ## Note: Go History
+	//
+	// The long titles must be "Go / Goroutines" & "Go History".
+
+	prevTitle := ""
+	longTitle := ""
+
+	for i := len(titles) - 1; i >= 0; i-- {
+		title := titles[i]
+
+		if text.IsBlank(title) { // Empty
+			continue
+		}
+
+		if prevTitle == title { // Duplicate
+			continue
+		}
+
+		if strings.HasPrefix(longTitle, title) { // Common prefix
+			// Beware "false" common prefixes. Ex: "Go" and "Goroutines" must result in "Go / Goroutines"
+			nextCharacter, _ := utf8.DecodeRuneInString(strings.TrimPrefix(longTitle, title))
+			if !syntax.IsWordChar(nextCharacter) {
+				continue
+			}
+		}
+
+		if longTitle == "" {
+			longTitle = title
+		} else {
+			longTitle = title + NoteLongTitleSeparator + longTitle
+		}
+		prevTitle = title
+	}
+
+	return longTitle
 }

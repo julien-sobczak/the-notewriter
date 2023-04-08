@@ -15,6 +15,11 @@ CREATE TABLE file (
     -- Merged attributes in JSON
     attributes TEXT NOT NULL,
 
+    -- Title including the kind but not the Markdown heading characters
+    title TEXT NOT NULL,
+    -- Same as title without the optional kind
+    short_title TEXT NOT NULL,
+
     -- Raw file content
     body TEXT NOT NULL,
     body_line INTEGER NOT NULL,
@@ -50,7 +55,8 @@ CREATE TABLE note (
 
     -- Title including the kind but not the Markdown heading characters
     title TEXT NOT NULL,
-
+    -- Same as short_title prefix by parent note/file's short titles.
+    long_title TEXT NOT NULL,
     -- Same as title without the kind
     short_title TEXT NOT NULL,
 
