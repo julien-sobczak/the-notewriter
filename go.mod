@@ -19,6 +19,7 @@ require (
 	go.nhat.io/surveyexpect v0.8.0
 	golang.org/x/exp v0.0.0-20230321023759-10a507213a29
 	gopkg.in/yaml.v3 v3.0.1
+	github.com/fatih/color v1.15.0
 )
 
 require (
@@ -32,7 +33,6 @@ require (
 	github.com/docker/docker v23.0.0+incompatible // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/fatih/color v1.15.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect

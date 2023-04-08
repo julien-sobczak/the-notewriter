@@ -64,6 +64,11 @@ var LintRules = map[string]LintRuleDefinition{
 		Eval: MinLinesBetweenNotes,
 	},
 
+	// Enforce a maximum number of lines between notes
+	"max-lines-between-notes": {
+		Eval: MaxLinesBetweenNotes,
+	},
+
 	// Enforce a consistent naming for notes
 	"note-title-match": {
 		Eval: NoteTitleMatch,
@@ -97,6 +102,11 @@ var LintRules = map[string]LintRuleDefinition{
 	// Attributes must satisfy their schema if defined
 	"check-attribute": {
 		Eval: CheckAttribute,
+	},
+
+	// At least one tag on quotes (must match the optional pattern).
+	"require-quote-tag": {
+		Eval: RequireQuoteTag,
 	},
 }
 
@@ -242,6 +252,54 @@ func MinLinesBetweenNotes(file *ParsedFile, args []string) ([]*Violation, error)
 					Line:         note.Line,
 				})
 			}
+		}
+	}
+
+	return violations, nil
+}
+
+// MaxLinesBetweenNotes implements the rule "min-lines-between-notes".
+func MaxLinesBetweenNotes(file *ParsedFile, args []string) ([]*Violation, error) {
+	var violations []*Violation
+
+	if len(args) != 1 {
+		return nil, errors.New("only a single argument is required")
+	}
+	maxLines, err := strconv.Atoi(args[0])
+	if err != nil {
+		return nil, fmt.Errorf("argument %s must be an integer", args[0])
+	}
+
+	body := file.Body
+	lines := strings.Split(body, "\n")
+
+	notes := ParseNotes(body)
+	for _, note := range notes {
+
+		countBlankLinesBefore := 0
+
+		j := 1
+		for {
+			lineNumber := note.Line - j
+			lineIndex := lineNumber - 1
+			if text.IsBlank(lines[lineIndex]) {
+				countBlankLinesBefore++
+			} else {
+				break
+			}
+			if lineIndex == 0 {
+				break
+			}
+			j++
+		}
+
+		if countBlankLinesBefore > maxLines {
+			violations = append(violations, &Violation{
+				Name:         "max-lines-between-notes",
+				RelativePath: file.RelativePath,
+				Message:      fmt.Sprintf("too many blank lines before note %q", note.LongTitle),
+				Line:         note.Line,
+			})
 		}
 	}
 
@@ -449,6 +507,63 @@ func NoAmbiguousWikilink(file *ParsedFile, args []string) ([]*Violation, error) 
 				Line:         wikilink.Line,
 			})
 
+		}
+	}
+
+	return violations, nil
+}
+
+// RequireQuoteTag implements the rule "require-quote-tag"
+func RequireQuoteTag(file *ParsedFile, args []string) ([]*Violation, error) {
+	var violations []*Violation
+
+	if len(args) > 1 {
+		return nil, errors.New("only a single argument is allowed")
+	}
+	regexPattern := regexp.MustCompile(".*")
+	if len(args) == 1 {
+		regexArgument, err := regexp.Compile(args[0])
+		if err != nil {
+			return nil, fmt.Errorf("argument %s must be a valid regular expression", args[0])
+		}
+		regexPattern = regexArgument
+	}
+
+	body := file.Body
+
+	notes := ParseNotes(body)
+	for _, note := range notes {
+		if note.Kind != KindQuote {
+			continue
+		}
+
+		attributes := MergeAttributes(file.FileAttributes, note.NoteAttributes)
+		tags := note.NoteTags
+		if attributeValue, ok := attributes["tags"]; ok {
+			if attributeTags, ok := attributeValue.([]interface{}); ok {
+				for _, attributeTag := range attributeTags {
+					if attributeTagStr, ok := attributeTag.(string); ok {
+						tags = append(tags, attributeTagStr)
+					}
+				}
+			}
+		}
+
+		atLeastOneTagMatch := false
+		for _, tag := range tags {
+			if regexPattern.MatchString(tag) {
+				atLeastOneTagMatch = true
+				break
+			}
+		}
+
+		if !atLeastOneTagMatch {
+			violations = append(violations, &Violation{
+				Name:         "require-quote-tag",
+				RelativePath: file.RelativePath,
+				Message:      fmt.Sprintf("quote %q does not have tags", note.LongTitle),
+				Line:         note.Line,
+			})
 		}
 	}
 

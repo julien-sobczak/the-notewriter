@@ -127,6 +127,30 @@ func TestMinLinesBetweenNotes(t *testing.T) {
 	}, violations)
 }
 
+func TestMaxLinesBetweenNotes(t *testing.T) {
+	root := SetUpCollectionFromGoldenDirNamed(t, "TestLint")
+
+	file, err := ParseFile(filepath.Join(root, "max-lines-between-notes.md"))
+	require.NoError(t, err)
+
+	violations, err := MaxLinesBetweenNotes(file, []string{"2"})
+	require.NoError(t, err)
+	require.Equal(t, []*Violation{
+		{
+			Name:         "max-lines-between-notes",
+			RelativePath: "max-lines-between-notes.md",
+			Message:      `too many blank lines before note "Note: One"`,
+			Line:         6,
+		},
+		{
+			Name:         "max-lines-between-notes",
+			RelativePath: "max-lines-between-notes.md",
+			Message:      `too many blank lines before note "Note: Three"`,
+			Line:         16,
+		},
+	}, violations)
+}
+
 func TestNoteTitleMatch(t *testing.T) {
 	root := SetUpCollectionFromGoldenDirNamed(t, "TestLint")
 
@@ -143,6 +167,51 @@ func TestNoteTitleMatch(t *testing.T) {
 			Line:         7,
 		},
 	}, violations)
+}
+
+func TestRequireQuoteTag(t *testing.T) {
+	root := SetUpCollectionFromGoldenDirNamed(t, "TestLint")
+
+	file1, err := ParseFile(filepath.Join(root, "require-quote-tag/require-quote-tag-1.md"))
+	require.NoError(t, err)
+	file2, err := ParseFile(filepath.Join(root, "require-quote-tag/require-quote-tag-2.md"))
+	require.NoError(t, err)
+
+	// Default pattern
+	violations, err := RequireQuoteTag(file1, []string{})
+	require.NoError(t, err)
+	require.Equal(t, []*Violation{
+		{
+			Name:         "require-quote-tag",
+			Message:      "quote \"Quote: No Tag\" does not have tags",
+			RelativePath: "require-quote-tag/require-quote-tag-1.md",
+			Line:         7,
+		},
+	}, violations)
+	violations, err = RequireQuoteTag(file2, []string{})
+	require.NoError(t, err)
+	assert.Len(t, violations, 0)
+
+	// Custom pattern
+	violations, err = RequireQuoteTag(file1, []string{`^(life|favorite)$`})
+	require.NoError(t, err)
+	assert.Equal(t, []*Violation{
+		{
+			Name:         "require-quote-tag",
+			Message:      "quote \"Quote: No Tag\" does not have tags",
+			RelativePath: "require-quote-tag/require-quote-tag-1.md",
+			Line:         7,
+		},
+		{
+			Name:         "require-quote-tag",
+			Message:      "quote \"Quote: Tag\" does not have tags", // useless does not match
+			RelativePath: "require-quote-tag/require-quote-tag-1.md",
+			Line:         14,
+		},
+	}, violations)
+	violations, err = RequireQuoteTag(file2, []string{`^(life|favorite)$`})
+	require.NoError(t, err)
+	assert.Len(t, violations, 0)
 }
 
 func TestNoFreeNote(t *testing.T) {
