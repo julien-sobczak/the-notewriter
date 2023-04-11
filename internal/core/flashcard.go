@@ -331,7 +331,8 @@ func splitFrontBack(content string) (string, string) {
 	front := true
 	var frontContent bytes.Buffer
 	var backContent bytes.Buffer
-	for _, line := range strings.Split(content, "\n") {
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
 		if line == "---" {
 			front = false
 			continue
@@ -345,11 +346,6 @@ func splitFrontBack(content string) (string, string) {
 		}
 	}
 	return strings.TrimSpace(frontContent.String()), strings.TrimSpace(backContent.String())
-}
-
-// GetMedias extracts medias from the flashcard.
-func (f *Flashcard) GetMedias() []*Media {
-	return extractMediasFromMarkdown(f.File.RelativePath, f.FrontMarkdown+f.BackMarkdown)
 }
 
 func (f *Flashcard) Check() error {

@@ -75,6 +75,82 @@ C
 	}
 }
 
+func TestPrefixLines(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string // input
+		prefix   string // input
+		expected string // output
+	}{
+		{
+			name:     "Basic",
+			input:    "Hello\nWorld",
+			prefix:   "> ",
+			expected: "> Hello\n> World\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := text.PrefixLines(tt.input, tt.prefix)
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestRepeat(t *testing.T) {
+	tests := []struct {
+		name     string
+		text     string // input
+		n        int    // input
+		expected string // output
+	}{
+		{
+			name:     "Empty",
+			text:     "",
+			n:        10,
+			expected: "",
+		},
+		{
+			name:     "Basic",
+			text:     "-",
+			n:        3,
+			expected: "---",
+		},
+		{
+			name:     "String",
+			text:     "cou",
+			n:        2,
+			expected: "coucou",
+		},
+	}
+	for _, tt := range tests {
+		actual := text.Repeat(tt.text, tt.n)
+		assert.Equal(t, tt.expected, actual)
+	}
+}
+
+func TestTrimLinePrefix(t *testing.T) {
+	tests := []struct {
+		name     string
+		text     string // input
+		prefix   string // input
+		expected string // output
+	}{
+		{
+			name:     "Basic",
+			text:     "> This\n> is\n> an \n>  example",
+			prefix:   "> ",
+			expected: "This\nis\nan \n example\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := text.TrimLinePrefix(tt.text, tt.prefix)
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
 func TestIsBlank(t *testing.T) {
 	var tests = []struct {
 		name  string

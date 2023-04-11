@@ -17,6 +17,7 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/julien-sobczak/the-notetaker/pkg/resync"
+	"github.com/julien-sobczak/the-notetaker/pkg/text"
 	godiffpatch "github.com/sourcegraph/go-diff-patch"
 )
 
@@ -31,7 +32,31 @@ var (
 	dbClientOnce resync.Once
 )
 
+type WIP struct {
+	notes []*Note
+}
+
+func (w *WIP) Register(note *Note) {
+	w.notes = append(w.notes, note)
+}
+
+func (w *WIP) FindNoteByWikilink(wikilink string) *Note {
+	for _, note := range w.notes {
+		if strings.HasSuffix(text.TrimExtension(note.Wikilink), text.TrimExtension(wikilink)) {
+			return note
+		}
+	}
+	return nil
+}
+
+func (w *WIP) Flush() {
+	w.notes = nil
+}
+
 type DB struct {
+	// Notes in progress
+	wip *WIP
+
 	// .nt/index
 	index *Index
 	// .nt/objects/info/commit-graph
@@ -60,6 +85,7 @@ func CurrentDB() *DB {
 
 		// Create the database
 		dbSingleton = &DB{
+			wip:         new(WIP),
 			index:       index,
 			commitGraph: commitGraph,
 			refs:        refs,
@@ -135,7 +161,9 @@ func (db *DB) RollbackTransaction() error {
 	if db.tx == nil {
 		return errors.New("no transaction started")
 	}
-	return db.tx.Rollback()
+	err := db.tx.Rollback()
+	db.tx = nil
+	return err
 }
 
 // CommitTransaction ends the current transaction.
@@ -159,6 +187,11 @@ func (db *DB) Client() SQLClient {
 	}
 	// Basic client = no transaction
 	return db.initClient()
+}
+
+// WIP returns the registry of currently processed notes.
+func (db *DB) WIP() *WIP {
+	return db.wip
 }
 
 /* Row Management */

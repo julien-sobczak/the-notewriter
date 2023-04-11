@@ -19,6 +19,12 @@ type Wikilink struct {
 	Line int
 }
 
+// MatchWikilink tests if a text is a wikilink.
+func MatchWikilink(txt string) bool {
+	match := regexWikilink.FindStringSubmatch(txt)
+	return match != nil
+}
+
 // NewWikilink instantiates a new wikilink.
 func NewWikilink(link string) (*Wikilink, error) {
 	match := regexWikilink.FindStringSubmatch(link)

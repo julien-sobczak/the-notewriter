@@ -231,7 +231,7 @@ func (m *Media) UpdateBlobs() {
 			dest := filepath.Join(tmpDir, filepath.Base(src)+".large.avif")
 			err := converter.ToAVIF(src, dest, medias.ResizeTo(LargeMaxWidthOrHeight))
 			if err != nil {
-				log.Fatalf("Unable to generate preview blob from file %q: %v", m.RelativePath, err)
+				log.Fatalf("Unable to generate large blob from file %q: %v", m.RelativePath, err)
 			}
 			m.BlobRefs = append(m.BlobRefs, MustWriteBlob(dest, []string{"large", "lossy"}))
 		}
@@ -239,7 +239,7 @@ func (m *Media) UpdateBlobs() {
 		dest := filepath.Join(tmpDir, filepath.Base(src)+".original.avif")
 		err := converter.ToAVIF(src, dest, medias.OriginalSize())
 		if err != nil {
-			log.Fatalf("Unable to generate preview blob from file %q: %v", m.RelativePath, err)
+			log.Fatalf("Unable to generate original blob from file %q: %v", m.RelativePath, err)
 		}
 		m.BlobRefs = append(m.BlobRefs, MustWriteBlob(dest, []string{"original", "lossy"}))
 

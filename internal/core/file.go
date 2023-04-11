@@ -466,7 +466,7 @@ func (f *File) GetNotes() []*Note {
 	addedNoteIndices := make(map[int]bool)
 	addedSections := make(map[string]bool)
 	changedDuringIteration := false
-	for { // until all notes are added or no more notes can be added due to transitive dependency
+	for len(addedNoteIndices) < len(parsedNotes) { // until all notes are added or no more notes can be added due to transitive dependency
 		for i, note := range parsedNotes {
 			if addedNoteIndices[i] {
 				// Already added
@@ -500,9 +500,10 @@ func (f *File) GetNotes() []*Note {
 		}
 		if !changedDuringIteration {
 			// cyclic dependency found
-			CurrentLogger().Warnf("Cyclic dependency between notes detected. Incomplete note(s) can result.")
+			CurrentLogger().Warn("Cyclic dependency between notes detected. Incomplete note(s) can result.")
 			// Add remaining notes without taking care of dependencies...
 			for i, note := range parsedNotes {
+				fmt.Printf("%s -> %s\n", note.LongTitle, note.Wikilinks())
 				if addedNoteIndices[i] {
 					// Already added
 					continue
@@ -1054,6 +1055,10 @@ func (c *Collection) LoadFileByOID(oid string) (*File, error) {
 
 func (c *Collection) LoadFilesByRelativePathPrefix(relativePathPrefix string) ([]*File, error) {
 	return QueryFiles(CurrentDB().Client(), `WHERE relative_path LIKE ?`, relativePathPrefix+"%")
+}
+
+func (c *Collection) FindFileByWikilink(wikilink string) (*File, error) {
+	return QueryFile(CurrentDB().Client(), `WHERE wikilink LIKE ?`, "%"+wikilink)
 }
 
 func (c *Collection) FindFilesByWikilink(wikilink string) ([]*File, error) {

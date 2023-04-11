@@ -1,7 +1,6 @@
 package core
 
 import (
-	"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -17,11 +16,14 @@ import (
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/julien-sobczak/the-notetaker/pkg/markdown"
 	"github.com/julien-sobczak/the-notetaker/pkg/text"
+	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 )
 
 // NoteLongTitleSeparator represents the separator when determine the long title of a note.
 const NoteLongTitleSeparator string = " / "
+
+const missingBlobOID string = "4044044044044044044044044044044044044040"
 
 type NoteKind string
 
@@ -51,11 +53,6 @@ var (
 	regexSnippet    = regexp.MustCompile(`^(?i)Snippet:\s*(.*)$`)    // Ex: `# Snippet: Ideas for post title`
 	regexChecklist  = regexp.MustCompile(`^(?i)Checklist:\s*(.*)$`)  // Ex: `# Checklist: Travel`
 	regexJournal    = regexp.MustCompile(`^(?i)Journal:\s*(.*)$`)    // Ex: `# Journal: 2023-01-01`
-
-	// Metadata
-	regexTags                   = regexp.MustCompile("`#(\\S+)`")                          // Ex: `#favorite`
-	regexAttributes             = regexp.MustCompile("`@([a-zA-Z0-9_.-]+)\\s*:\\s*(.+?)`") // Ex: `@source: _A Book_`, `@isbn: 9780807014271`
-	regexBlockTagAttributesLine = regexp.MustCompile("^\\s*(`.*?`\\s+)*`.*?`\\s*$")        // Ex: `#favorite` `@isbn: 9780807014271`
 )
 
 type Note struct {
@@ -96,9 +93,15 @@ type Note struct {
 	// Content in various formats (best for editing, rendering, writing, etc.)
 	ContentRaw      string `yaml:"content_raw"`
 	Hash            string `yaml:"content_hash"`
+	TitleMarkdown   string `yaml:"title_markdown"`
+	TitleHTML       string `yaml:"title_html"`
+	TitleText       string `yaml:"title_text"`
 	ContentMarkdown string `yaml:"content_markdown"`
 	ContentHTML     string `yaml:"content_html"`
 	ContentText     string `yaml:"content_text"`
+	CommentMarkdown string `yaml:"comment_markdown,omitempty"`
+	CommentHTML     string `yaml:"comment_html,omitempty"`
+	CommentText     string `yaml:"comment_text,omitempty"`
 
 	// Timestamps to track changes
 	CreatedAt     time.Time `yaml:"created_at"`
@@ -170,6 +173,8 @@ func NewNote(f *File, parent *Note, title string, content string, lineNumber int
 
 	n.updateContent(rawContent)
 
+	CurrentDB().WIP().Register(n)
+
 	return n
 }
 
@@ -189,9 +194,9 @@ func (n *Note) ModificationTime() time.Time {
 
 func (n *Note) Refresh() (bool, error) {
 	// Simply force the content to be reevaluated to force inluded notes to be reread
-	prevContentRaw := n.ContentRaw
-	n.updateContent(prevContentRaw)
-	if prevContentRaw != n.ContentRaw {
+	prevContentMarkdown := n.ContentMarkdown
+	n.updateContent(n.ContentRaw)
+	if prevContentMarkdown != n.ContentMarkdown {
 		n.stale = true
 	}
 	return n.stale, nil
@@ -260,9 +265,82 @@ func (n *Note) Blobs() []*BlobRef {
 }
 
 func (n *Note) Relations() []*Relation {
-	// TODO parse content to extract included medias + included notes
-	// TODO check attributes to extract references, inspirations, source, ???
-	return nil
+	var relations []*Relation
+
+	// Utility function to append wikilink to the returned relations
+	addWikilink := func(wikilinkTxt string, relationType string) {
+		wikilink, err := NewWikilink(wikilinkTxt)
+		if err != nil {
+			// Ignore malformed links
+			return
+		}
+
+		if wikilink.Anchored() {
+			note, _ := CurrentCollection().FindNoteByWikilink(wikilink.Link)
+			if note != nil {
+				relations = append(relations, &Relation{
+					SourceOID:  n.OID,
+					SourceKind: "note",
+					TargetOID:  note.OID,
+					TargetKind: "note",
+					Type:       relationType,
+				})
+			}
+		} else {
+			file, _ := CurrentCollection().FindFileByWikilink(wikilink.Link)
+			if file != nil {
+				relations = append(relations, &Relation{
+					SourceOID:  n.OID,
+					SourceKind: "note",
+					TargetOID:  file.OID,
+					TargetKind: "file",
+					Type:       relationType,
+				})
+			}
+		}
+	}
+
+	// Search for embedded notes
+	reEmbeddedNote := regexp.MustCompile(`^!\[\[(.*)(?:\|.*)?\]\]\s*`)
+	matches := reEmbeddedNote.FindAllStringSubmatch(n.ContentRaw, -1)
+	for _, match := range matches {
+		wikilink := match[1]
+		addWikilink(wikilink, "includes")
+	}
+
+	// Check attribute "source"
+	if n.HasAttribute("source") {
+		source := n.GetAttribute("source").(string) // Enforced by linter
+		if MatchWikilink(source) {
+			addWikilink(source, "references")
+		}
+	}
+
+	// Check attribute "references"
+	if n.HasAttribute("references") {
+		references := n.GetAttribute("references").([]interface{}) // Enforced by linter
+		for _, referenceRaw := range references {
+			if reference, ok := referenceRaw.(string); ok {
+				if MatchWikilink(reference) {
+					addWikilink(reference, "referenced_by")
+				}
+			}
+		}
+	}
+
+	// Check attribute "inspirations"
+	if n.HasAttribute("inspirations") {
+		inspirations := n.GetAttribute("inspirations").([]interface{}) // Enforced by linter
+		for _, inspirationRaw := range inspirations {
+			if inspiration, ok := inspirationRaw.(string); ok {
+				if MatchWikilink(inspiration) {
+					addWikilink(inspiration, "inspired_by")
+				}
+			}
+		}
+	}
+
+	return relations
 }
 
 func (n Note) String() string {
@@ -301,11 +379,190 @@ func (n *Note) Updated() bool {
 
 /* Parsing */
 
-func (n *Note) parseContentRaw() string {
+func (n *Note) parseContentRaw() (mdTitle, htmlTitle, txtTitle string, mdContent, htmlContent, txtContent string, mdComment, htmlComment, txtComment string) {
+	// Always remove block tags and attributes in all formats
 	content := StripBlockTagsAndAttributes(n.ContentRaw)
-	content = n.expandSyntaxSugar(content)
 
-	return content
+	// Always replace Asciidoc special characters
+	content = markdown.ReplaceAsciidocCharacterSubstitutions(content)
+	// Extract optional personal comment
+	content, comment := markdown.StripComment(content)
+
+	// Replace local-specific links by generic OID links
+	content = n.ReplaceMediasByOIDLinks(content)
+
+	if comment != "" {
+		mdComment = strings.TrimSpace(comment)
+		txtComment = strings.TrimSpace(comment)
+		htmlComment = markdown.ToInlineHTML(strings.ReplaceAll(comment, "\n", " "))
+	}
+
+	mdTitle = "# " + n.LongTitle
+	htmlTitle = "<h1>" + markdown.ToInlineHTML(n.LongTitle) + "</h1>"
+	txtTitle = markdown.ToText(n.LongTitle) + "\n" + text.Repeat("=", len(n.LongTitle))
+
+	// Quotes are processed differently
+	if n.NoteKind == KindQuote {
+		quote, attribution := markdown.ExtractQuote(content)
+
+		// Turn every text line into a quote
+		// Add the attribute name or author in suffix
+		// Ex:
+		//   `@name: Walt Disney`
+		//
+		//   The way to get started is to quit
+		//   talking and begin doing.
+		//
+		// Becomes:
+		//
+		//   > The way to get started is to quit
+		//   > talking and begin doing.
+		//   > — Walt Disney
+
+		if attribution == "" {
+			attribution = n.GetAttributeString("name", n.GetAttributeString("author", ""))
+		}
+		source := n.GetAttributeString("source", "")
+		if strings.Contains(source, "[[") {
+			// Ignore source containing wikilink.
+			// Ideally, we would retrieve the correspond note to retrieve its title.
+			source = ""
+		}
+
+		// Markdown
+		mdContent += text.PrefixLines(quote, "> ")
+		txtContent += text.PrefixLines(quote, "> ")
+		if attribution != "" {
+			mdContent += "> — " + attribution + "\n"
+			txtContent += "> — " + attribution + "\n"
+		}
+		// HTML
+		if attribution == "" {
+			htmlContent += fmt.Sprintf(`<figure>
+	<blockquote>
+		%s
+	</blockquote>
+</figure>`, markdown.ToHTML(quote))
+		} else if source == "" {
+			htmlContent += fmt.Sprintf(`<figure>
+	<blockquote>
+		%s
+	</blockquote>
+	<figcaption>— %s</figcaption>
+</figure>`, markdown.ToHTML(quote), markdown.ToInlineHTML(attribution))
+		} else {
+			htmlContent += fmt.Sprintf(`<figure>
+	<blockquote>
+		%s
+	</blockquote>
+	<figcaption>— %s <cite>%s</cite></figcaption>
+</figure>`, markdown.ToHTML(quote), markdown.ToInlineHTML(attribution), markdown.ToInlineHTML(source))
+		}
+
+		mdContent = strings.TrimSpace(mdContent)
+		htmlContent = strings.TrimSpace(htmlContent)
+		txtContent = strings.TrimSpace(txtContent)
+
+		return
+	}
+
+	// Manage embedded notes
+	// We process as usual the other lines but inject the embedded note content.
+	lines := strings.Split(content, "\n")
+	reEmbeddedNote := regexp.MustCompile(`^!\[\[(.*)(?:\|.*)?\]\]\s*`)
+	var currentBlock strings.Builder
+	for _, line := range lines {
+		matches := reEmbeddedNote.FindStringSubmatch(line)
+		if matches != nil {
+			if currentBlock.Len() > 0 {
+				blockContent := currentBlock.String()
+				mdContent += markdown.ToMarkdown(blockContent) + "\n\n"
+				htmlContent += markdown.ToHTML(blockContent) + "\n\n"
+				txtContent += markdown.ToText(blockContent) + "\n\n"
+				currentBlock.Reset()
+			}
+			wikilink := matches[1]
+			note, _ := CurrentCollection().FindNoteByWikilink(wikilink)
+			if note == nil {
+				note = CurrentDB().WIP().FindNoteByWikilink(wikilink)
+			}
+			// Ignore missing notes, this one will be reprocessed later
+			if note != nil {
+				mdContent += note.ContentMarkdown + "\n\n"
+				htmlContent += note.ContentHTML + "\n\n"
+				txtContent += note.ContentText + "\n\n"
+			} else {
+				// Print the missing link, otherwise the note content may be weird
+				mdContent += line + "\n\n"
+				htmlContent += "<del>" + wikilink + "</del>\n\n"
+				txtContent += markdown.ToText(line) + "\n\n"
+			}
+		} else {
+			currentBlock.WriteString(line)
+			currentBlock.WriteRune('\n')
+		}
+	}
+	if currentBlock.Len() > 0 {
+		blockContent := currentBlock.String()
+		mdContent += markdown.ToMarkdown(blockContent)
+		htmlContent += markdown.ToHTML(blockContent)
+		txtContent += markdown.ToText(blockContent)
+	}
+
+	mdContent = strings.TrimSpace(mdContent)
+	htmlContent = strings.TrimSpace(htmlContent)
+	txtContent = strings.TrimSpace(txtContent)
+
+	return
+}
+
+// ReplaceMediasByOIDLinks replaces all non-dangling links by a OID fake link.
+func (n *Note) ReplaceMediasByOIDLinks(md string) string {
+	regexMedias := regexp.MustCompile(`!\[.*?\]\((\S*?)(?:\s+"(.*?)")?\)`)
+
+	var result strings.Builder
+	prevIndex := 0
+	matches := regexMedias.FindAllStringSubmatchIndex(md, -1)
+	for _, match := range matches {
+		result.WriteString(md[prevIndex:match[2]])
+		prevIndex = match[2]
+
+		link := md[match[2]:match[3]]
+		relativePath, err := CurrentCollection().GetNoteRelativePath(n.GetFile().RelativePath, link)
+		if err != nil {
+			// Use a 404 image
+			result.WriteString("oid:" + missingBlobOID)
+			prevIndex = match[3]
+			continue
+		}
+
+		media, err := CurrentCollection().FindMediaByRelativePath(relativePath)
+		if err != nil || media == nil {
+			// Use a 404 image
+			result.WriteString("oid:" + missingBlobOID)
+			prevIndex = match[3]
+			continue
+		}
+
+		if media.Dangling {
+			// Use a 404 image
+			result.WriteString("oid:" + missingBlobOID)
+			prevIndex = match[3]
+			continue
+		}
+
+		for _, blob := range media.Blobs() {
+			if slices.Contains(blob.Tags, "preview") {
+				result.WriteString("oid:" + blob.OID)
+				prevIndex = match[3]
+				break
+			}
+		}
+	}
+	// Add remaining text
+	result.WriteString(md[prevIndex:])
+
+	return result.String()
 }
 
 func (n *Note) updateContent(rawContent string) {
@@ -337,10 +594,16 @@ func (n *Note) updateContent(rawContent string) {
 	n.Attributes = attributes
 
 	// Reread content as tags and attributes previously defined on the note can influence the output.
-	content := n.parseContentRaw()
-	n.ContentMarkdown = markdown.ToMarkdown(content)
-	n.ContentHTML = markdown.ToHTML(n.ContentMarkdown) // Use processed md to use <h2>, <h3>, ... whatever the note level
-	n.ContentText = markdown.ToText(n.ContentMarkdown)
+	mdTitle, htmlTitle, txtTitle, mdContent, htmlContent, txtContent, mdComment, htmlComment, txtComment := n.parseContentRaw()
+	n.TitleMarkdown = mdTitle
+	n.TitleHTML = htmlTitle
+	n.TitleText = txtTitle
+	n.ContentMarkdown = mdContent
+	n.ContentHTML = htmlContent
+	n.ContentText = txtContent
+	n.CommentMarkdown = mdComment
+	n.CommentHTML = htmlComment
+	n.CommentText = txtComment
 }
 
 // mergeAttributes is similar to generic mergeAttributes function but filter to exclude non-inheritable attributes.
@@ -459,55 +722,6 @@ func isSupportedNote(text string) (bool, NoteKind, string) {
 		return true, KindJournal, m[1]
 	}
 	return false, KindFree, text
-}
-
-func (n *Note) expandSyntaxSugar(rawContent string) string {
-	if n.NoteKind == KindQuote {
-		// Turn every text line into a quote
-		// Add the attribute name or author in suffix
-		// Ex:
-		//   ---
-		//   name: Walt Disney
-		//   ---
-		//   "The way to get started is to quit"
-		//   "talking and begin doing."
-		//
-		// Becomes:
-		//
-		//   > The way to get started is to quit
-		//   > talking and begin doing.
-		//   > — Walt Disney
-
-		var res bytes.Buffer
-		previousLineWasQuotation := false
-		for _, line := range strings.Split(rawContent, "\n") {
-			if text.IsBlank(line) {
-				if previousLineWasQuotation {
-					name := n.GetAttributeString("name", n.GetAttributeString("author", ""))
-					if !text.IsBlank(name) {
-						res.WriteString("> -- " + name + "\n")
-					}
-					res.WriteString(line + "\n")
-					previousLineWasQuotation = false
-				}
-				res.WriteString(line + "\n")
-			} else {
-				res.WriteString("> " + strings.TrimSpace(line) + "\n")
-				previousLineWasQuotation = true
-			}
-		}
-
-		if previousLineWasQuotation {
-			name := n.GetAttributeString("name", n.GetAttributeString("author", ""))
-			if !text.IsBlank(name) {
-				res.WriteString("> -- " + name + "\n")
-			}
-		}
-
-		return res.String()
-	}
-
-	return rawContent
 }
 
 /* Sub Objects */
@@ -653,13 +867,19 @@ func (n *Note) Insert() error {
 			"line",
 			content_raw,
 			hashsum,
+			title_markdown,
+			title_html,
+			title_text,
 			content_markdown,
 			content_html,
 			content_text,
+			comment_markdown,
+			comment_html,
+			comment_text,
 			created_at,
 			updated_at,
 			last_checked_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 
 	attributesJSON, err := AttributesJSON(n.Attributes)
@@ -682,9 +902,15 @@ func (n *Note) Insert() error {
 		n.Line,
 		n.ContentRaw,
 		n.Hash,
+		n.TitleMarkdown,
+		n.TitleHTML,
+		n.TitleText,
 		n.ContentMarkdown,
 		n.ContentHTML,
 		n.ContentText,
+		n.CommentMarkdown,
+		n.CommentHTML,
+		n.CommentText,
 		timeToSQL(n.CreatedAt),
 		timeToSQL(n.UpdatedAt),
 		timeToSQL(n.LastCheckedAt),
@@ -714,9 +940,15 @@ func (n *Note) Update() error {
 			"line" = ?,
 			content_raw = ?,
 			hashsum = ?,
+			title_markdown = ?,
+			title_html = ?,
+			title_text = ?,
 			content_markdown = ?,
 			content_html = ?,
 			content_text = ?,
+			comment_markdown = ?,
+			comment_html = ?,
+			comment_text = ?,
 			updated_at = ?,
 			last_checked_at = ?
 		WHERE oid = ?;
@@ -741,9 +973,15 @@ func (n *Note) Update() error {
 		n.Line,
 		n.ContentRaw,
 		n.Hash,
+		n.TitleMarkdown,
+		n.TitleHTML,
+		n.TitleText,
 		n.ContentMarkdown,
 		n.ContentHTML,
 		n.ContentText,
+		n.CommentMarkdown,
+		n.CommentHTML,
+		n.CommentText,
 		timeToSQL(n.UpdatedAt),
 		timeToSQL(n.LastCheckedAt),
 		n.OID,
@@ -850,6 +1088,17 @@ func (c *Collection) CountAttributes() (map[string]int, error) {
 	return result, nil
 }
 
+func (c *Collection) DumpNotes() error {
+	notes, err := QueryNotes(CurrentDB().Client(), "")
+	if err != nil {
+		return err
+	}
+	for _, note := range notes {
+		CurrentLogger().Infof("Note %s [%s] [[%s]]\n", note.LongTitle, note.OID, note.Wikilink)
+	}
+	return nil
+}
+
 func (c *Collection) LoadNoteByOID(oid string) (*Note, error) {
 	return QueryNote(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
@@ -887,86 +1136,43 @@ func (c *Collection) FindNotesLastCheckedBefore(point time.Time, path string) ([
 //
 //	tag:favorite kind:reference kind:note path:projects/
 func (c *Collection) SearchNotes(q string) ([]*Note, error) {
-	var kinds []string
-	var attributes []string
-	var tags []string
-	var path string
-	var terms []string
-	for _, clause := range strings.Split(q, " ") {
-		clause = strings.TrimSpace(clause)
-
-		// tag?
-		if strings.HasPrefix(clause, "tag:") {
-			tags = append(tags, clause[len("tag:"):])
-			continue
-		}
-		if strings.HasPrefix(clause, "#") {
-			tags = append(tags, clause[len("#"):])
-		}
-
-		// attributes?
-		if strings.HasPrefix(clause, "@") {
-			attributes = append(attributes, clause[len("@"):])
-			continue
-		}
-
-		// path?
-		if strings.HasPrefix(clause, "path:") {
-			// Tolerate trailing / to let the user filter on directory (ex: projects/ and projects.md)
-			path = strings.TrimLeft(clause[len("path:"):], "/")
-			continue
-		}
-
-		// path?
-		if strings.HasPrefix(clause, "kind:") {
-			kind := NoteKind(clause[len("kind:"):])
-			kinds = append(kinds, string(kind))
-			continue
-		}
-
-		// A simple term to match
-		terms = append(terms, clause)
+	query, err := ParseQuery(q)
+	if err != nil {
+		return nil, err
 	}
 
 	// Prepare SQL values
-
 	var querySQL strings.Builder
 	querySQL.WriteString("SELECT note_fts.rowid ")
 	querySQL.WriteString("FROM note_fts ")
 	querySQL.WriteString("JOIN note on note.oid = note_fts.oid ")
 	querySQL.WriteString("WHERE note.oid IS NOT NULL ") // useless but simplify the query building
-	if len(kinds) > 0 {
+	if len(query.Kinds) > 0 {
 		var kindsSQL []string
-		for _, kind := range kinds {
+		for _, kind := range query.Kinds {
 			kindsSQL = append(kindsSQL, fmt.Sprintf(`"%s"`, kind))
 		}
 		querySQL.WriteString(fmt.Sprintf("AND note.kind IN (%s) ", strings.Join(kindsSQL, ",")))
 	}
-	if len(tags) > 0 {
+	if len(query.Tags) > 0 {
 		querySQL.WriteString("AND ( ")
-		for _, tag := range tags {
+		for _, tag := range query.Tags {
 			querySQL.WriteString(fmt.Sprintf("  note.tags LIKE '%%%s%%' ", tag))
 		}
 		querySQL.WriteString(") ")
 	}
-	if len(attributes) > 0 {
+	if len(query.Attributes) > 0 {
 		querySQL.WriteString("AND ( ")
-		for _, attribute := range attributes {
-			parts := strings.Split(attribute, ":")
-			if len(parts) != 2 {
-				return nil, fmt.Errorf("invalid attribute clause %q", attribute)
-			}
-			name := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
+		for name, value := range query.Attributes {
 			querySQL.WriteString(fmt.Sprintf(`  json_extract(note.attributes, "$.%s") = "%s" `, name, value))
 		}
 		querySQL.WriteString(") ")
 	}
-	if path != "" {
-		querySQL.WriteString(fmt.Sprintf("AND note.relative_path LIKE '%s' ", path+"%"))
+	if query.Path != "" {
+		querySQL.WriteString(fmt.Sprintf("AND note.relative_path LIKE '%s' ", query.Path+"%"))
 	}
-	if len(terms) > 0 {
-		querySQL.WriteString(fmt.Sprintf("AND note_fts MATCH '%s' ", strings.Join(terms, " AND ")))
+	if len(query.Terms) > 0 {
+		querySQL.WriteString(fmt.Sprintf("AND note_fts MATCH '%s' ", strings.Join(query.Terms, " AND ")))
 	}
 
 	querySQL.WriteString("ORDER BY rank LIMIT 10;")
@@ -990,8 +1196,7 @@ func (c *Collection) SearchNotes(q string) ([]*Note, error) {
 		return nil, nil
 	}
 
-	query := "WHERE rowid IN (" + strings.Join(ids, ",") + ")"
-	return QueryNotes(CurrentDB().Client(), query)
+	return QueryNotes(CurrentDB().Client(), "WHERE rowid IN ("+strings.Join(ids, ",")+")")
 }
 
 /* SQL Helpers */
@@ -1021,9 +1226,15 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 			"line",
 			content_raw,
 			hashsum,
+			title_markdown,
+			title_html,
+			title_text,
 			content_markdown,
 			content_html,
 			content_text,
+			comment_markdown,
+			comment_html,
+			comment_text,
 			created_at,
 			updated_at,
 			last_checked_at
@@ -1044,9 +1255,15 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 			&n.Line,
 			&n.ContentRaw,
 			&n.Hash,
+			&n.TitleMarkdown,
+			&n.TitleHTML,
+			&n.TitleText,
 			&n.ContentMarkdown,
 			&n.ContentHTML,
 			&n.ContentText,
+			&n.CommentMarkdown,
+			&n.CommentHTML,
+			&n.CommentText,
 			&createdAt,
 			&updatedAt,
 			&lastCheckedAt,
@@ -1090,9 +1307,15 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			"line",
 			content_raw,
 			hashsum,
+			title_markdown,
+			title_html,
+			title_text,
 			content_markdown,
 			content_html,
 			content_text,
+			comment_markdown,
+			comment_html,
+			comment_text,
 			created_at,
 			updated_at,
 			last_checked_at
@@ -1125,9 +1348,15 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			&n.Line,
 			&n.ContentRaw,
 			&n.Hash,
+			&n.TitleMarkdown,
+			&n.TitleHTML,
+			&n.TitleText,
 			&n.ContentMarkdown,
 			&n.ContentHTML,
 			&n.ContentText,
+			&n.CommentMarkdown,
+			&n.CommentHTML,
+			&n.CommentText,
 			&createdAt,
 			&updatedAt,
 			&lastCheckedAt,

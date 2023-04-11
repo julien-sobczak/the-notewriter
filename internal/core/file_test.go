@@ -397,7 +397,9 @@ func TestGetMedias(t *testing.T) {
 	// Step 3: Check medias on a flashcard
 	flashcard := f.FindFlashcardByTitle("Fishes")
 	require.NotNil(t, flashcard)
-	medias = flashcard.GetMedias()
+	note = f.FindNoteByKindAndShortTitle(KindFlashcard, "Fishes")
+	require.NotNil(t, flashcard)
+	medias = note.GetMedias()
 	assert.Len(t, medias, 2)
 	assert.Equal(t, "medias/jellyfish.ogm", medias[0].RelativePath)
 	assert.Equal(t, "medias/aquarium.webm", medias[1].RelativePath)
@@ -505,11 +507,11 @@ func TestFileSave(t *testing.T) {
 	assert.Equal(t, 0, flashcard.Lapses)
 	assert.Equal(t, 0, flashcard.Left)
 	assert.Equal(t, "What does the **Golang logo** represent?", flashcard.FrontMarkdown)
-	assert.Equal(t, "A **gopher**.\n\n![Logo](./medias/go.svg)", flashcard.BackMarkdown)
+	assert.Equal(t, "A **gopher**.\n\n![Logo](oid:4044044044044044044044044044044044044040)", flashcard.BackMarkdown) // Must Refresh
 	assert.Equal(t, "<p>What does the <strong>Golang logo</strong> represent?</p>", flashcard.FrontHTML)
-	assert.Equal(t, "<p>A <strong>gopher</strong>.</p>\n\n<p><img src=\"./medias/go.svg\" alt=\"Logo\" /></p>", flashcard.BackHTML)
+	assert.Equal(t, "<p>A <strong>gopher</strong>.</p>\n\n<p><img src=\"oid:4044044044044044044044044044044044044040\" alt=\"Logo\" /></p>", flashcard.BackHTML)
 	assert.Equal(t, "What does the Golang logo represent?", flashcard.FrontText)
-	assert.Equal(t, "A gopher.\n\n![Logo](./medias/go.svg)", flashcard.BackText)
+	assert.Equal(t, "A gopher.\n\n![Logo](oid:4044044044044044044044044044044044044040)", flashcard.BackText)
 	assert.NotEmpty(t, flashcard.CreatedAt)
 	assert.NotEmpty(t, flashcard.UpdatedAt)
 	assert.Empty(t, flashcard.DeletedAt)
@@ -707,10 +709,10 @@ func TestInheritance(t *testing.T) {
 	}, fileGoGoroutines.GetAttributes())
 
 	// Check how attributes and tags are inherited in notes
-	generalNotes, err := CurrentCollection().SearchNotes("path:skills/go/general.md")
+	generalNotes, err := CurrentCollection().SearchNotes(`path:"skills/go/general.md"`)
 	require.NoError(t, err)
 	require.Len(t, generalNotes, 2)
-	goroutinesNotes, err := CurrentCollection().SearchNotes("path:skills/go/goroutines.md")
+	goroutinesNotes, err := CurrentCollection().SearchNotes(`path:"skills/go/goroutines.md"`)
 	require.NoError(t, err)
 	require.Len(t, goroutinesNotes, 1)
 
@@ -745,131 +747,127 @@ func TestInheritance(t *testing.T) {
 }
 
 func TestPostProcessing(t *testing.T) {
-	t.Skip() // FIXME remove
 	SetUpCollectionFromGoldenDir(t)
 
 	err := CurrentCollection().Add(".")
 	require.NoError(t, err)
 
-	// TODO prepend by note long title
-
 	t.Run("Quotes Formatting", func(t *testing.T) {
-		notes, err := CurrentCollection().SearchNotes("path:quotes/walt-disney.md")
+		notes, err := CurrentCollection().SearchNotes(`path:"quotes/walt-disney.md"`)
 		require.NoError(t, err)
 		require.Len(t, notes, 1)
-		quoteWaltDisney := notes[0]
-		assert.Equal(t, `
-<figure>
+		note := notes[0]
+		assert.Equal(t, `<h1>On Doing</h1>`, note.TitleHTML)
+		assert.Equal(t, `<figure>
 	<blockquote>
 		<p>The way to get started is to quit talking and begin doing.</p>
 	</blockquote>
-	<figcaption>— Walt Disney</figcaption>
-</figure>
-	`, quoteWaltDisney.ContentHTML)
+	<figcaption>— Walt Disney <cite>undefined</cite></figcaption>
+</figure>`, note.ContentHTML)
 	})
 
 	t.Run("Attributed Quotes Formatting", func(t *testing.T) {
 		// See https://developer.mozilla.org/en-US/docs/Web/HTML/Element/cite
 		notes, err := CurrentCollection().SearchNotes(`kind:quote @title:"J.R.R. Tolkein on Life"`)
 		require.NoError(t, err)
-		quoteTolkein := notes[0]
-		assert.Equal(t, `
-<figure>
+		note := notes[0]
+		assert.Equal(t, `<h1>J.R.R. Tolkein on Life</h1>`, note.TitleHTML)
+		assert.Equal(t, `<figure>
 	<blockquote>
 		<p>All we have to decide is what to do with the time that is given us.</p>
 	</blockquote>
-	<figcaption>— J.R.R. Tolkein<cite><em>The Fellowship of the Ring</em></cite></figcaption>
-</figure>
-		`, quoteTolkein.ContentHTML)
+	<figcaption>— J.R.R. Tolkein <cite><em>The Fellowship of the Ring</em></cite></figcaption>
+</figure>`, note.ContentHTML)
 	})
 
 	t.Run("Note Inclusion", func(t *testing.T) {
+		// File.GetNotes() <= Dependent Files are not saved inside this method
+		// so if one note depends on another in the same file, the file will not exist in DB...
+		// TODO save relations in Note.Save() to trigger Refresh()
 		notes, err := CurrentCollection().SearchNotes(`@title:"Commonplace book"`)
 		require.NoError(t, err)
 		note := notes[0]
-		assert.Equal(t, `
-<p>Commonplace books compile knowledge by writing information into books.</p>
+		assert.Equal(t, `<h1>Commonplace book</h1>`, note.TitleHTML)
+		assert.Equal(t, `<p>Commonplace books compile knowledge by writing information into books.</p>
 
-<p><em>Hypomnema</em> is a Greek word with several translations into English including a reminder, a note, a public record, a commentary, an anecdotal record, a draft, a copy, and other variations on those terms.</p>
-		`, note.ContentHTML)
+<p><em>Hypomnema</em> is a Greek word with several translations into English including a reminder, a note, a public record, a commentary, an anecdotal record, a draft, a copy, and other variations on those terms.</p>`, note.ContentHTML)
 	})
 
 	t.Run("Quote Inclusion", func(t *testing.T) {
 		notes, err := CurrentCollection().SearchNotes(`kind:note @title:"On Doing"`)
 		require.NoError(t, err)
 		note := notes[0]
-		assert.Equal(t, `
-<figure>
+		assert.Equal(t, `<h1>On Doing</h1>`, note.TitleHTML)
+		assert.Equal(t, `<figure>
 	<blockquote>
 		<p>The way to get started is to quit talking and begin doing.</p>
 	</blockquote>
-	<figcaption>— Walt Disney</figcaption>
+	<figcaption>— Walt Disney <cite>undefined</cite></figcaption>
 </figure>
 
-<p>Only motion can get you closer to your goal.</p>
-		`, note.ContentHTML)
+<p>Only motion can get you closer to your goal.</p>`, note.ContentHTML)
 	})
 
 	t.Run("Media URL Replacement", func(t *testing.T) {
 		notes, err := CurrentCollection().SearchNotes(`@title:Gopher`)
 		require.NoError(t, err)
 		note := notes[0]
-		assert.Equal(t, `
-Gophers are rodents of the family **Geomyidae.**
+		assert.Equal(t, `Gophers are rodents of the family **Geomyidae.**
 
 ![A Gopher](oid:4044044044044044044044044044044044044040)
 
 The Golang programming language uses the image of a gopher as logo:
 
-![Golang Logo](oid:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)
-		`, note.ContentMarkdown)
+![Golang Logo](oid:7874924b49bdb20876d6b0b1d649df60)`, note.ContentMarkdown)
 	})
 
 	t.Run("Comment Formatting", func(t *testing.T) {
 		notes, err := CurrentCollection().SearchNotes(`@title:"Allen Saunders on Life"`)
 		require.NoError(t, err)
 		note := notes[0]
-		assert.Equal(t, `
-> Life is what happens when you're busy making other plans.
-> — Allen Saunders
 
-> Life is about doing.
-> — Me
-		`, note.ContentMarkdown)
-		assert.Equal(t, `
-<figure>
+		// Check Markdown
+		assert.Equal(t, `> Life is what happens when you're busy making other plans.
+> — Allen Saunders`, note.ContentMarkdown)
+		assert.Equal(t, `Life is about doing.`, note.CommentMarkdown)
+
+		// Check HTML
+		assert.Equal(t, `<figure>
 	<blockquote>
-		<p>Life is what happens when you're busy making other plans.</p>
+		<p>Life is what happens when you&rsquo;re busy making other plans.</p>
 	</blockquote>
 	<figcaption>— Allen Saunders</figcaption>
-</figure>
+</figure>`, note.ContentHTML)
+		assert.Equal(t, `Life is about doing.`, note.CommentHTML)
 
-<p class="comment"><q>Life is about doing.</q></p>
-		`, note.ContentHTML)
+		// Check Text
+		assert.Equal(t, `> Life is what happens when you're busy making other plans.
+> — Allen Saunders`, note.ContentText)
+		assert.Equal(t, `Life is about doing.`, note.CommentText)
+
 	})
 
 	t.Run("Asciidoc Text Replacements", func(t *testing.T) {
 		notes, err := CurrentCollection().SearchNotes(`@title:"Asciidoc Text replacements"`)
 		require.NoError(t, err)
 		note := notes[0]
-		// FIXME remove (About em dash: only replaced if between two word characters, between a word character and a line boundary, or flanked by spaces.
 		assert.Equal(t, strings.TrimSpace(`
-* Copyright: (C) ©
-* Registered: (R) ®
-* Trademark: (TM) ™
-* Em dash: -- —
-* Ellipses: ... …​
-* Single right arrow: -> →
-* Double right arrow: => ⇒
-* Single left arrow: <- ←
-* Double left arrow: <= ⇐
+* Copyright: © ©
+* Registered: ® ®
+* Trademark: ™ ™
+* Em dash: — —
+* Ellipses: … …
+* Single right arrow: → →
+* Double right arrow: ⇒ ⇒
+* Single left arrow: ← ←
+* Double left arrow: ⇐ ⇐
 
 Except when present in code block like `+"`i--`"+` or:
 
 `+"```c"+`
 i--
 `+"```"+`
-`), strings.TrimSpace(note.ContentMarkdown))
+`), note.ContentMarkdown)
 	})
 
 }

@@ -55,6 +55,41 @@ func TestMergeTags(t *testing.T) {
 	}
 }
 
+func TestStripBlockTagsAndAttributes(t *testing.T) {
+	tests := []struct {
+		name     string
+		md       string // input
+		expected string // output
+	}{
+		{
+			name: "Basic",
+			md: "" +
+				"`#favorite` `#life-changing`\n" +
+				"`@isbn: 0671244221`\n" +
+				"\n" +
+				"My note\n",
+			expected: "My note",
+		},
+		{
+			name: "Code Block",
+			md: "" +
+				"```go" +
+				"fmt.Println(`Hello`)\n" +
+				"```\n",
+			expected: "" +
+				"```go" +
+				"fmt.Println(`Hello`)\n" +
+				"```",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := StripBlockTagsAndAttributes(tt.md)
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
 func TestMergeAttributes(t *testing.T) {
 	var tests = []struct {
 		name     string // name

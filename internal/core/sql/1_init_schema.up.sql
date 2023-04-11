@@ -73,12 +73,24 @@ CREATE TABLE note (
   content_raw TEXT NOT NULL,
   -- Hash of content_raw
   hashsum TEXT NOT NULL,
+  -- Long title in Markdown format (best for editing)
+  title_markdown TEXT NOT NULL,
+  -- Long title in HTML format (best for rendering)
+  title_html TEXT NOT NULL,
+  -- Long title in text format (best for indexing)
+  title_text TEXT NOT NULL,
   -- Content in Markdown format (best for editing)
   content_markdown TEXT NOT NULL,
   -- Content in HTML format (best for rendering)
   content_html TEXT NOT NULL,
-  -- Content in raw text (best for indexing)
+  -- Content in text format (best for indexing)
   content_text TEXT NOT NULL,
+  -- Comment in Markdown format
+  comment_markdown TEXT NOT NULL,
+  -- Content in HTML format
+  comment_html TEXT NOT NULL,
+  -- Content in text format
+  comment_text TEXT NOT NULL,
 
   -- Timestamps to track changes
   created_at TEXT NOT NULL,

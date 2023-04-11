@@ -5,12 +5,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/julien-sobczak/the-notetaker/pkg/text"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
+)
+
+var (
+	regexTags                   = regexp.MustCompile("`#(\\S+)`")                          // Ex: `#favorite`
+	regexAttributes             = regexp.MustCompile("`@([a-zA-Z0-9_.-]+)\\s*:\\s*(.+?)`") // Ex: `@source: _A Book_`, `@isbn: 9780807014271`
+	regexBlockTagAttributesLine = regexp.MustCompile("^\\s*(`.*?`\\s+)*`.*?`\\s*$")        // Ex: `#favorite` `@isbn: 9780807014271`
 )
 
 func DiffKeys(a, b map[string]interface{}) []string {
@@ -361,7 +368,7 @@ func StripBlockTagsAndAttributes(content string) string {
 	for _, line := range lines {
 
 		// not only tags and attributes?
-		if text.IsBlank(line) || !regexBlockTagAttributesLine.MatchString(line) {
+		if text.IsBlank(line) || strings.HasPrefix(line, "```") || !regexBlockTagAttributesLine.MatchString(line) {
 			res.WriteString(line + "\n")
 		}
 	}

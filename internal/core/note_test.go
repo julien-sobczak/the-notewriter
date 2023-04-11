@@ -10,23 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewNoteQuote(t *testing.T) {
-	// TODO migrate to TestPostProcessing?
-	SetUpCollectionFromTempDir(t)
-	f := NewEmptyFile("example.md")
-	f.SetAttribute("tags", []string{"favorite"})
-	f.SetAttribute("name", "Austin Kleon")
-
-	note := NewNote(f, nil, "Quote: On Advices",
-		"`#creativity`\n`@source: Steal Like an Artist`\n\nWhen people give you advice, they’re really just talking to themselves in the past.", 10)
-
-	assert.Equal(t, "> When people give you advice, they’re really just talking to themselves in the past.\n> -- Austin Kleon", note.ContentMarkdown)
-	assert.Equal(t, "<blockquote>\n<p>When people give you advice, they’re really just talking to themselves in the past.\n&ndash; Austin Kleon</p>\n</blockquote>", note.ContentHTML)
-	// FIXME https://stackoverflow.com/a/49212532 put the author in <p> outside the blockquote
-	assert.Equal(t, "\"When people give you advice, they’re really just talking to themselves in the past.\n-- Austin Kleon\"", note.ContentText)
-	// FIXME put the author output the quotation marks
-}
-
 func TestParsing(t *testing.T) {
 
 	t.Run("Tags & Attributes", func(t *testing.T) {
@@ -152,7 +135,7 @@ Quality means doing it right when no one is looking.`,
 				// Append the author after the quotation
 				content: `
 > Quality means doing it right when no one is looking.
-> -- Henry Ford`,
+> — Henry Ford`,
 			},
 
 			{
@@ -163,7 +146,7 @@ Quality means doing it right when no one is looking.`,
 					"\n" +
 					"`#todo`\n",
 				// Strip tags
-				content: "> Action is a necessary part of success.\n",
+				content: "> Action is a necessary part of success.",
 				strict:  true,
 			},
 
@@ -177,7 +160,7 @@ Knowledge is making the right choice with all the information.
 Wisdom is making the right choice without all the information.
 `,
 				// Strip attributes
-				content: "> Knowledge is making the right choice with all the information.\n> Wisdom is making the right choice without all the information.\n> -- James Clear\n",
+				content: "> Knowledge is making the right choice with all the information.\n> Wisdom is making the right choice without all the information.\n> — James Clear",
 				strict:  true,
 			},
 		}
@@ -186,11 +169,11 @@ Wisdom is making the right choice without all the information.
 				SetUpCollectionFromTempDir(t)
 				file := NewEmptyFile("example.md")
 				actual := NewNote(file, nil, tt.name, tt.input, 10)
-				content := actual.parseContentRaw()
+				_, _, _, markdown, _, _, _, _, _ := actual.parseContentRaw()
 				if tt.strict {
-					assert.Equal(t, tt.content, content)
+					assert.Equal(t, tt.content, markdown)
 				} else {
-					assert.Equal(t, strings.TrimSpace(tt.content), strings.TrimSpace(content))
+					assert.Equal(t, strings.TrimSpace(tt.content), strings.TrimSpace(markdown))
 				}
 			})
 		}
@@ -414,6 +397,11 @@ attributes:
 line: 2
 content_raw: '* [ ] Test'
 content_hash: 40c0dbcb392522d74c890ff92bcb3fec
+title_markdown: '# Backlog'
+title_html: <h1>Backlog</h1>
+title_text: |-
+    Backlog
+    =======
 content_markdown: '* [ ] Test'
 content_html: |-
     <ul>

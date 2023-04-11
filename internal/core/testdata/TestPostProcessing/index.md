@@ -59,7 +59,7 @@ All we have to decide is what to do with the time that is given us.
 * Registered: (R) ®
 * Trademark: (TM) ™
 * Em dash: -- —
-* Ellipses: ... …​
+* Ellipses: ... …
 * Single right arrow: -> →
 * Double right arrow: => ⇒
 * Single left arrow: <- ←

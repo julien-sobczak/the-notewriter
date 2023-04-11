@@ -216,7 +216,7 @@ func (c *Collection) walk(paths []string, fn func(path string, stat fs.FileInfo)
 	var sortedFiles []string
 	addedFileIndices := make(map[int]bool)
 	changedDuringIteration := false
-	for { // until all files are added or no more files can be added due to a cyclic dependency
+	for len(addedFileIndices) < len(matchedFiles) { // until all files are added or no more files can be added due to a cyclic dependency
 
 		for i, relpath := range matchedFiles {
 			if addedFileIndices[i] {
@@ -324,43 +324,7 @@ func (c *Collection) Add(paths ...string) error {
 	// Keep notes of processed objects to avoid duplication of effort
 	// when some objects like medias are referenced by different notes.
 	traversedObjects := make(map[string]bool)
-	// Same logic but for dependent notes (avoid cycles)
-	traversedRefreshedObjects := make(map[string]bool)
-
-	// Utility function to refresh dependent notes.
-	// Ex: If a note is included in another note, the latest must be refreshed
-	// after every change.
-	var refreshDependencies func(oid string) error
-	refreshDependencies = func(oid string) error {
-		dependencies, err := c.FindRelationsTo(oid)
-		if err != nil {
-			return err
-		}
-		for _, relation := range dependencies {
-			dependentObject, err := db.ReadLastStagedOrCommittedObjectFromDB(relation.SourceOID)
-			if err != nil {
-				return err
-			}
-
-			changed, err := dependentObject.Refresh()
-			if err != nil {
-				return err
-			}
-			if changed {
-				if err := db.StageObject(dependentObject); err != nil {
-					return fmt.Errorf("unable to stage modified dependent object %s: %v", dependentObject, err)
-				}
-				traversedRefreshedObjects[relation.SourceOID] = true
-				if err := dependentObject.Save(); err != nil {
-					return err
-				}
-				if err := refreshDependencies(relation.SourceOID); err != nil {
-					return err
-				}
-			}
-		}
-		return nil
-	}
+	var traversedNotes []*Note
 
 	// Run all queries inside the same transaction
 	err = db.BeginTransaction()
@@ -403,6 +367,13 @@ func (c *Collection) Add(paths ...string) error {
 				continue
 			}
 
+			// Notes are processed in two passes
+			if object.Kind() == "note" {
+				if note, ok := object.(*Note); ok {
+					traversedNotes = append(traversedNotes, note)
+				}
+			}
+
 			if object.State() != None {
 				if err := db.StageObject(object); err != nil {
 					return fmt.Errorf("unable to stage modified object %s: %v", object, err)
@@ -412,7 +383,6 @@ func (c *Collection) Add(paths ...string) error {
 			if err := object.Save(); err != nil {
 				return err
 			}
-			refreshDependencies(object.UniqueOID())
 		}
 
 		return nil
@@ -451,6 +421,91 @@ func (c *Collection) Add(paths ...string) error {
 		deletion.ForceState(Deleted)
 		if err := db.StageObject(deletion); err != nil {
 			return fmt.Errorf("unable to stage deleted object %s: %v", deletion, err)
+		}
+	}
+
+	// Second pass: Refresh all notes
+	// Same logic but for dependent notes (avoid cycles)
+	traversedRefreshedObjects := make(map[string]bool)
+
+	var refreshDependencies func(oid string) error
+	refreshDependencies = func(oid string) error {
+		dependencies, err := c.FindRelationsTo(oid)
+		if err != nil {
+			return err
+		}
+		for _, relation := range dependencies {
+			dependentObject, err := db.ReadLastStagedOrCommittedObjectFromDB(relation.SourceOID)
+			if err != nil {
+				return err
+			}
+
+			changed, err := dependentObject.Refresh()
+			if err != nil {
+				return err
+			}
+			if changed {
+				if err := db.StageObject(dependentObject); err != nil {
+					return fmt.Errorf("unable to stage modified dependent object %s: %v", dependentObject, err)
+				}
+				traversedRefreshedObjects[relation.SourceOID] = true
+				if err := dependentObject.Save(); err != nil {
+					return err
+				}
+				if err := refreshDependencies(relation.SourceOID); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	for _, note := range traversedNotes {
+		CurrentLogger().Infof("Reprocessing note %s...", note)
+		// Refresh content after having processed all notes (useful when a note include a note processed later)
+		changed, err := note.Refresh()
+		if err != nil {
+			return err
+		}
+		if !changed {
+			continue
+		}
+		if err := note.Save(); err != nil {
+			return err
+		}
+		// Save relations only now that we know existing dependencies really exist
+		if err := c.UpdateRelations(note); err != nil {
+			return err
+		}
+		dependencies, err := c.FindRelationsTo(note.UniqueOID())
+		if err != nil {
+			return err
+		}
+		for _, relation := range dependencies {
+			dependentObject, err := db.ReadLastStagedOrCommittedObjectFromDB(relation.SourceOID)
+			if err != nil {
+				return err
+			}
+
+			CurrentLogger().Infof("Reprocessing dependent object %s...", dependentObject)
+			changed, err := dependentObject.Refresh()
+			if err != nil {
+				return err
+			}
+			if changed {
+				if err := db.StageObject(dependentObject); err != nil {
+					return fmt.Errorf("unable to stage modified dependent object %s: %v", dependentObject, err)
+				}
+				traversedRefreshedObjects[relation.SourceOID] = true
+				if err := dependentObject.Save(); err != nil {
+					return err
+				}
+				if err := c.UpdateRelations(dependentObject); err != nil {
+					return err
+				}
+				if err := refreshDependencies(relation.SourceOID); err != nil {
+					return err
+				}
+			}
 		}
 	}
 

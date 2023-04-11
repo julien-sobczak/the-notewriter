@@ -44,6 +44,21 @@ func SquashBlankLines(text string) string {
 	return result.String()
 }
 
+// PrefixLines add a prefix to every line. All lines ends with \n in the result.
+func PrefixLines(text string, prefix string) string {
+	var result bytes.Buffer
+	scanner := bufio.NewScanner(strings.NewReader(text))
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		result.WriteString(prefix)
+		result.WriteString(line)
+		result.WriteRune('\n')
+	}
+
+	return result.String()
+}
+
 // IsBlank returns if a text is blank.
 func IsBlank(text string) bool {
 	return len(strings.TrimSpace(text)) == 0
@@ -53,6 +68,17 @@ func IsBlank(text string) bool {
 func IsNumber(text string) bool {
 	_, err := strconv.Atoi(text)
 	return err == nil
+}
+
+// TrimLinePrefix removes the prefix from every line
+func TrimLinePrefix(text string, prefix string) string {
+	var result bytes.Buffer
+	lines := strings.Split(text, "\n")
+	for _, line := range lines {
+		result.WriteString(strings.TrimPrefix(line, prefix))
+		result.WriteRune('\n')
+	}
+	return result.String()
 }
 
 // TrimExtension removes the extension from a file name or file path.
@@ -69,4 +95,13 @@ func LineNumber(text string, sub string) int {
 		return -1
 	}
 	return len(strings.Split(text[0:i], "\n"))
+}
+
+// Repeat repeats the same text the given number of times.
+func Repeat(text string, n int) string {
+	var result bytes.Buffer
+	for i := 0; i < n; i++ {
+		result.WriteString(text)
+	}
+	return result.String()
 }
