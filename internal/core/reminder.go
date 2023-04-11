@@ -109,6 +109,11 @@ func (r *Reminder) ModificationTime() time.Time {
 	return r.UpdatedAt
 }
 
+func (r *Reminder) Refresh() (bool, error) {
+	// No dependencies = no need to refresh
+	return false, nil
+}
+
 func (r *Reminder) State() State {
 	if !r.DeletedAt.IsZero() {
 		return Deleted
@@ -154,7 +159,10 @@ func (r *Reminder) SubObjects() []StatefulObject {
 }
 
 func (r *Reminder) Blobs() []*BlobRef {
-	// Use Media.Blobs() instead
+	return nil
+}
+
+func (r *Reminder) Relations() []*Relation {
 	return nil
 }
 

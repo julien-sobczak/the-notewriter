@@ -85,6 +85,11 @@ func (l *Link) ModificationTime() time.Time {
 	return l.UpdatedAt
 }
 
+func (l *Link) Refresh() (bool, error) {
+	// No dependencies = no need to refresh
+	return false, nil
+}
+
 func (l *Link) State() State {
 	if !l.DeletedAt.IsZero() {
 		return Deleted
@@ -130,7 +135,10 @@ func (l *Link) SubObjects() []StatefulObject {
 }
 
 func (l *Link) Blobs() []*BlobRef {
-	// Use Media.Blobs() instead
+	return nil
+}
+
+func (l *Link) Relations() []*Relation {
 	return nil
 }
 

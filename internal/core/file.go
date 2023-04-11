@@ -185,6 +185,11 @@ func (f *File) UniqueOID() string {
 	return f.OID
 }
 
+func (f *File) Refresh() (bool, error) {
+	// No dependencies = no need to refresh
+	return false, nil
+}
+
 func (f *File) State() State {
 	if !f.DeletedAt.IsZero() {
 		return Deleted
@@ -254,6 +259,11 @@ func (f *File) SubObjects() []StatefulObject {
 
 func (f *File) Blobs() []*BlobRef {
 	// Use Media.Blobs() instead
+	return nil
+}
+
+func (f *File) Relations() []*Relation {
+	// We consider only relations related to notes
 	return nil
 }
 
@@ -431,20 +441,87 @@ func (f *File) GetNotes() []*Note {
 		return nil
 	}
 
-	// All notes collected until now
-	var notes []*Note
+	// Collect parent indices
+	parentNoteIndices := make(map[int]int)
 	for i, currentNote := range parsedNotes {
-		parentNoteIndex := -1
+		found := false
 		for j, prevNote := range parsedNotes[0:i] {
 			if prevNote.Level == currentNote.Level-1 {
-				parentNoteIndex = j
+				found = true
+				parentNoteIndices[i] = j
 			}
 		}
+		if !found {
+			parentNoteIndices[i] = -1
+		}
+	}
 
+	// We sort notes to process them according their dependencies.
+	// For example, if a note includes another note in the same file
+	// (NB: external dependencies are addressed elsewhere when processing files),
+	// we must return the included note first for it to be saved first in database,
+	// so that when we will build the final note content for the other note,
+	// the dependency will be found in database.
+	var sortedParsedNotes []*ParsedNote
+	addedNoteIndices := make(map[int]bool)
+	addedSections := make(map[string]bool)
+	changedDuringIteration := false
+	for { // until all notes are added or no more notes can be added due to transitive dependency
+		for i, note := range parsedNotes {
+			if addedNoteIndices[i] {
+				// Already added
+				continue
+			}
+
+			var internalWikilinks []*Wikilink
+			for _, wikilink := range note.Wikilinks() {
+				if wikilink.Internal() {
+					internalWikilinks = append(internalWikilinks, wikilink)
+				}
+			}
+
+			// A note can be added iff:
+			// - no parent OR the parent note has already been added
+			// - no internal link OR all notes referenced by internal links has been added first
+			parentSatisfied := parentNoteIndices[i] == -1 || addedNoteIndices[parentNoteIndices[i]]
+			internalLinksSatisfied := true
+			for _, wikilink := range internalWikilinks {
+				if _, ok := addedSections[wikilink.Section()]; !ok {
+					internalLinksSatisfied = false
+				}
+			}
+
+			if parentSatisfied && internalLinksSatisfied {
+				addedNoteIndices[i] = true
+				addedSections[note.LongTitle] = true
+				sortedParsedNotes = append(sortedParsedNotes, note)
+				changedDuringIteration = true
+			}
+		}
+		if !changedDuringIteration {
+			// cyclic dependency found
+			CurrentLogger().Warnf("Cyclic dependency between notes detected. Incomplete note(s) can result.")
+			// Add remaining notes without taking care of dependencies...
+			for i, note := range parsedNotes {
+				if addedNoteIndices[i] {
+					// Already added
+					continue
+				}
+				sortedParsedNotes = append(sortedParsedNotes, note)
+			}
+			break
+		}
+		changedDuringIteration = false
+	}
+
+	// All notes collected until now
+	var notes []*Note
+
+	for i, currentNote := range sortedParsedNotes {
 		noteLine := f.BodyLine + currentNote.Line - 1
 		var parent *Note
-		if parentNoteIndex != -1 {
-			parent = notes[parentNoteIndex]
+		if parentNoteIndices[i] != -1 {
+			parent = notes[parentNoteIndices[i]]
 		}
 		note := NewOrExistingNote(f, parent, currentNote.LongTitle, currentNote.Body, noteLine)
 		notes = append(notes, note)
@@ -579,6 +656,11 @@ func ParseNotes(fileBody string) []*ParsedNote {
 	}
 
 	return notes
+}
+
+// Wikilinks returns the wikilinks present in the note.
+func (n *ParsedNote) Wikilinks() []*Wikilink {
+	return ParseWikilinks(n.Body)
 }
 
 // FindNoteByKindAndShortTitle searches for a given note based on its kind and title.
@@ -749,54 +831,9 @@ func (f *ParsedFile) Content() string {
 	return string(f.Bytes)
 }
 
-// GetFileAttributesProcessed returns attributes with the right type when applicable.
-// Run linter first to ensure all attributes are correctly typed.
-// FIXME remove
-func (f *ParsedFile) GetFileAttributesProcessedTOREMOVE() map[string]interface{} {
-	lintFile := CurrentConfig().LintFile
-	result := make(map[string]interface{})
-	for attributeName, attributeValueRaw := range f.FileAttributes {
-		definition := lintFile.GetAttributeDefinition(attributeName, func(schema ConfigLintSchema) bool {
-			if schema.Path == "" {
-				return true
-			}
-			return strings.HasPrefix(f.RelativePath, schema.Path)
-		})
-		if definition == nil {
-			// No processing
-			result[attributeName] = attributeValueRaw
-			continue
-		}
-
-		switch definition.Type {
-		case "array":
-			if !IsArray(attributeValueRaw) {
-				result[attributeName] = []interface{}{attributeValueRaw}
-			} else {
-				// Processing not possible
-				result[attributeName] = attributeValueRaw
-			}
-		case "string":
-			if IsPrimitive(attributeValueRaw) {
-				typedValue := fmt.Sprintf("%s", attributeValueRaw)
-				result[attributeName] = typedValue
-			} else {
-				// Processing not possible
-				result[attributeName] = attributeValueRaw
-			}
-		case "object":
-			// Nothing can be done
-			result[attributeName] = attributeValueRaw
-		case "number":
-			// Nothing can be done
-			result[attributeName] = attributeValueRaw
-		case "bool":
-			// Nothing can be done
-			result[attributeName] = attributeValueRaw
-		}
-	}
-
-	return result
+// Wikilinks returns the wikilinks present inside a file.
+func (f *ParsedFile) Wikilinks() []*Wikilink {
+	return ParseWikilinks(f.Content())
 }
 
 /* Data Management */

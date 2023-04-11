@@ -37,6 +37,8 @@ type Object interface {
 	SubObjects() []StatefulObject
 	// Blobs returns the optional blobs associated with this object.
 	Blobs() []*BlobRef
+	// Relations returns the relations where the current object is the source.
+	Relations() []*Relation
 
 	// Read rereads the object from YAML.
 	Read(r io.Reader) error
@@ -50,6 +52,8 @@ type Object interface {
 // StatefulObject to represent the subset of updatable objects persisted in database.
 type StatefulObject interface {
 	Object
+
+	Refresh() (bool, error)
 
 	// State returns the current state.
 	State() State

@@ -202,6 +202,20 @@ func (f *Flashcard) ModificationTime() time.Time {
 	return f.UpdatedAt
 }
 
+func (f *Flashcard) Refresh() (bool, error) {
+	// Regenerate the flashcard content by rereading the associated note
+	file, err := CurrentCollection().LoadFileByOID(f.FileOID)
+	if err != nil {
+		return false, err
+	}
+	note, err := CurrentCollection().LoadNoteByOID(f.NoteOID)
+	if err != nil {
+		return false, err
+	}
+	f.update(file, note)
+	return f.stale, nil
+}
+
 func (f *Flashcard) State() State {
 	if !f.DeletedAt.IsZero() {
 		return Deleted
@@ -248,6 +262,11 @@ func (f *Flashcard) SubObjects() []StatefulObject {
 
 func (f *Flashcard) Blobs() []*BlobRef {
 	// Use Media.Blobs() instead
+	return nil
+}
+
+func (f *Flashcard) Relations() []*Relation {
+	// We consider only relations related to notes
 	return nil
 }
 

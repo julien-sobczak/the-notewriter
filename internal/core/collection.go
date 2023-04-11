@@ -205,15 +205,85 @@ func (c *Collection) walk(paths []string, fn func(path string, stat fs.FileInfo)
 
 			return nil
 		})
+	}
 
-		slices.SortFunc(matchedFiles, IndexFilesFirst)
-		for _, matchedFile := range matchedFiles {
-			err := fn(filePaths[matchedFile], *fileInfos[matchedFile])
+	// Process the file in a given order:
+
+	// Constraint 1: index.md must be processed before other notes under this directory
+	slices.SortFunc(matchedFiles, IndexFilesFirst)
+
+	// Constraint 2: Embedded notes must be processed before the file that referenced them
+	var sortedFiles []string
+	addedFileIndices := make(map[int]bool)
+	changedDuringIteration := false
+	for { // until all files are added or no more files can be added due to a cyclic dependency
+
+		for i, relpath := range matchedFiles {
+			if addedFileIndices[i] {
+				// Already added
+				continue
+			}
+
+			// A file can be added iff:
+			// - no external link OR referenced files have been added first if present in the same batch
+
+			b, err := os.ReadFile(filePaths[relpath])
 			if err != nil {
 				return err
 			}
+			wikilinks := ParseWikilinks(string(b))
+			var externalLinks []*Wikilink
+			for _, wikilink := range wikilinks {
+				if wikilink.External() {
+					externalLinks = append(externalLinks, wikilink)
+				}
+			}
+
+			externalLinksSatisfied := true
+			for _, wikilink := range externalLinks {
+				wikipath := text.TrimExtension(wikilink.Path())
+				for j, otherRelpath := range matchedFiles {
+					if addedFileIndices[j] {
+						// Already satisfied
+						continue
+					}
+					if strings.HasSuffix(text.TrimExtension(otherRelpath), wikipath) && !addedFileIndices[j] {
+						externalLinksSatisfied = false
+					}
+				}
+			}
+
+			if externalLinksSatisfied {
+				addedFileIndices[i] = true
+				sortedFiles = append(sortedFiles, relpath)
+				changedDuringIteration = true
+			}
+		}
+
+		if !changedDuringIteration {
+			// cyclic dependency found
+			CurrentLogger().Warnf("Cyclic dependency between files detected. Incomplete note(s) can result.")
+			// Add remaining notes without taking care of dependencies...
+			for i, relpath := range matchedFiles {
+				if addedFileIndices[i] {
+					// Already added
+					continue
+				}
+				sortedFiles = append(sortedFiles, relpath)
+			}
+			break
+		}
+		changedDuringIteration = false
+	}
+
+	// Execute callbacks
+	for _, relpath := range sortedFiles {
+		err := fn(filePaths[relpath], *fileInfos[relpath])
+		if err != nil {
+			return err
 		}
 	}
+
 	return nil
 }
 
@@ -254,6 +324,43 @@ func (c *Collection) Add(paths ...string) error {
 	// Keep notes of processed objects to avoid duplication of effort
 	// when some objects like medias are referenced by different notes.
 	traversedObjects := make(map[string]bool)
+	// Same logic but for dependent notes (avoid cycles)
+	traversedRefreshedObjects := make(map[string]bool)
+
+	// Utility function to refresh dependent notes.
+	// Ex: If a note is included in another note, the latest must be refreshed
+	// after every change.
+	var refreshDependencies func(oid string) error
+	refreshDependencies = func(oid string) error {
+		dependencies, err := c.FindRelationsTo(oid)
+		if err != nil {
+			return err
+		}
+		for _, relation := range dependencies {
+			dependentObject, err := db.ReadLastStagedOrCommittedObjectFromDB(relation.SourceOID)
+			if err != nil {
+				return err
+			}
+
+			changed, err := dependentObject.Refresh()
+			if err != nil {
+				return err
+			}
+			if changed {
+				if err := db.StageObject(dependentObject); err != nil {
+					return fmt.Errorf("unable to stage modified dependent object %s: %v", dependentObject, err)
+				}
+				traversedRefreshedObjects[relation.SourceOID] = true
+				if err := dependentObject.Save(); err != nil {
+					return err
+				}
+				if err := refreshDependencies(relation.SourceOID); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
 
 	// Run all queries inside the same transaction
 	err = db.BeginTransaction()
@@ -295,6 +402,7 @@ func (c *Collection) Add(paths ...string) error {
 				// already processed
 				continue
 			}
+
 			if object.State() != None {
 				if err := db.StageObject(object); err != nil {
 					return fmt.Errorf("unable to stage modified object %s: %v", object, err)
@@ -304,6 +412,7 @@ func (c *Collection) Add(paths ...string) error {
 			if err := object.Save(); err != nil {
 				return err
 			}
+			refreshDependencies(object.UniqueOID())
 		}
 
 		return nil

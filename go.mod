@@ -6,6 +6,7 @@ require (
 	github.com/AlecAivazis/survey/v2 v2.3.6
 	github.com/davecgh/go-spew v1.1.1
 	github.com/docker/go-connections v0.4.0
+	github.com/fatih/color v1.15.0
 	github.com/golang-migrate/migrate/v4 v4.15.2
 	github.com/gomarkdown/markdown v0.0.0-20221013030248-663e2500819c
 	github.com/google/uuid v1.3.0
@@ -19,7 +20,7 @@ require (
 	go.nhat.io/surveyexpect v0.8.0
 	golang.org/x/exp v0.0.0-20230321023759-10a507213a29
 	gopkg.in/yaml.v3 v3.0.1
-	github.com/fatih/color v1.15.0
+	github.com/gnboorse/centipede v1.0.2
 )
 
 require (

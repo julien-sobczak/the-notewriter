@@ -302,6 +302,11 @@ func (m *Media) ModificationTime() time.Time {
 	return m.UpdatedAt
 }
 
+func (m *Media) Refresh() (bool, error) {
+	// No dependencies = no need to refresh
+	return false, nil
+}
+
 func (m *Media) State() State {
 	if !m.DeletedAt.IsZero() {
 		return Deleted
@@ -347,6 +352,11 @@ func (m *Media) SubObjects() []StatefulObject {
 
 func (m *Media) Blobs() []*BlobRef {
 	return m.BlobRefs
+}
+
+func (m *Media) Relations() []*Relation {
+	// Medias are referenced by notes but don't have relation toward other objects by themselves.
+	return nil
 }
 
 func (m Media) String() string {

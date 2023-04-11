@@ -51,6 +51,7 @@ type Index struct {
 
 type IndexObject struct {
 	OID   string    `yaml:"oid"`
+	Kind  string    `yaml:"kind"`
 	MTime time.Time `yaml:"mtime"`
 	// The commit containing the latest version (empty for uncommitted object)
 	CommitOID string `yaml:"commit_oid"`
@@ -74,24 +75,33 @@ type StagingArea struct {
 	Deleted  []*StagingObject `yaml:"edited"`
 }
 
-// ReadObject searches for the given object in staging area
-func (sa *StagingArea) ReadObject(objectOID string) (StatefulObject, bool) {
+// ReadStagingObject searches for the given staging object in staging area
+func (sa *StagingArea) ReadStagingObject(objectOID string) (*StagingObject, bool) {
 	for _, obj := range sa.Added {
 		if obj.OID == objectOID {
-			return obj.ReadObject(), true
+			return obj, true
 		}
 	}
 	for _, obj := range sa.Modified {
 		if obj.OID == objectOID {
-			return obj.ReadObject(), true
+			return obj, true
 		}
 	}
 	for _, obj := range sa.Deleted {
 		if obj.OID == objectOID {
-			return obj.ReadObject(), true
+			return obj, true
 		}
 	}
 	return nil, false
+}
+
+// ReadObject searches for the given object in staging area
+func (sa *StagingArea) ReadObject(objectOID string) (StatefulObject, bool) {
+	obj, ok := sa.ReadStagingObject(objectOID)
+	if !ok {
+		return nil, false
+	}
+	return obj.ReadObject(), true
 }
 
 // Objects returns all objects inside the staging area.
@@ -163,6 +173,12 @@ func (i *Index) Save() error {
 	}
 	defer f.Close()
 	return i.Write(f)
+}
+
+// ReadIndexObject searches for the given object in the index.
+func (i *Index) ReadIndexObject(objectOID string) (*IndexObject, bool) {
+	obj, ok := i.objectsRef[objectOID]
+	return obj, ok
 }
 
 // FindCommitContaining returns the commit associated with a given object.
@@ -243,6 +259,7 @@ func (i *Index) CreateCommitFromStagingArea() *Commit {
 func (i *Index) putObject(commitOID string, obj *CommitObject) {
 	indexObject := &IndexObject{
 		OID:       obj.OID,
+		Kind:      obj.Kind,
 		MTime:     obj.MTime,
 		CommitOID: commitOID,
 	}

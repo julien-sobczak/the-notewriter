@@ -187,6 +187,16 @@ func (n *Note) ModificationTime() time.Time {
 	return n.UpdatedAt
 }
 
+func (n *Note) Refresh() (bool, error) {
+	// Simply force the content to be reevaluated to force inluded notes to be reread
+	prevContentRaw := n.ContentRaw
+	n.updateContent(prevContentRaw)
+	if prevContentRaw != n.ContentRaw {
+		n.stale = true
+	}
+	return n.stale, nil
+}
+
 func (n *Note) State() State {
 	if !n.DeletedAt.IsZero() {
 		return Deleted
@@ -246,6 +256,12 @@ func (n *Note) SubObjects() []StatefulObject {
 
 func (n *Note) Blobs() []*BlobRef {
 	// Use Media.Blobs() instead
+	return nil
+}
+
+func (n *Note) Relations() []*Relation {
+	// TODO parse content to extract included medias + included notes
+	// TODO check attributes to extract references, inspirations, source, ???
 	return nil
 }
 

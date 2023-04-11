@@ -161,10 +161,46 @@ func (db *DB) Client() SQLClient {
 	return db.initClient()
 }
 
+/* Row Management */
+
+// ReadLastStagedOrCommittedObjectFromDB reads the last known version (in staging or committed) by rereading the database.
+func (db *DB) ReadLastStagedOrCommittedObjectFromDB(oid string) (StatefulObject, error) {
+	var kind string
+
+	if stagedObject, ok := db.index.StagingArea.ReadStagingObject(oid); ok {
+		// Check staging area first
+		kind = stagedObject.Kind
+	} else if indexObject, ok := db.index.ReadIndexObject(oid); ok {
+		// Check commits second
+		kind = indexObject.Kind
+	}
+
+	if kind == "" {
+		return nil, nil
+	}
+
+	switch kind {
+	case "file":
+		return CurrentCollection().LoadFileByOID(oid)
+	case "note":
+		return CurrentCollection().LoadNoteByOID(oid)
+	case "flashcard":
+		return CurrentCollection().LoadFlashcardByOID(oid)
+	case "link":
+		return CurrentCollection().LoadLinkByOID(oid)
+	case "reminder":
+		return CurrentCollection().LoadReminderByOID(oid)
+	case "media":
+		return CurrentCollection().LoadMediaByOID(oid)
+	default:
+		return nil, fmt.Errorf("unsupported kind %s when reading object", kind)
+	}
+}
+
 /* File Management */
 
-// ReadObject reads the last known committed version of stateful object on disk.
-func (db *DB) ReadObject(oid string) (StatefulObject, error) {
+// ReadCommittedObject reads the last known committed version of stateful object on disk.
+func (db *DB) ReadCommittedObject(oid string) (StatefulObject, error) {
 	indexObject, ok := db.index.objectsRef[oid]
 	if !ok {
 		return nil, nil
@@ -328,11 +364,6 @@ func (db *DB) initClient() *sql.DB {
 		}
 	})
 	return dbSingleton.client
-}
-
-func (db *DB) AddBlob(raw []byte, blob BlobRef) error {
-	// TODO where to save blob OID? Must be in objects in commit files. New column? ✅
-	return nil
 }
 
 func (db *DB) StageObject(obj StatefulObject) error {
@@ -690,7 +721,7 @@ func (db *DB) Diff() (string, error) {
 		}
 		stagedNote := stagedObj.ReadObject().(*Note)
 
-		commitObj, err := db.ReadObject(stagedObj.OID)
+		commitObj, err := db.ReadCommittedObject(stagedObj.OID)
 		if err != nil {
 			return "", err
 		}
