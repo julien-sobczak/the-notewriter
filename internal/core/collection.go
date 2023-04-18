@@ -351,6 +351,11 @@ func (c *Collection) Add(paths ...string) error {
 			return err
 		}
 
+		if file.HasTag("ignore") {
+			// Do not add to index files marked as ignorable
+			return nil
+		}
+
 		if file.State() != None {
 			if err := db.StageObject(file); err != nil {
 				return fmt.Errorf("unable to stage modified object %s: %v", file, err)

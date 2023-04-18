@@ -60,7 +60,7 @@ type StatefulObject interface {
 	// ForceState marks the object in the given state
 	ForceState(newState State)
 
-	// Save persists to DB.
+	// Save persists to DB
 	Save() error
 }
 

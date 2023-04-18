@@ -746,6 +746,38 @@ func TestInheritance(t *testing.T) {
 	}, goroutineNote.GetAttributes())
 }
 
+func TestFeatures(t *testing.T) {
+
+	t.Run("Ignore", func(t *testing.T) {
+		SetUpCollectionFromGoldenDirNamed(t, "TestIgnore")
+
+		err := CurrentCollection().Add(".")
+		require.NoError(t, err)
+
+		fileInclude, err := CurrentCollection().FindFileByWikilink("include")
+		require.NoError(t, err)
+		require.NotNil(t, fileInclude)
+		fileIgnore, err := CurrentCollection().FindFileByWikilink("ignore")
+		require.NoError(t, err)
+		require.NotNil(t, fileIgnore)
+		fileIncludeIgnore, err := CurrentCollection().FindFileByWikilink("include-ignore")
+		require.NoError(t, err)
+		require.NotNil(t, fileIncludeIgnore)
+
+		notesInclude, err := CurrentCollection().SearchNotes(`path:"include.md"`)
+		require.NoError(t, err)
+		require.Len(t, notesInclude, 1)
+		assert.Equal(t, "Include", notesInclude[0].ShortTitle)
+
+		notesIncludeIgnore, err := CurrentCollection().SearchNotes(`path:"include-ignore.md"`)
+		require.NoError(t, err)
+		require.Len(t, notesIncludeIgnore, 2)
+		assert.Equal(t, "Include", notesIncludeIgnore[0].ShortTitle)
+		assert.Equal(t, "Include", notesIncludeIgnore[1].ShortTitle)
+	})
+
+}
+
 func TestPostProcessing(t *testing.T) {
 	SetUpCollectionFromGoldenDir(t)
 

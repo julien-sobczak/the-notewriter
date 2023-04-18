@@ -17,6 +17,7 @@ import (
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
 	"github.com/julien-sobczak/the-notetaker/pkg/markdown"
 	"github.com/julien-sobczak/the-notetaker/pkg/text"
+	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 )
 
@@ -428,6 +429,11 @@ func (f *File) GetTags() []string {
 	return nil
 }
 
+// HasTag returns if a file has a given tag.
+func (f *File) HasTag(name string) bool {
+	return slices.Contains(f.GetTags(), name)
+}
+
 /* Content */
 
 func (f *File) GetNotes() []*Note {
@@ -503,7 +509,6 @@ func (f *File) GetNotes() []*Note {
 			CurrentLogger().Warn("Cyclic dependency between notes detected. Incomplete note(s) can result.")
 			// Add remaining notes without taking care of dependencies...
 			for i, note := range parsedNotes {
-				fmt.Printf("%s -> %s\n", note.LongTitle, note.Wikilinks())
 				if addedNoteIndices[i] {
 					// Already added
 					continue
@@ -525,6 +530,10 @@ func (f *File) GetNotes() []*Note {
 			parent = notes[parentNoteIndices[i]]
 		}
 		note := NewOrExistingNote(f, parent, currentNote.LongTitle, currentNote.Body, noteLine)
+		if note.HasTag("ignore") {
+			// Do not add notes marked as ignorable
+			continue
+		}
 		notes = append(notes, note)
 	}
 

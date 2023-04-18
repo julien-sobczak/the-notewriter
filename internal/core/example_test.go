@@ -18,9 +18,6 @@ func TestExample(t *testing.T) {
 	require.NoError(t, err)
 
 	notes, err := CurrentCollection().SearchNotes("kind:artwork @subject:art")
-	// BUG: SELECT note_fts.rowid FROM note_fts JOIN note on note.oid = note_fts.oid WHERE note.oid IS NOT NULL AND note.kind IN ("artwork") AND (   json_extract(note.attributes_json, '$.subject') = 'art' ) ORDER BY rank LIMIT 10;
-	// The file attributes are not persisted in notes attributes...
-	// TODO FIXME rework attributes management
 	require.NoError(t, err)
 	assert.Greater(t, len(notes), 1)
 }

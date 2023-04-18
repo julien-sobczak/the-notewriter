@@ -124,7 +124,7 @@ func NewOrExistingNote(f *File, parent *Note, title string, content string, line
 	}
 
 	hash := helpers.Hash([]byte(content))
-	note, _ = CurrentCollection().FindMatchingNotes(title, hash)
+	note, _ = CurrentCollection().FindMatchingNotes(f.RelativePath, title, hash)
 	if note != nil {
 		note.update(f, title, content, lineNumber)
 		return note
@@ -690,6 +690,11 @@ func (n *Note) GetTags() []string {
 	return n.Tags
 }
 
+// HasTag returns if a file has a given tag.
+func (n *Note) HasTag(name string) bool {
+	return slices.Contains(n.GetTags(), name)
+}
+
 func isSupportedNote(text string) (bool, NoteKind, string) {
 	if m := regexReference.FindStringSubmatch(text); m != nil {
 		return true, KindReference, m[1]
@@ -1111,8 +1116,8 @@ func (c *Collection) FindNoteByHash(hash string) (*Note, error) {
 	return QueryNote(CurrentDB().Client(), `WHERE hashsum = ?`, hash)
 }
 
-func (c *Collection) FindMatchingNotes(title, hash string) (*Note, error) {
-	return QueryNote(CurrentDB().Client(), `WHERE title = ? OR hashsum = ?`, title, hash)
+func (c *Collection) FindMatchingNotes(relativePath, title, hash string) (*Note, error) {
+	return QueryNote(CurrentDB().Client(), `WHERE relative_path = ? AND (title = ? OR hashsum = ?)`, relativePath, title, hash)
 }
 
 func (c *Collection) FindNoteByWikilink(wikilink string) (*Note, error) {
