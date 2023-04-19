@@ -471,14 +471,14 @@ func (c *Collection) Add(paths ...string) error {
 		if err != nil {
 			return err
 		}
+		// Save relations only now that we know existing dependencies really exist
+		if err := c.UpdateRelations(note); err != nil {
+			return err
+		}
 		if !changed {
 			continue
 		}
 		if err := note.Save(); err != nil {
-			return err
-		}
-		// Save relations only now that we know existing dependencies really exist
-		if err := c.UpdateRelations(note); err != nil {
 			return err
 		}
 		dependencies, err := c.FindRelationsTo(note.UniqueOID())

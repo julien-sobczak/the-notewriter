@@ -223,28 +223,6 @@ object:
 	assert.True(t, IsObject(data["object"]))
 }
 
-func TestCastAttributesOld(t *testing.T) {
-	SetUpCollectionFromGoldenDirNamed(t, "TestLint")
-
-	// assertions
-	types := GetSchemaAttributeTypes()
-	require.Equal(t, "array", types["tags"])
-	require.Equal(t, "string", types["isbn"])
-	require.Equal(t, "array", types["references"])
-
-	actual := CastAttributesOld(map[string]interface{}{
-		"tags":       "favorite",    // must be converted to an array
-		"isbn":       9780807014271, // must be converted to a string
-		"references": []interface{}{"a book"},
-	})
-	expected := map[string]interface{}{
-		"tags":       []string{"favorite"},
-		"isbn":       "9780807014271",
-		"references": []string{"a book"},
-	}
-	assert.Equal(t, expected, actual)
-}
-
 func TestYAMLListWithDifferentTypes(t *testing.T) {
 	// Learning test to ensure a YAML list can contains variables of different types.
 	input := `

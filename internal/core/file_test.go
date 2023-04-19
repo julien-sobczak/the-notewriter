@@ -748,6 +748,202 @@ func TestInheritance(t *testing.T) {
 
 func TestFeatures(t *testing.T) {
 
+	t.Run("Relations", func(t *testing.T) {
+		SetUpCollectionFromGoldenDirNamed(t, "TestRelations")
+
+		err := CurrentCollection().Add(".")
+		require.NoError(t, err)
+
+		fileA, err := CurrentCollection().FindFileByWikilink("a")
+		require.NoError(t, err)
+		assert.NotNil(t, fileA)
+		fileB, err := CurrentCollection().FindFileByWikilink("b")
+		require.NoError(t, err)
+		assert.NotNil(t, fileB)
+		fileC, err := CurrentCollection().FindFileByWikilink("c")
+		require.NoError(t, err)
+		assert.NotNil(t, fileC)
+
+		notesA, err := CurrentCollection().SearchNotes(`path:"a.md"`)
+		require.NoError(t, err)
+		require.Len(t, notesA, 1)
+		noteA := notesA[0]
+		notesB, err := CurrentCollection().SearchNotes(`path:"b.md"`)
+		require.NoError(t, err)
+		require.Len(t, notesB, 1)
+		noteB := notesB[0]
+		notesC, err := CurrentCollection().SearchNotes(`path:"c.md"`)
+		require.NoError(t, err)
+		require.Len(t, notesC, 1)
+		noteC := notesC[0]
+
+		relationsA := noteA.Relations()
+		relationsB := noteB.Relations() // FIXME now DEBUG why only one attribute value for `@inspiration`
+		relationsC := noteC.Relations()
+
+		expectedA := []*Relation{
+			{
+				SourceOID:  noteA.OID,
+				SourceKind: "note",
+				TargetOID:  noteB.OID,
+				TargetKind: "note",
+				Type:       "referenced_by",
+			},
+		}
+		expectedB := []*Relation{
+			{
+				SourceOID:  noteB.OID,
+				SourceKind: "note",
+				TargetOID:  noteA.OID,
+				TargetKind: "note",
+				Type:       "inspired_by",
+			},
+			{
+				SourceOID:  noteB.OID,
+				SourceKind: "note",
+				TargetOID:  fileC.OID,
+				TargetKind: "file",
+				Type:       "inspired_by",
+			},
+		}
+		expectedC := []*Relation{
+			{
+				SourceOID:  noteC.OID,
+				SourceKind: "note",
+				TargetOID:  fileA.OID,
+				TargetKind: "file",
+				Type:       "references",
+			},
+		}
+
+		assert.Equal(t, expectedA, relationsA)
+		assert.Equal(t, expectedB, relationsB)
+		assert.Equal(t, expectedC, relationsC)
+
+		// Check at least one relation exists to detect complete failure
+		count, err := CurrentCollection().CountRelations()
+		require.NoError(t, err)
+		require.Greater(t, count, 0)
+
+		// Check relations between objects
+		relationsFromFileA, err := CurrentCollection().FindRelationsFrom(fileA.OID)
+		require.NoError(t, err)
+		relationsToFileA, err := CurrentCollection().FindRelationsTo(fileA.OID)
+		require.NoError(t, err)
+		relationsFromNoteA, err := CurrentCollection().FindRelationsFrom(noteA.OID)
+		require.NoError(t, err)
+		relationsToNoteA, err := CurrentCollection().FindRelationsTo(noteA.OID)
+		require.NoError(t, err)
+
+		relationsFromFileB, err := CurrentCollection().FindRelationsFrom(fileB.OID)
+		require.NoError(t, err)
+		relationsToFileB, err := CurrentCollection().FindRelationsTo(fileB.OID)
+		require.NoError(t, err)
+		relationsFromNoteB, err := CurrentCollection().FindRelationsFrom(noteB.OID)
+		require.NoError(t, err)
+		relationsToNoteB, err := CurrentCollection().FindRelationsTo(noteB.OID)
+		require.NoError(t, err)
+
+		relationsFromFileC, err := CurrentCollection().FindRelationsFrom(fileC.OID)
+		require.NoError(t, err)
+		relationsToFileC, err := CurrentCollection().FindRelationsTo(fileC.OID)
+		require.NoError(t, err)
+		relationsFromNoteC, err := CurrentCollection().FindRelationsFrom(noteC.OID)
+		require.NoError(t, err)
+		relationsToNoteC, err := CurrentCollection().FindRelationsTo(noteC.OID)
+		require.NoError(t, err)
+
+		expectedFromFileA := []*Relation{}
+		expectedToFileA := []*Relation{
+			{
+				SourceOID:  noteC.OID,
+				SourceKind: "note",
+				TargetOID:  fileA.OID,
+				TargetKind: "file",
+				Type:       "references",
+			},
+		}
+		expectedFromNoteA := []*Relation{
+			{
+				SourceOID:  noteA.OID,
+				SourceKind: "note",
+				TargetOID:  noteB.OID,
+				TargetKind: "note",
+				Type:       "referenced_by",
+			},
+		}
+		expectedToNoteA := []*Relation{
+			{
+				SourceOID:  noteB.OID,
+				SourceKind: "note",
+				TargetOID:  noteA.OID,
+				TargetKind: "note",
+				Type:       "inspired_by",
+			},
+		}
+		assert.ElementsMatch(t, expectedFromFileA, relationsFromFileA)
+		assert.ElementsMatch(t, expectedToFileA, relationsToFileA)
+		assert.ElementsMatch(t, expectedFromNoteA, relationsFromNoteA)
+		assert.ElementsMatch(t, expectedToNoteA, relationsToNoteA)
+
+		expectedFromFileB := []*Relation{}
+		expectedToFileB := []*Relation{}
+		expectedFromNoteB := []*Relation{
+			{
+				SourceOID:  noteB.OID,
+				SourceKind: "note",
+				TargetOID:  noteA.OID,
+				TargetKind: "note",
+				Type:       "inspired_by",
+			},
+			{
+				SourceOID:  noteB.OID,
+				SourceKind: "note",
+				TargetOID:  fileC.OID,
+				TargetKind: "file",
+				Type:       "inspired_by",
+			},
+		}
+		expectedToNoteB := []*Relation{
+			{
+				SourceOID:  noteA.OID,
+				SourceKind: "note",
+				TargetOID:  noteB.OID,
+				TargetKind: "note",
+				Type:       "referenced_by",
+			},
+		}
+		assert.ElementsMatch(t, expectedFromFileB, relationsFromFileB)
+		assert.ElementsMatch(t, expectedToFileB, relationsToFileB)
+		assert.ElementsMatch(t, expectedFromNoteB, relationsFromNoteB)
+		assert.ElementsMatch(t, expectedToNoteB, relationsToNoteB)
+
+		expectedFromFileC := []*Relation{}
+		expectedToFileC := []*Relation{
+			{
+				SourceOID:  noteB.OID,
+				SourceKind: "note",
+				TargetOID:  fileC.OID,
+				TargetKind: "file",
+				Type:       "inspired_by",
+			},
+		}
+		expectedFromNoteC := []*Relation{
+			{
+				SourceOID:  noteC.OID,
+				SourceKind: "note",
+				TargetOID:  fileA.OID,
+				TargetKind: "file",
+				Type:       "references",
+			},
+		}
+		expectedToNoteC := []*Relation{}
+		assert.ElementsMatch(t, expectedFromFileC, relationsFromFileC)
+		assert.ElementsMatch(t, expectedToFileC, relationsToFileC)
+		assert.ElementsMatch(t, expectedFromNoteC, relationsFromNoteC)
+		assert.ElementsMatch(t, expectedToNoteC, relationsToNoteC)
+	})
+
 	t.Run("Ignore", func(t *testing.T) {
 		SetUpCollectionFromGoldenDirNamed(t, "TestIgnore")
 

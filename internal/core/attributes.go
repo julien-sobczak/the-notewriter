@@ -88,26 +88,7 @@ func MergeAttributes(attributes ...map[string]interface{}) map[string]interface{
 	// Iterate over maps
 	for _, m := range attributes {
 		for newKey, newValue := range m {
-
-			// Check if the attribute was already defined
-			if currentValue, ok := result[newKey]; ok {
-
-				// If the tyoe is a slice, append the new value instead of overriding
-				switch x := currentValue.(type) {
-				case []interface{}:
-					switch y := newValue.(type) {
-					case []interface{}:
-						result[newKey] = append(x, y...)
-					default:
-						result[newKey] = append(x, newValue)
-					}
-				default:
-					// override
-					result[newKey] = newValue
-				}
-			} else {
-				result[newKey] = newValue
-			}
+			MergeAttribute(result, newKey, newValue)
 			empty = false
 		}
 	}
@@ -115,6 +96,29 @@ func MergeAttributes(attributes ...map[string]interface{}) map[string]interface{
 		return nil
 	}
 	return result
+}
+
+func MergeAttribute(attributes map[string]interface{}, name string, value interface{}) {
+	// Check if the attribute was already defined
+	currentValue, ok := attributes[name]
+
+	if !ok {
+		attributes[name] = value
+	}
+
+	// If the tyoe is a slice, append the new value instead of overriding
+	switch x := currentValue.(type) {
+	case []interface{}:
+		switch y := value.(type) {
+		case []interface{}:
+			attributes[name] = append(x, y...)
+		default:
+			attributes[name] = append(x, value)
+		}
+	default:
+		// override
+		attributes[name] = value
+	}
 }
 
 // UnmarshalAttributes unmarshall attributes and ensure the right types are used.
@@ -141,151 +145,89 @@ func CastAttributes(attributes map[string]interface{}, types map[string]string) 
 			result[key] = value
 			continue
 		}
-		switch declaredType {
-		case "array":
-			if !IsArray(value) {
-				if IsString(value) {
-					result[key] = []interface{}{fmt.Sprintf("%s", value)}
-				} else {
-					result[key] = []interface{}{value}
-				}
-			} else {
-				result[key] = value
-			}
-		case "string":
-			if IsPrimitive(value) {
-				typedValue := fmt.Sprintf("%v", value)
-				result[key] = typedValue
-			}
-		case "object":
-			if IsObject(value) {
-				result[key] = value
-			}
-		case "number":
-			if IsString(value) {
-				stringValue := fmt.Sprintf("%v", value)
-				if strings.Contains(stringValue, ".") { // decimal point
-					typedValue, err := strconv.ParseFloat(stringValue, 64)
-					if err == nil {
-						result[key] = typedValue
-					}
-				} else {
-					typedValue, err := strconv.ParseInt(stringValue, 10, 64)
-					if err == nil {
-						result[key] = typedValue
-					}
-				}
-			} else if IsInteger(value) {
-				switch v := value.(type) {
-				case int:
-					result[key] = int64(v)
-				case int8:
-					result[key] = int64(v)
-				case int16:
-					result[key] = int64(v)
-				case int32:
-					result[key] = int64(v)
-				case int64:
-					result[key] = int64(v)
-				case uint:
-					result[key] = int64(v)
-				case uint8:
-					result[key] = int64(v)
-				case uint16:
-					result[key] = int64(v)
-				case uint32:
-					result[key] = int64(v)
-				case uint64:
-					result[key] = int64(v)
-				case uintptr:
-					result[key] = int64(v)
-				}
-			} else if IsFloat(value) {
-				switch v := value.(type) {
-				case float32:
-					result[key] = float64(v)
-				case float64:
-					result[key] = v
-				}
-			}
-		case "bool":
-			if IsBool(value) {
-				result[key] = value
-			}
+		typedValue := CastAttribute(value, declaredType)
+		if typedValue != nil {
+			result[key] = typedValue
 		}
 	}
 	return result
 }
 
-// CastAttributesOld enforces that the map only uses common types
-// (ex: no []interface{}, but []string if all values are string values).
-// The function also converts raw values to their declared type as defined in linter schemas.
-func CastAttributesOld(attributes map[string]interface{}) map[string]interface{} {
-	types := GetSchemaAttributeTypes()
-	result := make(map[string]interface{})
-	for key, value := range attributes {
-		declaredType, found := types[key]
-		if !found {
-			result[key] = value
-			continue
+// CastAttribute enforces the type declared in linter schemas.
+func CastAttribute(value interface{}, declaredType string) interface{} {
+	switch declaredType {
+	case "array":
+		if !IsArray(value) {
+			if IsString(value) {
+				return []interface{}{fmt.Sprintf("%s", value)}
+			} else {
+				return []interface{}{value}
+			}
 		}
-		switch declaredType {
-		case "array":
-			if !IsArray(value) {
-				if IsString(value) {
-					result[key] = []string{fmt.Sprintf("%s", value)}
-				} else {
-					// Create an array of the right type
-					TypeElem := reflect.TypeOf(value)
-					slice := reflect.MakeSlice(reflect.SliceOf(TypeElem), 0, 1)
-					elemValue := reflect.ValueOf(value)
-					reflect.Append(slice, elemValue)
-					result[key] = slice.Interface()
+		return value
+	case "string":
+		if IsPrimitive(value) {
+			typedValue := fmt.Sprintf("%v", value)
+			return typedValue
+		}
+	case "object":
+		if IsObject(value) {
+			return value
+		}
+	case "number":
+		if IsString(value) {
+			stringValue := fmt.Sprintf("%v", value)
+			if strings.Contains(stringValue, ".") { // decimal point
+				typedValue, err := strconv.ParseFloat(stringValue, 64)
+				if err == nil {
+					return typedValue
 				}
 			} else {
-				switch v := value.(type) {
-				case []interface{}:
-					var typeElem reflect.Type
-					sameType := true
-					// Check if all elements have the same type
-					for _, elem := range v {
-						newTypeElem := reflect.TypeOf(elem)
-						if typeElem == nil {
-							typeElem = newTypeElem
-						} else if typeElem != newTypeElem {
-							sameType = false
-						}
-					}
-					if sameType {
-						// Recreate a new slice using the right type
-						slice := reflect.MakeSlice(reflect.SliceOf(typeElem), 0, len(v))
-						for _, elem := range v {
-							slice = reflect.Append(slice, reflect.ValueOf(elem))
-						}
-						result[key] = slice.Interface()
-					} else {
-						// Stay with the []interface{} type...
-						result[key] = value
-					}
-				default:
-					// Not []interface{}, nothing to do
-					result[key] = value
+				typedValue, err := strconv.ParseInt(stringValue, 10, 64)
+				if err == nil {
+					return typedValue
 				}
 			}
-		case "string":
-			if IsPrimitive(value) {
-				typedValue := fmt.Sprintf("%v", value)
-				result[key] = typedValue
-			} else {
-				// Casting not possible
-				result[key] = value
+		} else if IsInteger(value) {
+			switch v := value.(type) {
+			case int:
+				return int64(v)
+			case int8:
+				return int64(v)
+			case int16:
+				return int64(v)
+			case int32:
+				return int64(v)
+			case int64:
+				return int64(v)
+			case uint:
+				return int64(v)
+			case uint8:
+				return int64(v)
+			case uint16:
+				return int64(v)
+			case uint32:
+				return int64(v)
+			case uint64:
+				return int64(v)
+			case uintptr:
+				return int64(v)
 			}
-		default: // "object", "number", "bool"
-			// Nothing can be done
-			result[key] = value
+		} else if IsFloat(value) {
+			switch v := value.(type) {
+			case float32:
+				return float64(v)
+			case float64:
+				return v
+			}
+		}
+	case "bool":
+		if IsBool(value) {
+			return value
 		}
 	}
-	return result
+	// Ignore invalid values
+	return nil
 }
 
 // NonInheritableAttributes returns the attributes that must not be inherited.
@@ -348,7 +290,8 @@ func ExtractBlockTagsAndAttributes(content string) ([]string, map[string]interfa
 		for _, match := range matches {
 			name := match[1]
 			value := match[2]
-			attributes[name] = value
+
+			MergeAttribute(attributes, name, CastAttribute(value, GetSchemaAttributeType(name)))
 
 			// Tags can also be set as attributes (= longer syntax)
 			if name == "tags" {

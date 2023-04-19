@@ -124,6 +124,17 @@ func GetSchemaAttributeTypes() map[string]string {
 	return results
 }
 
+// GetSchemaAttributeType returns the type for the given attribute
+// and defaults to string if no declaration is found.
+func GetSchemaAttributeType(name string) string {
+	declaredTypes := GetSchemaAttributeTypes()
+	declaredType, ok := declaredTypes[name]
+	if !ok {
+		return "string"
+	}
+	return declaredType
+}
+
 // GetSchemaAttributes calculates the list of declared attributes for a given note.
 func GetSchemaAttributes(relativePath string, kind NoteKind) []*ConfigLintSchemaAttribute {
 	// We must find the most specific definition for every attributes.

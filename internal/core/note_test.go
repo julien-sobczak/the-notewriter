@@ -73,10 +73,30 @@ func TestParsing(t *testing.T) {
 					"title": "Mixed on different lines",
 				},
 			},
+
+			{
+				name: "Array Types",
+				input: "\n" +
+					"`@references: [[fileA]]`\n" +
+					"`@references: [[fileB#Section]]`\n",
+				tags: []string{},
+				attributes: map[string]interface{}{
+					"references": []interface{}{
+						"[[fileA]]",
+						"[[fileB#Section]]",
+					},
+					"title": "Array Types",
+				},
+			},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				SetUpCollectionFromTempDir(t)
+
+				// Preconditions
+				schemasTypes := GetSchemaAttributeTypes()
+				require.Equal(t, "array", schemasTypes["references"])
+
 				file := NewEmptyFile("example.md")
 				actual := NewNote(file, nil, tt.name, tt.input, 10)
 				if len(tt.tags) == 0 {

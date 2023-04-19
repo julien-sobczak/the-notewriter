@@ -275,7 +275,7 @@ func (n *Note) Relations() []*Relation {
 			return
 		}
 
-		if wikilink.Anchored() {
+		if wikilink.Section() != "" {
 			note, _ := CurrentCollection().FindNoteByWikilink(wikilink.Link)
 			if note != nil {
 				relations = append(relations, &Relation{

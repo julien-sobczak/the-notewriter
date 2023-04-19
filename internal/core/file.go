@@ -1067,11 +1067,11 @@ func (c *Collection) LoadFilesByRelativePathPrefix(relativePathPrefix string) ([
 }
 
 func (c *Collection) FindFileByWikilink(wikilink string) (*File, error) {
-	return QueryFile(CurrentDB().Client(), `WHERE wikilink LIKE ?`, "%"+wikilink)
+	return QueryFile(CurrentDB().Client(), `WHERE wikilink LIKE ?`, "%"+text.TrimExtension(wikilink))
 }
 
 func (c *Collection) FindFilesByWikilink(wikilink string) ([]*File, error) {
-	return QueryFiles(CurrentDB().Client(), `WHERE wikilink LIKE ?`, "%"+wikilink)
+	return QueryFiles(CurrentDB().Client(), `WHERE wikilink LIKE ?`, "%"+text.TrimExtension(wikilink))
 }
 
 func (c *Collection) FindFilesLastCheckedBefore(point time.Time, path string) ([]*File, error) {

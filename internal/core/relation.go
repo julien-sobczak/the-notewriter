@@ -59,10 +59,6 @@ func (c *Collection) DeleteRelations(obj Object) error {
 }
 
 func (c *Collection) UpdateRelations(source Object) error {
-	if source.UniqueOID() == "" {
-		return fmt.Errorf("missing OID for object %s", source)
-	}
-
 	// We systematically recreate all relations to be sure to not have dangling relations
 	// (= relations that no longer exist in notes but are still present in database)
 
@@ -88,7 +84,7 @@ func (c *Collection) UpdateRelations(source Object) error {
 				source_kind,
 				target_oid,
 				target_kind,
-				"type",
+				"type"
 			)
 			VALUES (?, ?, ?, ?, ?);
 		`
