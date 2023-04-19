@@ -1203,6 +1203,24 @@ Presentation of idea B
 				assert.Equal(t, "Idea B", notes[2].ShortTitle)
 			},
 		},
+
+		{
+			name: "Code comments are not notes",
+			input: "# S3\n" +
+				"\n" +
+				"## Cheatsheet: Minio CLI `mc`\n" +
+				"\n" +
+				"```shell\n" +
+				"# Create files under $HOME/.mc\n" +
+				"$ mc config host add minio http://10.45.32.192/ <api_key> <secret_key> --api S3v4\n" +
+				"\n" +
+				"# List all buckets\n" +
+				"$ mc ls minio\n" +
+				"```\n",
+			checkFn: func(t *testing.T, notes []*ParsedNote) {
+				require.Len(t, notes, 1)
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

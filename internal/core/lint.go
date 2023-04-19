@@ -293,14 +293,15 @@ func MaxLinesBetweenNotes(file *ParsedFile, args []string) ([]*Violation, error)
 		for {
 			lineNumber := note.Line - j
 			lineIndex := lineNumber - 1
+			if lineIndex < 0 {
+				break
+			}
 			if text.IsBlank(lines[lineIndex]) {
 				countBlankLinesBefore++
 			} else {
 				break
 			}
-			if lineIndex == 0 {
-				break
-			}
+
 			j++
 		}
 

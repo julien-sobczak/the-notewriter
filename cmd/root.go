@@ -39,10 +39,11 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.Flags().BoolVarP(&verboseInfo, "verbose", "v", false, "enable verbose info output")
-	rootCmd.Flags().BoolVarP(&verboseDebug, "verbose-debug", "", false, "enable verbose debug output")
-	rootCmd.Flags().BoolVarP(&verboseTrace, "verbose-trace", "", false, "enable verbose trace output")
-	rootCmd.Flags().StringVarP(&CollectionDir, "collection", "c", "", "Collection directory (default is $HOME/notes)")
+	// Use PersistentFlags to make flags accessible to sub-commands
+	rootCmd.PersistentFlags().BoolVarP(&verboseInfo, "v", "", false, "enable verbose info output")
+	rootCmd.PersistentFlags().BoolVarP(&verboseDebug, "vv", "", false, "enable verbose debug output")
+	rootCmd.PersistentFlags().BoolVarP(&verboseTrace, "vvv", "", false, "enable verbose trace output")
+	rootCmd.PersistentFlags().StringVarP(&CollectionDir, "collection", "c", "", "Collection directory (default is $HOME/notes)")
 }
 
 func Execute() {
