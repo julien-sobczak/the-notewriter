@@ -742,6 +742,8 @@ type ParsedFile struct {
 
 // ParseFile contains the main logic to parse a raw note file.
 func ParseFile(filepath string) (*ParsedFile, error) {
+	CurrentLogger().Debugf("Parsing file %s...", filepath)
+
 	relativePath, err := CurrentCollection().GetFileRelativePath(filepath)
 	if err != nil {
 		return nil, err

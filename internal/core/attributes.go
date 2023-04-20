@@ -155,6 +155,9 @@ func CastAttributes(attributes map[string]interface{}, types map[string]string) 
 
 // CastAttribute enforces the type declared in linter schemas.
 func CastAttribute(value interface{}, declaredType string) interface{} {
+	if value == nil {
+		return nil
+	}
 	switch declaredType {
 	case "array":
 		if !IsArray(value) {
