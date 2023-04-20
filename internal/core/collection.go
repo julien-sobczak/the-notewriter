@@ -308,7 +308,7 @@ func (c *Collection) normalizePaths(paths ...string) []string {
 // Add implements the command `nt add`.`
 func (c *Collection) Add(paths ...string) error {
 	// Start with command linter (do not stage invalid file)
-	linterResult, err := c.Lint(paths...)
+	linterResult, err := c.Lint(nil, paths...)
 	if err != nil {
 		return err
 	}
@@ -673,7 +673,7 @@ func (c *Collection) Status() (string, error) {
 }
 
 // Lint run linter rules on all files under the given paths.
-func (c *Collection) Lint(paths ...string) (*LintResult, error) {
+func (c *Collection) Lint(ruleNames []string, paths ...string) (*LintResult, error) {
 	/*
 	 * Implementation: The linter must only considering local files and
 	 * ignore commits or the staging area completely.
@@ -696,7 +696,7 @@ func (c *Collection) Lint(paths ...string) (*LintResult, error) {
 		}
 
 		// Check file
-		violations, err := file.Lint()
+		violations, err := file.Lint(ruleNames)
 		if err != nil {
 			return err
 		}

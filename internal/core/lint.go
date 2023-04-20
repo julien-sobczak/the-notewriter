@@ -745,12 +745,17 @@ func CheckAttribute(file *ParsedFile, args []string) ([]*Violation, error) {
 
 /* ParsedFile */
 
-func (f *ParsedFile) Lint() ([]*Violation, error) {
+func (f *ParsedFile) Lint(ruleNames []string) ([]*Violation, error) {
 	var violations []*Violation
 
 	rules := CurrentConfig().LintFile.Rules
 	for _, configRule := range rules {
 		rule := LintRules[configRule.Name]
+
+		if len(ruleNames) > 0 && !slices.Contains(ruleNames, configRule.Name) {
+			// Skip this rule
+			continue
+		}
 
 		// Check path restrictions
 		matchAllIncludes := true

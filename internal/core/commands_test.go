@@ -37,7 +37,7 @@ This is a second note
 `), 0644)
 		require.NoError(t, err)
 
-		result, err := CurrentCollection().Lint(".")
+		result, err := CurrentCollection().Lint(nil, ".")
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.Equal(t, 1, result.AnalyzedFiles)
