@@ -30,3 +30,12 @@ The people who are crazy enough to think they can change the world are the ones 
 <!-- Not a quote so name is not required -->
 
 My favorite things in life don’t cost any money. It’s really clear that the most precious resource we all have is time.
+
+
+## Quote: Steve Jobs on Changing the World
+
+`@author: Steve Jobs`
+
+<!-- Aliases are supported. -->
+
+Focusing is about saying no.

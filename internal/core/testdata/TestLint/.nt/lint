@@ -28,6 +28,7 @@ schemas:
   attributes:
     - name: name
       type: string
+      aliases: [author]
       required: true
 - name: Books
   attributes:

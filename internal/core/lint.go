@@ -592,151 +592,159 @@ func CheckAttribute(file *ParsedFile, args []string) ([]*Violation, error) {
 		definitions := GetSchemaAttributes(file.RelativePath, note.Kind)
 		for _, definition := range definitions {
 
-			fileValue, presentOnFile := file.FileAttributes[definition.Name]
-			noteValue, presentOnNote := note.NoteAttributes[definition.Name]
+			allowedNames := []string{definition.Name}
+			allowedNames = append(allowedNames, definition.Aliases...)
+
+			found := false
+
+			for _, name := range allowedNames {
+
+				fileValue, presentOnFile := file.FileAttributes[name]
+				noteValue, presentOnNote := note.NoteAttributes[name]
+
+				// Check type
+				if presentOnFile {
+					found = true
+					line := text.LineNumber(file.Content(), name+":")
+					switch definition.Type {
+					case "array":
+						if !IsArray(fileValue) && !IsPrimitive(fileValue) {
+							violations = append(violations, &Violation{
+								Name:         "check-attribute",
+								RelativePath: file.RelativePath,
+								Message:      fmt.Sprintf("attribute %q in file %q is not an array and cannot be converted", name, file.RelativePath),
+								Line:         line,
+							})
+						}
+					case "string":
+						if !IsString(fileValue) && !IsPrimitive(fileValue) {
+							violations = append(violations, &Violation{
+								Name:         "check-attribute",
+								RelativePath: file.RelativePath,
+								Message:      fmt.Sprintf("attribute %q in file %q is not a string and cannot be converted", name, file.RelativePath),
+								Line:         line,
+							})
+						} else if definition.Pattern != "" {
+							// Check pattern
+							regexAttribute := regexp.MustCompile(definition.Pattern)
+							// Convert value to string
+							fileStringValue := fmt.Sprintf("%s", fileValue)
+							if !regexAttribute.MatchString(fileStringValue) {
+								violations = append(violations, &Violation{
+									Name:         "check-attribute",
+									RelativePath: file.RelativePath,
+									Message:      fmt.Sprintf("attribute %q in file %q does not match pattern %q", name, file.RelativePath, definition.Pattern),
+									Line:         text.LineNumber(file.Content(), name+":"),
+								})
+							}
+						}
+					case "object":
+						if !IsObject(fileValue) {
+							violations = append(violations, &Violation{
+								Name:         "check-attribute",
+								RelativePath: file.RelativePath,
+								Message:      fmt.Sprintf("attribute %q in file %q is not an object", name, file.RelativePath),
+								Line:         line,
+							})
+						}
+					case "number":
+						if !IsNumber(fileValue) {
+							violations = append(violations, &Violation{
+								Name:         "check-attribute",
+								RelativePath: file.RelativePath,
+								Message:      fmt.Sprintf("attribute %q in file %q is not a number", name, file.RelativePath),
+								Line:         line,
+							})
+						}
+					case "bool":
+						if !IsBool(fileValue) {
+							violations = append(violations, &Violation{
+								Name:         "check-attribute",
+								RelativePath: file.RelativePath,
+								Message:      fmt.Sprintf("attribute %q in file %q is not a bool", name, file.RelativePath),
+								Line:         line,
+							})
+						}
+					}
+				}
+				if presentOnNote {
+					found = true
+					line := file.BodyLine + text.LineNumber(note.Body, "@"+name)
+					switch definition.Type {
+					case "array":
+						if !IsArray(noteValue) && !IsPrimitive(noteValue) {
+							violations = append(violations, &Violation{
+								Name:         "check-attribute",
+								RelativePath: file.RelativePath,
+								Message:      fmt.Sprintf("attribute %q in file %q is not an array and cannot be converted", name, file.RelativePath),
+								Line:         line,
+							})
+						}
+					case "string":
+						if !IsString(noteValue) && !IsPrimitive(noteValue) {
+							violations = append(violations, &Violation{
+								Name:         "check-attribute",
+								RelativePath: file.RelativePath,
+								Message:      fmt.Sprintf("attribute %q in file %q is not a string and cannot be converted", name, file.RelativePath),
+								Line:         line,
+							})
+						} else if definition.Pattern != "" {
+							// Check pattern
+							regexAttribute := regexp.MustCompile(definition.Pattern)
+							// Convert value to string
+							noteStringValue := fmt.Sprintf("%s", noteValue)
+							if !regexAttribute.MatchString(noteStringValue) {
+								violations = append(violations, &Violation{
+									Name:         "check-attribute",
+									RelativePath: file.RelativePath,
+									Message:      fmt.Sprintf("attribute %q in note %q in file %q does not match pattern %q", name, note.LongTitle, file.RelativePath, definition.Pattern),
+									Line:         note.Line + text.LineNumber(note.Body, "@"+name),
+								})
+							}
+						}
+					case "object":
+						if !IsObject(noteValue) {
+							violations = append(violations, &Violation{
+								Name:         "check-attribute",
+								RelativePath: file.RelativePath,
+								Message:      fmt.Sprintf("attribute %q in file %q is not an object", name, file.RelativePath),
+								Line:         line,
+							})
+						}
+					case "number":
+						if !IsNumber(noteValue) {
+							violations = append(violations, &Violation{
+								Name:         "check-attribute",
+								RelativePath: file.RelativePath,
+								Message:      fmt.Sprintf("attribute %q in file %q is not a number", name, file.RelativePath),
+								Line:         line,
+							})
+						}
+					case "bool":
+						if !IsBool(noteValue) {
+							violations = append(violations, &Violation{
+								Name:         "check-attribute",
+								RelativePath: file.RelativePath,
+								Message:      fmt.Sprintf("attribute %q in file %q is not a bool", name, file.RelativePath),
+								Line:         line,
+							})
+						}
+					}
+				}
+
+			}
 
 			// Check required
-			if *definition.Required && !presentOnFile && !presentOnNote {
+			if *definition.Required && !found {
 				violations = append(violations, &Violation{
 					Name:         "check-attribute",
 					RelativePath: file.RelativePath,
 					Message:      fmt.Sprintf("attribute %q missing on note %q in file %q", definition.Name, note.LongTitle, file.RelativePath),
 				})
-
-				// Nothing more to check
-				continue
 			}
 
-			// Check type
-			if presentOnFile {
-				line := text.LineNumber(file.Content(), definition.Name+":")
-				switch definition.Type {
-				case "array":
-					if !IsArray(fileValue) && !IsPrimitive(fileValue) {
-						violations = append(violations, &Violation{
-							Name:         "check-attribute",
-							RelativePath: file.RelativePath,
-							Message:      fmt.Sprintf("attribute %q in file %q is not an array and cannot be converted", definition.Name, file.RelativePath),
-							Line:         line,
-						})
-					}
-				case "string":
-					if !IsString(fileValue) && !IsPrimitive(fileValue) {
-						violations = append(violations, &Violation{
-							Name:         "check-attribute",
-							RelativePath: file.RelativePath,
-							Message:      fmt.Sprintf("attribute %q in file %q is not a string and cannot be converted", definition.Name, file.RelativePath),
-							Line:         line,
-						})
-					}
-				case "object":
-					if !IsObject(fileValue) {
-						violations = append(violations, &Violation{
-							Name:         "check-attribute",
-							RelativePath: file.RelativePath,
-							Message:      fmt.Sprintf("attribute %q in file %q is not an object", definition.Name, file.RelativePath),
-							Line:         line,
-						})
-					}
-				case "number":
-					if !IsNumber(fileValue) {
-						violations = append(violations, &Violation{
-							Name:         "check-attribute",
-							RelativePath: file.RelativePath,
-							Message:      fmt.Sprintf("attribute %q in file %q is not a number", definition.Name, file.RelativePath),
-							Line:         line,
-						})
-					}
-				case "bool":
-					if !IsBool(fileValue) {
-						violations = append(violations, &Violation{
-							Name:         "check-attribute",
-							RelativePath: file.RelativePath,
-							Message:      fmt.Sprintf("attribute %q in file %q is not a bool", definition.Name, file.RelativePath),
-							Line:         line,
-						})
-					}
-				}
-			}
-			if presentOnNote {
-				line := file.BodyLine + text.LineNumber(note.Body, "@"+definition.Name)
-				switch definition.Type {
-				case "array":
-					if !IsArray(noteValue) && !IsPrimitive(noteValue) {
-						violations = append(violations, &Violation{
-							Name:         "check-attribute",
-							RelativePath: file.RelativePath,
-							Message:      fmt.Sprintf("attribute %q in file %q is not an array and cannot be converted", definition.Name, file.RelativePath),
-							Line:         line,
-						})
-					}
-				case "string":
-					if !IsString(noteValue) && !IsPrimitive(noteValue) {
-						violations = append(violations, &Violation{
-							Name:         "check-attribute",
-							RelativePath: file.RelativePath,
-							Message:      fmt.Sprintf("attribute %q in file %q is not a string and cannot be converted", definition.Name, file.RelativePath),
-							Line:         line,
-						})
-					}
-				case "object":
-					if !IsObject(noteValue) {
-						violations = append(violations, &Violation{
-							Name:         "check-attribute",
-							RelativePath: file.RelativePath,
-							Message:      fmt.Sprintf("attribute %q in file %q is not an object", definition.Name, file.RelativePath),
-							Line:         line,
-						})
-					}
-				case "number":
-					if !IsNumber(noteValue) {
-						violations = append(violations, &Violation{
-							Name:         "check-attribute",
-							RelativePath: file.RelativePath,
-							Message:      fmt.Sprintf("attribute %q in file %q is not a number", definition.Name, file.RelativePath),
-							Line:         line,
-						})
-					}
-				case "bool":
-					if !IsBool(noteValue) {
-						violations = append(violations, &Violation{
-							Name:         "check-attribute",
-							RelativePath: file.RelativePath,
-							Message:      fmt.Sprintf("attribute %q in file %q is not a bool", definition.Name, file.RelativePath),
-							Line:         line,
-						})
-					}
-				}
-			}
-
-			// Check pattern
-			if definition.Pattern != "" {
-				regexAttribute := regexp.MustCompile(definition.Pattern)
-				if presentOnFile {
-					// Convert value to string
-					fileStringValue := fmt.Sprintf("%s", fileValue)
-					if !regexAttribute.MatchString(fileStringValue) {
-						violations = append(violations, &Violation{
-							Name:         "check-attribute",
-							RelativePath: file.RelativePath,
-							Message:      fmt.Sprintf("attribute %q in file %q does not match pattern %q", definition.Name, file.RelativePath, definition.Pattern),
-							Line:         text.LineNumber(file.Content(), definition.Name+":"),
-						})
-					}
-				}
-				if presentOnNote {
-					// Convert value to string
-					noteStringValue := fmt.Sprintf("%s", noteValue)
-					if !regexAttribute.MatchString(noteStringValue) {
-						violations = append(violations, &Violation{
-							Name:         "check-attribute",
-							RelativePath: file.RelativePath,
-							Message:      fmt.Sprintf("attribute %q in note %q in file %q does not match pattern %q", definition.Name, note.LongTitle, file.RelativePath, definition.Pattern),
-							Line:         note.Line + text.LineNumber(note.Body, "@"+definition.Name),
-						})
-					}
-				}
-			}
+			// Nothing more to check
+			continue
 		}
 	}
 

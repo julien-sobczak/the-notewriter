@@ -27,6 +27,7 @@ func TestGetSchemaAttributes(t *testing.T) {
 		{
 			Name:     "name",
 			Type:     "string",
+			Aliases:  []string{"author"},
 			Required: BoolPointer(true),
 			Inherit:  BoolPointer(true),
 		},
@@ -363,7 +364,7 @@ func TestCheckAttribute(t *testing.T) {
 	violations, err := CheckAttribute(fileRoot, nil)
 	require.NoError(t, err)
 	require.Len(t, violations, 1)
-	require.Equal(t, []*Violation{
+	require.ElementsMatch(t, []*Violation{
 		{
 			Name:         "check-attribute",
 			Message:      `attribute "isbn" in note "Note: _Steve Jobs_ by Walter Isaacson" in file "check-attribute.md" does not match pattern "^([0-9-]{10}|[0-9]{3}-[0-9]{10})$"`,
@@ -374,7 +375,7 @@ func TestCheckAttribute(t *testing.T) {
 
 	violations, err = CheckAttribute(fileSub, nil)
 	require.NoError(t, err)
-	require.Equal(t, []*Violation{
+	require.ElementsMatch(t, []*Violation{
 		{
 			Name:         "check-attribute",
 			Message:      `attribute "name" missing on note "Quote: Steve Jobs on Life" in file "check-attribute/check-attribute.md"`,

@@ -506,7 +506,7 @@ func (f *File) GetNotes() []*Note {
 		}
 		if !changedDuringIteration {
 			// cyclic dependency found
-			CurrentLogger().Warn("Cyclic dependency between notes detected. Incomplete note(s) can result.")
+			CurrentLogger().Info("Cyclic dependency between notes detected. Incomplete note(s) can result.")
 			// Add remaining notes without taking care of dependencies...
 			for i, note := range parsedNotes {
 				if addedNoteIndices[i] {

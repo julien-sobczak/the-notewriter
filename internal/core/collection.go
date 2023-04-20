@@ -262,7 +262,7 @@ func (c *Collection) walk(paths []string, fn func(path string, stat fs.FileInfo)
 
 		if !changedDuringIteration {
 			// cyclic dependency found
-			CurrentLogger().Warnf("Cyclic dependency between files detected. Incomplete note(s) can result.")
+			CurrentLogger().Info("Cyclic dependency between files detected. Incomplete note(s) can result.")
 			// Add remaining notes without taking care of dependencies...
 			for i, relpath := range matchedFiles {
 				if addedFileIndices[i] {
