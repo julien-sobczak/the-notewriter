@@ -21,7 +21,7 @@ var rootCmd = &cobra.Command{
 	Use:   "nt",
 	Short: "The NoteTaker is a file-based note management tool",
 	Long:  `A Powerful and Flexible Note Management Tool using only Markdown files.`,
-	Run: func(cmd *cobra.Command, args []string) {
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		CheckConfig()
 
 		// Enable verbose output. The most verbose level wins when multiple flags are passsed.
