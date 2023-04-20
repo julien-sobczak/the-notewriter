@@ -260,7 +260,7 @@ func MinLinesBetweenNotes(file *ParsedFile, args []string) ([]*Violation, error)
 					Name:         "min-lines-between-notes",
 					RelativePath: file.RelativePath,
 					Message:      fmt.Sprintf("missing blank lines before note %q", note.LongTitle),
-					Line:         note.Line,
+					Line:         file.BodyLine + note.Line - 1,
 				})
 			}
 		}
@@ -310,7 +310,7 @@ func MaxLinesBetweenNotes(file *ParsedFile, args []string) ([]*Violation, error)
 				Name:         "max-lines-between-notes",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("too many blank lines before note %q", note.LongTitle),
-				Line:         note.Line,
+				Line:         file.BodyLine + note.Line - 1,
 			})
 		}
 	}
@@ -605,6 +605,7 @@ func CheckAttribute(file *ParsedFile, args []string) ([]*Violation, error) {
 				// Check type
 				if presentOnFile {
 					found = true
+
 					line := text.LineNumber(file.Content(), name+":")
 					switch definition.Type {
 					case "array":
@@ -740,6 +741,7 @@ func CheckAttribute(file *ParsedFile, args []string) ([]*Violation, error) {
 					Name:         "check-attribute",
 					RelativePath: file.RelativePath,
 					Message:      fmt.Sprintf("attribute %q missing on note %q in file %q", definition.Name, note.LongTitle, file.RelativePath),
+					Line:         note.Line,
 				})
 			}
 
