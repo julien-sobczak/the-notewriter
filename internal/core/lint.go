@@ -417,7 +417,9 @@ func buildSectionsInventory() {
 			}
 		}
 
-		sectionsInventory[text.TrimExtension(relativePath)] = sections
+		// Use a leading / to only match full filename
+		// Ex: "productivity#Note: XXX" is not ambiguous if files productivity.md and on-productivity.md exist
+		sectionsInventory["/" + text.TrimExtension(relativePath)] = sections
 
 		return nil
 	})
@@ -442,7 +444,7 @@ func NoDeadWikilink(file *ParsedFile, args []string) ([]*Violation, error) {
 		}
 
 		for path, sections := range sectionsInventory {
-			if strings.HasSuffix(path, searchedPath) {
+			if strings.HasSuffix(path, "/" + searchedPath) { // Match full filename
 				// found the link
 				foundPath = true
 
@@ -505,7 +507,7 @@ func NoAmbiguousWikilink(file *ParsedFile, args []string) ([]*Violation, error) 
 		}
 
 		for path := range sectionsInventory {
-			if strings.HasSuffix(path, searchedPath) {
+			if strings.HasSuffix(path, "/" + searchedPath) { // Match full filename
 				// potentially found the link
 				foundMatchingPaths += 1
 			}
