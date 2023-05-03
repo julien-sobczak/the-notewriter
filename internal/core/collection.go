@@ -695,6 +695,11 @@ func (c *Collection) Lint(ruleNames []string, paths ...string) (*LintResult, err
 			return err
 		}
 
+		// Ignore ignorable files
+		if file.HasTag("ignore") {
+			return nil
+		}
+
 		// Check file
 		violations, err := file.Lint(ruleNames)
 		if err != nil {

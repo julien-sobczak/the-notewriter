@@ -838,6 +838,35 @@ func ParseFile(filepath string) (*ParsedFile, error) {
 	}, nil
 }
 
+// GetTags returns all defined tags on file.
+func (f *ParsedFile) GetTags() []string {
+	value, ok := f.FileAttributes["tags"]
+	if !ok {
+		return nil
+	}
+	if tag, ok := value.(string); ok {
+		return []string{tag}
+	}
+	if tags, ok := value.([]string); ok {
+		return tags
+	}
+	if rawTags, ok := value.([]interface{}); ok {
+		var tags []string
+		for _, rawTag := range rawTags {
+			if tag, ok := rawTag.(string); ok {
+				tags = append(tags, tag)
+			}
+		}
+		return tags
+	}
+	return nil
+}
+
+// HasTag returns if the file has specifically a given tag.
+func (f *ParsedFile) HasTag(tagName string) bool {
+	return slices.Contains(f.GetTags(), tagName)
+}
+
 // Content returns the raw file content.
 func (f *ParsedFile) Content() string {
 	return string(f.Bytes)
