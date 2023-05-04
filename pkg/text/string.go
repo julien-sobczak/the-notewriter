@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -104,4 +105,11 @@ func Repeat(text string, n int) string {
 		result.WriteString(text)
 	}
 	return result.String()
+}
+
+// StripHTMLComments remove HTML single and multiline comments from a document.
+func StripHTMLComments(text string) string {
+	re := regexp.MustCompile("(?sm)<!--.*?-->")
+	text = re.ReplaceAllString(text, "")
+	return text
 }

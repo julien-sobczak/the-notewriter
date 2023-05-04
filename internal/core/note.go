@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"reflect"
 	"regexp"
 	"regexp/syntax"
 	"strings"
@@ -194,11 +195,7 @@ func (n *Note) ModificationTime() time.Time {
 
 func (n *Note) Refresh() (bool, error) {
 	// Simply force the content to be reevaluated to force inluded notes to be reread
-	prevContentMarkdown := n.ContentMarkdown
 	n.updateContent(n.ContentRaw)
-	if prevContentMarkdown != n.ContentMarkdown {
-		n.stale = true
-	}
 	return n.stale, nil
 }
 
@@ -357,6 +354,7 @@ func (n *Note) update(f *File, title string, content string, lineNumber int) {
 		n.FileOID = f.OID
 		n.stale = true
 	}
+
 	if rawContent != n.ContentRaw {
 		n.updateContent(rawContent)
 		n.stale = true
@@ -382,6 +380,9 @@ func (n *Note) Updated() bool {
 func (n *Note) parseContentRaw() (mdTitle, htmlTitle, txtTitle string, mdContent, htmlContent, txtContent string, mdComment, htmlComment, txtComment string) {
 	// Always remove block tags and attributes in all formats
 	content := StripBlockTagsAndAttributes(n.ContentRaw)
+
+	// Always remove HTML comments
+	content = text.StripHTMLComments(content)
 
 	// Always replace Asciidoc special characters
 	content = markdown.ReplaceAsciidocCharacterSubstitutions(content)
@@ -566,6 +567,10 @@ func (n *Note) ReplaceMediasByOIDLinks(md string) string {
 }
 
 func (n *Note) updateContent(rawContent string) {
+
+	prevContentMarkdown := n.ContentMarkdown
+	prevAttributes := n.Attributes
+
 	n.ContentRaw = strings.TrimSpace(rawContent)
 	n.Hash = helpers.Hash([]byte(n.ContentRaw))
 
@@ -604,6 +609,10 @@ func (n *Note) updateContent(rawContent string) {
 	n.CommentMarkdown = mdComment
 	n.CommentHTML = htmlComment
 	n.CommentText = txtComment
+
+	if prevContentMarkdown != n.ContentMarkdown || !reflect.DeepEqual(prevAttributes, n.Attributes) {
+		n.stale = true
+	}
 }
 
 // mergeAttributes is similar to generic mergeAttributes function but filter to exclude non-inheritable attributes.

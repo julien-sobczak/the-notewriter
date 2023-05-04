@@ -283,10 +283,10 @@ func (f *File) update(parent *File) error {
 
 	newAttributes := parsedFile.FileAttributes
 	if parent != nil {
-		newAttributes = f.mergeAttributes(parent.GetAttributes(), f.Attributes)
+		newAttributes = f.mergeAttributes(parent.GetAttributes(), newAttributes)
 	}
 
-	// Check if parent attributes have changed
+	// Check if attributes have changed
 	if !reflect.DeepEqual(newAttributes, f.Attributes) {
 		f.stale = true
 		f.Attributes = newAttributes

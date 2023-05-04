@@ -70,3 +70,8 @@ Except when present in code block like `i--` or:
 ```c
 i--
 ```
+
+<!--
+This comment is not
+included in the note
+-->

@@ -260,3 +260,33 @@ func TestLineNumber(t *testing.T) {
 	assert.Equal(t, 2, text.LineNumber(input, "Bonjour"))
 	assert.Equal(t, 3, text.LineNumber(input, "Ola"))
 }
+
+func TestStripHTMLComments(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "No comment",
+			input:    "A text with\nno comment.",
+			expected: "A text with\nno comment.",
+		},
+		{
+			name:     "Single line",
+			input:    `A text with an <!-- inline --> comment.`,
+			expected: `A text with an  comment.`,
+		},
+		{
+			name:     "Multiple line",
+			input:    "A text\nwith an\n<!--\nlong\nlong\n-->\ncomment\n.",
+			expected: "A text\nwith an\n\ncomment\n.",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := text.StripHTMLComments(tt.input)
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}

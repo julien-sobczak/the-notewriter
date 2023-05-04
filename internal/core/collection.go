@@ -337,13 +337,17 @@ func (c *Collection) Add(paths ...string) error {
 	err = c.walk(paths, func(path string, stat fs.FileInfo) error {
 		CurrentLogger().Debugf("Processing %s...\n", path)
 
-		parentRelativePath, err := c.GetFileRelativePath(filepath.Join(filepath.Dir(path), "index.md"))
-		if err != nil {
-			return err
-		}
-		parent, err := c.LoadFileByPath(parentRelativePath)
-		if err != nil {
-			return err
+		var parent *File = nil
+		// Try to load the optional parent present in the same directory
+		if filepath.Base(path) != "index.md" {
+			parentRelativePath, err := c.GetFileRelativePath(filepath.Join(filepath.Dir(path), "index.md"))
+			if err != nil {
+				return err
+			}
+			parent, err = c.LoadFileByPath(parentRelativePath)
+			if err != nil {
+				return err
+			}
 		}
 
 		file, err := NewOrExistingFile(parent, path)

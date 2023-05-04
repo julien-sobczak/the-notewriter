@@ -980,6 +980,20 @@ func TestPostProcessing(t *testing.T) {
 	err := CurrentCollection().Add(".")
 	require.NoError(t, err)
 
+	t.Run("HTML Comments", func(t *testing.T) {
+		notes, err := CurrentCollection().SearchNotes(`path:"quotes/walt-disney.md"`)
+		require.NoError(t, err)
+		require.Len(t, notes, 1)
+		note := notes[0]
+		assert.Equal(t, `<h1>On Doing</h1>`, note.TitleHTML)
+		assert.Equal(t, `<figure>
+	<blockquote>
+		<p>The way to get started is to quit talking and begin doing.</p>
+	</blockquote>
+	<figcaption>— Walt Disney <cite>undefined</cite></figcaption>
+</figure>`, note.ContentHTML)
+	})
+
 	t.Run("Quotes Formatting", func(t *testing.T) {
 		notes, err := CurrentCollection().SearchNotes(`path:"quotes/walt-disney.md"`)
 		require.NoError(t, err)
