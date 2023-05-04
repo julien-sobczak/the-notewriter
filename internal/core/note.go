@@ -1108,6 +1108,10 @@ func (c *Collection) LoadNoteByOID(oid string) (*Note, error) {
 	return QueryNote(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
+func (c *Collection) FindNotesByFileOID(oid string) ([]*Note, error) {
+	return QueryNotes(CurrentDB().Client(), `WHERE file_oid = ?`, oid)
+}
+
 func (c *Collection) FindNoteByTitle(title string) (*Note, error) {
 	return QueryNote(CurrentDB().Client(), `WHERE title = ?`, title)
 }
