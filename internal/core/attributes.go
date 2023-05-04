@@ -224,6 +224,8 @@ func CastAttribute(value interface{}, declaredType string) interface{} {
 				return v
 			}
 		}
+	case "boolean":
+		fallthrough
 	case "bool":
 		if IsBool(value) {
 			return value

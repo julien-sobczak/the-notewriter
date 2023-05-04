@@ -675,6 +675,8 @@ func CheckAttribute(file *ParsedFile, args []string) ([]*Violation, error) {
 								Line:         line,
 							})
 						}
+					case "boolean":
+						fallthrough
 					case "bool":
 						if !IsBool(fileValue) {
 							violations = append(violations, &Violation{
@@ -739,6 +741,8 @@ func CheckAttribute(file *ParsedFile, args []string) ([]*Violation, error) {
 								Line:         line,
 							})
 						}
+					case "boolean":
+						fallthrough
 					case "bool":
 						if !IsBool(noteValue) {
 							violations = append(violations, &Violation{
