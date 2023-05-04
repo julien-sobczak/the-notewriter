@@ -290,7 +290,7 @@ func (c *Collection) walk(paths []string, fn func(path string, stat fs.FileInfo)
 // normalizePaths converts to absolute paths.
 func (c *Collection) normalizePaths(paths ...string) []string {
 	if len(paths) == 0 {
-		return []string{"."}
+		return []string{CurrentConfig().RootDirectory}
 	}
 	var results []string
 	for _, path := range paths {
