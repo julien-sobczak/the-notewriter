@@ -35,6 +35,22 @@ func (r *LintResult) Append(violations ...*Violation) {
 	}
 }
 
+func (r LintResult) String() string {
+	var res strings.Builder
+	res.WriteString(fmt.Sprintf("%d invalid files on %d analyzed files (%d errors, %d warnings)\n",
+		r.AffectedFiles,
+		r.AnalyzedFiles,
+		len(r.Errors),
+		len(r.Warnings)))
+	for _, violation := range r.Errors {
+		res.WriteString(fmt.Sprintf("[WARNING] %s (%s:%d)\n", violation.Message, violation.RelativePath, violation.Line))
+	}
+	for _, violation := range r.Warnings {
+		res.WriteString(fmt.Sprintf("[WARNING] %s (%s:%d)\n", violation.Message, violation.RelativePath, violation.Line))
+	}
+	return res.String()
+}
+
 type Violation struct {
 	// The name of the violation
 	Name string
@@ -419,7 +435,7 @@ func buildSectionsInventory() {
 
 		// Use a leading / to only match full filename
 		// Ex: "productivity#Note: XXX" is not ambiguous if files productivity.md and on-productivity.md exist
-		sectionsInventory["/" + text.TrimExtension(relativePath)] = sections
+		sectionsInventory["/"+text.TrimExtension(relativePath)] = sections
 
 		return nil
 	})
@@ -444,7 +460,7 @@ func NoDeadWikilink(file *ParsedFile, args []string) ([]*Violation, error) {
 		}
 
 		for path, sections := range sectionsInventory {
-			if strings.HasSuffix(path, "/" + searchedPath) { // Match full filename
+			if strings.HasSuffix(path, "/"+searchedPath) { // Match full filename
 				// found the link
 				foundPath = true
 
@@ -507,7 +523,7 @@ func NoAmbiguousWikilink(file *ParsedFile, args []string) ([]*Violation, error) 
 		}
 
 		for path := range sectionsInventory {
-			if strings.HasSuffix(path, "/" + searchedPath) { // Match full filename
+			if strings.HasSuffix(path, "/"+searchedPath) { // Match full filename
 				// potentially found the link
 				foundMatchingPaths += 1
 			}

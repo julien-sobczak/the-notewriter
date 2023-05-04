@@ -313,7 +313,7 @@ func (c *Collection) Add(paths ...string) error {
 		return err
 	}
 	if len(linterResult.Errors) > 0 {
-		return fmt.Errorf("%d linter errors detected", len(linterResult.Errors))
+		return fmt.Errorf("%d linter errors detected:\n%s", len(linterResult.Errors), linterResult)
 	}
 
 	// Any object not updated after this date will be considered as deletions

@@ -40,25 +40,47 @@ var getNoteCmd = &cobra.Command{
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		if len(notes) == 0 {
-			fmt.Fprintf(os.Stderr, "No note found with wikilink %q", wikilink)
-			os.Exit(1)
-		}
 		if len(notes) > 1 {
 			fmt.Fprintf(os.Stderr, "Multiple notes found with same wikilink %q", wikilink)
 			os.Exit(1)
 		}
+		// Try to find a file containing a single note and matching the wikilink
+		if len(notes) == 0 {
+			file, err := core.CurrentCollection().FindFileByWikilink(wikilink)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			if file == nil {
+				fmt.Fprintf(os.Stderr, "No file or note matching wikilink %q", wikilink)
+				os.Exit(1)
+			}
+			notes, err = core.CurrentCollection().FindNotesByFileOID(file.OID)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			if len(notes) == 0 {
+				fmt.Fprintf(os.Stderr, "No note found in file %s matching wikilink %q", file.RelativePath, wikilink)
+				os.Exit(1)
+			}
+			if len(notes) > 1 {
+				fmt.Fprintf(os.Stderr, "Multiple notes found in file %s matching wikilink %q", file.RelativePath, wikilink)
+				os.Exit(1)
+			}
+		}
+		note := notes[0]
 		switch outputFormat {
 		case "json":
-			fmt.Println(notes[0].FormatToJSON())
+			fmt.Println(note.FormatToJSON())
 		case "md":
 			fallthrough
 		case "markdown":
-			fmt.Println(notes[0].FormatToMarkdown())
+			fmt.Println(note.FormatToMarkdown())
 		case "html":
-			fmt.Println(notes[0].FormatToHTML())
+			fmt.Println(note.FormatToHTML())
 		case "text":
-			fmt.Println(notes[0].FormatToText())
+			fmt.Println(note.FormatToText())
 		default:
 			fmt.Fprintf(os.Stderr, "Unsupported output format %q", outputFormat)
 			os.Exit(1)
