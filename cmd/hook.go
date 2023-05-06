@@ -3,12 +3,16 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/julien-sobczak/the-notetaker/internal/core"
 	"github.com/spf13/cobra"
 )
 
+var hookNames string
+
 func init() {
+	runHookCmd.Flags().StringVarP(&hookNames, "name", "n", "all", "comma-separated list of hook names used to execute")
 	rootCmd.AddCommand(runHookCmd)
 }
 
@@ -22,7 +26,14 @@ var runHookCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
+		// Process argument(s)
 		wikilink := args[0]
+
+		// Process flag(s)
+		var hooks []string
+		if hookNames != "all" && hookNames != "" {
+			hooks = append(hooks, strings.Split(hookNames, ",")...)
+		}
 
 		// Try to find a note matching this wikilink
 		notes, err := core.CurrentCollection().FindNotesByWikilink(wikilink)
@@ -37,7 +48,7 @@ var runHookCmd = &cobra.Command{
 		if len(notes) == 1 {
 			// Found the note, run the hook on it
 			note := notes[0]
-			err = note.RunHooks()
+			err = note.RunHooks(hooks)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error while executing hook(s): %v", err)
 				os.Exit(1)
@@ -61,8 +72,9 @@ var runHookCmd = &cobra.Command{
 			fmt.Println(err)
 			os.Exit(1)
 		}
+
 		for _, note := range notes {
-			err = note.RunHooks()
+			err = note.RunHooks(hooks)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error while executing hook(s): %v", err)
 				os.Exit(1)

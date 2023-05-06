@@ -422,7 +422,7 @@ func (db *DB) Commit(msg string) error {
 			continue
 		}
 		note := obj.ReadObject().(*Note)
-		if err := note.RunHooks(); err != nil {
+		if err := note.RunHooks(nil); err != nil {
 			return err
 		}
 	}

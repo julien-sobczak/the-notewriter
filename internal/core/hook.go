@@ -10,10 +10,11 @@ import (
 	"strings"
 
 	"github.com/julien-sobczak/the-notetaker/pkg/text"
+	"golang.org/x/exp/slices"
 )
 
 // RunHooks triggers all hooks on the note.
-func (n *Note) RunHooks() error {
+func (n *Note) RunHooks(hookNames []string) error {
 	hookValue := n.GetAttribute("hook")
 	if hookValue == nil {
 		// No hooks on this note
@@ -75,6 +76,12 @@ func (n *Note) RunHooks() error {
 	// Trigger the hook commands
 	for _, hookNameRaw := range hooks {
 		hookName := hookNameRaw.(string)
+
+		if len(hookNames) > 0 && !slices.Contains(hookNames, hookName) {
+			// Ignore this hook
+			continue
+		}
+
 		exe := hookExecutables[hookName]
 		CurrentLogger().Infof("Running hook %q on %s...", hookName, n)
 		err := n.executeHook(exe)

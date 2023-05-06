@@ -18,7 +18,7 @@ func TestHooks(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, notes, 1)
 		note := notes[0]
-		err = note.RunHooks()
+		err = note.RunHooks(nil)
 		require.NoError(t, err)
 	})
 
@@ -32,7 +32,7 @@ func TestHooks(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, notes, 1)
 		note := notes[0]
-		err = note.RunHooks()
+		err = note.RunHooks(nil)
 		require.ErrorContains(t, err, "no executable")
 	})
 
@@ -46,7 +46,7 @@ func TestHooks(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, notes, 1)
 		note := notes[0]
-		err = note.RunHooks()
+		err = note.RunHooks(nil)
 		require.ErrorContains(t, err, "no executable")
 	})
 
@@ -60,7 +60,7 @@ func TestHooks(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, notes, 1)
 		note := notes[0]
-		err = note.RunHooks()
+		err = note.RunHooks(nil)
 		require.ErrorContains(t, err, "multiple possible executable")
 	})
 
@@ -74,7 +74,7 @@ func TestHooks(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, notes, 1)
 		note := notes[0]
-		err = note.RunHooks()
+		err = note.RunHooks(nil)
 		require.ErrorContains(t, err, "exit status 1")
 	})
 
