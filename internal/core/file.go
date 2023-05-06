@@ -3,6 +3,7 @@ package core
 import (
 	"bytes"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -1294,4 +1295,41 @@ func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) 
 	}
 
 	return files, err
+}
+
+/* Format */
+
+func (f *File) FormatToJSON() string {
+	type FileRepresentation struct {
+		OID                string                 `json:"oid"`
+		RelativePath       string                 `json:"relativePath"`
+		Wikilink           string                 `json:"wikilink"`
+		Attributes         map[string]interface{} `json:"attributes"`
+		ShortTitleRaw      string                 `json:"shortTitleRaw"`
+		ShortTitleMarkdown string                 `json:"shortTitleMarkdown"`
+		ShortTitleHTML     string                 `json:"shortTitleHTML"`
+		ShortTitleText     string                 `json:"shortTitleText"`
+		Body               string                 `json:"body"`
+		CreatedAt          time.Time              `json:"createdAt"`
+		UpdatedAt          time.Time              `json:"updatedAt"`
+		DeletedAt          *time.Time             `json:"deletedAt"`
+	}
+	repr := FileRepresentation{
+		OID:                f.OID,
+		RelativePath:       f.RelativePath,
+		Wikilink:           f.Wikilink,
+		ShortTitleRaw:      f.ShortTitle,
+		ShortTitleMarkdown: markdown.ToMarkdown(f.ShortTitle),
+		ShortTitleHTML:     markdown.ToHTML(f.ShortTitle),
+		ShortTitleText:     markdown.ToText(f.ShortTitle),
+		Attributes:         f.GetAttributes(),
+		Body:               f.Body,
+		CreatedAt:          f.CreatedAt,
+		UpdatedAt:          f.UpdatedAt,
+	}
+	if !f.DeletedAt.IsZero() {
+		repr.DeletedAt = &f.DeletedAt
+	}
+	output, _ := json.MarshalIndent(repr, "", " ")
+	return string(output)
 }
