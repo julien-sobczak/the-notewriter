@@ -421,7 +421,7 @@ func (c *Config) Converter() medias.Converter {
 			log.Fatal(err)
 		}
 		converter.OnPreGeneration(func(cmd string, args ...string) {
-			CurrentLogger().Debug("Running command", cmd, args)
+			CurrentLogger().Debugf("Running command %q", cmd+" "+strings.Join(args, " "))
 		})
 		return converter
 	case "random":

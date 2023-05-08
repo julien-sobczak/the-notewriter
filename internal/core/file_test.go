@@ -119,6 +119,38 @@ What is the question?
 The answer
 `,
 			},
+
+			{
+				name: "File without Front Matter but with a nested Markdown document",
+				rawContent: "" +
+					"# Hello\n" +
+					"\n" +
+					"## Cheatsheet: Markdown + Front Matter\n" +
+					"\n" +
+					"```md\n" +
+					"---\n" +
+					"layout: post-read\n" +
+					"---\n" +
+					"\n" +
+					"# A Nested Document\n" +
+					"\n" +
+					"A nested content\n" +
+					"```\n",
+				actualBody: "" +
+					"# Hello\n" +
+					"\n" +
+					"## Cheatsheet: Markdown + Front Matter\n" +
+					"\n" +
+					"```md\n" +
+					"---\n" +
+					"layout: post-read\n" +
+					"---\n" +
+					"\n" +
+					"# A Nested Document\n" +
+					"\n" +
+					"A nested content\n" +
+					"```\n",
+			},
 		}
 
 		for _, tt := range tests {

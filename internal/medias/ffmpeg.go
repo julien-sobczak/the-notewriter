@@ -102,7 +102,7 @@ func (c *FFmpegConverter) ToAVIF(srcPath string, destPath string, dimensions Dim
 
 	var filtersArgs []string
 	if len(cmdFilters) > 0 {
-		filtersArgs = append(filtersArgs, "-vf", `"`+strings.Join(cmdFilters, ",")+`"`)
+		filtersArgs = append(filtersArgs, "-vf", strings.Join(cmdFilters, ","))
 	}
 
 	var args []string
@@ -114,7 +114,13 @@ func (c *FFmpegConverter) ToAVIF(srcPath string, destPath string, dimensions Dim
 	c.notifyListeners(c.exe, args...)
 	cmd := exec.CommandContext(context.Background(), c.exe, args...)
 
-	return cmd.Run()
+	// Dump output to troubleshoot
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s", output)
+	}
+
+	return err
 }
 
 func (c *FFmpegConverter) ToMP3(srcPath string, destPath string) error {

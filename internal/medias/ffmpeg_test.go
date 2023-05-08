@@ -89,7 +89,7 @@ func TestConvertToAVIF(t *testing.T) {
 		// Check cmd
 		actual, err := os.ReadFile(dest)
 		require.NoError(t, err)
-		expected := fmt.Sprintf("ffmpeg -i %s -vf \"scale=150:-1\" %s", src, dest)
+		expected := fmt.Sprintf("ffmpeg -i %s -vf scale=150:-1 %s", src, dest)
 		assert.Equal(t, expected, string(actual))
 	})
 
@@ -111,7 +111,7 @@ func TestConvertToAVIF(t *testing.T) {
 		// Check cmd
 		actual, err := os.ReadFile(dest)
 		require.NoError(t, err)
-		expected := fmt.Sprintf("ffmpeg -i %s -vf \"select=eq(n\\,0),scale=150:-1\" %s", src, dest)
+		expected := fmt.Sprintf("ffmpeg -i %s -vf select=eq(n\\,0),scale=150:-1 %s", src, dest)
 		assert.Equal(t, expected, string(actual))
 	})
 
@@ -133,7 +133,7 @@ func TestConvertToAVIF(t *testing.T) {
 		// Check cmd
 		actual, err := os.ReadFile(dest)
 		require.NoError(t, err)
-		expected := fmt.Sprintf("ffmpeg -i %s -vf \"select=eq(n\\,0)\" %s", src, dest)
+		expected := fmt.Sprintf("ffmpeg -i %s -vf select=eq(n\\,0) %s", src, dest)
 		assert.Equal(t, expected, string(actual))
 	})
 
