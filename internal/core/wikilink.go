@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/julien-sobczak/the-notetaker/pkg/markdown"
 	"github.com/julien-sobczak/the-notetaker/pkg/text"
 )
 
@@ -87,6 +88,9 @@ func (w Wikilink) String() string {
 // ParseWikilinks extracts wikilinks from a text.
 func ParseWikilinks(text string) []*Wikilink {
 	var wikilinks []*Wikilink
+
+	// Ignore medias inside code blocks (ex: a sample Markdown code block)
+	text = markdown.CleanCodeBlocks(text)
 
 	matches := regexWikilink.FindAllStringSubmatchIndex(text, -1)
 	for _, match := range matches {

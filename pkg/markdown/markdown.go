@@ -210,6 +210,28 @@ func StripComment(body string) (string, string) {
 	}
 }
 
+// CleanCodeBlocks removes code blocks by injecting blank lines to preserve line numbers.
+func CleanCodeBlocks(md string) string {
+	var newLines []string
+
+	lines := strings.Split(md, "\n")
+	insideCodeBlock := false
+	for _, line := range lines {
+		if strings.HasPrefix(line, "```") { // Syntax 1
+			insideCodeBlock = !insideCodeBlock
+			newLines = append(newLines, "")
+			continue
+		}
+		if strings.HasPrefix(line, "    ") || insideCodeBlock { // Syntax 2
+			newLines = append(newLines, "")
+			continue
+		}
+
+		newLines = append(newLines, line)
+	}
+	return strings.Join(newLines, "\n")
+}
+
 // ExtractQuote extracts a quote from a note content (support basic and sugar syntax)
 func ExtractQuote(md string) (string, string) {
 	var quote bytes.Buffer

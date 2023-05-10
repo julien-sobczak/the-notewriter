@@ -209,6 +209,36 @@ This is just a note
 	}
 }
 
+func TestCleanCodeBlocks(t *testing.T) {
+	tests := []struct {
+		name     string
+		md       string // input
+		expected string // output
+	}{
+		{
+			name: "No code blocks",
+			md: "# Hello\n\nWorld\n",
+			expected: "# Hello\n\nWorld\n",
+		},
+		{
+			name: "Syntax with backticks",
+			md: "# Hello\n\nWorld\n\n```md\n# Hello\nWorld\n```\n",
+			expected: "# Hello\n\nWorld\n\n\n\n\n\n",
+		},
+		{
+			name: "Syntax with spaces",
+			md: "# Hello\n\nWorld\n\n    # Hello\n    World\n",
+			expected: "# Hello\n\nWorld\n\n\n\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := markdown.CleanCodeBlocks(tt.md)
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
 func TestExtractQuote(t *testing.T) {
 	tests := []struct {
 		name        string

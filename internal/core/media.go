@@ -17,6 +17,7 @@ import (
 	"github.com/julien-sobczak/the-notetaker/internal/helpers"
 	"github.com/julien-sobczak/the-notetaker/internal/medias"
 	"github.com/julien-sobczak/the-notetaker/pkg/clock"
+	"github.com/julien-sobczak/the-notetaker/pkg/markdown"
 	"github.com/julien-sobczak/the-notetaker/pkg/text"
 	"gopkg.in/yaml.v3"
 )
@@ -404,6 +405,9 @@ func ParseMedias(fileRelativePath, fileBody string) []*ParsedMedia {
 
 	// Avoid returning duplicates if a media is included twice
 	filepaths := make(map[string]bool)
+
+	// Ignore medias inside code blocks (ex: a sample Markdown code block)
+	fileBody = markdown.CleanCodeBlocks(fileBody)
 
 	regexMedia := regexp.MustCompile(`!\[(.*?)\]\((\S*?)(?:\s+"(.*?)")?\)`)
 	matches := regexMedia.FindAllStringSubmatch(fileBody, -1)
