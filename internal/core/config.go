@@ -31,6 +31,13 @@ q="-#ignore @kind:quote"
 name="Favorite Quotes"
 `
 
+// Default .nt/.gitignore content
+const DefaultGitIgnore = `
+/database.db
+/objects
+/index
+`
+
 // Default .ntignore content
 const DefaultIgnore = `
 build/
@@ -634,6 +641,18 @@ func InitConfigFromDirectory(path string) (*Config, error) {
 	ntConfigPath := filepath.Join(ntPath, "config")
 	err = os.WriteFile(ntConfigPath, []byte(DefaultConfig), 0644)
 	if err != nil {
+		return nil, err
+	}
+
+	// Init .nt/.gitignore file
+	gitIgnorePath := filepath.Join(ntPath, ".gitignore")
+	_, err = os.Stat(gitIgnorePath)
+	if os.IsNotExist(err) { // Do not override existing file!
+		err = os.WriteFile(gitIgnorePath, []byte(DefaultGitIgnore), 0644)
+		if err != nil {
+			return nil, err
+		}
+	} else if err != nil {
 		return nil, err
 	}
 
