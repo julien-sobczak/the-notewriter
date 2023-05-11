@@ -3,7 +3,7 @@ package text_test
 import (
 	"testing"
 
-	"github.com/julien-sobczak/the-notetaker/pkg/text"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"github.com/stretchr/testify/assert"
 )
 

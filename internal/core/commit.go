@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/julien-sobczak/the-notetaker/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"gopkg.in/yaml.v3"
 )
 

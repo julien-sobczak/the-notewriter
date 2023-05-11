@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/julien-sobczak/the-notetaker/internal/helpers"
+	"github.com/julien-sobczak/the-notewriter/internal/helpers"
 )
 
 // RandomConverter generates files containing fake data.

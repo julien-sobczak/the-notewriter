@@ -106,9 +106,9 @@ func TestCollectionGetRelativePath(t *testing.T) {
 	}{
 		{
 			name:                   "Same directory",
-			referencePath:          "./projects/the-notetaker/todo.md",
+			referencePath:          "./projects/the-notewriter/todo.md",
 			noteRelativePath:       "ideas.md",
-			collectionRelativePath: "projects/the-notetaker/ideas.md",
+			collectionRelativePath: "projects/the-notewriter/ideas.md",
 		},
 		{
 			name:                   "Medias file",
@@ -118,7 +118,7 @@ func TestCollectionGetRelativePath(t *testing.T) {
 		},
 		{
 			name:                   "Move to parent directory",
-			referencePath:          "./projects/the-notetaker/todo.md",
+			referencePath:          "./projects/the-notewriter/todo.md",
 			noteRelativePath:       "../../skills/programming.md",
 			collectionRelativePath: "skills/programming.md",
 		},

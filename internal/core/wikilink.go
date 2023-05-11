@@ -5,8 +5,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/julien-sobczak/the-notetaker/pkg/markdown"
-	"github.com/julien-sobczak/the-notetaker/pkg/text"
+	"github.com/julien-sobczak/the-notewriter/pkg/markdown"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
 
 // Regex to match wikilinks

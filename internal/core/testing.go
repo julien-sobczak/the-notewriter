@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/julien-sobczak/the-notetaker/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

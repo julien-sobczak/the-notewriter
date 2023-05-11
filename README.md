@@ -1,4 +1,4 @@
-# The NoteTaker
+# The NoteWriter
 
 
 ## Dependencies
@@ -22,7 +22,7 @@ $ go run --tags "fts5" main.go build
 # To use a new version locally
 $ make install
 # Copy to %GOPATH/bin
-$ alias nt="the-notetaker"
+$ alias nt="the-notewriter"
 $ nt init
 ```
 

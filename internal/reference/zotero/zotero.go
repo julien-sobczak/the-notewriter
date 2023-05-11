@@ -16,8 +16,8 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
-	"github.com/julien-sobczak/the-notetaker/internal/reference"
-	"github.com/julien-sobczak/the-notetaker/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/internal/reference"
+	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	sopts "go.nhat.io/surveyexpect/options"
 )
 

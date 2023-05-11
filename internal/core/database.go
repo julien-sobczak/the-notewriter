@@ -15,9 +15,9 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
-	"github.com/julien-sobczak/the-notetaker/pkg/clock"
-	"github.com/julien-sobczak/the-notetaker/pkg/resync"
-	"github.com/julien-sobczak/the-notetaker/pkg/text"
+	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/resync"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	godiffpatch "github.com/sourcegraph/go-diff-patch"
 )
 
@@ -577,7 +577,7 @@ func (db *DB) Pull() error {
 // Push pushes new objects remotely.
 func (db *DB) Push() error {
 	// Implementation: We don't use a locking mechanism to prevent another repository to push at the same time.
-	// The NoteTaker is a personal tool and you are not expected to push from two repositories at the same time.
+	// The NoteWriter is a personal tool and you are not expected to push from two repositories at the same time.
 
 	origin := db.Origin()
 	if origin == nil {

@@ -2,7 +2,7 @@
 
 GO_FILES = $(shell find . -name "*.go" | grep -v .go | uniq)
 GO_PACKAGES = $(shell go list ./... | grep -v .go)
-APP_NAME = github.com/julien-sobczak/the-notetaker
+APP_NAME = github.com/julien-sobczak/the-notewriter
 APP_VERSION = $(shell git rev-parse HEAD)
 
 build:
@@ -10,6 +10,9 @@ build:
 
 test:
 	go test --tags "fts5" ./... -count=1 -v
+
+docs:
+	npm run --prefix ./website start
 
 # go install gotest.tools/gotestsum@latest
 testsum:

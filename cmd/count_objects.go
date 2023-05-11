@@ -5,7 +5,7 @@ import (
 	"os"
 	"sort"
 
-	"github.com/julien-sobczak/the-notetaker/internal/core"
+	"github.com/julien-sobczak/the-notewriter/internal/core"
 	"github.com/spf13/cobra"
 )
 

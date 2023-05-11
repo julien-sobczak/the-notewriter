@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/julien-sobczak/the-notetaker/cmd"
+	"github.com/julien-sobczak/the-notewriter/cmd"
 )
 
 func main() {

@@ -7,13 +7,13 @@ tags: [demo]
 This file demonstrates the syntax for various note types.
 
 
-## Flashcard: About _The NoteTaker_
+## Flashcard: About _The NoteWriter_
 
-**What** is _The NoteTaker_?
+**What** is _The NoteWriter_?
 
 ---
 
-_The NoteTaker_ is an unobstrusive application to organize all kinds of notes.
+_The NoteWriter_ is an unobstrusive application to organize all kinds of notes.
 
 
 ## Quote: Gustave Flaubert on Order

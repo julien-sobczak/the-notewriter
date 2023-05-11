@@ -3,7 +3,7 @@ package wikipedia
 import (
 	"testing"
 
-	"github.com/julien-sobczak/the-notetaker/internal/reference"
+	"github.com/julien-sobczak/the-notewriter/internal/reference"
 	"github.com/stretchr/testify/assert"
 )
 

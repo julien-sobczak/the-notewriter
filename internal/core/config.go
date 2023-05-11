@@ -10,9 +10,9 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/julien-sobczak/the-notetaker/internal/medias"
-	"github.com/julien-sobczak/the-notetaker/pkg/resync"
-	"github.com/julien-sobczak/the-notetaker/pkg/text"
+	"github.com/julien-sobczak/the-notewriter/internal/medias"
+	"github.com/julien-sobczak/the-notewriter/pkg/resync"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"github.com/pelletier/go-toml/v2"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
@@ -390,7 +390,7 @@ func CurrentConfig() *Config {
 			os.Exit(1)
 		}
 		if configSingleton == nil {
-			fmt.Fprintln(os.Stderr, "fatal: not a NoteTaker repository (or any of the parent directories): .nt")
+			fmt.Fprintln(os.Stderr, "fatal: not a NoteWriter repository (or any of the parent directories): .nt")
 			os.Exit(1)
 		}
 	})
@@ -400,7 +400,7 @@ func CurrentConfig() *Config {
 // TempDir returns the privileged temporary directory to use when generating temporary files.
 func (c *Config) TempDir() string {
 	if c.tempDir == "" {
-		dir, err := os.MkdirTemp("", "the-notetaker")
+		dir, err := os.MkdirTemp("", "the-notewriter")
 		if err != nil {
 			log.Fatalf("Unable to init temp dir: %v", err)
 		}

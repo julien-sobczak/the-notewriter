@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/julien-sobczak/the-notetaker/internal/reference"
-	"github.com/julien-sobczak/the-notetaker/internal/reference/wikipedia"
-	"github.com/julien-sobczak/the-notetaker/internal/reference/zotero"
-	"github.com/julien-sobczak/the-notetaker/pkg/clock"
-	"github.com/julien-sobczak/the-notetaker/pkg/resync"
-	"github.com/julien-sobczak/the-notetaker/pkg/text"
+	"github.com/julien-sobczak/the-notewriter/internal/reference"
+	"github.com/julien-sobczak/the-notewriter/internal/reference/wikipedia"
+	"github.com/julien-sobczak/the-notewriter/internal/reference/zotero"
+	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/resync"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	godiffpatch "github.com/sourcegraph/go-diff-patch"
 	"golang.org/x/exp/slices"
 )

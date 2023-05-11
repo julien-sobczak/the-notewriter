@@ -449,7 +449,7 @@ In HTML:
 </table>
 ```
 
-_The Notetaker_ uses the librairies [goquery](https://github.com/PuerkitoBio/goquery) to extract metadata and [Survey](https://github.com/AlecAivazis/survey) to let the user choose the attributes to keep.
+_The NoteWriter_ uses the librairies [goquery](https://github.com/PuerkitoBio/goquery) to extract metadata and [Survey](https://github.com/AlecAivazis/survey) to let the user choose the attributes to keep.
 
 ### Why privilege Wikitext over HTML?
 
@@ -478,4 +478,4 @@ Versus:
 
 ## Unit Testing
 
-The code relies extensively on global variable (for example, to retrieve the current collection, the current database client or the current time). Global variables prevent to run tests in parallel. For a small project like this, I chose to favor code readability over efficiency. 
+The code relies extensively on global variable (for example, to retrieve the current collection, the current database client or the current time). Global variables prevent to run tests in parallel. For a small project like this, I chose to favor code readability over efficiency.

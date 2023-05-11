@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/julien-sobczak/the-notetaker/internal/testutil"
+	"github.com/julien-sobczak/the-notewriter/internal/testutil"
 	"github.com/stretchr/testify/require"
 )
 

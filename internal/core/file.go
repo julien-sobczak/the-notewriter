@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/julien-sobczak/the-notetaker/internal/helpers"
-	"github.com/julien-sobczak/the-notetaker/pkg/clock"
-	"github.com/julien-sobczak/the-notetaker/pkg/markdown"
-	"github.com/julien-sobczak/the-notetaker/pkg/text"
+	"github.com/julien-sobczak/the-notewriter/internal/helpers"
+	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/markdown"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 )

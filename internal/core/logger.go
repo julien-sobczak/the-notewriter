@@ -3,7 +3,7 @@ package core
 import (
 	"log"
 
-	"github.com/julien-sobczak/the-notetaker/pkg/resync"
+	"github.com/julien-sobczak/the-notewriter/pkg/resync"
 )
 
 var (

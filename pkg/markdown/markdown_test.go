@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/julien-sobczak/the-notetaker/pkg/markdown"
+	"github.com/julien-sobczak/the-notewriter/pkg/markdown"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -216,18 +216,18 @@ func TestCleanCodeBlocks(t *testing.T) {
 		expected string // output
 	}{
 		{
-			name: "No code blocks",
-			md: "# Hello\n\nWorld\n",
+			name:     "No code blocks",
+			md:       "# Hello\n\nWorld\n",
 			expected: "# Hello\n\nWorld\n",
 		},
 		{
-			name: "Syntax with backticks",
-			md: "# Hello\n\nWorld\n\n```md\n# Hello\nWorld\n```\n",
+			name:     "Syntax with backticks",
+			md:       "# Hello\n\nWorld\n\n```md\n# Hello\nWorld\n```\n",
 			expected: "# Hello\n\nWorld\n\n\n\n\n\n",
 		},
 		{
-			name: "Syntax with spaces",
-			md: "# Hello\n\nWorld\n\n    # Hello\n    World\n",
+			name:     "Syntax with spaces",
+			md:       "# Hello\n\nWorld\n\n    # Hello\n    World\n",
 			expected: "# Hello\n\nWorld\n\n\n\n",
 		},
 	}

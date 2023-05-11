@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"strings"
 
-	"github.com/julien-sobczak/the-notetaker/pkg/text"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
 
 func ToMarkdown(markdownText string) string {

@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/julien-sobczak/the-notetaker/pkg/markdown"
-	"github.com/julien-sobczak/the-notetaker/pkg/resync"
-	"github.com/julien-sobczak/the-notetaker/pkg/text"
+	"github.com/julien-sobczak/the-notewriter/pkg/markdown"
+	"github.com/julien-sobczak/the-notewriter/pkg/resync"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"golang.org/x/exp/slices"
 )
 

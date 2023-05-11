@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/julien-sobczak/the-notetaker/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -334,8 +334,8 @@ func TestGetNotes(t *testing.T) {
 	assert.Equal(t, KindFlashcard, notes[0].NoteKind)
 	assert.Nil(t, notes[0].ParentNote)
 	assert.Equal(t, 10, notes[0].Line)
-	assert.Equal(t, "Flashcard: About _The NoteTaker_", notes[0].Title)
-	assert.Equal(t, notes[0].ContentRaw, "**What** is _The NoteTaker_?\n\n---\n\n_The NoteTaker_ is an unobstrusive application to organize all kinds of notes.")
+	assert.Equal(t, "Flashcard: About _The NoteWriter_", notes[0].Title)
+	assert.Equal(t, notes[0].ContentRaw, "**What** is _The NoteWriter_?\n\n---\n\n_The NoteWriter_ is an unobstrusive application to organize all kinds of notes.")
 
 	assert.Equal(t, KindQuote, notes[1].NoteKind)
 	assert.Nil(t, notes[1].ParentNote)
@@ -388,12 +388,12 @@ func TestGetFlashcards(t *testing.T) {
 	assert.Equal(t, notes[0], flashcards[0].Note)
 	assert.Equal(t, notes[2], flashcards[1].Note)
 	// Check content
-	assert.Equal(t, `**What** is _The NoteTaker_?`, flashcards[0].FrontMarkdown)
-	assert.Equal(t, `_The NoteTaker_ is an unobstrusive application to organize all kinds of notes.`, flashcards[0].BackMarkdown)
-	assert.Equal(t, `<p><strong>What</strong> is <em>The NoteTaker</em>?</p>`, flashcards[0].FrontHTML)
-	assert.Equal(t, `<p><em>The NoteTaker</em> is an unobstrusive application to organize all kinds of notes.</p>`, flashcards[0].BackHTML)
-	assert.Equal(t, `What is The NoteTaker?`, flashcards[0].FrontText)
-	assert.Equal(t, `The NoteTaker is an unobstrusive application to organize all kinds of notes.`, flashcards[0].BackText)
+	assert.Equal(t, `**What** is _The NoteWriter_?`, flashcards[0].FrontMarkdown)
+	assert.Equal(t, `_The NoteWriter_ is an unobstrusive application to organize all kinds of notes.`, flashcards[0].BackMarkdown)
+	assert.Equal(t, `<p><strong>What</strong> is <em>The NoteWriter</em>?</p>`, flashcards[0].FrontHTML)
+	assert.Equal(t, `<p><em>The NoteWriter</em> is an unobstrusive application to organize all kinds of notes.</p>`, flashcards[0].BackHTML)
+	assert.Equal(t, `What is The NoteWriter?`, flashcards[0].FrontText)
+	assert.Equal(t, `The NoteWriter is an unobstrusive application to organize all kinds of notes.`, flashcards[0].BackText)
 }
 
 func TestGetMedias(t *testing.T) {
@@ -726,7 +726,7 @@ func TestInheritance(t *testing.T) {
 	require.NotNil(t, fileGoGoroutines)
 
 	assert.EqualValues(t, map[string]interface{}{
-		"source": "https://github.com/julien-sobczak/the-notetaker",
+		"source": "https://github.com/julien-sobczak/the-notewriter",
 		"tags":   []interface{}{"test"},
 	}, fileIndex.GetAttributes())
 	assert.EqualValues(t, map[string]interface{}{

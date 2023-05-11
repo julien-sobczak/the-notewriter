@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/julien-sobczak/the-notetaker/internal/helpers"
+	"github.com/julien-sobczak/the-notewriter/internal/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"

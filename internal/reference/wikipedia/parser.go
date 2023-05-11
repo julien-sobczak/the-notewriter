@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/julien-sobczak/the-notetaker/internal/reference"
+	"github.com/julien-sobczak/the-notewriter/internal/reference"
 )
 
 type Infobox struct {

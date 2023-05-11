@@ -1,4 +1,4 @@
-module github.com/julien-sobczak/the-notetaker
+module github.com/julien-sobczak/the-notewriter
 
 go 1.18
 

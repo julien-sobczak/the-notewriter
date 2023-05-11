@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/julien-sobczak/the-notetaker/internal/core"
+	"github.com/julien-sobczak/the-notewriter/internal/core"
 )
 
 var verboseInfo bool
@@ -19,7 +19,7 @@ var CollectionDir string
 
 var rootCmd = &cobra.Command{
 	Use:   "nt",
-	Short: "The NoteTaker is a file-based note management tool",
+	Short: "The NoteWRter is a file-based note management tool",
 	Long:  `A Powerful and Flexible Note Management Tool using only Markdown files.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		CheckConfig()

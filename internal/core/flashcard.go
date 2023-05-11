@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/julien-sobczak/the-notetaker/pkg/clock"
-	"github.com/julien-sobczak/the-notetaker/pkg/markdown"
+	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/markdown"
 	"gopkg.in/yaml.v3"
 )
 

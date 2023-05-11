@@ -9,7 +9,7 @@ import (
 
 	score "github.com/AlecAivazis/survey/v2/core"
 	"github.com/AlecAivazis/survey/v2/terminal"
-	"github.com/julien-sobczak/the-notetaker/internal/reference"
+	"github.com/julien-sobczak/the-notewriter/internal/reference"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.nhat.io/surveyexpect"
