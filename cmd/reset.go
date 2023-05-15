@@ -9,16 +9,16 @@ import (
 )
 
 func init() {
-	rootCmd.AddCommand(restoreCmd)
+	rootCmd.AddCommand(resetCmd)
 }
 
-var restoreCmd = &cobra.Command{
-	Use:   "restore",
-	Short: "Restore local database",
-	Long:  `Restore local database by clearing the staging area.`,
+var resetCmd = &cobra.Command{
+	Use:   "reset",
+	Short: "Reset local database",
+	Long:  `Reset local database by clearing the staging area.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		CheckConfig()
-		err := core.CurrentDB().Restore()
+		err := core.CurrentDB().Reset()
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

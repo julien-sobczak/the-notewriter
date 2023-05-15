@@ -19,10 +19,17 @@ var CollectionDir string
 
 var rootCmd = &cobra.Command{
 	Use:   "nt",
-	Short: "The NoteWRter is a file-based note management tool",
+	Short: "The NoteWriter is a file-based note management tool",
 	Long:  `A Powerful and Flexible Note Management Tool using only Markdown files.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		CheckConfig()
+		if len(args) == 0 {
+			// Missing command...
+			return
+		}
+		if args[0] != "init" {
+			// Ignore when configuration doesn't still exist
+			CheckConfig()
+		}
 
 		// Enable verbose output. The most verbose level wins when multiple flags are passsed.
 		if verboseInfo {

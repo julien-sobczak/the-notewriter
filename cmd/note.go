@@ -8,10 +8,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var outputFormat string
 
 func init() {
-	getNoteCmd.Flags().StringVarP(&outputFormat, "format", "o", "json", "format of output. Allowed: json, md, html, or text")
 	rootCmd.AddCommand(noteCmd)
 	noteCmd.AddCommand(getNoteCmd)
 }

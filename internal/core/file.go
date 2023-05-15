@@ -1333,3 +1333,33 @@ func (f *File) FormatToJSON() string {
 	output, _ := json.MarshalIndent(repr, "", " ")
 	return string(output)
 }
+
+func (f *File) FormatToYAML() string {
+	b := new(strings.Builder)
+	f.Write(b)
+	return b.String()
+}
+
+func (f *File) FormatToMarkdown() string {
+	var sb strings.Builder
+	frontMatter, err := f.FrontMatterString()
+	if err != nil {
+		sb.WriteString(frontMatter)
+	}
+	sb.WriteRune('\n')
+	sb.WriteRune('\n')
+	sb.WriteString(f.Body)
+	return sb.String()
+}
+
+func (f *File) FormatToHTML() string {
+	var sb strings.Builder
+	sb.WriteString(markdown.ToHTML(f.Body))
+	return sb.String()
+}
+
+func (f *File) FormatToText() string {
+	var sb strings.Builder
+	sb.WriteString(markdown.ToText(f.Body))
+	return sb.String()
+}

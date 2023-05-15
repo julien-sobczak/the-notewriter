@@ -260,7 +260,7 @@ func TestEditFileFrontMatter(t *testing.T) {
 	f, err := NewFileFromPath(nil, filename)
 	require.NoError(t, err)
 	assert.Equal(t, int64(46), f.Size)
-	assert.Equal(t, "d610783465f779858b00bc3f8133ebd5", f.Hash)
+	assert.Equal(t, "7bd2eeb34151be89fad00c85274dd1a42c6e87b0", f.Hash)
 
 	// Check initial content
 	assertFrontMatterEqual(t, `tags: [favorite, inspiration]`, f)
@@ -293,7 +293,7 @@ Blabla`, strings.TrimSpace(string(rawContent)))
 
 	// Check file-specific attributes has changed
 	assert.Equal(t, int64(68), f.Size)
-	assert.Equal(t, "a6ac86136a6ed70c213669b34491c92a", f.Hash)
+	assert.Equal(t, "3acf3dd5f831dc123fb79034580ae08cf44c5667", f.Hash)
 }
 
 func TestPreserveCommentsInFrontMatter(t *testing.T) {
@@ -415,7 +415,7 @@ func TestGetMedias(t *testing.T) {
 	assert.Equal(t, "medias/leitner_system.svg", medias[0].RelativePath)
 
 	// File-specific information about each existing media must be collected
-	assert.Equal(t, "fdfcf70a6207648fd5d54740f0ffa915", medias[0].Hash)
+	assert.Equal(t, "4bfdde386e5c63e7f1b31c77574e0cc9c25aab69", medias[0].Hash)
 	assert.NotZero(t, medias[0].MTime)
 	assert.Equal(t, int64(13177), medias[0].Size)
 
@@ -511,7 +511,7 @@ func TestFileSave(t *testing.T) {
 	assert.Equal(t, []string{"go", "history"}, note.Tags)
 	assert.Equal(t, 8, note.Line)
 	assert.Equal(t, "`#history`\n\n`@source: https://en.wikipedia.org/wiki/Go_(programming_language)`\n\n[Golang](https://go.dev/doc/ \"#go/go\") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.", note.ContentRaw)
-	assert.Equal(t, "e74200c5bf5adfebe68e4774fc727ce5", note.Hash)
+	assert.Equal(t, "0eba86c8b008c0222869ef5358d48ab8241ffc8e", note.Hash)
 	assert.Equal(t, `[Golang](https://go.dev/doc/ "#go/go") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.`, note.ContentMarkdown)
 	assert.Equal(t, "<p><a href=\"https://go.dev/doc/\" title=\"#go/go\">Golang</a> was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.</p>", note.ContentHTML)
 	assert.Equal(t, "Golang was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.", note.ContentText)
@@ -558,7 +558,7 @@ func TestFileSave(t *testing.T) {
 	assert.Equal(t, false, media.Dangling)
 	assert.Equal(t, ".svg", media.Extension)
 	assert.NotEmpty(t, media.MTime)
-	assert.Equal(t, "974a75814a1339c82cb497ea1ab56383", media.Hash)
+	assert.Equal(t, "0cd82f33352563c9cf918d9f4fa0504cc6b84526", media.Hash)
 	assert.EqualValues(t, 2288, media.Size)
 	assert.NotEmpty(t, media.Mode)
 	assert.NotEmpty(t, media.CreatedAt)
@@ -684,7 +684,7 @@ body: |-
 body_line: 6
 mode: 420
 size: 463
-hash: 34b2342f764c46c0eecfbe598314b8a3
+hash: 23334328153429ce5ba99acd83181b06c44f30af
 mtime: 2023-01-01T01:12:30Z
 created_at: 2023-01-01T01:12:30Z
 updated_at: 2023-01-01T01:12:30Z
@@ -1092,7 +1092,7 @@ func TestPostProcessing(t *testing.T) {
 
 The Golang programming language uses the image of a gopher as logo:
 
-![Golang Logo](oid:7874924b49bdb20876d6b0b1d649df60)`, note.ContentMarkdown)
+![Golang Logo](oid:cc79c943c616af40bfbaf88b061603985d811210)`, note.ContentMarkdown)
 	})
 
 	t.Run("Comment Formatting", func(t *testing.T) {

@@ -1,14 +1,14 @@
 package helpers
 
 import (
-	"crypto/md5"
+	"crypto/sha1"
 	"fmt"
 	"os"
 )
 
 // Hash is an utility to determine a MD5 hash (acceptable as not used for security reasons).
 func Hash(bytes []byte) string {
-	h := md5.New()
+	h := sha1.New()
 	h.Write(bytes)
 	return fmt.Sprintf("%x", h.Sum(nil))
 }

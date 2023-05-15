@@ -165,8 +165,8 @@ func TestCommandRestore(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEqual(t, 0, file.MTime)
 
-		// Restore
-		err = CurrentDB().Restore()
+		// Reset
+		err = CurrentDB().Reset()
 		require.NoError(t, err)
 
 		// Check staging area is empty
@@ -366,8 +366,8 @@ Changes not staged for commit:
 	added:	python.md
 		`), strings.TrimSpace(output))
 
-		// Restore
-		err = CurrentDB().Restore()
+		// Reset
+		err = CurrentDB().Reset()
 		require.NoError(t, err)
 
 		// Status must report no change
@@ -757,30 +757,31 @@ func TestSourcegraphGoDiff(t *testing.T) {
 }
 `
 	patch := godiffpatch.GeneratePatch("test.txt", inputA, inputB)
-	expected := `--- a/test.txt
-+++ b/test.txt
-@@ -1,7 +1,7 @@
- 
- {
- 	SSID:      "CoffeeShopWiFi",
--	IPAddress: net.IPv4(192, 168, 0, 1),
-+	IPAddress: net.IPv4(192, 168, 0, 2),
- 	NetMask:   net.IPv4Mask(255, 255, 0, 0),
- 	Clients: []Client{{
- 		Hostname:  "ristretto",
-@@ -19,11 +19,7 @@
- 		IPAddress: net.IPv4(192, 168, 0, 121),
- 	}, {
- 		Hostname:  "latte",
--		IPAddress: net.IPv4(192, 168, 0, 219),
-+		IPAddress: net.IPv4(192, 168, 0, 221),
- 		LastSeen:  time.Date(2009, time.November, 10, 23, 0, 23, 0, time.UTC),
--	}, {
--		Hostname:  "americano",
--		IPAddress: net.IPv4(192, 168, 0, 188),
--		LastSeen:  time.Date(2009, time.November, 10, 23, 3, 5, 0, time.UTC),
- 	}},
- }
-`
+	expected := "" +
+"--- a/test.txt\n"+
+"+++ b/test.txt\n"+
+"@@ -1,7 +1,7 @@\n"+
+" \n"+
+" {\n"+
+" 	SSID:      \"CoffeeShopWiFi\",\n"+
+"-	IPAddress: net.IPv4(192, 168, 0, 1),\n"+
+"+	IPAddress: net.IPv4(192, 168, 0, 2),\n"+
+" 	NetMask:   net.IPv4Mask(255, 255, 0, 0),\n"+
+" 	Clients: []Client{{\n"+
+" 		Hostname:  \"ristretto\",\n"+
+"@@ -19,11 +19,7 @@\n"+
+" 		IPAddress: net.IPv4(192, 168, 0, 121),\n"+
+" 	}, {\n"+
+" 		Hostname:  \"latte\",\n"+
+"-		IPAddress: net.IPv4(192, 168, 0, 219),\n"+
+"+		IPAddress: net.IPv4(192, 168, 0, 221),\n"+
+" 		LastSeen:  time.Date(2009, time.November, 10, 23, 0, 23, 0, time.UTC),\n"+
+"-	}, {\n"+
+"-		Hostname:  \"americano\",\n"+
+"-		IPAddress: net.IPv4(192, 168, 0, 188),\n"+
+"-		LastSeen:  time.Date(2009, time.November, 10, 23, 3, 5, 0, time.UTC),\n"+
+" 	}},\n"+
+" }\n"
+
 	assert.Equal(t, expected, patch)
 }

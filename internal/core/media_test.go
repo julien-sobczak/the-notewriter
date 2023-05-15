@@ -76,23 +76,23 @@ kind: picture
 dangling: false
 extension: .svg
 mtime: 2023-01-01T01:12:30Z
-hash: 974a75814a1339c82cb497ea1ab56383
+hash: 0cd82f33352563c9cf918d9f4fa0504cc6b84526
 size: 2288
 mode: 420
 blobs:
-    - oid: 7874924b49bdb20876d6b0b1d649df60
+    - oid: cc79c943c616af40bfbaf88b061603985d811210
       mime: image/avif
       attributes: {}
       tags:
         - preview
         - lossy
-    - oid: a760ee003209f2c502d6ea0e93e12e87
+    - oid: 8a3343b1b444b671ced4acd9201949a0116c6e81
       mime: image/avif
       attributes: {}
       tags:
         - large
         - lossy
-    - oid: 7bcec2c96c9f7f0e2663f3bb132e705a
+    - oid: 98958cb47ae1bcb5f8f4e5a04af170ed6ef41c5e
       mime: image/avif
       attributes: {}
       tags:

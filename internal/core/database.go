@@ -260,7 +260,7 @@ func (db *DB) ReadLastStagedOrCommittedObject(oid string) (StatefulObject, error
 	// Check commits second
 	indexObject, ok := db.index.objectsRef[oid]
 	if !ok {
-		// No object in staging area and in commits
+		// in staging area and in commits
 		return nil, nil
 	}
 	commit, err := db.ReadCommit(indexObject.CommitOID)
@@ -674,8 +674,8 @@ func (db *DB) Push() error {
 	return nil
 }
 
-// Restore reverts the latest add command.
-func (db *DB) Restore() error {
+// Reset reverts the latest add command.
+func (db *DB) Reset() error {
 	// Run all queries inside the same transaction
 	err := db.BeginTransaction()
 	if err != nil {

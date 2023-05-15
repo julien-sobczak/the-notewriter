@@ -109,12 +109,3 @@ func (c *BlobFile) Save() error {
 	return c.Write(f)
 }
 
-// Same for other objects
-
-// Command Add
-// _file_ = read the file
-// _path_ = traverse the path
-// . = traverse the work tree
-// Same as current Build() but:
-// - create blobs in `.nt/objects/`
-// - append to `.nt/index`:

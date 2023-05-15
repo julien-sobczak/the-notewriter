@@ -150,7 +150,11 @@ func NewIndexFromPath(path string) (*Index, error) {
 		return nil, err
 	}
 	if index.objectsRef == nil {
+		// Repopulate transient map
 		index.objectsRef = make(map[string]*IndexObject)
+		for _, object := range index.Objects {
+			index.objectsRef[object.OID] = object
+		}
 	}
 	if index.filesRef == nil {
 		index.filesRef = make(map[string]*IndexObject)

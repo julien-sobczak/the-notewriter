@@ -1449,6 +1449,12 @@ func (n *Note) FormatToJSON() string {
 	return string(output)
 }
 
+func (n *Note) FormatToYAML() string {
+	b := new(strings.Builder)
+	n.Write(b)
+	return b.String()
+}
+
 func (n *Note) FormatToMarkdown() string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("# %s\n", n.Title))
