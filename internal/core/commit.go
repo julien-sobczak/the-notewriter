@@ -72,7 +72,7 @@ type StagingObject struct {
 type StagingArea struct {
 	Added    []*StagingObject `yaml:"added"`
 	Modified []*StagingObject `yaml:"modified"`
-	Deleted  []*StagingObject `yaml:"edited"`
+	Deleted  []*StagingObject `yaml:"deleted"`
 }
 
 // ReadStagingObject searches for the given staging object in staging area
@@ -230,6 +230,10 @@ func (i *Index) StageObject(obj StatefulObject) error {
 			Data:        objData,
 		},
 	}
+	if commitObject, ok := i.objectsRef[obj.UniqueOID()]; ok {
+		stagingObject.PreviousCommitOID = commitObject.CommitOID
+	}
+
 	switch obj.State() {
 	case Added:
 		i.StagingArea.Added = append(i.StagingArea.Added, stagingObject)

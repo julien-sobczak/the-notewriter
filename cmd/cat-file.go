@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -34,19 +35,19 @@ var catFileCmd = &cobra.Command{
 
 			blob, err := core.CurrentCollection().FindBlobFromOID(oid)
 			if err == nil && blob != nil {
-				dumpYAML(blob)
+				dumpObject(blob)
 				return
 			}
 
 			commit, err := core.CurrentDB().ReadCommit(oid)
 			if err == nil && commit != nil {
-				dumpYAML(commit)
+				dumpObject(commit)
 				return
 			}
 
 			object, err := core.CurrentDB().ReadCommittedObject(oid)
 			if err == nil && object != nil {
-				dumpYAML(object)
+				dumpObject(object)
 				return
 			}
 
@@ -100,23 +101,7 @@ var catFileCmd = &cobra.Command{
 				}
 			}
 			note := notes[0]
-			switch outputFormat {
-			case "yaml":
-				fmt.Println(note.FormatToYAML())
-			case "json":
-				fmt.Println(note.FormatToJSON())
-			case "md":
-				fallthrough
-			case "markdown":
-				fmt.Println(note.FormatToMarkdown())
-			case "html":
-				fmt.Println(note.FormatToHTML())
-			case "text":
-				fmt.Println(note.FormatToText())
-			default:
-				fmt.Fprintf(os.Stderr, "Unsupported output format %q", outputFormat)
-				os.Exit(1)
-			}
+			dumpNote(note)
 
 		} else {
 			// Search for a single matching file
@@ -134,23 +119,7 @@ var catFileCmd = &cobra.Command{
 				os.Exit(1)
 			}
 			file := files[0]
-			switch outputFormat {
-			case "yaml":
-				fmt.Println(file.FormatToYAML())
-			case "json":
-				fmt.Println(file.FormatToJSON())
-			case "md":
-				fallthrough
-			case "markdown":
-				fmt.Println(file.FormatToMarkdown())
-			case "html":
-				fmt.Println(file.FormatToHTML())
-			case "text":
-				fmt.Println(file.FormatToText())
-			default:
-				fmt.Fprintf(os.Stderr, "Unsupported output format %q", outputFormat)
-				os.Exit(1)
-			}
+			dumpFile(file)
 		}
 
 	},
@@ -163,6 +132,75 @@ func dumpYAML(v interface{}) {
 		os.Exit(1)
 	}
 	fmt.Printf("%s\n", data)
+}
+
+func dumpJSON(v interface{}) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write JSON: %v", err)
+		os.Exit(1)
+	}
+	fmt.Printf("%s\n", data)
+}
+
+func dumpObject(v interface{}) {
+	switch outputFormat {
+	case "yaml":
+		dumpYAML(v)
+	case "json":
+		dumpJSON(v)
+	case "md":
+		fallthrough
+	case "markdown":
+		fallthrough
+	case "html":
+		fallthrough
+	case "text":
+		fallthrough
+	default:
+		fmt.Fprintf(os.Stderr, "Unsupported output format %q", outputFormat)
+		os.Exit(1)
+	}
+}
+
+func dumpFile(file *core.File) {
+	switch outputFormat {
+	case "yaml":
+		fmt.Println(file.FormatToYAML())
+	case "json":
+		fmt.Println(file.FormatToJSON())
+	case "md":
+		fallthrough
+	case "markdown":
+		fmt.Println(file.FormatToMarkdown())
+	case "html":
+		fmt.Println(file.FormatToHTML())
+	case "text":
+		fmt.Println(file.FormatToText())
+	default:
+		fmt.Fprintf(os.Stderr, "Unsupported output format %q", outputFormat)
+		os.Exit(1)
+	}
+}
+
+func dumpNote(note *core.Note) {
+	switch outputFormat {
+	case "yaml":
+		fmt.Println(note.FormatToYAML())
+	case "json":
+		fmt.Println(note.FormatToJSON())
+	case "md":
+		fallthrough
+	case "markdown":
+		fmt.Println(note.FormatToMarkdown())
+	case "html":
+		fmt.Println(note.FormatToHTML())
+	case "text":
+		fmt.Println(note.FormatToText())
+	default:
+		fmt.Fprintf(os.Stderr, "Unsupported output format %q", outputFormat)
+		os.Exit(1)
+	}
 }
 
 // isOID checks if the value looks like an OID.

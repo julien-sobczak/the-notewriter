@@ -39,6 +39,7 @@ const (
 	KindTodo       NoteKind = "todo"
 	KindArtwork    NoteKind = "artwork"
 	KindSnippet    NoteKind = "snippet"
+	// Edit website/docs/guides/notes.md when adding new kinds
 )
 
 // Regex to validate and/or extract information from notes

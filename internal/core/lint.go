@@ -110,7 +110,7 @@ var LintRules = map[string]LintRuleDefinition{
 		Eval: NoExtensionWikilink,
 	},
 
-	// No ambigiuty in wikilinks
+	// No ambiguity in wikilinks
 	"no-ambiguous-wikilink": {
 		Eval: NoAmbiguousWikilink,
 	},

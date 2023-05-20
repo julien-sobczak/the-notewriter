@@ -1267,6 +1267,32 @@ Presentation of idea B
 				require.Len(t, notes, 1)
 			},
 		},
+
+		{
+			name: "Markdown code documents are ignored",
+			input: "" +
+				"## Note: Templates\n" +
+				"\n" +
+				"Flashcards supports Front/Back notes:\n" +
+				"\n" +
+				"```md\n" +
+				"## Flashcard A\n" +
+				"\n" +
+				"What is A?\n" +
+				"---\n" +
+				"The first letter of the alphabet\n" +
+				"\n" +
+				"## Flashcard B\n" +
+				"\n" +
+				"What is B?\n" +
+				"---\n" +
+				"The second letter of the alphabet\n" +
+				"```\n",
+			checkFn: func(t *testing.T, notes []*ParsedNote) {
+				require.Len(t, notes, 1)
+				assert.Equal(t, "Templates", notes[0].ShortTitle)
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

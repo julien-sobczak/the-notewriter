@@ -69,6 +69,7 @@ schemas:
       - name: inspirations
         type: array
 `
+// Edit website/docs/guides/linter.md after for updating this list
 
 var (
 	// Lazy-load configuration and ensure a single read

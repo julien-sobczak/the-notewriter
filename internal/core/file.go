@@ -574,7 +574,15 @@ func ParseNotes(fileBody string) []*ParsedNote {
 	// If so, it means the top heading (= the title of file) does not represent a free note.
 	// Otherwise, we will add this top heading as a standalone note.
 	ignoreTopHeading := false
+	insideCodeBlock := false
 	for _, line := range lines {
+		if strings.HasPrefix(line, "```") {
+			insideCodeBlock = !insideCodeBlock
+		}
+		if insideCodeBlock {
+			// Ignore possible Markdown heading in code blocks
+			continue
+		}
 		if ok, longTitle, level := markdown.IsHeading(line); ok {
 			if ok, kind, _ := isSupportedNote(longTitle); ok {
 				if level != 1 && kind != KindFree {
@@ -588,8 +596,16 @@ func ParseNotes(fileBody string) []*ParsedNote {
 	// Current line number during the parsing
 	var lineNumber int
 	insideNote := false
+	insideCodeBlock = false
 	for _, line := range lines {
 		lineNumber++
+		if strings.HasPrefix(line, "```") {
+			insideCodeBlock = !insideCodeBlock
+		}
+		if insideCodeBlock {
+			// Ignore possible Markdown heading in code blocks
+			continue
+		}
 		if ok, longTitle, level := markdown.IsHeading(line); ok {
 			if level == 1 && ignoreTopHeading {
 				continue

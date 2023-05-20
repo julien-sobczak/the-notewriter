@@ -40,4 +40,4 @@ Running `nt init` in an existing repository is safe. It will not overwrite thing
 
 ## See Also
 
-* [`nt-add`] to add your first objects
+* [`nt-add`](nt-add.md) to add your first objects
