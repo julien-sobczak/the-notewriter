@@ -1,4 +1,4 @@
-package cmd
+package main
 
 import (
 	"fmt"
@@ -9,13 +9,13 @@ import (
 )
 
 func init() {
-	rootCmd.AddCommand(gcCmd)
+	rootCmd.AddCommand(pullCmd)
 }
 
-var gcCmd = &cobra.Command{
-	Use:   "gc",
-	Short: "Garbage collect",
-	Long:  `Garbage collect unreferenced objects/blobs locally.`,
+var pullCmd = &cobra.Command{
+	Use:   "pull",
+	Short: "Pull remote",
+	Long:  `Pull remote to retrieve new objects and update local database.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		CheckConfig()
 		if core.CurrentDB().Origin() == nil {
@@ -23,7 +23,7 @@ var gcCmd = &cobra.Command{
 			fmt.Println("Please specify one in .nt/config")
 			os.Exit(1)
 		}
-		err := core.CurrentDB().GC()
+		err := core.CurrentDB().Pull()
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

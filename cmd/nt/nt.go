@@ -1,4 +1,4 @@
-package cmd
+package main
 
 import (
 	"fmt"
@@ -41,7 +41,6 @@ var rootCmd = &cobra.Command{
 		if verboseTrace {
 			core.CurrentLogger().SetVerboseLevel(core.VerboseTrace)
 		}
-
 	},
 }
 
@@ -73,4 +72,8 @@ func CheckConfig() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+}
+
+func main() {
+	Execute()
 }

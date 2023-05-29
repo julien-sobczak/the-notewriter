@@ -6,7 +6,8 @@ APP_NAME = github.com/julien-sobczak/the-notewriter
 APP_VERSION = $(shell git rev-parse HEAD)
 
 build:
-	go build --tags "fts5" -o build/nt main.go
+	go build --tags "fts5" -o build/nt cmd/nt/nt.go
+	go build --tags "fts5" -o build/nt-lite cmd/nt-lite/nt-lite.go
 
 test:
 	go test --tags "fts5" ./... -count=1 -v
@@ -22,8 +23,4 @@ test-all:
 	go test --tags "fts5 integration" ./... -count=1 -v
 
 install:
-	go install --tags "fts5"
-
-# Development-only target
-build-example:
-	env NT_HOME="./example" go run main.go build
+	go install --tags "fts5" cmd/nt/nt.go

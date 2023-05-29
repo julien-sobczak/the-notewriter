@@ -1,4 +1,4 @@
-package cmd
+package main
 
 import (
 	"fmt"
@@ -9,13 +9,13 @@ import (
 )
 
 func init() {
-	rootCmd.AddCommand(pullCmd)
+	rootCmd.AddCommand(pushCmd)
 }
 
-var pullCmd = &cobra.Command{
-	Use:   "pull",
-	Short: "Pull remote",
-	Long:  `Pull remote to retrieve new objects and update local database.`,
+var pushCmd = &cobra.Command{
+	Use:   "push",
+	Short: "Push to remote",
+	Long:  `Push to remote new objects.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		CheckConfig()
 		if core.CurrentDB().Origin() == nil {
@@ -23,7 +23,7 @@ var pullCmd = &cobra.Command{
 			fmt.Println("Please specify one in .nt/config")
 			os.Exit(1)
 		}
-		err := core.CurrentDB().Pull()
+		err := core.CurrentDB().Push()
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

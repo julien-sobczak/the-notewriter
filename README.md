@@ -16,13 +16,9 @@ $ go run main.go reference new 0787960756
 # Add new person reference
 $ go run main.go reference new --kind=author Nelson
 
-# Build the database
-$ go run --tags "fts5" main.go build
-
 # To use a new version locally
 $ make install
 # Copy to %GOPATH/bin
-$ alias nt="the-notewriter"
 $ nt init
 ```
 
