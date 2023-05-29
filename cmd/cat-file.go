@@ -63,7 +63,7 @@ var catFileCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		if wikilink.Anchored() {
+		if wikilink.Section() != "" {
 			// Search a note
 			notes, err := core.CurrentCollection().FindNotesByWikilink(wikilink.Link)
 			if err != nil {

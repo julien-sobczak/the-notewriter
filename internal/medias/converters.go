@@ -1,6 +1,7 @@
 package medias
 
 import (
+	"fmt"
 	"image"
 	"os"
 )
@@ -53,6 +54,10 @@ func (d Dimensions) LargerThan(widthOrHeight int) bool {
 		return true
 	}
 	return d.Height > widthOrHeight || d.Width > widthOrHeight
+}
+
+func (d Dimensions) String() string {
+	return fmt.Sprintf("%dx%d", d.Width, d.Height)
 }
 
 // ReadImageDimensions extracts the dimensions from a GIF/PNG/JPEG file.

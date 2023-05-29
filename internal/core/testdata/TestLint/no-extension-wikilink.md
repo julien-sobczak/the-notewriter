@@ -24,3 +24,6 @@
 
 [[dir/dangling/file.md]]
 
+## Note: Link 7
+
+[[no-extension#Quote: R.S.W.]]

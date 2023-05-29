@@ -34,7 +34,7 @@ name="Favorite Quotes"
 // Default .nt/.gitignore content
 const DefaultGitIgnore = `
 /database.db
-/objects
+/objects/
 /index
 `
 
@@ -417,6 +417,7 @@ func (c *Config) TempDir() string {
 	return c.tempDir
 	// FIXME call defer os.RemoveAll(CurrentConfig().TempDir()) from tests?
 }
+
 
 // Converter returns the convertor to use when creating blobs from media files.
 func (c *Config) Converter() medias.Converter {

@@ -120,12 +120,7 @@ func NewFileFromAttributes(parent *File, name string, attributes []Attribute) *F
 	return file
 }
 
-func NewFileFromPath(parent *File, filepath string) (*File, error) {
-	parsedFile, err := ParseFile(filepath)
-	if err != nil {
-		return nil, err
-	}
-
+func NewFileFromParsedFile(parent *File, parsedFile *ParsedFile) *File {
 	file := &File{
 		OID:          NewOID(),
 		RelativePath: parsedFile.RelativePath,
@@ -153,7 +148,15 @@ func NewFileFromPath(parent *File, filepath string) (*File, error) {
 	}
 	file.Attributes = newAttributes
 
-	return file, nil
+	return file
+}
+
+func NewFileFromPath(parent *File, filepath string) (*File, error) {
+	parsedFile, err := ParseFile(filepath)
+	if err != nil {
+		return nil, err
+	}
+	return NewFileFromParsedFile(parent, parsedFile), nil
 }
 
 func (f *File) mergeAttributes(attributes ...map[string]interface{}) map[string]interface{} {

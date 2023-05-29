@@ -75,7 +75,7 @@ func (w *Wikilink) Piped() bool {
 
 // ContainsExtenstion tests if the extension is specified in the link.
 func (w *Wikilink) ContainsExtension() bool {
-	return text.TrimExtension(w.Link) != w.Link
+	return text.TrimExtension(w.Path()) != w.Path()
 }
 
 func (w Wikilink) String() string {

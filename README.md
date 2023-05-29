@@ -53,3 +53,8 @@ $ cat .nt/config
 $ nt build
 # Rebuild the local database by traversing all modified notes
 ```
+
+
+## Documentation
+
+Documentation is present in the directory `website/`. Run `make docs` to start locally.

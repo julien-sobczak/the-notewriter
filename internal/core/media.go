@@ -36,7 +36,7 @@ const (
 var AudioExtensions = []string{".mp3", ".wav"}
 
 // List of supported picture formats
-var PictureExtensions = []string{".jpeg", ".png", ".gif", ".svg", ".avif"}
+var PictureExtensions = []string{".jpg", ".jpeg", ".png", ".gif", ".svg", ".avif"}
 
 // List of supported picture formats
 var VideoExtensions = []string{".mp4", ".ogg", ".webm"}
@@ -221,56 +221,78 @@ func (m *Media) UpdateBlobs() {
 
 		if dimensions.LargerThan(PreviewMaxWidthOrHeight) {
 			dest := filepath.Join(tmpDir, filepath.Base(src)+".preview.avif")
-			err := converter.ToAVIF(src, dest, medias.ResizeTo(PreviewMaxWidthOrHeight))
-			if err != nil {
-				log.Fatalf("Unable to generate preview blob from file %q: %v", m.RelativePath, err)
-			}
+			toAVIF(converter, src, dest, medias.ResizeTo(PreviewMaxWidthOrHeight))
 			m.BlobRefs = append(m.BlobRefs, MustWriteBlob(dest, []string{"preview", "lossy"}))
 		}
 
 		if dimensions.LargerThan(LargeMaxWidthOrHeight) {
 			dest := filepath.Join(tmpDir, filepath.Base(src)+".large.avif")
-			err := converter.ToAVIF(src, dest, medias.ResizeTo(LargeMaxWidthOrHeight))
-			if err != nil {
-				log.Fatalf("Unable to generate large blob from file %q: %v", m.RelativePath, err)
-			}
+			toAVIF(converter, src, dest, medias.ResizeTo(LargeMaxWidthOrHeight))
 			m.BlobRefs = append(m.BlobRefs, MustWriteBlob(dest, []string{"large", "lossy"}))
 		}
 
 		dest := filepath.Join(tmpDir, filepath.Base(src)+".original.avif")
-		err := converter.ToAVIF(src, dest, medias.OriginalSize())
-		if err != nil {
-			log.Fatalf("Unable to generate original blob from file %q: %v", m.RelativePath, err)
-		}
+		toAVIF(converter, src, dest, medias.OriginalSize())
 		m.BlobRefs = append(m.BlobRefs, MustWriteBlob(dest, []string{"original", "lossy"}))
 
 	case KindAudio:
 		dest := filepath.Join(tmpDir, filepath.Base(src)+".original.mp3")
-		err := converter.ToMP3(src, dest)
-		if err != nil {
-			log.Fatalf("Unable to generate preview blob from file %q: %v", m.RelativePath, err)
-		}
+		toMP3(converter, src, dest)
 		m.BlobRefs = append(m.BlobRefs, MustWriteBlob(dest, []string{"original", "lossy"}))
 
 	case KindVideo:
 		dest := filepath.Join(tmpDir, filepath.Base(src)+".original.webm")
-		err := converter.ToWebM(src, dest)
-		if err != nil {
-			log.Fatalf("Unable to generate preview blob from file %q: %v", m.RelativePath, err)
-		}
+		toWebM(converter, src, dest)
 		m.BlobRefs = append(m.BlobRefs, MustWriteBlob(dest, []string{"original", "lossy"}))
 
 		// and generate a picture from the first frame
 		dest = filepath.Join(tmpDir, filepath.Base(src)+".preview.avif")
-		err = converter.ToAVIF(src, dest, medias.ResizeTo(PreviewMaxWidthOrHeight))
-		if err != nil {
-			log.Fatalf("Unable to generate preview blob from file %q: %v", m.RelativePath, err)
-		}
+		toAVIF(converter, src, dest, medias.ResizeTo(PreviewMaxWidthOrHeight))
 		m.BlobRefs = append(m.BlobRefs, MustWriteBlob(dest, []string{"preview", "lossy"}))
 	}
 }
 
-// MustWriteBlob writes a new blob or fail.
+func toAVIF(converter medias.Converter, src, dest string, dimensions medias.Dimensions) {
+	_, err := os.Stat(dest)
+	if os.IsNotExist(err) {
+		err := converter.ToAVIF(src, dest, dimensions)
+		if err != nil {
+			log.Fatalf("Unable to generate preview blob from file %q: %v", src, err)
+		}
+		return
+	}
+	if err != nil {
+		log.Fatalf("Unable to retrieve stat for file %q: %v", src, err)
+	}
+}
+func toMP3(converter medias.Converter, src, dest string) {
+	_, err := os.Stat(dest)
+	if os.IsNotExist(err) {
+		err := converter.ToMP3(src, dest)
+		if err != nil {
+			log.Fatalf("Unable to generate preview blob from file %q: %v", src, err)
+		}
+		return
+	}
+	if err != nil {
+		log.Fatalf("Unable to retrieve stat for file %q: %v", src, err)
+	}
+}
+func toWebM(converter medias.Converter, src, dest string) {
+	_, err := os.Stat(dest)
+	if os.IsNotExist(err) {
+		err := converter.ToWebM(src, dest)
+		if err != nil {
+			log.Fatalf("Unable to generate preview blob from file %q: %v", src, err)
+		}
+		return
+	}
+	if err != nil {
+		log.Fatalf("Unable to retrieve stat for file %q: %v", src, err)
+	}
+}
+
+// MustWriteBlob writes a new blob object or fails.
 func MustWriteBlob(path string, tags []string) *BlobRef {
 	data, err := os.ReadFile(path)
 	if err != nil {

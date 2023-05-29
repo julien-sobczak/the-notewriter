@@ -9,6 +9,11 @@ After reading several systems, I observe the core motivations (and principles) a
 This page regroups the best ideas in my readings and the lessons I learned the hard way.
 
 
+## Notes Collecting
+
+What to put into your second brain? Everything that resonates with you. Manage your notes like your music playlist. You probably don't listen music people think you should but the one that makes you feel special.
+
+
 ## Notes Writing
 
 ### Name your tasks in `TODO` notes after a verb
@@ -73,10 +78,5 @@ Find the right balance when organizing your notes. Too much organization and add
 
 ## Use Common Notes
 
-
 * Create a "TODO: Maintenance List" note with `#low-energy`, `#low-attention` tasks you can delay and bulk once per week.
 * Create an "Reference: Accomplishments List" note with achievements to remind you how much productive you are.
-
-
-
-

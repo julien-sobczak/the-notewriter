@@ -47,6 +47,8 @@ type Object interface {
 
 	// String returns a one-line description
 	String() string
+
+	// Update website/guides/devolopers/presentation.md
 }
 
 // StatefulObject to represent the subset of updatable objects persisted in database.
@@ -62,6 +64,8 @@ type StatefulObject interface {
 
 	// Save persists to DB
 	Save() error
+
+	// Update website/guides/devolopers/presentation.md
 }
 
 type BlobFile struct {
