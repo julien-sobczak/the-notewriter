@@ -6,8 +6,8 @@ APP_NAME = github.com/julien-sobczak/the-notewriter
 APP_VERSION = $(shell git rev-parse HEAD)
 
 build:
-	go build --tags "fts5" -o build/nt cmd/nt/nt.go
-	go build --tags "fts5" -o build/nt-lite cmd/nt-lite/nt-lite.go
+	go build --tags "fts5" -o build/nt cmd/nt/*.go
+	go build --tags "fts5" -o build/ntlite cmd/ntlite/*.go
 
 test:
 	go test --tags "fts5" ./... -count=1 -v

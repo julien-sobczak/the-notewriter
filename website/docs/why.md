@@ -7,7 +7,7 @@ sidebar_position: 2
 **TODO** complete
 
 
-**I created _The NoteWriter_ to keep my notes in a safe place for a very long time.** I was tired of moving my notes when a popular application was dying and a new one was rising. I was tired of putting my notes on commercial products (and OSS products with a commercial offering for the product to last is not acceptable to me neither). I was tired of using different tools for different kinds of notes (FOAM + Anki). And I had ideas for new features that was missing in my previous toolkit.
+**I created _The NoteWriter_ to keep my notes in a safe place for a very long time.** I was tired of moving my notes every time a popular application was dying and a new one was rising. I was tired of putting my notes on commercial products (and OSS products with a commercial offering for the product to last is not acceptable to me neither). I was tired of using different tools for different kinds of notes (FOAM + Anki). And I had ideas for new features that was missing in my previous toolkit.
 
 I created _The NoteWriter_ to match my requirements, assembled from many years passed strugling with my note-taking workflow
 

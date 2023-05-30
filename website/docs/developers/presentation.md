@@ -292,7 +292,7 @@ $ open -a Preview .nt/objects/5a/5ac8980e0206c51e113191f1cfa4aab3e40b671a
 
 ## Testing
 
-_The NoteTaker_ works with files. Testing the application by mocking interactions with the file system would be cumbersome.
+_The NoteWriter_ works with files. Testing the application by mocking interactions with the file system would be cumbersome.
 
 :::tip
 
