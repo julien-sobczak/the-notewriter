@@ -744,7 +744,7 @@ func (c *Collection) FindReminders() ([]*Reminder, error) {
 }
 
 func (c *Collection) FindRemindersMatching(noteOID string, descriptionRaw string) ([]*Reminder, error) {
-	return QueryReminders(CurrentDB().Client(), `WHERE note_oid = ? and description_raw`, noteOID, descriptionRaw)
+	return QueryReminders(CurrentDB().Client(), `WHERE note_oid = ? and description_raw = ?`, noteOID, descriptionRaw)
 }
 
 func (c *Collection) LoadReminderByOID(oid string) (*Reminder, error) {

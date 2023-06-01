@@ -234,6 +234,8 @@ func (i *Index) StageObject(obj StatefulObject) error {
 		stagingObject.PreviousCommitOID = commitObject.CommitOID
 	}
 
+	FIXME check if object exist to override!!!
+	
 	switch obj.State() {
 	case Added:
 		i.StagingArea.Added = append(i.StagingArea.Added, stagingObject)

@@ -58,7 +58,7 @@ func TestCommandAdd(t *testing.T) {
 		require.NoError(t, err)
 
 		// Check index file
-		idx, err := NewIndexFromPath(filepath.Join(root, ".nt/index"))
+		idx := ReadIndex()
 		require.NoError(t, err)
 		changes := idx.CountChanges()
 		require.Greater(t, changes, 0)
@@ -89,8 +89,7 @@ func TestCommandAdd(t *testing.T) {
 		assert.Contains(t, commitGraph, c.OID)
 
 		// Check staging area is empty
-		idx, err = NewIndexFromPath(filepath.Join(root, ".nt/index"))
-		require.NoError(t, err)
+		idx = ReadIndex()
 		require.Equal(t, 0, idx.CountChanges())
 	})
 
@@ -139,6 +138,58 @@ func TestCommandAdd(t *testing.T) {
 			require.Nil(t, media)
 		}
 
+	})
+
+	t.Run("Repetitive", func(t *testing.T) {
+		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+
+		err := CurrentCollection().Add("go.md")
+		require.NoError(t, err)
+		err = CurrentDB().Commit("Initial commit")
+		require.NoError(t, err)
+
+		idx := ReadIndex()
+		require.Equal(t, 0, idx.CountChanges())
+		require.Equal(t, 8, len(idx.Objects))
+
+		// Check 1: Try to add the same file edited several times
+		ReplaceLine(t, filepath.Join(root, "go.md"), 19, "What does the **Golang logo** represent?", "(Go) What does the **Golang logo** represent?")
+		err = CurrentCollection().Add("go.md")
+		require.NoError(t, err)
+		idx = ReadIndex()
+		require.Equal(t, 3, idx.CountChanges()) // the file + the note + the flashcard
+		initialChanges := idx.CountChanges()
+
+		ReplaceLine(t, filepath.Join(root, "go.md"), 19, "(Go) What does the **Golang logo** represent?", "(Go) What does the **logo** represent?")
+		err = CurrentCollection().Add("go.md")
+		require.NoError(t, err)
+		// Check only the changes was overriden and not duplicated
+		// We change the same file twice but the second change must override the first one
+		idx = ReadIndex()
+		require.Equal(t, initialChanges, idx.CountChanges())
+
+		err = CurrentDB().Commit("First commit")
+		require.NoError(t, err)
+
+		// Check 2: Try to commit the same file repeatability
+		initialObjectsCount := len(idx.Objects)
+		ReplaceLine(t, filepath.Join(root, "go.md"), 19, "(Go) What does the **logo** represent?", "What is the **logo**?")
+
+		err = CurrentCollection().Add("go.md")
+		require.NoError(t, err)
+		err = CurrentDB().Commit("Second commit")
+		require.NoError(t, err)
+
+		ReplaceLine(t, filepath.Join(root, "go.md"), 19, "What is the **logo**?", "What represents the **logo**?")
+
+		err = CurrentCollection().Add("go.md")
+		require.NoError(t, err)
+		err = CurrentDB().Commit("Third commit")
+		require.NoError(t, err)
+
+		// Check the file is only listed once in the list of all known objects
+		idx = ReadIndex()
+		require.Len(t, idx.Objects, initialObjectsCount) // must not have changed as we have always edited an existing file
 	})
 
 }
@@ -758,30 +809,44 @@ func TestSourcegraphGoDiff(t *testing.T) {
 `
 	patch := godiffpatch.GeneratePatch("test.txt", inputA, inputB)
 	expected := "" +
-"--- a/test.txt\n"+
-"+++ b/test.txt\n"+
-"@@ -1,7 +1,7 @@\n"+
-" \n"+
-" {\n"+
-" 	SSID:      \"CoffeeShopWiFi\",\n"+
-"-	IPAddress: net.IPv4(192, 168, 0, 1),\n"+
-"+	IPAddress: net.IPv4(192, 168, 0, 2),\n"+
-" 	NetMask:   net.IPv4Mask(255, 255, 0, 0),\n"+
-" 	Clients: []Client{{\n"+
-" 		Hostname:  \"ristretto\",\n"+
-"@@ -19,11 +19,7 @@\n"+
-" 		IPAddress: net.IPv4(192, 168, 0, 121),\n"+
-" 	}, {\n"+
-" 		Hostname:  \"latte\",\n"+
-"-		IPAddress: net.IPv4(192, 168, 0, 219),\n"+
-"+		IPAddress: net.IPv4(192, 168, 0, 221),\n"+
-" 		LastSeen:  time.Date(2009, time.November, 10, 23, 0, 23, 0, time.UTC),\n"+
-"-	}, {\n"+
-"-		Hostname:  \"americano\",\n"+
-"-		IPAddress: net.IPv4(192, 168, 0, 188),\n"+
-"-		LastSeen:  time.Date(2009, time.November, 10, 23, 3, 5, 0, time.UTC),\n"+
-" 	}},\n"+
-" }\n"
+		"--- a/test.txt\n" +
+		"+++ b/test.txt\n" +
+		"@@ -1,7 +1,7 @@\n" +
+		" \n" +
+		" {\n" +
+		" 	SSID:      \"CoffeeShopWiFi\",\n" +
+		"-	IPAddress: net.IPv4(192, 168, 0, 1),\n" +
+		"+	IPAddress: net.IPv4(192, 168, 0, 2),\n" +
+		" 	NetMask:   net.IPv4Mask(255, 255, 0, 0),\n" +
+		" 	Clients: []Client{{\n" +
+		" 		Hostname:  \"ristretto\",\n" +
+		"@@ -19,11 +19,7 @@\n" +
+		" 		IPAddress: net.IPv4(192, 168, 0, 121),\n" +
+		" 	}, {\n" +
+		" 		Hostname:  \"latte\",\n" +
+		"-		IPAddress: net.IPv4(192, 168, 0, 219),\n" +
+		"+		IPAddress: net.IPv4(192, 168, 0, 221),\n" +
+		" 		LastSeen:  time.Date(2009, time.November, 10, 23, 0, 23, 0, time.UTC),\n" +
+		"-	}, {\n" +
+		"-		Hostname:  \"americano\",\n" +
+		"-		IPAddress: net.IPv4(192, 168, 0, 188),\n" +
+		"-		LastSeen:  time.Date(2009, time.November, 10, 23, 3, 5, 0, time.UTC),\n" +
+		" 	}},\n" +
+		" }\n"
 
 	assert.Equal(t, expected, patch)
+}
+
+/* Test Helpers */
+
+// ReplaceLine replaces a line inside a file.
+func ReplaceLine(t *testing.T, path string, lineNumber int, oldLine string, newLine string) {
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	lines := strings.Split(string(data), "\n")
+	require.LessOrEqual(t, lineNumber, len(lines))
+	require.Equal(t, oldLine, lines[lineNumber-1])
+	lines[lineNumber-1] = newLine
+	content := strings.Join(lines, "\n")
+	os.WriteFile(path, []byte(content), 0644)
 }
