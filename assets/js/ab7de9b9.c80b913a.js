@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkwebsite=self.webpackChunkwebsite||[]).push([[8433],{8200:e=>{e.exports=JSON.parse('{"label":"note-taking","permalink":"/the-notewriter/blog/tags/note-taking","allTagsPath":"/the-notewriter/blog/tags","count":1}')}}]);

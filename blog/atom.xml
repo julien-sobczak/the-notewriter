@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+    <id>https://julien-sobczak.github.io/the-notewriter/blog</id>
+    <title>The NoteWriter Blog</title>
+    <updated>2023-07-01T00:00:00.000Z</updated>
+    <generator>https://github.com/jpmonette/feed</generator>
+    <link rel="alternate" href="https://julien-sobczak.github.io/the-notewriter/blog"/>
+    <subtitle>The NoteWriter Blog</subtitle>
+    <icon>https://julien-sobczak.github.io/the-notewriter/img/favicon.ico</icon>
+    <entry>
+        <title type="html"><![CDATA[Welcome]]></title>
+        <id>https://julien-sobczak.github.io/the-notewriter/blog/welcome</id>
+        <link href="https://julien-sobczak.github.io/the-notewriter/blog/welcome"/>
+        <updated>2023-07-01T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[TODO]]></summary>
+        <content type="html"><![CDATA[<p><strong>TODO</strong></p>]]></content>
+        <author>
+            <name>Julien Sobczak</name>
+            <uri>https://github.com/julien-sobczak</uri>
+        </author>
+        <category label="note-taking" term="note-taking"/>
+    </entry>
+</feed>
