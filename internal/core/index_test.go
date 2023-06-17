@@ -231,7 +231,7 @@ func TestIndex(t *testing.T) {
 
 	t.Run("New", func(t *testing.T) {
 		// Make tests reproductible
-		UseFixedOID(t, "93267c32147a4ab7a1100ce82faab56a99fca1cd")
+		UseSequenceOID(t)
 		now := FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
 		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
 
@@ -283,7 +283,7 @@ Guido van Rossum
 
 	t.Run("Save on disk", func(t *testing.T) {
 		// Make tests reproductible
-		UseFixedOID(t, "93267c32147a4ab7a1100ce82faab56a99fca1cd")
+		UseSequenceOID(t)
 
 		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
 
@@ -298,9 +298,8 @@ Guido van Rossum
 		err = idx.Save()
 		require.NoError(t, err)
 
-		idx, err = NewIndexFromPath(filepath.Join(root, ".nt/index"))
-		require.NoError(t, err)
-		assert.Len(t, idx.StagingArea.Added, 2)
+		idx = ReadIndex()
+		assert.Equal(t, 2, idx.StagingArea.CountByState(Added))
 	})
 
 }

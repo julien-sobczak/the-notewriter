@@ -583,14 +583,8 @@ func (c *Collection) Status() (string, error) {
 	sb.WriteString(`Changes to be committed:` + "\n")
 	sb.WriteString(`  (use "nt restore..." to unstage)` + "\n")
 	stagingArea := CurrentDB().index.StagingArea
-	for _, obj := range stagingArea.Added {
-		sb.WriteString(fmt.Sprintf("\tadded:\t%s\n", obj.Description))
-	}
-	for _, obj := range stagingArea.Modified {
-		sb.WriteString(fmt.Sprintf("\tmodified:\t%s\n", obj.Description))
-	}
-	for _, obj := range stagingArea.Deleted {
-		sb.WriteString(fmt.Sprintf("\tdeleted:\t%s\n", obj.Description))
+	for _, obj := range stagingArea {
+		sb.WriteString(fmt.Sprintf("\t%s:\t%s\n", obj.State, obj.Description))
 	}
 
 	// Show modified files not in staging area

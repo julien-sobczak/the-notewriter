@@ -427,28 +427,26 @@ objects:                                      # List of all known objects in rep
       mtime: 2023-01-01T12:00:00
       commit_oid: dbeaba70
 orphan_blobs: []
-staging:                                        # The Staging Area (= nt add)
-    added: []                                   # New objects
-    modified:                                   # Updated objects
-        - commitobject:                         # NB: Objects in staging area uses
-                                                # the same format as object in commit files
-                                                # (make easy to create new commit files)
-            oid: d19a2bba42
-            kind: file
-            state: modified
-            mtime: 2023-01-01T12:00:00
-            desc: file "hello.md" [d19a2bba]
-            data: <value>
-          previous_commit_oid: afe988e5
-        - commitobject:
-            oid: 6ee8a962
-            kind: note
-            state: modified
-            mtime: 2023-01-01T12:00:00
-            desc: 'note "Reference: Hello" [6ee8a962]'
-            data: <value>
-          previous_commit_oid: afe988e5
-    deleted: []                                  # Deleted objects
+staging: # The Staging Area (= nt add)
+    # NB: Objects in staging area uses
+    # the same format as object in commit files
+    # (make easy to create new commit files)
+    - commitobject:
+        oid: d19a2bba42
+        kind: file
+        state: modified
+        mtime: 2023-01-01T12:00:00
+        desc: file "hello.md" [d19a2bba]
+        data: <value>
+        previous_commit_oid: afe988e5
+    - commitobject:
+        oid: 6ee8a962
+        kind: note
+        state: modified
+        mtime: 2023-01-01T12:00:00
+        desc: 'note "Reference: Hello" [6ee8a962]'
+        data: <value>
+        previous_commit_oid: afe988e5
 ```
 
 ### `.nt/refs/`
@@ -570,10 +568,7 @@ In addition to raw files, _The NoteWriter_ also comprises a SQLite database (pop
           mtime: 2023-01-01T12:00:00
           commit_oid: 4a03d1ab3dbe4c5d9efacd0e05e187179c5415c6
     orphan_blobs: []
-    staging:
-        added: []
-        modified: []
-        deleted: []
+    staging: []
     ```
 
 3. Edit the note to reference a new media
@@ -599,33 +594,30 @@ In addition to raw files, _The NoteWriter_ also comprises a SQLite database (pop
       commit_oid: 4a03d1ab3dbe4c5d9efacd0e05e187179c5415c6
     orphan_blobs: []
     staging:
-        added:
-            - commitobject:
-                oid: 3837a10fbc3a47c7961896febf64463b4a006c79
-                kind: media
-                state: added
-                mtime: 2023-01-01T12:00:00
-                desc: media me.png [3837a10fbc3a47c7961896febf64463b4a006c79]
-                data: gHi...=
-              previous_commit_oid: ""
-        modified:
-            - commitobject:
-                oid: d19a2bba42d44d8a82b18b2edcd4320612a3dfbc
-                kind: file
-                state: modified
-                mtime: 2023-01-01T12:00:00
-                desc: file "hello.md" [d19a2bba42d44d8a82b18b2edcd4320612a3dfbc]
-                data: AbC...=
-              previous_commit_oid: "4a03d1ab3dbe4c5d9efacd0e05e187179c5415c6"
-            - commitobject:
-                oid: 6ee8a9620d3f4d3f9fbd159744ef85b83400b0d4
-                kind: note
-                state: modified
-                mtime: 2023-01-01T12:00:00
-                desc: 'note "Reference: Hello" [6ee8a9620d3f4d3f9fbd159744ef85b83400b0d4]'
-                data: DeF...=
-              previous_commit_oid: "4a03d1ab3dbe4c5d9efacd0e05e187179c5415c6"
-        deleted: []
+        - commitobject:
+            oid: 3837a10fbc3a47c7961896febf64463b4a006c79
+            kind: media
+            state: added
+            mtime: 2023-01-01T12:00:00
+            desc: media me.png [3837a10fbc3a47c7961896febf64463b4a006c79]
+            data: gHi...=
+            previous_commit_oid: ""
+        - commitobject:
+            oid: d19a2bba42d44d8a82b18b2edcd4320612a3dfbc
+            kind: file
+            state: modified
+            mtime: 2023-01-01T12:00:00
+            desc: file "hello.md" [d19a2bba42d44d8a82b18b2edcd4320612a3dfbc]
+            data: AbC...=
+            previous_commit_oid: "4a03d1ab3dbe4c5d9efacd0e05e187179c5415c6"
+        - commitobject:
+            oid: 6ee8a9620d3f4d3f9fbd159744ef85b83400b0d4
+            kind: note
+            state: modified
+            mtime: 2023-01-01T12:00:00
+            desc: 'note "Reference: Hello" [6ee8a9620d3f4d3f9fbd159744ef85b83400b0d4]'
+            data: DeF...=
+            previous_commit_oid: "4a03d1ab3dbe4c5d9efacd0e05e187179c5415c6"
         ```
 
 4. Commit changes

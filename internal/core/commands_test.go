@@ -197,7 +197,7 @@ func TestCommandAdd(t *testing.T) {
 func TestCommandRestore(t *testing.T) {
 
 	t.Run("Basic", func(t *testing.T) {
-		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+		SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
 
 		CurrentLogger().SetVerboseLevel(VerboseDebug)
 
@@ -205,8 +205,7 @@ func TestCommandRestore(t *testing.T) {
 		require.NoError(t, err)
 
 		// Check index file
-		idx, err := NewIndexFromPath(filepath.Join(root, ".nt/index"))
-		require.NoError(t, err)
+		idx := ReadIndex()
 		changes := idx.CountChanges()
 		require.Greater(t, changes, 0)
 		require.Len(t, idx.Objects, 0)
@@ -221,8 +220,7 @@ func TestCommandRestore(t *testing.T) {
 		require.NoError(t, err)
 
 		// Check staging area is empty
-		idx, err = NewIndexFromPath(filepath.Join(root, ".nt/index"))
-		require.NoError(t, err)
+		idx = ReadIndex()
 		require.Equal(t, 0, idx.CountChanges())
 
 		// Check database is empty

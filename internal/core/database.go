@@ -405,10 +405,10 @@ func (db *DB) StageObject(obj StatefulObject) error {
 
 // Commit creates a new commit object and clear the staging area.
 func (db *DB) Commit(msg string) error {
-	changesAdded := len(db.index.StagingArea.Added)
-	changesModified := len(db.index.StagingArea.Modified)
-	changesDeleted := len(db.index.StagingArea.Deleted)
-	changesTotal := changesAdded + changesModified + changesDeleted
+	changesAdded := db.index.StagingArea.CountByState(Added)
+	changesModified := db.index.StagingArea.CountByState(Modified)
+	changesDeleted := db.index.StagingArea.CountByState(Deleted)
+	changesTotal := db.index.StagingArea.Count()
 
 	if changesTotal == 0 {
 		return errors.New(`nothing to commit (create/copy files and use "nt add" to track)`)
@@ -416,7 +416,7 @@ func (db *DB) Commit(msg string) error {
 
 	// Run Hooks first for user to fix note issues
 	// if a hook fails due to a malformed note.
-	for _, obj := range db.index.StagingArea.Objects() {
+	for _, obj := range db.index.StagingArea {
 		if obj.CommitObject.Kind != "note" {
 			// We execute hooks only on note objects
 			continue
@@ -684,52 +684,55 @@ func (db *DB) Reset() error {
 	defer db.RollbackTransaction()
 
 	// We must clear the staging area
-	for _, obj := range db.index.StagingArea.Added {
-		object := obj.ReadObject()
-		if object == nil {
-			return fmt.Errorf("unknown object %q", obj.OID)
+	for _, obj := range db.index.StagingArea {
+
+		switch obj.State {
+		case Added:
+			// Deleted the object in SQL database
+			object := obj.ReadObject()
+			if object == nil {
+				return fmt.Errorf("unknown object %q", obj.OID)
+			}
+			// Mark for deletion
+			object.ForceState(Deleted)
+			if err := object.Save(); err != nil {
+				return err
+			}
+		case Deleted:
+			// Re-read object from latest commit
+			parentCommit, err := db.ReadCommit(obj.PreviousCommitOID)
+			if err != nil {
+				return fmt.Errorf("missing parent commit %q: %v", obj.PreviousCommitOID, err)
+			}
+			original, found := parentCommit.GetCommitObject(obj.OID)
+			if !found {
+				return fmt.Errorf("missing object %q in commit %s", obj.OID, obj.PreviousCommitOID)
+			}
+			originalObject := original.ReadObject()
+			if originalObject == nil {
+				return fmt.Errorf("unknown object %q", obj.OID)
+			}
+			// Mark for restoration
+			originalObject.ForceState(Added)
+			originalObject.Save()
+		case Modified:
+			// Re-read object from latest commit
+			parentCommit, err := db.ReadCommit(obj.PreviousCommitOID)
+			if err != nil {
+				return fmt.Errorf("missing parent commit %q: %v", obj.PreviousCommitOID, err)
+			}
+			original, found := parentCommit.GetCommitObject(obj.OID)
+			if !found {
+				return fmt.Errorf("missing object %q in commit %s", obj.OID, obj.PreviousCommitOID)
+			}
+			originalObject := original.ReadObject()
+			if originalObject == nil {
+				return fmt.Errorf("unknown object %q", obj.OID)
+			}
+			// Nothing to change. Simply save back.
+			originalObject.ForceState(Modified)
+			originalObject.Save()
 		}
-		// Mark for deletion
-		object.ForceState(Deleted)
-		if err := object.Save(); err != nil {
-			return err
-		}
-	}
-	for _, obj := range db.index.StagingArea.Deleted {
-		// Re-read object from latest commit
-		parentCommit, err := db.ReadCommit(obj.PreviousCommitOID)
-		if err != nil {
-			return fmt.Errorf("missing parent commit %q: %v", obj.PreviousCommitOID, err)
-		}
-		original, found := parentCommit.GetCommitObject(obj.OID)
-		if !found {
-			return fmt.Errorf("missing object %q in commit %s", obj.OID, obj.PreviousCommitOID)
-		}
-		originalObject := original.ReadObject()
-		if originalObject == nil {
-			return fmt.Errorf("unknown object %q", obj.OID)
-		}
-		// Mark for restoration
-		originalObject.ForceState(Added)
-		originalObject.Save()
-	}
-	for _, obj := range db.index.StagingArea.Modified {
-		// Re-read object from latest commit
-		parentCommit, err := db.ReadCommit(obj.PreviousCommitOID)
-		if err != nil {
-			return fmt.Errorf("missing parent commit %q: %v", obj.PreviousCommitOID, err)
-		}
-		original, found := parentCommit.GetCommitObject(obj.OID)
-		if !found {
-			return fmt.Errorf("missing object %q in commit %s", obj.OID, obj.PreviousCommitOID)
-		}
-		originalObject := original.ReadObject()
-		if originalObject == nil {
-			return fmt.Errorf("unknown object %q", obj.OID)
-		}
-		// Nothing to change. Simply save back.
-		originalObject.ForceState(Modified)
-		originalObject.Save()
 	}
 
 	// Don't forget to commit
@@ -737,9 +740,7 @@ func (db *DB) Reset() error {
 		return err
 	}
 	// And to persist the index
-	db.index.StagingArea.Added = nil
-	db.index.StagingArea.Deleted = nil
-	db.index.StagingArea.Modified = nil
+	db.index.StagingArea = nil
 	err = db.index.Save()
 
 	return err
@@ -748,7 +749,7 @@ func (db *DB) Reset() error {
 // Diff show the changes in the staging area.
 func (db *DB) Diff() (string, error) {
 	var diff strings.Builder
-	for _, stagedObj := range db.index.StagingArea.Objects() {
+	for _, stagedObj := range db.index.StagingArea {
 		if stagedObj.Kind != "note" {
 			continue
 		}

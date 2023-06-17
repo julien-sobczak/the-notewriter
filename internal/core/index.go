@@ -69,25 +69,19 @@ type StagingObject struct {
 	PreviousCommitOID string `yaml:"previous_commit_oid"`
 }
 
-type StagingArea struct {
-	Added    []*StagingObject `yaml:"added"`
-	Modified []*StagingObject `yaml:"modified"`
-	Deleted  []*StagingObject `yaml:"deleted"`
+func (i IndexObject) String() string {
+	return fmt.Sprintf("%s (%s)", i.Kind, i.OID)
 }
+
+func (s StagingObject) String() string {
+	return fmt.Sprintf("%s %s (%s)", s.State, s.Kind, s.OID)
+}
+
+type StagingArea []*StagingObject
 
 // ReadStagingObject searches for the given staging object in staging area
 func (sa *StagingArea) ReadStagingObject(objectOID string) (*StagingObject, bool) {
-	for _, obj := range sa.Added {
-		if obj.OID == objectOID {
-			return obj, true
-		}
-	}
-	for _, obj := range sa.Modified {
-		if obj.OID == objectOID {
-			return obj, true
-		}
-	}
-	for _, obj := range sa.Deleted {
+	for _, obj := range *sa {
 		if obj.OID == objectOID {
 			return obj, true
 		}
@@ -104,18 +98,9 @@ func (sa *StagingArea) ReadObject(objectOID string) (StatefulObject, bool) {
 	return obj.ReadObject(), true
 }
 
-// Objects returns all objects inside the staging area.
-func (sa *StagingArea) Objects() []*StagingObject {
-	var results []*StagingObject
-	results = append(results, sa.Added...)
-	results = append(results, sa.Modified...)
-	results = append(results, sa.Deleted...)
-	return results
-}
-
 // Contains file returns the staging object from a given file path.
 func (sa *StagingArea) ContainsFile(relpath string) (*StagingObject, bool) {
-	for _, obj := range sa.Objects() {
+	for _, obj := range *sa {
 		if obj.Kind == "file" {
 			file := new(File)
 			obj.Data.Unmarshal(file)
@@ -125,6 +110,22 @@ func (sa *StagingArea) ContainsFile(relpath string) (*StagingObject, bool) {
 		}
 	}
 	return nil, false
+}
+
+// Count returns the number of objects inside the staging area.
+func (sa *StagingArea) Count() int {
+	return len(*sa)
+}
+
+// CountByState returns the number of objects inside the staging area in a given state.
+func (sa *StagingArea) CountByState(state State) int {
+	count := 0
+	for _, obj := range *sa {
+		if obj.State == state {
+			count++
+		}
+	}
+	return count
 }
 
 // NewIndex instantiates a new index.
@@ -165,7 +166,7 @@ func NewIndexFromPath(path string) (*Index, error) {
 
 // CountChanges returns the number of changes currently present in the staging area.
 func (i *Index) CountChanges() int {
-	return len(i.StagingArea.Added) + len(i.StagingArea.Modified) + len(i.StagingArea.Deleted)
+	return i.StagingArea.Count()
 }
 
 // Save persists the index on disk.
@@ -220,7 +221,7 @@ func (i *Index) StageObject(obj StatefulObject) error {
 	}
 
 	// Update staging area
-	stagingObject := &StagingObject{
+	newStagingObject := &StagingObject{
 		CommitObject: CommitObject{
 			OID:         obj.UniqueOID(),
 			Kind:        obj.Kind(),
@@ -231,19 +232,19 @@ func (i *Index) StageObject(obj StatefulObject) error {
 		},
 	}
 	if commitObject, ok := i.objectsRef[obj.UniqueOID()]; ok {
-		stagingObject.PreviousCommitOID = commitObject.CommitOID
+		newStagingObject.PreviousCommitOID = commitObject.CommitOID
 	}
 
-	FIXME check if object exist to override!!!
-	
-	switch obj.State() {
-	case Added:
-		i.StagingArea.Added = append(i.StagingArea.Added, stagingObject)
-	case Modified:
-		i.StagingArea.Modified = append(i.StagingArea.Modified, stagingObject)
-	case Deleted:
-		i.StagingArea.Deleted = append(i.StagingArea.Deleted, stagingObject)
+	// Check if object was already added
+	for j, stagedObject := range i.StagingArea {
+		if stagedObject.OID == newStagingObject.OID {
+			i.StagingArea[j] = newStagingObject
+			return nil
+		}
 	}
+
+	// Otherwise, append the new object
+	i.StagingArea = append(i.StagingArea, newStagingObject)
 
 	return nil
 }
@@ -252,21 +253,25 @@ func (i *Index) StageObject(obj StatefulObject) error {
 func (i *Index) CreateCommitFromStagingArea() *Commit {
 	c := NewCommit()
 
-	for _, obj := range i.StagingArea.Objects() {
+	for _, obj := range i.StagingArea {
 		c.Append(obj)
 		i.putObject(c.OID, &obj.CommitObject)
 	}
 
 	// Clear the staging area
-	i.StagingArea.Added = nil
-	i.StagingArea.Modified = nil
-	i.StagingArea.Deleted = nil
+	i.StagingArea = nil
 
 	return c
 }
 
 // putObject registers a new object inside the index.
 func (i *Index) putObject(commitOID string, obj *CommitObject) {
+	if indexObject, ok := i.objectsRef[obj.OID]; ok {
+		// Simply updates the commit OID for existing objects
+		indexObject.CommitOID = commitOID
+		return
+	}
+
 	indexObject := &IndexObject{
 		OID:       obj.OID,
 		Kind:      obj.Kind,
@@ -287,6 +292,7 @@ func (i *Index) putObject(commitOID string, obj *CommitObject) {
 			}
 		}
 	}
+
 	i.Objects = append(i.Objects, indexObject)
 }
 

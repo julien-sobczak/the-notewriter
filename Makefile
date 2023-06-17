@@ -22,5 +22,6 @@ testsum:
 test-all:
 	go test --tags "fts5 integration" ./... -count=1 -v
 
-install:
-	go install --tags "fts5" cmd/nt/nt.go
+install: build
+	cp build/nt /Users/julien/go/bin/nt
+# go install --tags "fts5" cmd/nt/*.go => FIXME build an invalid main executable instead of a nt file
