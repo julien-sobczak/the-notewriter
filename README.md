@@ -4,23 +4,7 @@
 ## Dependencies
 
 * [SQLite](https://www.sqlite.org/docs.html) with [FTS5 extension](https://www.sqlite.org/fts5.html#external_content_and_contentless_tables) + [`go-sqlite3`](https://github.com/mattn/go-sqlite3). SQLite is used to build a database from notes to speed up UI actions and make possible full-text searches.
-* [ffmpeg](https://github.com/FFmpeg/FFmpeg) binary (`brew install ffmpeg`). Used to convert medias to different formats.
-
-
-## Developing
-
-```shell
-# Add new book reference
-$ go run main.go reference new 0787960756
-
-# Add new person reference
-$ go run main.go reference new --kind=author Nelson
-
-# To use a new version locally
-$ make install
-# Copy to %GOPATH/bin
-$ nt init
-```
+* [ffmpeg](https://github.com/FFmpeg/FFmpeg) binary (`brew install ffmpeg`). Used to convert the media files to different formats.
 
 
 ## Debug
@@ -34,8 +18,7 @@ Define a breakpoint. Inspect the collection root directory. Then:
 $ open -a "DB Browser for SQLite" dirname/.nt/database.db
 ```
 
-Check tables, then close the application and resume the debugging session.
-
+Check the tables, then close the application and resume the debugging session.
 
 
 ## Usage
@@ -46,8 +29,7 @@ $ nt init
 $ cat .nt/config
 # ...
 
-$ nt build
-# Rebuild the local database by traversing all modified notes
+$ nt add . && nt commit
 ```
 
 
