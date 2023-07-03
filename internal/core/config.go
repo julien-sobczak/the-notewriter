@@ -69,6 +69,7 @@ schemas:
       - name: inspirations
         type: array
 `
+
 // Edit website/docs/guides/linter.md after for updating this list
 
 var (
@@ -418,7 +419,6 @@ func (c *Config) TempDir() string {
 	// FIXME call defer os.RemoveAll(CurrentConfig().TempDir()) from tests?
 }
 
-
 // Converter returns the convertor to use when creating blobs from media files.
 func (c *Config) Converter() medias.Converter {
 	switch c.ConfigFile.Medias.Command {
@@ -470,11 +470,20 @@ func currentHome() string {
 // ReadConfigFromDirectory loads the configuration by searching for a .nt directory in the given directory
 // or any parent directories. It fails if a directory already exists.
 func ReadConfigFromDirectory(path string) (*Config, error) {
+	// We muse ignore the .nt directory in user home directory
+	homePath, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	rootPath := path
 	i := 0 // Safeguard to not go up too far
 	for {
 		i++
 		if i > maxDepth {
+			return nil, nil
+		}
+		if rootPath == homePath {
 			return nil, nil
 		}
 		ntPath := filepath.Join(rootPath, ".nt")
@@ -494,7 +503,7 @@ func ReadConfigFromDirectory(path string) (*Config, error) {
 
 	// Check for .nt/config
 	ntConfigPath := filepath.Join(rootPath, ".nt", "config")
-	_, err := os.Stat(ntConfigPath)
+	_, err = os.Stat(ntConfigPath)
 	var configFile *ConfigFile
 	if os.IsNotExist(err) {
 		configFile, err = parseConfigFile(DefaultConfig)
@@ -629,7 +638,7 @@ func InitConfigFromDirectory(path string) (*Config, error) {
 	}
 	if currentConfig != nil {
 		// Do not override current configuration
-		return nil, fmt.Errorf("current configuration detected")
+		return nil, fmt.Errorf("current configuration detected: %s", currentConfig.RootDirectory)
 	}
 
 	// Create .nt directory
