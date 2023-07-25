@@ -134,8 +134,6 @@ func NewMedia(relpath string) *Media {
 	m.MTime = stat.ModTime()
 	m.Mode = stat.Mode()
 
-	m.UpdateBlobs()
-
 	return m
 }
 
@@ -183,10 +181,6 @@ func (m *Media) update() {
 	if m.Mode != mode {
 		m.Mode = mode
 		m.stale = true
-	}
-
-	if m.stale {
-		m.UpdateBlobs()
 	}
 }
 
@@ -547,9 +541,6 @@ func (m *Media) Insert() error {
 		return err
 	}
 
-	// Insert blobs
-	m.InsertBlobs()
-
 	return nil
 }
 
@@ -632,9 +623,6 @@ func (m *Media) Update() error {
 		timeToSQL(m.LastCheckedAt),
 		m.OID,
 	)
-
-	// Insert blobs
-	m.InsertBlobs()
 
 	return err
 }

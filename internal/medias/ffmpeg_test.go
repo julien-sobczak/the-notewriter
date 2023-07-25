@@ -52,6 +52,7 @@ func TestConvertToAVIF(t *testing.T) {
 		t.Setenv("TEST_BEHAVIOR", "dump_cmd")
 		converter := &FFmpegConverter{
 			exe: testExe(t),
+			preset: "medium",
 		}
 
 		mediasDir := filepath.Join("testdata", "TestMedias/medias")
@@ -66,7 +67,7 @@ func TestConvertToAVIF(t *testing.T) {
 		// Check cmd
 		actual, err := os.ReadFile(dest)
 		require.NoError(t, err)
-		expected := fmt.Sprintf("ffmpeg -i %s %s", src, dest)
+		expected := fmt.Sprintf("ffmpeg -i %s -preset medium %s", src, dest)
 		assert.Equal(t, expected, string(actual))
 
 	})
@@ -75,6 +76,7 @@ func TestConvertToAVIF(t *testing.T) {
 		t.Setenv("TEST_BEHAVIOR", "dump_cmd")
 		converter := &FFmpegConverter{
 			exe: testExe(t),
+			preset: "medium",
 		}
 
 		mediasDir := filepath.Join("testdata", "TestMedias/medias")
@@ -89,7 +91,7 @@ func TestConvertToAVIF(t *testing.T) {
 		// Check cmd
 		actual, err := os.ReadFile(dest)
 		require.NoError(t, err)
-		expected := fmt.Sprintf("ffmpeg -i %s -vf scale=150:-1 %s", src, dest)
+		expected := fmt.Sprintf("ffmpeg -i %s -preset medium -vf scale=150:-1 %s", src, dest)
 		assert.Equal(t, expected, string(actual))
 	})
 
@@ -97,6 +99,7 @@ func TestConvertToAVIF(t *testing.T) {
 		t.Setenv("TEST_BEHAVIOR", "dump_cmd")
 		converter := &FFmpegConverter{
 			exe: testExe(t),
+			preset: "medium",
 		}
 
 		mediasDir := filepath.Join("testdata", "TestMedias/medias")
@@ -111,7 +114,7 @@ func TestConvertToAVIF(t *testing.T) {
 		// Check cmd
 		actual, err := os.ReadFile(dest)
 		require.NoError(t, err)
-		expected := fmt.Sprintf("ffmpeg -i %s -vf select=eq(n\\,0),scale=150:-1 %s", src, dest)
+		expected := fmt.Sprintf("ffmpeg -i %s -preset medium -vf select=eq(n\\,0),scale=150:-1 %s", src, dest)
 		assert.Equal(t, expected, string(actual))
 	})
 
@@ -119,6 +122,7 @@ func TestConvertToAVIF(t *testing.T) {
 		t.Setenv("TEST_BEHAVIOR", "dump_cmd")
 		converter := &FFmpegConverter{
 			exe: testExe(t),
+			preset: "medium",
 		}
 
 		mediasDir := filepath.Join("testdata", "TestMedias/medias")
@@ -133,7 +137,7 @@ func TestConvertToAVIF(t *testing.T) {
 		// Check cmd
 		actual, err := os.ReadFile(dest)
 		require.NoError(t, err)
-		expected := fmt.Sprintf("ffmpeg -i %s -vf select=eq(n\\,0) %s", src, dest)
+		expected := fmt.Sprintf("ffmpeg -i %s -preset medium -vf select=eq(n\\,0) %s", src, dest)
 		assert.Equal(t, expected, string(actual))
 	})
 
@@ -145,6 +149,7 @@ func TestConvertToMP3(t *testing.T) {
 		t.Setenv("TEST_BEHAVIOR", "dump_cmd")
 		converter := &FFmpegConverter{
 			exe: testExe(t),
+			preset: "medium",
 		}
 
 		mediasDir := filepath.Join("testdata", "TestMedias/medias")
@@ -159,7 +164,7 @@ func TestConvertToMP3(t *testing.T) {
 		// Check cmd
 		actual, err := os.ReadFile(dest)
 		require.NoError(t, err)
-		expected := fmt.Sprintf("ffmpeg -i %s %s", src, dest)
+		expected := fmt.Sprintf("ffmpeg -i %s -preset medium %s", src, dest)
 		assert.Equal(t, expected, string(actual))
 	})
 
@@ -171,6 +176,7 @@ func TestConvertToWebM(t *testing.T) {
 		t.Setenv("TEST_BEHAVIOR", "dump_cmd")
 		converter := &FFmpegConverter{
 			exe: testExe(t),
+			preset: "medium",
 		}
 
 		mediasDir := filepath.Join("testdata", "TestMedias/medias")
@@ -185,7 +191,7 @@ func TestConvertToWebM(t *testing.T) {
 		// Check cmd
 		actual, err := os.ReadFile(dest)
 		require.NoError(t, err)
-		expected := fmt.Sprintf("ffmpeg -i %s %s", src, dest)
+		expected := fmt.Sprintf("ffmpeg -i %s -preset medium %s", src, dest)
 		assert.Equal(t, expected, string(actual))
 	})
 

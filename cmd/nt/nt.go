@@ -15,7 +15,7 @@ var verboseInfo bool
 var verboseDebug bool
 var verboseTrace bool
 
-var CollectionDir string
+var parallel int
 
 var rootCmd = &cobra.Command{
 	Use:   "nt",
@@ -41,6 +41,10 @@ var rootCmd = &cobra.Command{
 		if verboseTrace {
 			core.CurrentLogger().SetVerboseLevel(core.VerboseTrace)
 		}
+
+		if parallel > 0 {
+			core.CurrentConfig().SetParallel(parallel)
+		}
 	},
 }
 
@@ -49,7 +53,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verboseInfo, "v", "", false, "enable verbose info output")
 	rootCmd.PersistentFlags().BoolVarP(&verboseDebug, "vv", "", false, "enable verbose debug output")
 	rootCmd.PersistentFlags().BoolVarP(&verboseTrace, "vvv", "", false, "enable verbose trace output")
-	rootCmd.PersistentFlags().StringVarP(&CollectionDir, "collection", "c", "", "Collection directory (default is $HOME/notes)")
+	rootCmd.PersistentFlags().IntVarP(&parallel, "parallel", "t", 0, "Number of workers to use when generating blobs")
 }
 
 func Execute() {

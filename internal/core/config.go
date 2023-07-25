@@ -26,6 +26,11 @@ const DefaultConfig = `
 [core]
 extensions=["md", "markdown"]
 
+[medias]
+command="ffmpeg"
+parallel=1
+preset="medium"
+
 [search.quotes]
 q="-#ignore @kind:quote"
 name="Favorite Quotes"
@@ -89,7 +94,9 @@ type ConfigCore struct {
 	Extensions []string
 }
 type ConfigMedias struct {
-	Command string
+	Command  string
+	Parallel int
+	Preset   string
 }
 type ConfigRemote struct {
 	Type string // fs or s3
@@ -105,6 +112,11 @@ type ConfigRemote struct {
 type ConfigSearch struct {
 	Q    string
 	Name string
+}
+
+// SetParallel overrides the value in config file.
+func (c *Config) SetParallel(value int) {
+	c.ConfigFile.Medias.Parallel = value
 }
 
 // SupportExtension checks if the given file extension must be considered.
@@ -421,11 +433,13 @@ func (c *Config) TempDir() string {
 
 // Converter returns the convertor to use when creating blobs from media files.
 func (c *Config) Converter() medias.Converter {
-	switch c.ConfigFile.Medias.Command {
+	mediaConfig := c.ConfigFile.Medias
+	switch mediaConfig.Command {
 	case "":
 		fallthrough
 	case "ffmpeg":
-		converter, err := medias.NewFFmpegConverter()
+		preset := mediaConfig.Preset
+		converter, err := medias.NewFFmpegConverter(preset)
 		if err != nil {
 			log.Fatal(err)
 		}

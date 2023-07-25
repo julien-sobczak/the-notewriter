@@ -326,6 +326,9 @@ func (c *Collection) Add(paths ...string) error {
 	traversedObjects := make(map[string]bool)
 	var traversedNotes []*Note
 
+	// Keep notes of unprocessed medias to generate blob using goroutines to speed up the execution
+	var unprocessedMedias []*Media
+
 	// Run all queries inside the same transaction
 	err = db.BeginTransaction()
 	if err != nil {
@@ -384,6 +387,13 @@ func (c *Collection) Add(paths ...string) error {
 			}
 
 			if object.State() != None {
+				if object.Kind() == "media" {
+					unprocessedMedia := object.(*Media)
+					if !unprocessedMedia.Dangling {
+						unprocessedMedias = append(unprocessedMedias, unprocessedMedia)
+					}
+				}
+
 				if err := db.StageObject(object); err != nil {
 					return fmt.Errorf("unable to stage modified object %s: %v", object, err)
 				}
@@ -400,6 +410,37 @@ func (c *Collection) Add(paths ...string) error {
 		return err
 	}
 
+	// Generate blobs
+	mediaJobs := make(chan *Media, len(unprocessedMedias))
+	mediaResults := make(chan *Media, len(unprocessedMedias))
+	countWorkers := CurrentConfig().ConfigFile.Medias.Parallel
+	if countWorkers == 0 {
+		countWorkers = 1
+	}
+	for w := 1; w <= countWorkers; w++ {
+		go func(workerNum int, jobs <-chan *Media, results chan<- *Media) {
+			for media := range jobs {
+				CurrentLogger().Infof("[worker %d] Generating blobs for %s...\n", workerNum, media.RelativePath)
+				media.UpdateBlobs()
+				results <- media
+			}
+		}(w, mediaJobs, mediaResults)
+	}
+	for _, media := range unprocessedMedias {
+		mediaJobs <- media
+	}
+	close(mediaJobs)
+	// Then, wait for blob generation to end
+	for i := 0; i < len(unprocessedMedias); i++ {
+		mediaCompleted := <-mediaResults
+		if err := mediaCompleted.InsertBlobs(); err != nil {
+			return err
+		}
+		if err := db.StageObject(mediaCompleted); err != nil {
+			return fmt.Errorf("unable to stage modified object %s: %v", mediaCompleted, err)
+		}
+	}
+
 	// Find objects to delete for every path
 	var deletions []StatefulObject
 	for _, path := range paths {
@@ -413,6 +454,7 @@ func (c *Collection) Add(paths ...string) error {
 		}
 		deletions = append(deletions, pathDeletions...)
 	}
+
 	// Check for dead medias only when adding the root directory.
 	// For example, when adding a file, it can contains references to medias stored in a directory outside the given path.
 	if slices.Contains(paths, CurrentConfig().RootDirectory) { // ex: nt add .

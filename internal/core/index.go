@@ -238,7 +238,10 @@ func (i *Index) StageObject(obj StatefulObject) error {
 	// Check if object was already added
 	for j, stagedObject := range i.StagingArea {
 		if stagedObject.OID == newStagingObject.OID {
-			i.StagingArea[j] = newStagingObject
+			// Do not update other properties
+			// Ex: when staging a media after the generation of blobs,
+			// the state must stay "added" even if the media has already been saved in database since.
+			i.StagingArea[j].Data = newStagingObject.Data
 			return nil
 		}
 	}

@@ -63,6 +63,8 @@ func TestMedia(t *testing.T) {
 		// Set up a collection
 		mediaSrc := NewMedia("medias/go.svg")
 		mediaSrc.MTime = clock.Now()
+		// Force blobs generation to check the whole model
+		mediaSrc.UpdateBlobs()
 
 		// Marshall
 		buf := new(bytes.Buffer)

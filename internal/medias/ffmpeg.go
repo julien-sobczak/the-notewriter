@@ -15,17 +15,23 @@ import (
 
 type FFmpegConverter struct {
 	exe       string
+	preset    string // ultrafast, superfast, veryfast, fast, medium, slow, slower, veryslow
 	listeners []func(cmd string, args ...string)
 }
 
-func NewFFmpegConverter() (*FFmpegConverter, error) {
+func NewFFmpegConverter(preset string) (*FFmpegConverter, error) {
 	path, err := exec.LookPath("ffmpeg")
 	if err != nil {
 		return nil, errors.New("executable 'ffmpeg' not found in $PATH")
 	}
 
+	if preset == "" {
+		preset = "medium"
+	}
+
 	return &FFmpegConverter{
-		exe: path,
+		exe:    path,
+		preset: preset,
 	}, nil
 }
 
@@ -107,6 +113,7 @@ func (c *FFmpegConverter) ToAVIF(srcPath string, destPath string, dimensions Dim
 
 	var args []string
 	args = append(args, "-i", srcPath)
+	args = append(args, "-preset", c.preset)
 	args = append(args, cmdArgs...)
 	args = append(args, filtersArgs...)
 	args = append(args, destPath)
@@ -137,7 +144,7 @@ func (c *FFmpegConverter) ToMP3(srcPath string, destPath string) error {
 	}
 
 	c.notifyListeners(c.exe, "-i", srcPath, destPath)
-	cmd := exec.CommandContext(context.Background(), c.exe, "-i", srcPath, destPath)
+	cmd := exec.CommandContext(context.Background(), c.exe, "-i", srcPath, "-preset", c.preset, destPath)
 
 	return cmd.Run()
 }
@@ -156,7 +163,7 @@ func (c *FFmpegConverter) ToWebM(srcPath string, destPath string) error {
 	}
 
 	c.notifyListeners(c.exe, "-i", srcPath, destPath)
-	cmd := exec.CommandContext(context.Background(), c.exe, "-i", srcPath, destPath)
+	cmd := exec.CommandContext(context.Background(), c.exe, "-i", srcPath, "-preset", c.preset, destPath)
 
 	return cmd.Run()
 }
