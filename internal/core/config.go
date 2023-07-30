@@ -39,6 +39,7 @@ name="Favorite Quotes"
 // Default .nt/.gitignore content
 const DefaultGitIgnore = `
 /database.db
+/database.db-journal
 /objects/
 /index
 `
