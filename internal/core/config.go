@@ -42,6 +42,7 @@ const DefaultGitIgnore = `
 /database.db-journal
 /objects/
 /index
+/refs/
 `
 
 // Default .ntignore content
