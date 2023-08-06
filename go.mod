@@ -14,6 +14,7 @@ require (
 	github.com/minio/minio-go/v7 v7.0.49
 	github.com/otiai10/copy v1.9.0
 	github.com/pelletier/go-toml/v2 v2.0.6
+	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/sourcegraph/go-diff-patch v0.0.0-20220818153721-50706a0e22c3
 	github.com/spf13/cobra v1.5.0
 	github.com/stretchr/testify v1.8.1
@@ -21,7 +22,7 @@ require (
 	go.nhat.io/surveyexpect v0.8.0
 	golang.org/x/exp v0.0.0-20230321023759-10a507213a29
 	gopkg.in/yaml.v3 v3.0.1
-	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
+	github.com/jinzhu/copier v0.3.5
 )
 
 require (

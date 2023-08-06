@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jinzhu/copier"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1301,4 +1302,152 @@ Presentation of idea B
 			tt.checkFn(t, notes)
 		})
 	}
+}
+
+func TestParseFileComplex(t *testing.T) {
+	root := SetUpCollectionFromGoldenDirNamed(t, "TestComplex")
+	file, err := ParseFile(filepath.Join(root, "syntax.md"))
+	require.NoError(t, err)
+
+	notes := ParseNotes(file.Body)
+
+	// Check note by note
+	var note *ParsedNote
+
+	note = notes[0]
+	assert.Equal(t, &ParsedNote{
+		Kind:       "note",
+		Level:      2,
+		LongTitle:  "Note: Markdown in Markdown",
+		ShortTitle: "Markdown in Markdown",
+		Line:       27 - file.BodyLine + 1,
+		NoteTags:   nil,
+		NoteAttributes: map[string]interface{}{
+			"source": "https://en.wikipedia.org/wiki/Markdown",
+		},
+	}, ignoreNoteBody(note))
+
+	note = notes[1]
+	assert.Equal(t, &ParsedNote{
+		Kind:       "cheatsheet",
+		Level:      2,
+		LongTitle:  "Cheatsheet: How to include HTML in Markdown",
+		ShortTitle: "How to include HTML in Markdown",
+		Line:       44 - file.BodyLine + 1,
+		NoteTags:   []string{"html"},
+		NoteAttributes: map[string]interface{}{
+			"tags": []interface{}{"html"},
+		},
+	}, ignoreNoteBody(note))
+
+	note = notes[2]
+	assert.Equal(t, &ParsedNote{
+		Kind:       "note",
+		Level:      2,
+		LongTitle:  "Note: A",
+		ShortTitle: "A",
+		Line:       55 - file.BodyLine + 1,
+		NoteTags:   []string{"tag-a"},
+		NoteAttributes: map[string]interface{}{
+			"tags": []interface{}{"tag-a"},
+			"source": "https://www.markdownguide.org/basic-syntax/#headings",
+		},
+	}, ignoreNoteBody(note))
+
+	note = notes[3]
+	assert.Equal(t, &ParsedNote{
+		Kind:       "note",
+		Level:      3,
+		LongTitle:  "Note: B",
+		ShortTitle: "B",
+		Line:       63 - file.BodyLine + 1,
+		NoteTags:   []string{"tag-b1", "tag-b2"},
+		NoteAttributes: map[string]interface{}{
+			"tags": []interface{}{"tag-b1", "tag-b2"},
+		},
+	}, ignoreNoteBody(note))
+
+	note = notes[4]
+	assert.Equal(t, &ParsedNote{
+		Kind:       "note",
+		Level:      4,
+		LongTitle:  "Note: C",
+		ShortTitle: "C",
+		Line:       69 - file.BodyLine + 1,
+		NoteTags:   nil,
+		NoteAttributes: map[string]interface{}{
+			"source": "https://www.markdownguide.org/basic-syntax/#headings",
+		},
+	}, ignoreNoteBody(note))
+
+	note = notes[5]
+	assert.Equal(t, &ParsedNote{
+		Kind:       "note",
+		Level:      5,
+		LongTitle:  "Note: D",
+		ShortTitle: "D",
+		Line:       75 - file.BodyLine + 1,
+		NoteTags:   []string{"tag-d"},
+		NoteAttributes: map[string]interface{}{
+			"tags": []interface{}{"tag-d"},
+		},
+	}, ignoreNoteBody(note))
+
+	note = notes[6]
+	assert.Equal(t, &ParsedNote{
+		Kind:       "note",
+		Level:      6,
+		LongTitle:  "Note: E",
+		ShortTitle: "E",
+		Line:       81 - file.BodyLine + 1,
+		NoteTags:   nil,
+		NoteAttributes: map[string]interface{}{},
+	}, ignoreNoteBody(note))
+
+	note = notes[7]
+	assert.Equal(t, &ParsedNote{
+		Kind:       "todo",
+		Level:      2,
+		LongTitle:  "TODO: List",
+		ShortTitle: "List",
+		Line:       86 - file.BodyLine + 1,
+		NoteTags:   nil,
+		NoteAttributes: map[string]interface{}{},
+	}, ignoreNoteBody(note))
+
+	note = notes[8]
+	assert.Equal(t, &ParsedNote{
+		Kind:       "note",
+		Level:      2,
+		LongTitle:  "Note: Comments",
+		ShortTitle: "Comments",
+		Line:       100 - file.BodyLine + 1,
+		NoteTags:   nil,
+		NoteAttributes: map[string]interface{}{},
+	}, ignoreNoteBody(note))
+
+	note = notes[9]
+	assert.Equal(t, &ParsedNote{
+		Kind:       "quote",
+		Level:      2,
+		LongTitle:  "Quote: Richly Annotated Quote",
+		ShortTitle: "Richly Annotated Quote",
+		Line:       116 - file.BodyLine + 1,
+		NoteTags:  []string{"life", "doing", "life-changing", "courage"},
+		NoteAttributes: map[string]interface{}{
+			"name": "Christine Mason Miller",
+			"nationality": "American",
+        	"occupation": "author",
+        	"tags": []interface {}{"life", "doing", "life-changing", "courage"},
+		},
+	}, ignoreNoteBody(note))
+}
+
+/* Test Helpers */
+
+func ignoreNoteBody(note *ParsedNote) *ParsedNote {
+	var res ParsedNote
+	copier.Copy(&res, note)
+	res.Body = ""
+	return &res
 }

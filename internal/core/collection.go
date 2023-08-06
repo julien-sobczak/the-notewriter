@@ -13,6 +13,7 @@ import (
 	"github.com/julien-sobczak/the-notewriter/internal/reference/wikipedia"
 	"github.com/julien-sobczak/the-notewriter/internal/reference/zotero"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/filesystem"
 	"github.com/julien-sobczak/the-notewriter/pkg/resync"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	godiffpatch "github.com/sourcegraph/go-diff-patch"
@@ -760,17 +761,9 @@ func (c *Collection) Lint(ruleNames []string, paths ...string) (*LintResult, err
 	return &result, nil
 }
 
-type Counters struct {
-	CountKind       map[string]int
-	CountTags       map[string]int
-	CountAttributes map[string]int
-}
-
-// Counters reports various statistics.
-func (c *Collection) Counters() (*Counters, error) {
-	var counters Counters
-
-	// Count object per kind
+// CountObjectsByType returns the total number of objects for every type.
+func (c *Collection) CountObjectsByType() (map[string]int, error) {
+	// Count object per type
 	countFiles, err := c.CountFiles()
 	if err != nil {
 		return nil, err
@@ -796,30 +789,14 @@ func (c *Collection) Counters() (*Counters, error) {
 		return nil, err
 	}
 
-	counters.CountKind = map[string]int{
+	return map[string]int{
 		"file":      countFiles,
 		"note":      countNotes,
 		"flashcard": countFlashcards,
 		"media":     countMedias,
 		"link":      countLinks,
 		"reminder":  countReminders,
-	}
-
-	// Count tags
-	countTags, err := c.CountTags()
-	if err != nil {
-		return nil, err
-	}
-	counters.CountTags = countTags
-
-	// Count attributes
-	countAttributes, err := c.CountAttributes()
-	if err != nil {
-		return nil, err
-	}
-	counters.CountAttributes = countAttributes
-
-	return &counters, nil
+	}, nil
 }
 
 // Diff show changes between commits and working tree.
@@ -941,4 +918,111 @@ func (c *Collection) Diff(staged bool) (string, error) {
 	}
 
 	return diff.String(), nil
+}
+
+/* Statistics */
+
+type StatsInDB struct {
+	Objects    map[string]int
+	Kinds      map[NoteKind]int
+	Tags       map[string]int
+	Attributes map[string]int
+	SizeKB     int64
+}
+
+func NewStatsInDBEmpty() *StatsInDB {
+	return &StatsInDB{
+		Objects: map[string]int{
+			"file":      0,
+			"note":      0,
+			"flashcard": 0,
+			"media":     0,
+			"link":      0,
+			"reminder":  0,
+		},
+		Kinds: map[NoteKind]int{
+			KindFree:       0,
+			KindReference:  0,
+			KindNote:       0,
+			KindFlashcard:  0,
+			KindCheatsheet: 0,
+			KindQuote:      0,
+			KindJournal:    0,
+			KindTodo:       0,
+			KindArtwork:    0,
+			KindSnippet:    0,
+		},
+		Tags:       map[string]int{},
+		Attributes: map[string]int{},
+		SizeKB:     0,
+	}
+}
+
+// StatsInDB returns various statistics about the .nt/database.db file.
+func (c *Collection) StatsInDB() (*StatsInDB, error) {
+	dbPath := filepath.Join(CurrentConfig().RootDirectory, ".nt/database.db")
+
+	// Ensure the objects directory exists
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		// Not exists (occurs before the first commit)
+		return NewStatsInDBEmpty(), nil
+	}
+
+	// Count objects
+	countObjectsInDB, err := c.CountObjectsByType()
+	if err != nil {
+		return nil, err
+	}
+
+	// Count notes
+	countNotesInDB, err := c.CountNotesByKind()
+	if err != nil {
+		return nil, err
+	}
+
+	// Count tags
+	countTagsInDB, err := c.CountTags()
+	if err != nil {
+		return nil, err
+	}
+
+	// Count attributes
+	countAttributesInDB, err := c.CountAttributes()
+	if err != nil {
+		return nil, err
+	}
+
+	databaseSize, _ := filesystem.FileSize(dbPath)
+	// Ignore error as file may not exist at first
+
+	return &StatsInDB{
+		Objects:    countObjectsInDB,
+		Kinds:      countNotesInDB,
+		Tags:       countTagsInDB,
+		Attributes: countAttributesInDB,
+		SizeKB:     databaseSize / filesystem.KB,
+	}, nil
+}
+
+type Stats struct {
+	OnDisk *StatsOnDisk
+	InDB   *StatsInDB
+}
+
+// Stats returns various statitics about the storage.
+func (c *Collection) Stats() (*Stats, error) {
+	statsOnDisk, err := CurrentDB().StatsOnDisk()
+	if err != nil {
+		return nil, err
+	}
+
+	statsInDB, err := c.StatsInDB()
+	if err != nil {
+		return nil, err
+	}
+
+	return &Stats{
+		OnDisk: statsOnDisk,
+		InDB:   statsInDB,
+	}, nil
 }

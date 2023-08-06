@@ -574,6 +574,24 @@ func NewCommit() *Commit {
 	}
 }
 
+// NewCommitFromPath reads a commit file on disk or returns an empty instance.
+func NewCommitFromPath(path string) (*Commit, error) {
+	in, err := os.Open(path)
+	if errors.Is(err, os.ErrNotExist) {
+		// First use
+		return NewCommit(), nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	commit := new(Commit)
+	if err := commit.Read(in); err != nil {
+		return nil, err
+	}
+	in.Close()
+	return commit, nil
+}
+
 // GetObject retrieves an object from a commit.
 func (c *Commit) GetObject(oid string) *CommitObject {
 	for _, object := range c.Objects {

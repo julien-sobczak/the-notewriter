@@ -19,7 +19,7 @@ var countObjectsCmd = &cobra.Command{
 	Long:  `Show various counter about internal database.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		CheckConfig()
-		counters, err := core.CurrentCollection().Counters()
+		stats, err := core.CurrentCollection().StatsInDB()
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -27,15 +27,19 @@ var countObjectsCmd = &cobra.Command{
 
 		// Kinds
 		fmt.Println("Count per kind:")
-		for _, kind := range keysSortedByValuesDesc(counters.CountKind) {
-			fmt.Printf("- %s: %d\n", kind, counters.CountKind[kind])
+		kinds := make(map[string]int)
+		for key, value := range stats.Kinds {
+			kinds[string(key)] = value
+		}
+		for _, kind := range keysSortedByValuesDesc(kinds) {
+			fmt.Printf("- %s: %d\n", kind, kinds[kind])
 		}
 		fmt.Println("")
 
 		// Tags
-		countTags := keysSortedByValuesDesc(counters.CountTags)
+		countTags := keysSortedByValuesDesc(stats.Tags)
 		mostPopularTags := countTags
-		countTags = keysSortedByValuesAsc(counters.CountTags)
+		countTags = keysSortedByValuesAsc(stats.Tags)
 		leastPopularTags := countTags
 		if len(countTags) > 10 {
 			mostPopularTags = mostPopularTags[0:10]
@@ -43,18 +47,18 @@ var countObjectsCmd = &cobra.Command{
 		}
 		fmt.Println("Most popular tags")
 		for _, tag := range mostPopularTags {
-			fmt.Printf("- %s: %d\n", tag, counters.CountTags[tag])
+			fmt.Printf("- %s: %d\n", tag, stats.Tags[tag])
 		}
 		fmt.Println("Least popular tags")
 		for _, tag := range leastPopularTags {
-			fmt.Printf("- %s: %d\n", tag, counters.CountTags[tag])
+			fmt.Printf("- %s: %d\n", tag, stats.Tags[tag])
 		}
 		fmt.Println("")
 
 		// Attributes
-		countAttributes := keysSortedByValuesDesc(counters.CountAttributes)
+		countAttributes := keysSortedByValuesDesc(stats.Attributes)
 		mostPopularAttributes := countAttributes
-		countAttributes = keysSortedByValuesAsc(counters.CountAttributes)
+		countAttributes = keysSortedByValuesAsc(stats.Attributes)
 		leastPopularAttributes := countAttributes
 		if len(countAttributes) > 10 {
 			mostPopularAttributes = mostPopularAttributes[0:10]
@@ -62,11 +66,11 @@ var countObjectsCmd = &cobra.Command{
 		}
 		fmt.Println("Most popular attributes")
 		for _, attribute := range mostPopularAttributes {
-			fmt.Printf("- %s: %d\n", attribute, counters.CountAttributes[attribute])
+			fmt.Printf("- %s: %d\n", attribute, stats.Attributes[attribute])
 		}
 		fmt.Println("Least popular attributes")
 		for _, attribute := range leastPopularAttributes {
-			fmt.Printf("- %s: %d\n", attribute, counters.CountAttributes[attribute])
+			fmt.Printf("- %s: %d\n", attribute, stats.Attributes[attribute])
 		}
 	},
 }

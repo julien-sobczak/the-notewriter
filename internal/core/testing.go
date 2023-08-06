@@ -221,3 +221,28 @@ func assertContentEqual(t *testing.T, expected string, file *File) {
 func assertTrimEqual(t *testing.T, expected string, actual string) {
 	assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
 }
+
+/* Text Helpers */
+
+// ReplaceLine replaces a line inside a file.
+func ReplaceLine(t *testing.T, path string, lineNumber int, oldLine string, newLine string) {
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	lines := strings.Split(string(data), "\n")
+	require.LessOrEqual(t, lineNumber, len(lines))
+	require.Equal(t, oldLine, lines[lineNumber-1])
+	lines[lineNumber-1] = newLine
+	content := strings.Join(lines, "\n")
+	os.WriteFile(path, []byte(content), 0644)
+}
+
+// AppendLines append multiple lines in a file.
+func AppendLines(t *testing.T, path string, text string) {
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	lines := strings.Split(string(data), "\n")
+	newLines := strings.Split(text, "\n")
+	lines = append(lines, newLines...)
+	content := strings.Join(lines, "\n")
+	os.WriteFile(path, []byte(content), 0644)
+}

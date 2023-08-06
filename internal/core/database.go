@@ -16,9 +16,11 @@ import (
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/filesystem"
 	"github.com/julien-sobczak/the-notewriter/pkg/resync"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	godiffpatch "github.com/sourcegraph/go-diff-patch"
+	"golang.org/x/exp/slices"
 )
 
 //go:embed sql/*.sql
@@ -983,4 +985,92 @@ func (db *DB) determineState(commitObject *CommitObject) State {
 		return None
 	}
 	return Modified
+}
+
+/* Stats */
+
+type StatsOnDisk struct {
+	// Number of files under .nt/objects
+	ObjectFiles int
+	// Number of commits in .nt/commit-graph
+	Commits int
+	// Number of blobs under .nt/objects
+	Blobs int
+	// Number of objects (file, note, etc.) present in commits
+	Objects map[string]int
+	// Number of objects listed in .nt/objects/index
+	IndexObjects int
+	// Total size of directory .nt/objects
+	TotalSizeKB int64
+}
+
+func NewStatsOnDiskEmpty() *StatsOnDisk {
+	return &StatsOnDisk{
+		ObjectFiles: 0,
+		Commits:     0,
+		Blobs:       0,
+		Objects: map[string]int{
+			"file":      0,
+			"note":      0,
+			"flashcard": 0,
+			"media":     0,
+			"link":      0,
+			"reminder":  0,
+		},
+		IndexObjects: 0,
+		TotalSizeKB:  0,
+	}
+}
+
+// StatsOnDisk returns various statistics about the .nt/objects directory.
+func (db *DB) StatsOnDisk() (*StatsOnDisk, error) {
+	objectsPath := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects/")
+
+	// Ensure the objects directory exists
+	if _, err := os.Stat(objectsPath); os.IsNotExist(err) {
+		// Not exists (occurs before the first commit)
+		return NewStatsOnDiskEmpty(), nil
+	}
+
+	files, err := filesystem.ListFiles(objectsPath)
+	if err != nil {
+		return nil, err
+	}
+
+	result := NewStatsOnDiskEmpty()
+
+	for _, file := range files {
+		oid := filepath.Base(file)
+
+		result.ObjectFiles++
+
+		if slices.Contains(db.commitGraph.CommitOIDs, oid) {
+			// It's a commit file
+			result.Commits++
+			// Check the content to count objects/notes
+			commit, err := NewCommitFromPath(file)
+			if err != nil {
+				return nil, err
+			}
+			for _, object := range commit.Objects {
+				result.Objects[object.Kind]++
+			}
+		} else {
+			// Must be a blob
+			result.Blobs++
+		}
+	}
+
+	totalSize, err := filesystem.DirSize(objectsPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if db.index != nil {
+		result.IndexObjects = len(db.index.Objects)
+	}
+
+	result.TotalSizeKB = totalSize / filesystem.KB
+
+	return result, nil
 }

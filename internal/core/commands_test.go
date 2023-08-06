@@ -564,46 +564,6 @@ A **gopher**.
 
 }
 
-func TestCommandCountObjects(t *testing.T) {
-
-	t.Run("Basic", func(t *testing.T) {
-		SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
-
-		counters, err := CurrentCollection().Counters()
-		require.NoError(t, err)
-		assert.Equal(t, 0, counters.CountKind["file"])
-		assert.Equal(t, 0, counters.CountKind["note"])
-		assert.Equal(t, 0, counters.CountKind["flashcard"])
-		assert.Equal(t, 0, counters.CountKind["media"])
-		assert.Equal(t, 0, counters.CountKind["link"])
-		assert.Equal(t, 0, counters.CountKind["reminder"])
-
-		err = CurrentCollection().Add(".")
-		require.NoError(t, err)
-
-		counters, err = CurrentCollection().Counters()
-		require.NoError(t, err)
-		assert.Greater(t, counters.CountKind["file"], 0)
-		assert.Greater(t, counters.CountKind["note"], 0)
-		assert.Greater(t, counters.CountKind["flashcard"], 0)
-		assert.Greater(t, counters.CountKind["media"], 0)
-		assert.Greater(t, counters.CountKind["link"], 0)
-		assert.Greater(t, counters.CountKind["reminder"], 0)
-
-		assert.Equal(t, map[string]int{
-			"go":      3,
-			"history": 1,
-		}, counters.CountTags)
-
-		assert.Equal(t, map[string]int{
-			"source": 1,
-			"tags":   3,
-			"title":  3,
-		}, counters.CountAttributes)
-	})
-
-}
-
 func TestCommandDiff(t *testing.T) {
 
 	t.Run("Diff", func(t *testing.T) {
@@ -833,18 +793,4 @@ func TestSourcegraphGoDiff(t *testing.T) {
 		" }\n"
 
 	assert.Equal(t, expected, patch)
-}
-
-/* Test Helpers */
-
-// ReplaceLine replaces a line inside a file.
-func ReplaceLine(t *testing.T, path string, lineNumber int, oldLine string, newLine string) {
-	data, err := os.ReadFile(path)
-	require.NoError(t, err)
-	lines := strings.Split(string(data), "\n")
-	require.LessOrEqual(t, lineNumber, len(lines))
-	require.Equal(t, oldLine, lines[lineNumber-1])
-	lines[lineNumber-1] = newLine
-	content := strings.Join(lines, "\n")
-	os.WriteFile(path, []byte(content), 0644)
 }

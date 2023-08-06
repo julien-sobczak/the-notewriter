@@ -1022,6 +1022,56 @@ func (c *Collection) CountNotes() (int, error) {
 	return count, nil
 }
 
+// CountNotesByKind returns the total number of notes for every kind.
+func (c *Collection) CountNotesByKind() (map[NoteKind]int, error) {
+	res := map[NoteKind]int{
+		KindFree:       0,
+		KindReference:  0,
+		KindNote:       0,
+		KindFlashcard:  0,
+		KindCheatsheet: 0,
+		KindQuote:      0,
+		KindJournal:    0,
+		KindTodo:       0,
+		KindArtwork:    0,
+		KindSnippet:    0,
+	}
+
+	var count int
+	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM note where kind = ?`, KindFree).Scan(&count); err == nil {
+		res[KindFree] = count
+	}
+	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM note where kind = ?`, KindReference).Scan(&count); err == nil {
+		res[KindReference] = count
+	}
+	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM note where kind = ?`, KindNote).Scan(&count); err == nil {
+		res[KindNote] = count
+	}
+	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM note where kind = ?`, KindFlashcard).Scan(&count); err == nil {
+		res[KindFlashcard] = count
+	}
+	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM note where kind = ?`, KindCheatsheet).Scan(&count); err == nil {
+		res[KindCheatsheet] = count
+	}
+	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM note where kind = ?`, KindQuote).Scan(&count); err == nil {
+		res[KindQuote] = count
+	}
+	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM note where kind = ?`, KindJournal).Scan(&count); err == nil {
+		res[KindJournal] = count
+	}
+	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM note where kind = ?`, KindTodo).Scan(&count); err == nil {
+		res[KindTodo] = count
+	}
+	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM note where kind = ?`, KindArtwork).Scan(&count); err == nil {
+		res[KindArtwork] = count
+	}
+	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM note where kind = ?`, KindSnippet).Scan(&count); err == nil {
+		res[KindSnippet] = count
+	}
+
+	return res, nil
+}
+
 // CountTags returns the tags with their associated count.
 func (c *Collection) CountTags() (map[string]int, error) {
 	result := make(map[string]int)
