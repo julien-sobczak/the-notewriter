@@ -87,8 +87,6 @@ func TestRegression(t *testing.T) {
 		require.NoError(t, err)
 		edition.Check(t, lastStats, currentStats)
 	}
-
-	fmt.Println("ici")
 }
 
 /* Test Helpers */

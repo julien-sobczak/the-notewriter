@@ -24,7 +24,7 @@ import (
 // NoteLongTitleSeparator represents the separator when determine the long title of a note.
 const NoteLongTitleSeparator string = " / "
 
-const missingBlobOID string = "4044044044044044044044044044044044044040"
+const missingMediaOID string = "4044044044044044044044044044044044044040"
 
 type NoteKind string
 
@@ -527,13 +527,12 @@ func (n *Note) ReplaceMediasByOIDLinks(md string) string {
 	matches := regexMedias.FindAllStringSubmatchIndex(md, -1)
 	for _, match := range matches {
 		result.WriteString(md[prevIndex:match[2]])
-		prevIndex = match[2]
 
 		link := md[match[2]:match[3]]
 		relativePath, err := CurrentCollection().GetNoteRelativePath(n.GetFile().RelativePath, link)
 		if err != nil {
 			// Use a 404 image
-			result.WriteString("oid:" + missingBlobOID)
+			result.WriteString("oid:" + missingMediaOID)
 			prevIndex = match[3]
 			continue
 		}
@@ -541,25 +540,20 @@ func (n *Note) ReplaceMediasByOIDLinks(md string) string {
 		media, err := CurrentCollection().FindMediaByRelativePath(relativePath)
 		if err != nil || media == nil {
 			// Use a 404 image
-			result.WriteString("oid:" + missingBlobOID)
+			result.WriteString("oid:" + missingMediaOID)
 			prevIndex = match[3]
 			continue
 		}
 
 		if media.Dangling {
 			// Use a 404 image
-			result.WriteString("oid:" + missingBlobOID)
+			result.WriteString("oid:" + missingMediaOID)
 			prevIndex = match[3]
 			continue
 		}
 
-		for _, blob := range media.Blobs() {
-			if slices.Contains(blob.Tags, "preview") {
-				result.WriteString("oid:" + blob.OID)
-				prevIndex = match[3]
-				break
-			}
-		}
+		result.WriteString("oid:" + media.OID)
+		prevIndex = match[3]
 	}
 	// Add remaining text
 	result.WriteString(md[prevIndex:])

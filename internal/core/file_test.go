@@ -1009,6 +1009,7 @@ func TestFeatures(t *testing.T) {
 
 func TestPostProcessing(t *testing.T) {
 	SetUpCollectionFromGoldenDir(t)
+	UseSequenceOID(t)
 
 	err := CurrentCollection().Add(".")
 	require.NoError(t, err)
@@ -1093,7 +1094,7 @@ func TestPostProcessing(t *testing.T) {
 
 The Golang programming language uses the image of a gopher as logo:
 
-![Golang Logo](oid:cc79c943c616af40bfbaf88b061603985d811210)`, note.ContentMarkdown)
+![Golang Logo](oid:0000000000000000000000000000000000000012)`, note.ContentMarkdown)
 	})
 
 	t.Run("Comment Formatting", func(t *testing.T) {
@@ -1349,7 +1350,7 @@ func TestParseFileComplex(t *testing.T) {
 		Line:       55 - file.BodyLine + 1,
 		NoteTags:   []string{"tag-a"},
 		NoteAttributes: map[string]interface{}{
-			"tags": []interface{}{"tag-a"},
+			"tags":   []interface{}{"tag-a"},
 			"source": "https://www.markdownguide.org/basic-syntax/#headings",
 		},
 	}, ignoreNoteBody(note))
@@ -1395,34 +1396,34 @@ func TestParseFileComplex(t *testing.T) {
 
 	note = notes[6]
 	assert.Equal(t, &ParsedNote{
-		Kind:       "note",
-		Level:      6,
-		LongTitle:  "Note: E",
-		ShortTitle: "E",
-		Line:       81 - file.BodyLine + 1,
-		NoteTags:   nil,
+		Kind:           "note",
+		Level:          6,
+		LongTitle:      "Note: E",
+		ShortTitle:     "E",
+		Line:           81 - file.BodyLine + 1,
+		NoteTags:       nil,
 		NoteAttributes: map[string]interface{}{},
 	}, ignoreNoteBody(note))
 
 	note = notes[7]
 	assert.Equal(t, &ParsedNote{
-		Kind:       "todo",
-		Level:      2,
-		LongTitle:  "TODO: List",
-		ShortTitle: "List",
-		Line:       86 - file.BodyLine + 1,
-		NoteTags:   nil,
+		Kind:           "todo",
+		Level:          2,
+		LongTitle:      "TODO: List",
+		ShortTitle:     "List",
+		Line:           86 - file.BodyLine + 1,
+		NoteTags:       nil,
 		NoteAttributes: map[string]interface{}{},
 	}, ignoreNoteBody(note))
 
 	note = notes[8]
 	assert.Equal(t, &ParsedNote{
-		Kind:       "note",
-		Level:      2,
-		LongTitle:  "Note: Comments",
-		ShortTitle: "Comments",
-		Line:       100 - file.BodyLine + 1,
-		NoteTags:   nil,
+		Kind:           "note",
+		Level:          2,
+		LongTitle:      "Note: Comments",
+		ShortTitle:     "Comments",
+		Line:           100 - file.BodyLine + 1,
+		NoteTags:       nil,
 		NoteAttributes: map[string]interface{}{},
 	}, ignoreNoteBody(note))
 
@@ -1433,12 +1434,12 @@ func TestParseFileComplex(t *testing.T) {
 		LongTitle:  "Quote: Richly Annotated Quote",
 		ShortTitle: "Richly Annotated Quote",
 		Line:       116 - file.BodyLine + 1,
-		NoteTags:  []string{"life", "doing", "life-changing", "courage"},
+		NoteTags:   []string{"life", "doing", "life-changing", "courage"},
 		NoteAttributes: map[string]interface{}{
-			"name": "Christine Mason Miller",
+			"name":        "Christine Mason Miller",
 			"nationality": "American",
-        	"occupation": "author",
-        	"tags": []interface {}{"life", "doing", "life-changing", "courage"},
+			"occupation":  "author",
+			"tags":        []interface{}{"life", "doing", "life-changing", "courage"},
 		},
 	}, ignoreNoteBody(note))
 }
