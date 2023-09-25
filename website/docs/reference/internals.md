@@ -181,7 +181,7 @@ front_html: |-            # Front card in HTML
 back_html: |-             # Back card in HTML
     <p>A <strong>gopher</strong>.</p>
 
-    <p><img src="oid:4a4faba3" alt="Logo" /></p>
+    <p><media oid="4a4faba3" alt="Logo" /></p>
 front_text: |-            # Front card in plain text
     What does the Golang logo represent?
 back_text: |-             # Back card in HTML

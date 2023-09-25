@@ -21,7 +21,7 @@ func TestToSupportedFormats(t *testing.T) {
 		{"Blockquotes"},
 		{"Lists"},
 		{"CodeBlocks"},
-		{"Images"},
+		{"Medias"},
 		{"Links"},
 		{"Tables"},
 		{"Tasks"},
