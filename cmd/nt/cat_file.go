@@ -31,7 +31,7 @@ var catFileCmd = &cobra.Command{
 		if isOID(arg) {
 			oid := arg
 
-			// OIDs can represent a commit, an object inside a commit, or a blob.
+			// OIDs can represent a pack file, an object inside a pack file, or a blob.
 
 			blob, err := core.CurrentCollection().FindBlobFromOID(oid)
 			if err == nil && blob != nil {
@@ -39,8 +39,8 @@ var catFileCmd = &cobra.Command{
 				return
 			}
 
-			commit, err := core.CurrentDB().ReadCommit(oid)
-			if err == nil && commit != nil {
+			commit, ok := core.CurrentDB().ReadCommit(oid)
+			if ok {
 				dumpObject(commit)
 				return
 			}

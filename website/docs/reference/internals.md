@@ -11,7 +11,7 @@ Examples are sometimes edited to keep them concise. For example, most OIDs will 
 :::
 
 
-_The NoteWriter_ is fundamentally a CLI to extract objects from files.
+_The NoteWriter_ is fundamentally a CLI to extract objects from Markdown files.
 
 ## _The NoteWriter_ Objects
 
@@ -292,11 +292,11 @@ updated_at: 2023-01-01T12:00:00           # Object modification time
 
 :::tip
 
-_The NoteWriter_ internal database (like commands) is largely inspired by Git. If you have already looked at [Git Internals](https://git-scm.com/book/en/v2/Git-Internals-Plumbing-and-Porcelain), the file names and their organization on disk is very similar. Here are major differences:
+_The NoteWriter_ internal database (like commands) is largely inspired by Git. If you have already looked at [Git Internals](https://git-scm.com/book/en/v2/Git-Internals-Plumbing-and-Porcelain), the file names and their organization on disk are very similar. Here are the main differences:
 
-* The content of index files is mostly YAML files (easier to debug).
-* There are no branching, no versioning. _The NoteWriter_ is designed to be used with Git.
-* There are no equivalent to Git packfiles (composite file packaging previously-created Git objects to improve performance). _The NoteWriter_ packages objects inside `commit` files for similar reasons but the implementation differs as the packaging is done immediately.
+* The content of index files is mostly YAML files (easier to debug but less performant).
+* There are no branching, no versioning. _The NoteWriter_ is designed to be used along Git.
+* Objects are persisted in pack files immediately to limit the number of files on disk (Git defers the creation of packfiles in a maintenance task).
 
 :::
 
@@ -333,10 +333,10 @@ This section documents the format of the different files that composed the inter
 
 This directory contains two kinds of objects:
 
-* Commits (a kind of "packfile" regrouping all updated objects in a single commit).
+* Pack Files (a group of edited objects referenced by a single commit).
 * Blobs (the raw bytes for a single media file, the metadata are stored in the media object referencing the blob inside a commit object).
 
-All objects (leafs such as `note` or composite such as `commit`  commits) and all blobs are uniquely identified by their OID, a 40-character string similar to the SHA-1 used by Git. This OID is used to spread the files into subdirectories and avoid having thousands of files directly under `.nt/objects`. For example, the commit `afe988e5f40e4d1181a86f522e3c1f2e6f0241e3` and the blob `6ee8a9620d3f4d3f9fbd159744ef85b83400b0d4` will be stored like this:
+All objects (leafs such as `note` or pack files) and all blobs are uniquely identified by their OID, a 40-character string similar to the SHA-1 used by Git. This OID is used to spread the files into subdirectories and avoid having thousands of files directly under `.nt/objects`. For example, the pack file `afe988e5f40e4d1181a86f522e3c1f2e6f0241e3` and the blob `6ee8a9620d3f4d3f9fbd159744ef85b83400b0d4` will be stored like this:
 
 ```
 .nt
@@ -347,18 +347,18 @@ All objects (leafs such as `note` or composite such as `commit`  commits) and al
         └── afe988e5f40e4d1181a86f522e3c1f2e6f0241e3
 ```
 
-The directory `objects` contains an additional file `.nt/objects/info/commit-graph` containing the linear sequence of commits applied in this repository.
+The directory `objects` contains an additional file `.nt/objects/info/commit-graph` containing the linear sequence of commits (and their pack files) applied in this repository.
 
-#### `.nt/objects/{xx}/{commit-sha1}`
+#### `.nt/objects/{xx}/{packfile-sha1}`
 
-Commits are YAML objects.
+Pack files are YAML objects.
 
 Ex:
 
 ```yaml
-oid: 4a03d1ab               # A unique OID for this commit (as present in commit-graph)
-ctime: 2023-01-01T12:00:00  # The commit creation time
-objects:                    # The list of all objects added/modified/deleted by this commit
+oid: 4a03d1ab               # A unique OID for this pack file (as present in commit-graph under the corresponding commit)
+ctime: 2023-01-01T12:00:00  # The creation time
+objects:                    # The list of all objects added/modified/deleted (a new pack file cannot contain more than a predefined number of objects)
     - oid: d19a2bba                      # The object OID
       kind: file                         # The object kind
       state: added                       # The action introduced by this commit
@@ -389,7 +389,7 @@ content_hash: b70f7d0e2acef2e0fa1c6f117e3c11e0d7082232
 ...
 ```
 
-The main motivation behind `commit` objects is to limit the number of files on disk (and the number of files to transfer when using a [remote repository](../guides/remote.md)).
+The main motivation behind pack files is to limit the number of files on disk (and the number of files to transfer when using a [remote repository](../guides/remote.md)).
 
 #### `.nt/objects/info/commit-graph`
 
@@ -398,22 +398,28 @@ The `commit-graph` file lists in a sequential order all commits that was process
 Ex:
 
 ```yaml
-updated_at: 2023-01-01T12:00:00  # Date of the last applied commit
-commits:                         # List of commits
-    - 4a03d1ab                   #     - Older commit
-    - dbeaba70                   #     - ...
-    - afe988e5                   #     - Last commit
+updated_at: 2023-01-01T12:00:00       # Date of the last applied commit
+commits:                              # List of commits
+    - oid: 4a03d1ab                   # - Older commit
+      ctime: 2023-01-01T10:00:00      #
+      packfiles: [de29102f]           #
+    - oid: dbeaba70                   # - ...
+      ctime: 2023-01-01T11:00:00      #
+      packfiles: [ed431a12, 34fa982a] #
+    - oid: afe988e5                   # - Last commit
+      ctime: 2023-01-01T12:00:00      #
+      packfiles: [aa8765d1]           #
 ```
 
 ### `.nt/index`
 
-The `index` file serves multiple purposes. It contains the staging area (= the list of objects to include in the next commit) and keeps a list of all objects to quickly locate the commit containing them.
+The `index` file serves multiple purposes. It contains the staging area (= the list of objects to include in the next commit) and keeps a list of all objects to quickly locate the commit and pack file containing them.
 
 Ex:
 
 ```yaml
 objects:                                      # List of all known objects in repository
-                                              # (do not include commit objects)
+                                              # (do not include pack file objects)
     - oid: d19a2bba                           # Object OID
       kind: file                              # Object Kind
       mtime: 2023-01-01T12:00:00              # Object modification time
@@ -427,31 +433,32 @@ objects:                                      # List of all known objects in rep
       mtime: 2023-01-01T12:00:00
       commit_oid: dbeaba70
 orphan_blobs: []
+orphan_packfiles: []
 staging: # The Staging Area (= nt add)
     # NB: Objects in staging area uses
     # the same format as object in commit files
     # (make easy to create new commit files)
-    - commitobject:
-        oid: d19a2bba42
-        kind: file
-        state: modified
-        mtime: 2023-01-01T12:00:00
-        desc: file "hello.md" [d19a2bba]
-        data: <value>
-        previous_commit_oid: afe988e5
-    - commitobject:
-        oid: 6ee8a962
-        kind: note
-        state: modified
-        mtime: 2023-01-01T12:00:00
-        desc: 'note "Reference: Hello" [6ee8a962]'
-        data: <value>
-        previous_commit_oid: afe988e5
+    - oid: d19a2bba42
+      kind: file
+      state: modified
+      mtime: 2023-01-01T12:00:00
+      desc: file "hello.md" [d19a2bba]
+      data: <value>
+      previous_commit_oid: afe988e5
+      previous_packfile_oid: b45ef325
+    - oid: 6ee8a962
+      kind: note
+      state: modified
+      mtime: 2023-01-01T12:00:00
+      desc: 'note "Reference: Hello" [6ee8a962]'
+      data: <value>
+      previous_commit_oid: afe988e5
+      previous_packfile_oid: b45ef325
 ```
 
 ### `.nt/refs/`
 
-In the way that Git Branches are simply aliases to commit SHA-1, references contains the a commit OID.
+In the same way that Git Branches are simply aliases to commit SHA-1, references contains a commit OID.
 
 * `.nt/refs/main` is the reference for the local repository (= the last commit OID present in `commit-graph`)
 * `.nt/refs/remote` is only present when using a [remote](../guides/remote.md). It contains the last known commit when the remote was last checked.
@@ -490,7 +497,7 @@ In addition to raw files, _The NoteWriter_ also comprises a SQLite database (pop
     $ nt init
     $ echo "# Reference: Hello\n\nCoucou" > hello.md
     $ nt add hello.md && nt commit
-    [4a03d1ab3dbe4c5d9efacd0e05e187179c5415c6]
+    [bf712c5de01642338ce2d16a37daabeb37daabeb]
      2 objects changes, 2 insertion(s)
      create file "hello.md" [d19a2bba42d44d8a82b18b2edcd4320612a3dfbc]
      create note "Reference: Hello" [6ee8a9620d3f4d3f9fbd159744ef85b83400b0d4]
@@ -517,7 +524,7 @@ In addition to raw files, _The NoteWriter_ also comprises a SQLite database (pop
     └── hello.md
     ```
 
-    Database files have now been created. We have a new object under `objects` representing our commit (`4a03d1ab3dbe4c5d9efacd0e05e187179c5415c6`) and containing the objects:
+    Database files have now been created. We have a new object under `objects` representing the unique pack file (`4a03d1ab3dbe4c5d9efacd0e05e187179c5415c6`) contained in our commit and containing the objects:
 
     ```shell
     $ nt cat-file
@@ -544,14 +551,16 @@ In addition to raw files, _The NoteWriter_ also comprises a SQLite database (pop
     $ cat .nt/objects/info/commit-graph
     updated_at: 2023-01-01T12:00:00
     commits:
-        - 4a03d1ab3dbe4c5d9efacd0e05e187179c5415c6
+        - oid: bf712c5de01642338ce2d16a37daabeb37daabeb
+          ctime: 2023-01-01T12:00:00
+          packfiles: [4a03d1ab3dbe4c5d9efacd0e05e187179c5415c6]
     ```
 
     The reference `main` points to this commit:
 
     ```shell
     $ cat .nt/refs/main
-    4a03d1ab3dbe4c5d9efacd0e05e187179c5415c6
+    bf712c5d
     ```
 
     And our index has been updated to clear the staging area:
@@ -568,6 +577,7 @@ In addition to raw files, _The NoteWriter_ also comprises a SQLite database (pop
           mtime: 2023-01-01T12:00:00
           commit_oid: 4a03d1ab3dbe4c5d9efacd0e05e187179c5415c6
     orphan_blobs: []
+    orphan_packfiles: []
     staging: []
     ```
 
@@ -579,7 +589,7 @@ In addition to raw files, _The NoteWriter_ also comprises a SQLite database (pop
     $ nt add
     ```
 
-    Check the staging area is not empty:
+    Check that the staging area is not empty:
 
     ```shell
     $ cat .nt/index
@@ -587,44 +597,47 @@ In addition to raw files, _The NoteWriter_ also comprises a SQLite database (pop
     - oid: d19a2bba42d44d8a82b18b2edcd4320612a3dfbc
       kind: file
       mtime: 2023-01-01T12:00:00
-      commit_oid: 4a03d1ab3dbe4c5d9efacd0e05e187179c5415c6
+      commit_oid: bf712c5de01642338ce2d16a37daabeb37daabeb
+      packfile_oid: 4a03d1ab3dbe4c5d9efacd0e05e187179c5415c6
     - oid: 6ee8a9620d3f4d3f9fbd159744ef85b83400b0d4
       kind: note
       mtime: 2023-01-01T12:00:00
-      commit_oid: 4a03d1ab3dbe4c5d9efacd0e05e187179c5415c6
+      commit_oid: bf712c5de01642338ce2d16a37daabeb37daabeb
+      packfile_oid: 4a03d1ab3dbe4c5d9efacd0e05e187179c5415c6
     orphan_blobs: []
+    orphan_packfiles: []
     staging:
-        - commitobject:
-            oid: 3837a10fbc3a47c7961896febf64463b4a006c79
-            kind: media
-            state: added
-            mtime: 2023-01-01T12:00:00
-            desc: media me.png [3837a10fbc3a47c7961896febf64463b4a006c79]
-            data: gHi...=
-            previous_commit_oid: ""
-        - commitobject:
-            oid: d19a2bba42d44d8a82b18b2edcd4320612a3dfbc
-            kind: file
-            state: modified
-            mtime: 2023-01-01T12:00:00
-            desc: file "hello.md" [d19a2bba42d44d8a82b18b2edcd4320612a3dfbc]
-            data: AbC...=
-            previous_commit_oid: "4a03d1ab3dbe4c5d9efacd0e05e187179c5415c6"
-        - commitobject:
-            oid: 6ee8a9620d3f4d3f9fbd159744ef85b83400b0d4
-            kind: note
-            state: modified
-            mtime: 2023-01-01T12:00:00
-            desc: 'note "Reference: Hello" [6ee8a9620d3f4d3f9fbd159744ef85b83400b0d4]'
-            data: DeF...=
-            previous_commit_oid: "4a03d1ab3dbe4c5d9efacd0e05e187179c5415c6"
-        ```
+        - oid: 3837a10fbc3a47c7961896febf64463b4a006c79
+          kind: media
+          state: added
+          mtime: 2023-01-01T12:00:00
+          desc: media me.png [3837a10fbc3a47c7961896febf64463b4a006c79]
+          data: gHi...=
+          previous_commit_oid: ""
+          previous_packfile_oid: ""
+        - oid: d19a2bba42d44d8a82b18b2edcd4320612a3dfbc
+          kind: file
+          state: modified
+          mtime: 2023-01-01T12:00:00
+          desc: file "hello.md" [d19a2bba42d44d8a82b18b2edcd4320612a3dfbc]
+          data: AbC...=
+          previous_commit_oid: "bf712c5de01642338ce2d16a37daabeb37daabeb"
+          previous_packfile_oid: "4a03d1ab3dbe4c5d9efacd0e05e187179c5415c6"
+        - oid: 6ee8a9620d3f4d3f9fbd159744ef85b83400b0d4
+          kind: note
+          state: modified
+          mtime: 2023-01-01T12:00:00
+          desc: 'note "Reference: Hello" [6ee8a9620d3f4d3f9fbd159744ef85b83400b0d4]'
+          data: DeF...=
+          previous_commit_oid: "bf712c5de01642338ce2d16a37daabeb37daabeb"
+          previous_packfile_oid: "4a03d1ab3dbe4c5d9efacd0e05e187179c5415c6"
+    ```
 
 4. Commit changes
 
     ```shell
     $ nt commit
-    [dbeaba7026ce4be8aa84ee85992dc9eca31118f7]
+    [c34575fba9884d62b5512e2c5fbc274c5fbc274c]
      3 objects changes, 1 insertion(s), 2 modification(s)
      create media me.png [3837a10fbc3a47c7961896febf64463b4a006c79]
      modify file "hello.md" [d19a2bba42d44d8a82b18b2edcd4320612a3dfbc]
@@ -658,12 +671,14 @@ In addition to raw files, _The NoteWriter_ also comprises a SQLite database (pop
     $ cat .nt/objects/info/commit-graph
     updated_at: 2023-01-01T12:00:00
     commits:
-        - 4a03d1ab3dbe4c5d9efacd0e05e187179c5415c6
-        - dbeaba7026ce4be8aa84ee85992dc9eca31118f7
+        - oid: bf712c5de01642338ce2d16a37daabeb37daabeb
+          ctime: 2023-01-01T12:00:00
+          packfile: [4a03d1ab3dbe4c5d9efacd0e05e187179c5415c6]
+        - oid: c34575fba9884d62b5512e2c5fbc274c5fbc274c
+          ctime: 2023-01-01T12:00:00
+          packfile: [dbeaba7026ce4be8aa84ee85992dc9eca31118f7]
     $ cat .nt/refs/main
     dbeaba7026ce4be8aa84ee85992dc9eca31118f7
     ```
 
 That's all. You have seen the various files in action.
-
-

@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # Principles
 
-_The NoteWriter_ is a side project. Decisions are important when time is limited. Here are a few principles:
+_The NoteWriter_ is a side project. Decisions are important when time is limited. Here are a few self-imposed constraints:
 
 ## Minimal Dependencies
 
@@ -22,3 +22,6 @@ As a codebase grows over time, the number of lines of code between the core logi
 
 _The NoteWriter_ is not a general tool. It focus on developers working with Git and hosting their repositories on a platform like GitHub (= most of developers). The goal is to have a codebase where the core logic represents the majority of the lines of code.
 
+## Minimal Existing Features
+
+_The NoteWriter_ was not created to replace other tools but to experiment with a new approach to note-taking. The goal is not to have a long list of features but to implement the main ones in a new way.

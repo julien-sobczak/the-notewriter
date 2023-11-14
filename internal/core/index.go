@@ -41,10 +41,16 @@ type Index struct {
 	// Same as objects when searching by OID
 	objectsRef map[string]*IndexObject `yaml:"-"`
 	// Same as objects when searching by relative path
-	filesRef map[string]*IndexObject `yaml:"files"`
+	filesRef map[string]*IndexObject `yaml:"-"`
+
+	// Mapping between pack files and their commit OID
+	PackFiles map[string]string `yaml:"packfiles"`
+
+	// A list of pack files that is known to be orphans
+	OrphanPackFiles []*IndexOrphanPackFile `yaml:"orphan_packfiles"`
 
 	// A list of blobs that is known to be orphans
-	OrphanBlobs []*IndexBlob `yaml:"orphan_blobs"`
+	OrphanBlobs []*IndexOrphanBlob `yaml:"orphan_blobs"`
 
 	StagingArea StagingArea `yaml:"staging"`
 }
@@ -53,11 +59,17 @@ type IndexObject struct {
 	OID   string    `yaml:"oid"`
 	Kind  string    `yaml:"kind"`
 	MTime time.Time `yaml:"mtime"`
-	// The commit containing the latest version (empty for uncommitted object)
-	CommitOID string `yaml:"commit_oid"`
+	// The commit (and its packfile) containing the latest version (empty for uncommitted object)
+	CommitOID   string `yaml:"commit_oid"`
+	PackFileOID string `yaml:"packfile_oid"`
 }
 
-type IndexBlob struct {
+type IndexOrphanPackFile struct {
+	OID   string    `yaml:"oid"`
+	DTime time.Time `yaml:"dtime"`
+}
+
+type IndexOrphanBlob struct {
 	OID   string    `yaml:"oid"`
 	DTime time.Time `yaml:"dtime"`
 	// The media that introduced this blob
@@ -65,8 +77,9 @@ type IndexBlob struct {
 }
 
 type StagingObject struct {
-	CommitObject
-	PreviousCommitOID string `yaml:"previous_commit_oid"`
+	PackObject
+	PreviousCommitOID   string `yaml:"previous_commit_oid"`
+	PreviousPackFileOID string `yaml:"previous_packfile_oid"`
 }
 
 func (i IndexObject) String() string {
@@ -133,6 +146,7 @@ func NewIndex() *Index {
 	return &Index{
 		objectsRef: make(map[string]*IndexObject),
 		filesRef:   make(map[string]*IndexObject),
+		PackFiles:  make(map[string]string),
 	}
 }
 
@@ -195,6 +209,15 @@ func (i *Index) FindCommitContaining(objectOID string) (string, bool) {
 	return indexFile.CommitOID, true
 }
 
+// FindPackFileContaining returns the pack file associated with a given object.
+func (i *Index) FindPackFileContaining(objectOID string) (string, bool) {
+	indexFile, ok := i.objectsRef[objectOID]
+	if !ok {
+		return "", false
+	}
+	return indexFile.PackFileOID, true
+}
+
 // IsOrphanBlob checks if the blob has already beeing deleted.
 func (i *Index) IsOrphanBlob(oid string) bool {
 	for _, b := range i.OrphanBlobs {
@@ -206,11 +229,12 @@ func (i *Index) IsOrphanBlob(oid string) bool {
 	return false
 }
 
-// AppendCommit completes the index with object from a commit.
-func (i *Index) AppendCommit(c *Commit) {
-	for _, objectCommit := range c.Objects {
-		i.putObject(c.OID, objectCommit)
+// AppendPackFile completes the index with object from a pack file.
+func (i *Index) AppendPackFile(commitOID string, packFile *PackFile) {
+	for _, packObject := range packFile.PackObjects {
+		i.putPackObject(commitOID, packFile.OID, packObject)
 	}
+	i.PackFiles[packFile.OID] = commitOID
 }
 
 // StageObject registers a changed object into the staging area
@@ -222,7 +246,7 @@ func (i *Index) StageObject(obj StatefulObject) error {
 
 	// Update staging area
 	newStagingObject := &StagingObject{
-		CommitObject: CommitObject{
+		PackObject: PackObject{
 			OID:         obj.UniqueOID(),
 			Kind:        obj.Kind(),
 			State:       obj.State(),
@@ -233,6 +257,7 @@ func (i *Index) StageObject(obj StatefulObject) error {
 	}
 	if commitObject, ok := i.objectsRef[obj.UniqueOID()]; ok {
 		newStagingObject.PreviousCommitOID = commitObject.CommitOID
+		newStagingObject.PreviousPackFileOID = commitObject.PackFileOID
 	}
 
 	// Check if object was already added
@@ -253,33 +278,68 @@ func (i *Index) StageObject(obj StatefulObject) error {
 }
 
 // CreateCommit generates a new commit from current changes in the staging area.
-func (i *Index) CreateCommitFromStagingArea() *Commit {
-	c := NewCommit()
+func (i *Index) CreateCommitFromStagingArea() (*Commit, []*PackFile) {
+	commit := NewCommit()
+
+	// Group pack objects
+	var packFiles []*PackFile
+
+	// Rebuild a new pack file after every X objects
+	packFile := NewPackFile()
+	objectsInPackFile := 0
 
 	for _, obj := range i.StagingArea {
-		c.Append(obj)
-		i.putObject(c.OID, &obj.CommitObject)
+		// Append to pack file
+		packFile.AppendPackObject(&obj.PackObject)
+		objectsInPackFile++
+
+		// Register in index
+		i.putPackObject(commit.OID, packFile.OID, &obj.PackObject)
+
+		if objectsInPackFile == CurrentConfig().ConfigFile.Core.MaxObjectsPerPackFile {
+			packFiles = append(packFiles, packFile)
+			commit.PackFiles = append(commit.PackFiles, packFile.OID)
+			i.PackFiles[packFile.OID] = commit.OID
+			// Start a new pack file
+			packFile = NewPackFile()
+			objectsInPackFile = 0
+		}
+	}
+	if objectsInPackFile > 0 {
+		packFiles = append(packFiles, packFile)
+		commit.PackFiles = append(commit.PackFiles, packFile.OID)
+		i.PackFiles[packFile.OID] = commit.OID
 	}
 
 	// Clear the staging area
 	i.StagingArea = nil
 
-	return c
+	return commit, packFiles
 }
 
-// putObject registers a new object inside the index.
-func (i *Index) putObject(commitOID string, obj *CommitObject) {
+// putPackFile registers a new pack file inside the index.
+func (i *Index) putPackFile(commitOID string, packFile *PackFile) {
+	for _, packObject := range packFile.PackObjects {
+		i.putPackObject(commitOID, packFile.OID, packObject)
+	}
+	i.PackFiles[packFile.OID] = commitOID
+}
+
+// putPackObject registers a new pack object inside the index.
+func (i *Index) putPackObject(commitOID string, packFileOID string, obj *PackObject) {
 	if indexObject, ok := i.objectsRef[obj.OID]; ok {
 		// Simply updates the commit OID for existing objects
 		indexObject.CommitOID = commitOID
+		indexObject.PackFileOID = packFileOID
 		return
 	}
 
 	indexObject := &IndexObject{
-		OID:       obj.OID,
-		Kind:      obj.Kind,
-		MTime:     obj.MTime,
-		CommitOID: commitOID,
+		OID:         obj.OID,
+		Kind:        obj.Kind,
+		MTime:       obj.MTime,
+		CommitOID:   commitOID,
+		PackFileOID: packFileOID,
 	}
 
 	// Update inner mappings
@@ -327,8 +387,8 @@ func (i *Index) Write(w io.Writer) error {
 // and/or diffs between local and remote directories.
 // Useful when pulling or pushing commits.
 type CommitGraph struct {
-	UpdatedAt  time.Time `yaml:"updated_at,omitempty"`
-	CommitOIDs []string  `yaml:"commits,omitempty"`
+	UpdatedAt time.Time `yaml:"updated_at,omitempty"`
+	Commits   []*Commit `yaml:"commits,omitempty"`
 }
 
 // NewCommitGraph instantiates a new commit graph.
@@ -366,30 +426,31 @@ func (cg *CommitGraph) Read(r io.Reader) error {
 }
 
 // AppendCommit pushes a new commit.
-func (c *CommitGraph) AppendCommit(commitOID string) error {
+func (c *CommitGraph) AppendCommit(commit *Commit) error {
 	c.UpdatedAt = clock.Now()
-	c.CommitOIDs = append(c.CommitOIDs, commitOID)
+	c.Commits = append(c.Commits, commit)
 	return nil
 }
 
 // Ref returns the commit OID of the last commit.
 func (c *CommitGraph) Ref() string {
-	if len(c.CommitOIDs) == 0 {
+	if len(c.Commits) == 0 {
 		return ""
 	}
-	return c.CommitOIDs[len(c.CommitOIDs)-1]
+	return c.Commits[len(c.Commits)-1].OID
 }
 
-// LastCommits returns all recent commits.
-func (c *CommitGraph) LastCommitsFrom(head string) ([]string, error) {
-	var results []string
+// LastCommits returns all commits pushed after head.
+func (c *CommitGraph) LastCommitsFrom(head string) ([]*Commit, error) {
+	var results []*Commit
 
 	found := false
-	for _, commitOID := range c.CommitOIDs {
+	for _, commit := range c.Commits {
 		if found {
-			results = append(results, commitOID)
+			// Already found head = recent commit
+			results = append(results, commit)
 		}
-		if commitOID == head {
+		if commit.OID == head {
 			found = true
 		}
 	}
@@ -402,19 +463,19 @@ func (c *CommitGraph) LastCommitsFrom(head string) ([]string, error) {
 }
 
 // MissingCommitsFrom returns all commits present in origin and not present in current commit graph.
-func (c *CommitGraph) MissingCommitsFrom(origin *CommitGraph) []string {
-	var results []string
+func (c *CommitGraph) MissingCommitsFrom(origin *CommitGraph) []*Commit {
+	var results []*Commit
 
-	for _, oidOrigin := range origin.CommitOIDs {
+	for _, commitOrigin := range origin.Commits {
 		found := false
-		for _, oidLocal := range c.CommitOIDs {
-			if oidLocal == oidOrigin {
+		for _, commitLocal := range c.Commits {
+			if commitLocal.OID == commitOrigin.OID {
 				found = true
 				break
 			}
 		}
 		if !found {
-			results = append(results, oidOrigin)
+			results = append(results, commitOrigin)
 		}
 	}
 
@@ -448,12 +509,18 @@ func (c *CommitGraph) Save() error {
 /* Commit */
 
 type Commit struct {
-	OID     string          `yaml:"oid"`
-	CTime   time.Time       `yaml:"ctime"`
-	Objects []*CommitObject `yaml:"objects"`
+	OID       string    `yaml:"oid"`
+	CTime     time.Time `yaml:"ctime"`
+	PackFiles []string  `yaml:"packfiles"`
 }
 
-type CommitObject struct {
+type PackFile struct {
+	OID         string        `yaml:"oid"`
+	CTime       time.Time     `yaml:"ctime"`
+	PackObjects []*PackObject `yaml:"objects"`
+}
+
+type PackObject struct {
 	OID         string     `yaml:"oid"`
 	Kind        string     `yaml:"kind"`
 	State       State      `yaml:"state"` // (A) added, (D) deleted, (M) modified, (R) renamed
@@ -462,32 +529,40 @@ type CommitObject struct {
 	Data        ObjectData `yaml:"data"`
 }
 
+// NewPackFile initializes a new empty pack file.
+func NewPackFile() *PackFile {
+	return &PackFile{
+		OID:   NewOID(),
+		CTime: clock.Now(),
+	}
+}
+
 // ReadObject recreates the core object from a commit object.
-func (c *CommitObject) ReadObject() StatefulObject {
-	switch c.Kind {
+func (p *PackObject) ReadObject() StatefulObject {
+	switch p.Kind {
 	case "file":
 		file := new(File)
-		c.Data.Unmarshal(file)
+		p.Data.Unmarshal(file)
 		return file
 	case "flashcard":
 		flashcard := new(Flashcard)
-		c.Data.Unmarshal(flashcard)
+		p.Data.Unmarshal(flashcard)
 		return flashcard
 	case "note":
 		note := new(Note)
-		c.Data.Unmarshal(note)
+		p.Data.Unmarshal(note)
 		return note
 	case "link":
 		link := new(Link)
-		c.Data.Unmarshal(link)
+		p.Data.Unmarshal(link)
 		return link
 	case "media":
 		media := new(Media)
-		c.Data.Unmarshal(media)
+		p.Data.Unmarshal(media)
 		return media
 	case "reminder":
 		reminder := new(Reminder)
-		c.Data.Unmarshal(reminder)
+		p.Data.Unmarshal(reminder)
 		return reminder
 	}
 	return nil
@@ -574,41 +649,70 @@ func NewCommit() *Commit {
 	}
 }
 
-// NewCommitFromPath reads a commit file on disk or returns an empty instance.
-func NewCommitFromPath(path string) (*Commit, error) {
+// NewCommitWithOID initializes a new commit with a given OID.
+func NewCommitWithOID(oid string) *Commit {
+	return &Commit{
+		OID:   oid,
+		CTime: clock.Now(),
+	}
+}
+
+func (c Commit) String() string {
+	return fmt.Sprintf("%s (including %d pack files)", c.OID, len(c.PackFiles))
+}
+
+// NewPackFileFromPath reads a pack file file on disk or returns an empty instance.
+func NewPackFileFromPath(path string) (*PackFile, error) {
 	in, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
 		// First use
-		return NewCommit(), nil
+		return NewPackFile(), nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	commit := new(Commit)
-	if err := commit.Read(in); err != nil {
+	result := new(PackFile)
+	if err := result.Read(in); err != nil {
 		return nil, err
 	}
 	in.Close()
-	return commit, nil
+	return result, nil
 }
 
-// GetObject retrieves an object from a commit.
-func (c *Commit) GetObject(oid string) *CommitObject {
-	for _, object := range c.Objects {
+// GetPackObject retrieves an object from a pack file.
+func (p *PackFile) GetPackObject(oid string) (*PackObject, bool) {
+	for _, object := range p.PackObjects {
 		if object.OID == oid {
-			return object
+			return object, true
 		}
 	}
-	return nil
+	return nil, false
 }
 
-// Append registers a new object inside the commit.
-func (c *Commit) AppendObject(obj StatefulObject) error {
+// AppendPackObject registers a new stateful object inside the pack file.
+func (p *PackFile) AppendPackObject(obj *PackObject) {
+	p.PackObjects = append(p.PackObjects, obj)
+}
+
+// Append registers a new staged object inside a pack file.
+func (p *PackFile) AppendStagingObject(obj *StagingObject) {
+	p.PackObjects = append(p.PackObjects, &PackObject{
+		OID:         obj.OID,
+		Kind:        obj.Kind,
+		State:       obj.State,
+		MTime:       obj.MTime,
+		Description: obj.Description,
+		Data:        obj.Data,
+	})
+}
+
+// AppendObject registers a new object inside the pack file.
+func (p *PackFile) AppendObject(obj StatefulObject) error {
 	data, err := NewObjectData(obj)
 	if err != nil {
 		return err
 	}
-	c.Objects = append(c.Objects, &CommitObject{
+	p.PackObjects = append(p.PackObjects, &PackObject{
 		OID:         obj.UniqueOID(),
 		Kind:        obj.Kind(),
 		State:       obj.State(),
@@ -619,46 +723,46 @@ func (c *Commit) AppendObject(obj StatefulObject) error {
 	return nil
 }
 
-// Append registers a new staged object inside the commit.
-func (c *Commit) Append(obj *StagingObject) {
-	c.Objects = append(c.Objects, &CommitObject{
-		OID:         obj.OID,
-		Kind:        obj.Kind,
-		State:       obj.State,
-		MTime:       obj.MTime,
-		Description: obj.Description,
-		Data:        obj.Data,
-	})
-}
-
-// GetCommitObject retrieves a commit object.
-func (c *Commit) GetCommitObject(oid string) (*CommitObject, bool) {
-	for _, object := range c.Objects {
-		if object.OID == oid {
-			return object, true
+// UnmarshallObject extract a single object from a commit.
+func (p *PackFile) UnmarshallObject(oid string, target interface{}) error {
+	for _, objEdit := range p.PackObjects {
+		if objEdit.OID == oid {
+			return objEdit.Data.Unmarshal(target)
 		}
 	}
-	return nil, false
+	return fmt.Errorf("no object with OID %q", oid)
+}
+
+// Merge tries to merge two pack files together by returning a new pack file
+// containing the concatenation of both pack files.
+func (p *PackFile) Merge(other *PackFile) (*PackFile, bool) {
+	if len(p.PackObjects)+len(other.PackObjects) > CurrentConfig().ConfigFile.Core.MaxObjectsPerPackFile {
+		return nil, false
+	}
+	result := NewPackFile()
+	result.PackObjects = append(result.PackObjects, p.PackObjects...)
+	result.PackObjects = append(result.PackObjects, other.PackObjects...)
+	return result, true
 }
 
 /* Object */
 
-func (c *Commit) UniqueOID() string {
-	return c.OID
+func (p *PackFile) UniqueOID() string {
+	return p.OID
 }
 
-// Read populates a commit from an object file.
-func (c *Commit) Read(r io.Reader) error {
-	err := yaml.NewDecoder(r).Decode(&c)
+// Read populates a pack file from an object file.
+func (p *PackFile) Read(r io.Reader) error {
+	err := yaml.NewDecoder(r).Decode(&p)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-// Write dumps a commit to an object file.
-func (c *Commit) Write(w io.Writer) error {
-	data, err := yaml.Marshal(c)
+// Write dumps a pack file to an object file.
+func (p *PackFile) Write(w io.Writer) error {
+	data, err := yaml.Marshal(p)
 	if err != nil {
 		return err
 	}
@@ -666,9 +770,9 @@ func (c *Commit) Write(w io.Writer) error {
 	return err
 }
 
-// Save writes a new file inside .nt/objects.
-func (c *Commit) Save() error {
-	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects/"+OIDToPath(c.OID))
+// Save writes a new pack file inside .nt/objects.
+func (p *PackFile) Save() error {
+	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects/"+OIDToPath(p.OID))
 	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
 		return err
 	}
@@ -677,22 +781,12 @@ func (c *Commit) Save() error {
 		return err
 	}
 	defer f.Close()
-	return c.Write(f)
+	return p.Write(f)
 }
 
-func (c *Commit) Blobs() []*BlobRef {
-	// Blobs are stored outside commits.
+func (p *PackFile) Blobs() []*BlobRef {
+	// Blobs are stored outside packfiles.
 	return nil
-}
-
-// UnmarshallObject extract a single object from a commit.
-func (c *Commit) UnmarshallObject(oid string, target interface{}) error {
-	for _, objEdit := range c.Objects {
-		if objEdit.OID == oid {
-			return objEdit.Data.Unmarshal(target)
-		}
-	}
-	return fmt.Errorf("no object with OID %q", oid)
 }
 
 /* OID */

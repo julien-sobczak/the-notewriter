@@ -21,10 +21,13 @@ import (
 // How many parent directories to traverse before considering a directory as not a nt repository
 const maxDepth = 10
 
+const MaxObjectsPerPackFileDefault = 100
+
 // Default .nt/config content
 const DefaultConfig = `
 [core]
 extensions=["md", "markdown"]
+maxObjectsPerPackfile=100
 
 [medias]
 command="ffmpeg"
@@ -93,7 +96,8 @@ type ConfigFile struct {
 	Search map[string]ConfigSearch
 }
 type ConfigCore struct {
-	Extensions []string
+	Extensions            []string
+	MaxObjectsPerPackFile int
 }
 type ConfigMedias struct {
 	Command  string
@@ -600,6 +604,12 @@ func parseConfigFile(content string) (*ConfigFile, error) {
 	d.DisallowUnknownFields()
 	var result ConfigFile
 	err := d.Decode(&result)
+
+	// Apply default values
+	if result.Core.MaxObjectsPerPackFile == 0 {
+		result.Core.MaxObjectsPerPackFile = MaxObjectsPerPackFileDefault
+	}
+
 	return &result, err
 }
 

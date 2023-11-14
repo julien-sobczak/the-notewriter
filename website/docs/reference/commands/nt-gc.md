@@ -22,4 +22,4 @@ Flags:
 
 Runs a number of housekeeping tasks within the current repository, such as removing unreachable objects which may have been created from prior invocations of `nt add` or stale working trees. May also update ancillary indexes such as the `commit-graph`.
 
-Running this command is safe when Git is used as files that will be deleted can still be reread using Git history.
+Running this command is safe when Git is used in addition to backup the notes as dead files that will be deleted can still be reread using Git history.

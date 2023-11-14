@@ -1,6 +1,8 @@
 package core
 
 import (
+	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -77,16 +79,22 @@ func TestCommandAdd(t *testing.T) {
 		require.NoError(t, err)
 		commitOID := string(data)
 
-		// Check commit object is present
-		c, err := CurrentDB().ReadCommit(commitOID)
+		// Check commit is present in commit-graph
+		commit, ok := CurrentDB().ReadCommit(commitOID)
+		require.True(t, ok)
+		assert.Len(t, commit.PackFiles, 1)
+
+		// Check pack file is present
+		packFileOID := commit.PackFiles[0]
+		packFile, err := CurrentDB().ReadPackFile(packFileOID)
 		require.NoError(t, err)
-		assert.Len(t, c.Objects, changes)
+		assert.Len(t, packFile.PackObjects, changes)
 
 		// Check commit graph was updated
 		data, err = os.ReadFile(filepath.Join(root, ".nt/objects/info/commit-graph"))
 		require.NoError(t, err)
 		commitGraph := string(data)
-		assert.Contains(t, commitGraph, c.OID)
+		assert.Contains(t, commitGraph, commit.OID)
 
 		// Check staging area is empty
 		idx = ReadIndex()
@@ -298,7 +306,11 @@ func TestCommandPushPull(t *testing.T) {
 		require.FileExists(t, filepath.Join(origin, "config"))
 		require.FileExists(t, filepath.Join(origin, "index"))
 		require.FileExists(t, filepath.Join(origin, "info/commit-graph"))
-		require.FileExists(t, filepath.Join(origin, OIDToPath(head)))
+		headCommit, ok := CurrentDB().ReadCommit(head)
+		require.True(t, ok)
+		require.Len(t, headCommit.PackFiles, 1)
+		packFile := headCommit.PackFiles[0]
+		require.FileExists(t, filepath.Join(origin, OIDToPath(packFile)))
 
 		Reset()
 
@@ -314,7 +326,6 @@ func TestCommandPushPull(t *testing.T) {
 
 		// Check local
 		require.FileExists(t, filepath.Join(root, ".nt/objects/info/commit-graph"))
-		require.FileExists(t, filepath.Join(root, ".nt/objects", OIDToPath(head)))
 	})
 
 	t.Run("Pull before push", func(t *testing.T) {
@@ -479,7 +490,7 @@ Changes to be committed:
 
 func TestCommandGC(t *testing.T) {
 
-	t.Run("Basic", func(t *testing.T) {
+	t.Run("Reclaim Orphan Blobs", func(t *testing.T) {
 		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
 
 		// Configure origin
@@ -560,6 +571,152 @@ A **gopher**.
 		require.NoError(t, err)
 		require.NoFileExists(t, filepath.Join(origin, OIDToPath(logoOriginalBlob.OID))) // garbage collected
 		require.FileExists(t, filepath.Join(origin, OIDToPath(logoModifiedBlob.OID)))
+	})
+
+	t.Run("Edit PackFiles", func(t *testing.T) {
+		root := SetUpCollectionFromTempDir(t)
+
+		// Configure origin
+		origin := t.TempDir()
+		CurrentConfig().ConfigFile.Remote = ConfigRemote{
+			Type: "fs",
+			Dir:  origin,
+		}
+
+		// Limit the number of objects per pack file to ease debugging
+		maxObjectsPerPackFile := 3
+		CurrentConfig().ConfigFile.Core.MaxObjectsPerPackFile = maxObjectsPerPackFile
+
+		// Step 1:
+		// ------
+		// Create two files containing many notes by ensuring we have several packfiles:
+		// - A pack file containing only objects coming from file A
+		// - A pack file containing objects coming from file A AND file B
+		// - A pack file containing only objects coming from file B
+		maxNotesPerFile := maxObjectsPerPackFile + 1
+		var contentA bytes.Buffer
+		contentA.WriteString("# New File A\n\n")
+		for i := 0; i < maxNotesPerFile; i++ {
+			contentA.WriteString(fmt.Sprintf("## Note: A%d\n\nBlabla\n\n", i+1))
+		}
+		err := os.WriteFile(filepath.Join(root, "a.md"), contentA.Bytes(), 0644)
+		require.NoError(t, err)
+
+		var contentB bytes.Buffer
+		contentB.WriteString("# New File A\n\n")
+		for i := 0; i < maxNotesPerFile; i++ {
+			contentB.WriteString(fmt.Sprintf("## Note: B%d\n\nBlabla\n\n", i+1))
+		}
+		err = os.WriteFile(filepath.Join(root, "b.md"), contentB.Bytes(), 0644)
+		require.NoError(t, err)
+
+		// Commit
+		err = CurrentCollection().Add(".")
+		require.NoError(t, err)
+		err = CurrentDB().Commit("initial commit")
+		require.NoError(t, err)
+		err = CurrentDB().Push()
+		require.NoError(t, err)
+
+		// Inspect commit
+		initialCommit := CurrentDB().Head()
+		require.NotNil(t, initialCommit)
+		require.Len(t, initialCommit.PackFiles, 4)
+
+		// Inspect stats
+		statsOnDisk, err := CurrentDB().StatsOnDisk()
+		require.NoError(t, err)
+		assert.Equal(t, statsOnDisk.Commits, 1)
+		assert.Equal(t, statsOnDisk.Objects["file"], 2)
+		assert.Equal(t, statsOnDisk.Objects["note"], maxNotesPerFile*2) // file A + file B
+		assert.Equal(t, statsOnDisk.IndexObjects, maxNotesPerFile*2+2)
+
+		CurrentDB().PrintIndex()
+
+		// Step 2:
+		// ------
+		// We will now completely edit the file A and commit again
+		contentA.Reset()
+		contentA.WriteString("# New File A\n\n")
+		for i := 0; i < maxNotesPerFile; i++ {
+			contentA.WriteString(fmt.Sprintf("## Note: A%d\n\nBlablaBlaBla\n\n", i+1)) // New text
+		}
+		err = os.WriteFile(filepath.Join(root, "a.md"), contentA.Bytes(), 0644)
+		require.NoError(t, err)
+
+		// Commit
+		err = CurrentCollection().Add(".")
+		require.NoError(t, err)
+		err = CurrentDB().Commit("second commit")
+		require.NoError(t, err)
+		err = CurrentDB().Push()
+		require.NoError(t, err)
+
+		// We now have two commits. The second commit rewrite all objects comming the file A.
+		// It means:
+		// - The first pack file of the initial commit can be reclaimed (contains only old versions).
+		// - The second pack file of the initial commit can be edited to remove objects from file A.
+		// - The third pack file of the initial commit must be left untouched as the pack files from the second commit.
+
+		statsOnDisk, err = CurrentDB().StatsOnDisk()
+		require.NoError(t, err)
+		assert.Equal(t, statsOnDisk.Commits, 2)
+		assert.Equal(t, statsOnDisk.Objects["file"], 3)                 // old file A + actual file A + actual file B
+		assert.Equal(t, statsOnDisk.Objects["note"], maxNotesPerFile*3) // Same logic
+		assert.Equal(t, statsOnDisk.IndexObjects, maxNotesPerFile*2+2)
+
+		CurrentDB().PrintIndex()
+
+		// Step 3:
+		// ------
+		// Run the GC locally
+		// We must still have 2 commits but the old revisions must no longer exist.
+
+		// Run "nt gc"
+		err = CurrentDB().GC()
+		require.NoError(t, err)
+
+		// Inspect stats
+		statsOnDisk, err = CurrentDB().StatsOnDisk()
+		require.NoError(t, err)
+		assert.Equal(t, statsOnDisk.Commits, 2)                         // unchanged
+		assert.Equal(t, statsOnDisk.Objects["file"], 2)                 // only actual files ...
+		assert.Equal(t, statsOnDisk.Objects["note"], maxNotesPerFile*2) // ... and actual notes
+
+		// Let's inspect the first commit content to validate
+		initialCommitEdited, ok := CurrentDB().ReadCommit(initialCommit.OID)
+		require.True(t, ok)
+		assert.Len(t, initialCommitEdited.PackFiles, 3) // The first pack file must have been dropped
+		packFile1, err := CurrentDB().ReadPackFile(initialCommitEdited.PackFiles[0])
+		require.NoError(t, err)
+		packFile2, err := CurrentDB().ReadPackFile(initialCommitEdited.PackFiles[1])
+		require.NoError(t, err)
+		// Ensure only objects from file B remains
+		var allPackObjects []*PackObject
+		allPackObjects = append(allPackObjects, packFile1.PackObjects...)
+		allPackObjects = append(allPackObjects, packFile2.PackObjects...)
+		for _, packObject := range allPackObjects {
+			obj := packObject.ReadObject()
+			switch typedObject := obj.(type) {
+			case *File:
+				require.Equal(t, "b.md", typedObject.RelativePath)
+			case *Note:
+				require.Equal(t, "b.md", typedObject.RelativePath)
+			}
+		}
+
+		// Step 4:
+		// ------
+		// Run the GC remotely
+		// We must reclaim the same objects as in step 3.
+		t.SkipNow() // TODO Study if GC is really useful
+
+		// Run "nt origin gc"
+		err = CurrentDB().OriginGC()
+		require.NoError(t, err)
+		require.NoFileExists(t, filepath.Join(origin, OIDToPath(initialCommit.PackFiles[0]))) // garbage collected
+		require.FileExists(t, filepath.Join(origin, OIDToPath(initialCommit.PackFiles[1])))   // edited
+		require.FileExists(t, filepath.Join(origin, OIDToPath(initialCommit.PackFiles[2])))   // unchanged
 	})
 
 }

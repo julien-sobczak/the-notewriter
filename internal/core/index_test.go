@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -44,11 +45,11 @@ func TestCommitGraph(t *testing.T) {
 
 		// A succession of commits
 		now = FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 14, 30, 0, time.UTC))
-		err := cg.AppendCommit("a757e67f5ae2a8df3a4634c96c16af5c8491bea2")
+		err := cg.AppendCommit(NewCommitWithOID("a757e67f5ae2a8df3a4634c96c16af5c8491bea2"))
 		require.NoError(t, err)
-		err = cg.AppendCommit("a04d20dec96acfc2f9785802d7e3708721005d5d")
+		err = cg.AppendCommit(NewCommitWithOID("a04d20dec96acfc2f9785802d7e3708721005d5d"))
 		require.NoError(t, err)
-		err = cg.AppendCommit("52d614e255d914e2f6022689617da983381c27a3")
+		err = cg.AppendCommit(NewCommitWithOID("52d614e255d914e2f6022689617da983381c27a3"))
 		require.NoError(t, err)
 		assert.Equal(t, now, cg.UpdatedAt)
 
@@ -56,7 +57,12 @@ func TestCommitGraph(t *testing.T) {
 		require.ErrorContains(t, err, "unknown commit")
 		commits, err := cg.LastCommitsFrom("a04d20dec96acfc2f9785802d7e3708721005d5d")
 		require.NoError(t, err)
-		require.EqualValues(t, []string{"52d614e255d914e2f6022689617da983381c27a3"}, commits)
+		require.EqualValues(t, []*Commit{
+			{
+				OID:   "52d614e255d914e2f6022689617da983381c27a3",
+				CTime: now,
+			},
+		}, commits)
 
 		buf := new(bytes.Buffer)
 		err = cg.Write(buf)
@@ -65,9 +71,15 @@ func TestCommitGraph(t *testing.T) {
 		assert.Equal(t, strings.TrimSpace(`
 updated_at: 2023-01-01T01:14:30Z
 commits:
-    - a757e67f5ae2a8df3a4634c96c16af5c8491bea2
-    - a04d20dec96acfc2f9785802d7e3708721005d5d
-    - 52d614e255d914e2f6022689617da983381c27a3
+    - oid: a757e67f5ae2a8df3a4634c96c16af5c8491bea2
+      ctime: 2023-01-01T01:14:30Z
+      packfiles: []
+    - oid: a04d20dec96acfc2f9785802d7e3708721005d5d
+      ctime: 2023-01-01T01:14:30Z
+      packfiles: []
+    - oid: 52d614e255d914e2f6022689617da983381c27a3
+      ctime: 2023-01-01T01:14:30Z
+      packfiles: []
 `), strings.TrimSpace(cgYAML))
 	})
 
@@ -81,9 +93,15 @@ commits:
 
 		in.WriteString(`updated_at: 2023-01-01T01:14:30Z
 commits:
-    - a757e67f5ae2a8df3a4634c96c16af5c8491bea2
-    - a04d20dec96acfc2f9785802d7e3708721005d5d
-    - 52d614e255d914e2f6022689617da983381c27a3
+    - oid: a757e67f5ae2a8df3a4634c96c16af5c8491bea2
+      ctime: 2023-01-01T01:14:30Z
+      packfiles: []
+    - oid: a04d20dec96acfc2f9785802d7e3708721005d5d
+      ctime: 2023-01-01T01:14:30Z
+      packfiles: []
+    - oid: 52d614e255d914e2f6022689617da983381c27a3
+      ctime: 2023-01-01T01:14:30Z
+      packfiles: []
 `) // Caution: spaces are important as we compare hashes at the end of the test
 		in.Close()
 
@@ -94,7 +112,10 @@ commits:
 		err = cg.Read(in)
 		in.Close()
 		require.NoError(t, err)
-		assert.Equal(t, []string{"a757e67f5ae2a8df3a4634c96c16af5c8491bea2", "a04d20dec96acfc2f9785802d7e3708721005d5d", "52d614e255d914e2f6022689617da983381c27a3"}, cg.CommitOIDs)
+		assert.Len(t, cg.Commits, 3)
+		assert.Equal(t, cg.Commits[0].OID, "a757e67f5ae2a8df3a4634c96c16af5c8491bea2")
+		assert.Equal(t, cg.Commits[1].OID, "a04d20dec96acfc2f9785802d7e3708721005d5d")
+		assert.Equal(t, cg.Commits[2].OID, "52d614e255d914e2f6022689617da983381c27a3")
 
 		// Write out
 		err = cg.Write(out)
@@ -111,24 +132,30 @@ commits:
 		cg1 := NewCommitGraph()
 		cg2 := NewCommitGraph()
 
+		c1 := NewCommitWithOID("a757e67f5ae2a8df3a4634c96c16af5c8491bea2")
+		c2 := NewCommitWithOID("a757e67f5ae2a8df3a4634c96c16af5c8491bea2")
+		c3 := NewCommitWithOID("5bb55dad2b3157a81893bc25f809d85a1fab2911")
+		c4 := NewCommitWithOID("f3aaf5433ec0357844d88f860c42e044fe44ee61")
+		c5 := NewCommitWithOID("3c2fbfe30b58a9737ddfc45ef54587339b2a6c79")
+
 		// Start with a common commit
-		err := cg1.AppendCommit("a757e67f5ae2a8df3a4634c96c16af5c8491bea2")
+		err := cg1.AppendCommit(c1)
 		require.NoError(t, err)
-		err = cg2.AppendCommit("a757e67f5ae2a8df3a4634c96c16af5c8491bea2")
+		err = cg2.AppendCommit(c2)
 		require.NoError(t, err)
 
 		// New commit only in cg1
-		err = cg1.AppendCommit("5bb55dad2b3157a81893bc25f809d85a1fab2911")
+		err = cg1.AppendCommit(c3)
 		require.NoError(t, err)
 
 		// New commits only in cg2
-		err = cg2.AppendCommit("f3aaf5433ec0357844d88f860c42e044fe44ee61")
+		err = cg2.AppendCommit(c4)
 		require.NoError(t, err)
-		err = cg2.AppendCommit("3c2fbfe30b58a9737ddfc45ef54587339b2a6c79")
+		err = cg2.AppendCommit(c5)
 		require.NoError(t, err)
 
-		assert.EqualValues(t, []string{"f3aaf5433ec0357844d88f860c42e044fe44ee61", "3c2fbfe30b58a9737ddfc45ef54587339b2a6c79"}, cg1.MissingCommitsFrom(cg2))
-		assert.EqualValues(t, []string{"5bb55dad2b3157a81893bc25f809d85a1fab2911"}, cg2.MissingCommitsFrom(cg1))
+		assert.EqualValues(t, []*Commit{c4, c5}, cg1.MissingCommitsFrom(cg2))
+		assert.EqualValues(t, []*Commit{c3}, cg2.MissingCommitsFrom(cg1))
 	})
 
 }
@@ -157,26 +184,26 @@ func TestObjectData(t *testing.T) {
 	assert.Equal(t, "TODO: Backlog", noteDest.Title)
 }
 
-func TestCommit(t *testing.T) {
+func TestPackFile(t *testing.T) {
 
 	// Make tests reproductible
 	UseFixedOID(t, "93267c32147a4ab7a1100ce82faab56a99fca1cd")
 	FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
 
-	t.Run("New commit", func(t *testing.T) {
+	t.Run("New pack file", func(t *testing.T) {
 		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
 
 		f, err := NewFileFromPath(nil, filepath.Join(root, "go.md"))
 		require.NoError(t, err)
 
-		cSrc := NewCommit()
+		packFileSrc := NewPackFile()
 		// add a bunch of objects
-		cSrc.AppendObject(f.GetNotes()[0])
-		cSrc.AppendObject(f.GetFlashcards()[0])
+		packFileSrc.AppendObject(f.GetNotes()[0])
+		packFileSrc.AppendObject(f.GetFlashcards()[0])
 
 		// Marshmall YAML
 		buf := new(bytes.Buffer)
-		err = cSrc.Write(buf)
+		err = packFileSrc.Write(buf)
 		require.NoError(t, err)
 		cYAML := buf.String()
 		assert.Equal(t, strings.TrimSpace(`
@@ -198,29 +225,29 @@ objects:
 `), strings.TrimSpace(cYAML))
 
 		// Unmarshall YAML
-		cDest := new(Commit)
-		err = cDest.Read(buf)
+		packFileDest := new(PackFile)
+		err = packFileDest.Read(buf)
 		require.NoError(t, err)
-		require.Equal(t, "93267c32147a4ab7a1100ce82faab56a99fca1cd", cDest.OID)
-		require.Len(t, cDest.Objects, 2)
+		require.Equal(t, "93267c32147a4ab7a1100ce82faab56a99fca1cd", packFileDest.OID)
+		require.Len(t, packFileDest.PackObjects, 2)
 
 		// Unmarshall the note
 		noteDest := new(Note)
-		err = cDest.Objects[0].Data.Unmarshal(noteDest)
+		err = packFileDest.PackObjects[0].Data.Unmarshal(noteDest)
 		require.NoError(t, err)
 		assert.Equal(t, "Reference: Golang History", noteDest.Title)
 
 		// Unmarshall the note
 		flashcardDest := new(Flashcard)
-		err = cDest.Objects[1].Data.Unmarshal(flashcardDest)
+		err = packFileDest.PackObjects[1].Data.Unmarshal(flashcardDest)
 		require.NoError(t, err)
 		assert.Equal(t, "Golang Logo", flashcardDest.ShortTitle)
 
-		require.EqualValues(t, cSrc, cDest)
+		require.EqualValues(t, packFileSrc, packFileDest)
 
 		// Unmarshall a single object by OID
 		noteCopy := new(Note)
-		err = cDest.UnmarshallObject(cDest.Objects[0].OID, noteCopy)
+		err = packFileDest.UnmarshallObject(packFileDest.PackObjects[0].OID, noteCopy)
 		require.NoError(t, err)
 		require.EqualValues(t, noteDest, noteCopy)
 	})
@@ -240,20 +267,11 @@ func TestIndex(t *testing.T) {
 		f, err := NewFileFromPath(nil, filepath.Join(root, "go.md"))
 		require.NoError(t, err)
 
-		c := NewCommit()
 		// Add a bunch of objects
 		noteExample := f.GetNotes()[0]
 		flashcardExample := f.GetFlashcards()[0]
-		c.AppendObject(noteExample)
-		c.AppendObject(flashcardExample)
-
-		// Add the commit
-		idx.AppendCommit(c)
-
-		// Search a commit
-		commitOID, ok := idx.FindCommitContaining(noteExample.OID)
-		require.True(t, ok)
-		assert.Equal(t, c.OID, commitOID)
+		idx.StageObject(noteExample)
+		idx.StageObject(flashcardExample)
 
 		// Create a new file
 		err = os.WriteFile(filepath.Join(root, "python.md"), []byte(`# Python
@@ -266,19 +284,59 @@ Guido van Rossum
 `), 0644)
 		require.NoError(t, err)
 
-		// Stage the new file
+		// Stage a new file
 		f, err = NewFileFromPath(nil, filepath.Join(root, "python.md"))
 		require.NoError(t, err)
 		idx.StageObject(f)
-		for _, obj := range f.SubObjects() {
-			idx.StageObject(obj)
+
+		// Create a new commit
+		newCommit, newPackFiles := idx.CreateCommitFromStagingArea()
+		assert.NotEmpty(t, newCommit.OID)
+		assert.NotEmpty(t, newPackFiles)
+		assert.Equal(t, now, newCommit.CTime)
+		require.Len(t, newCommit.PackFiles, 1)
+		require.Len(t, newPackFiles, 1)
+		require.Len(t, newPackFiles[0].PackObjects, 3)
+
+		// Search a single object
+		commitOID, ok := idx.FindCommitContaining(noteExample.OID)
+		require.True(t, ok)
+		assert.Equal(t, newCommit.OID, commitOID)
+		packFileOID, ok := idx.FindPackFileContaining(noteExample.OID)
+		require.True(t, ok)
+		assert.Equal(t, newPackFiles[0].OID, packFileOID) // Must be in first pack file logically
+	})
+
+	t.Run("Large Staging Area", func(t *testing.T) {
+		// Make tests reproductible
+		UseSequenceOID(t)
+		root := SetUpCollectionFromTempDir(t)
+
+		// Create a large file containing many notes
+		var newFileContent bytes.Buffer
+		newFileContent.WriteString("# New File\n\n")
+		for i := 0; i < MaxObjectsPerPackFileDefault + 1; i++ {
+			newFileContent.WriteString(fmt.Sprintf("## Note: Test %d\n\nBlabla\n\n", i + 1))
+		}
+		newFilePath := filepath.Join(root, "large.md")
+		err := os.WriteFile(newFilePath, newFileContent.Bytes(), 0644)
+		require.NoError(t, err)
+
+		idx := NewIndex()
+
+		// Stage the new file
+		newFile, err := NewFileFromPath(nil, newFilePath)
+		require.NoError(t, err)
+		idx.StageObject(newFile)
+		for _, subObject := range newFile.SubObjects() {
+			idx.StageObject(subObject)
 		}
 
 		// Create a new commit
-		newCommit := idx.CreateCommitFromStagingArea()
-		assert.NotEmpty(t, newCommit.OID)
-		assert.Equal(t, now, newCommit.CTime)
-		require.Len(t, newCommit.Objects, 3)
+		newCommit, newPackFiles := idx.CreateCommitFromStagingArea()
+		require.Len(t, newCommit.PackFiles, 2) // All notes exceed the limit per pack file
+		require.Len(t, newPackFiles[0].PackObjects, MaxObjectsPerPackFileDefault)
+		require.Len(t, newPackFiles[1].PackObjects, 2)
 	})
 
 	t.Run("Save on disk", func(t *testing.T) {
