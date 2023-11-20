@@ -348,7 +348,7 @@ func (c *Collection) Add(paths ...string) error {
 			if err != nil {
 				return err
 			}
-			parent, err = c.LoadFileByPath(parentRelativePath)
+			parent, err = c.FindFileByRelativePath(parentRelativePath)
 			if err != nil {
 				return err
 			}
@@ -834,7 +834,7 @@ func (c *Collection) Diff(staged bool) (string, error) {
 		if err != nil {
 			return err
 		}
-		parent, err := c.LoadFileByPath(parentRelativePath)
+		parent, err := c.FindFileByRelativePath(parentRelativePath)
 		if err != nil {
 			return err
 		}

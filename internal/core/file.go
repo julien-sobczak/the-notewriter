@@ -81,7 +81,7 @@ func NewOrExistingFile(parent *File, path string) (*File, error) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	existingFile, err := CurrentCollection().LoadFileByPath(relpath)
+	existingFile, err := CurrentCollection().FindFileByRelativePath(relpath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -1111,15 +1111,15 @@ func (f *File) Delete() error {
 	return err
 }
 
-func (c *Collection) LoadFileByPath(relativePath string) (*File, error) {
-	return QueryFile(CurrentDB().Client(), `WHERE relative_path = ?`, relativePath)
-}
-
 func (c *Collection) LoadFileByOID(oid string) (*File, error) {
 	return QueryFile(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
-func (c *Collection) LoadFilesByRelativePathPrefix(relativePathPrefix string) ([]*File, error) {
+func (c *Collection) FindFileByRelativePath(relativePath string) (*File, error) {
+	return QueryFile(CurrentDB().Client(), `WHERE relative_path = ?`, relativePath)
+}
+
+func (c *Collection) FindFilesByRelativePathPrefix(relativePathPrefix string) ([]*File, error) {
 	return QueryFiles(CurrentDB().Client(), `WHERE relative_path LIKE ?`, relativePathPrefix+"%")
 }
 

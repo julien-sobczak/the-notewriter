@@ -470,7 +470,7 @@ func TestFileSave(t *testing.T) {
 	require.Equal(t, 1, mustCountReminders(t))
 
 	// Check the file
-	actual, err := CurrentCollection().LoadFileByPath(f.RelativePath)
+	actual, err := CurrentCollection().FindFileByRelativePath(f.RelativePath)
 	require.NoError(t, err)
 	assert.NotEqual(t, "", actual.OID)
 	assert.Equal(t, "go.md", actual.RelativePath)
@@ -713,16 +713,16 @@ func TestInheritance(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check how attributes are inherited in files
-	fileIndex, err := CurrentCollection().LoadFileByPath("index.md")
+	fileIndex, err := CurrentCollection().FindFileByRelativePath("index.md")
 	require.NoError(t, err)
 	require.NotNil(t, fileIndex)
-	fileGoIndex, err := CurrentCollection().LoadFileByPath("skills/go/index.md")
+	fileGoIndex, err := CurrentCollection().FindFileByRelativePath("skills/go/index.md")
 	require.NoError(t, err)
 	require.NotNil(t, fileGoIndex)
-	fileGoGeneral, err := CurrentCollection().LoadFileByPath("skills/go/general.md")
+	fileGoGeneral, err := CurrentCollection().FindFileByRelativePath("skills/go/general.md")
 	require.NoError(t, err)
 	require.NotNil(t, fileGoGeneral)
-	fileGoGoroutines, err := CurrentCollection().LoadFileByPath("skills/go/goroutines.md")
+	fileGoGoroutines, err := CurrentCollection().FindFileByRelativePath("skills/go/goroutines.md")
 	require.NoError(t, err)
 	require.NotNil(t, fileGoGoroutines)
 
@@ -983,13 +983,13 @@ func TestFeatures(t *testing.T) {
 		err := CurrentCollection().Add(".")
 		require.NoError(t, err)
 
-		fileInclude, err := CurrentCollection().FindFileByWikilink("include")
+		fileInclude, err := CurrentCollection().FindFileByRelativePath("include.md")
 		require.NoError(t, err)
 		require.NotNil(t, fileInclude)
-		fileIgnore, err := CurrentCollection().FindFileByWikilink("ignore")
-		require.NoError(t, err)
-		require.NotNil(t, fileIgnore)
-		fileIncludeIgnore, err := CurrentCollection().FindFileByWikilink("include-ignore")
+		fileIgnore, err := CurrentCollection().FindFileByRelativePath("ignore.md")
+		require.NoError(t, err)    // No error as the query succeed
+		require.Nil(t, fileIgnore) // But no file must have been found as the tag ignore is declared on the file
+		fileIncludeIgnore, err := CurrentCollection().FindFileByRelativePath("include-ignore.md")
 		require.NoError(t, err)
 		require.NotNil(t, fileIncludeIgnore)
 
@@ -1000,7 +1000,7 @@ func TestFeatures(t *testing.T) {
 
 		notesIncludeIgnore, err := CurrentCollection().SearchNotes(`path:"include-ignore.md"`)
 		require.NoError(t, err)
-		require.Len(t, notesIncludeIgnore, 2)
+		require.Len(t, notesIncludeIgnore, 2) // Only "Include XXX" notes must be found
 		assert.Equal(t, "Include", notesIncludeIgnore[0].ShortTitle)
 		assert.Equal(t, "Include", notesIncludeIgnore[1].ShortTitle)
 	})

@@ -219,7 +219,7 @@ func TestCommandRestore(t *testing.T) {
 		require.Len(t, idx.Objects, 0)
 
 		// Check database
-		file, err := CurrentCollection().LoadFileByPath("go.md")
+		file, err := CurrentCollection().FindFileByRelativePath("go.md")
 		require.NoError(t, err)
 		require.NotEqual(t, 0, file.MTime)
 
@@ -232,7 +232,7 @@ func TestCommandRestore(t *testing.T) {
 		require.Equal(t, 0, idx.CountChanges())
 
 		// Check database is empty
-		file, err = CurrentCollection().LoadFileByPath("go.md")
+		file, err = CurrentCollection().FindFileByRelativePath("go.md")
 		require.NoError(t, err)
 		require.Nil(t, file)
 	})
