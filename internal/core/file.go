@@ -897,6 +897,12 @@ func (f *ParsedFile) Wikilinks() []*Wikilink {
 	return ParseWikilinks(f.Content())
 }
 
+// AbsoluteBodyLine returns the line number in the file by taking into consideration the front matter.
+func (f *ParsedFile) AbsoluteBodyLine(bodyLine int) int {
+	return f.BodyLine + bodyLine - 1
+}
+
+
 /* Data Management */
 
 func (f *File) SaveOnDisk() error {

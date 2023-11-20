@@ -380,7 +380,7 @@ func TestCheckAttribute(t *testing.T) {
 			Name:         "check-attribute",
 			Message:      `attribute "name" missing on note "Quote: Steve Jobs on Life" in file "check-attribute/check-attribute.md"`,
 			RelativePath: "check-attribute/check-attribute.md",
-			Line:         3,
+			Line:         7,
 		},
 	}, violations)
 }

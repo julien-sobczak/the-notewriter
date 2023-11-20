@@ -236,7 +236,7 @@ func NoDuplicateNoteTitle(file *ParsedFile, args []string) ([]*Violation, error)
 				Name:         "no-duplicate-note-title",
 				Message:      fmt.Sprintf("duplicated note with title %q", note.ShortTitle),
 				RelativePath: file.RelativePath,
-				Line:         note.Line,
+				Line:         file.AbsoluteBodyLine(note.Line),
 			})
 		} else {
 			uniqueNoteTitles[note.LongTitle] = true
@@ -276,7 +276,7 @@ func MinLinesBetweenNotes(file *ParsedFile, args []string) ([]*Violation, error)
 					Name:         "min-lines-between-notes",
 					RelativePath: file.RelativePath,
 					Message:      fmt.Sprintf("missing blank lines before note %q", note.LongTitle),
-					Line:         file.BodyLine + note.Line - 1,
+					Line:         file.AbsoluteBodyLine(note.Line),
 				})
 			}
 		}
@@ -326,7 +326,7 @@ func MaxLinesBetweenNotes(file *ParsedFile, args []string) ([]*Violation, error)
 				Name:         "max-lines-between-notes",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("too many blank lines before note %q", note.LongTitle),
-				Line:         file.BodyLine + note.Line - 1,
+				Line:         file.AbsoluteBodyLine(note.Line),
 			})
 		}
 	}
@@ -359,7 +359,7 @@ func NoteTitleMatch(file *ParsedFile, args []string) ([]*Violation, error) {
 				Name:         "note-title-match",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("note title %q does not match regex %q", note.LongTitle, args[0]),
-				Line:         note.Line,
+				Line:         file.AbsoluteBodyLine(note.Line),
 			})
 		}
 	}
@@ -378,7 +378,7 @@ func NoFreeNote(file *ParsedFile, args []string) ([]*Violation, error) {
 				Name:         "no-free-note",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("free note %q not allowed", note.LongTitle),
-				Line:         note.Line,
+				Line:         file.AbsoluteBodyLine(note.Line),
 			})
 		}
 	}
@@ -398,7 +398,7 @@ func NoDanglingMedia(file *ParsedFile, args []string) ([]*Violation, error) {
 				Name:         "no-dangling-media",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("dangling media %s detected in %s", media.RawPath, file.RelativePath),
-				Line:         file.BodyLine + media.Line - 1,
+				Line:         file.AbsoluteBodyLine(media.Line),
 			})
 		}
 	}
@@ -469,7 +469,7 @@ func NoDeadWikilink(file *ParsedFile, args []string) ([]*Violation, error) {
 						Name:         "no-dead-wikilink",
 						RelativePath: file.RelativePath,
 						Message:      fmt.Sprintf("section not found for wikilink %s", wikilink),
-						Line:         wikilink.Line,
+						Line:         file.AbsoluteBodyLine(wikilink.Line),
 					})
 				}
 			}
@@ -479,7 +479,7 @@ func NoDeadWikilink(file *ParsedFile, args []string) ([]*Violation, error) {
 				Name:         "no-dead-wikilink",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("file not found for wikilink %s", wikilink),
-				Line:         wikilink.Line,
+				Line:         file.AbsoluteBodyLine(wikilink.Line),
 			})
 
 		}
@@ -499,7 +499,7 @@ func NoExtensionWikilink(file *ParsedFile, args []string) ([]*Violation, error) 
 				Name:         "no-extension-wikilink",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("extension found in wikilink %s", wikilink),
-				Line:         wikilink.Line,
+				Line:         file.AbsoluteBodyLine(wikilink.Line),
 			})
 		}
 	}
@@ -534,7 +534,7 @@ func NoAmbiguousWikilink(file *ParsedFile, args []string) ([]*Violation, error) 
 				Name:         "no-ambiguous-wikilink",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("ambiguous reference for wikilink %s", wikilink),
-				Line:         wikilink.Line,
+				Line:         file.AbsoluteBodyLine(wikilink.Line),
 			})
 
 		}
@@ -592,7 +592,7 @@ func RequireQuoteTag(file *ParsedFile, args []string) ([]*Violation, error) {
 				Name:         "require-quote-tag",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("quote %q does not have tags", note.LongTitle),
-				Line:         note.Line,
+				Line:         file.AbsoluteBodyLine(note.Line),
 			})
 		}
 	}
@@ -653,7 +653,7 @@ func CheckAttribute(file *ParsedFile, args []string) ([]*Violation, error) {
 									Name:         "check-attribute",
 									RelativePath: file.RelativePath,
 									Message:      fmt.Sprintf("attribute %q in file %q does not match pattern %q", name, file.RelativePath, definition.Pattern),
-									Line:         text.LineNumber(file.Content(), name+":"),
+									Line:         line,
 								})
 							}
 						}
@@ -690,7 +690,7 @@ func CheckAttribute(file *ParsedFile, args []string) ([]*Violation, error) {
 				}
 				if presentOnNote {
 					found = true
-					line := file.BodyLine + text.LineNumber(note.Body, "@"+name)
+					line := file.BodyLine + note.Line - 1 + text.LineNumber(note.Body, "@"+name)
 					switch definition.Type {
 					case "array":
 						if !IsArray(noteValue) && !IsPrimitive(noteValue) {
@@ -719,7 +719,7 @@ func CheckAttribute(file *ParsedFile, args []string) ([]*Violation, error) {
 									Name:         "check-attribute",
 									RelativePath: file.RelativePath,
 									Message:      fmt.Sprintf("attribute %q in note %q in file %q does not match pattern %q", name, note.LongTitle, file.RelativePath, definition.Pattern),
-									Line:         note.Line + text.LineNumber(note.Body, "@"+name),
+									Line:         line,
 								})
 							}
 						}
@@ -763,7 +763,7 @@ func CheckAttribute(file *ParsedFile, args []string) ([]*Violation, error) {
 					Name:         "check-attribute",
 					RelativePath: file.RelativePath,
 					Message:      fmt.Sprintf("attribute %q missing on note %q in file %q", definition.Name, note.LongTitle, file.RelativePath),
-					Line:         note.Line,
+					Line:         file.AbsoluteBodyLine(note.Line),
 				})
 			}
 
