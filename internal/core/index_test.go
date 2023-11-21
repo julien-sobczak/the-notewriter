@@ -221,7 +221,7 @@ objects:
       state: added
       mtime: 2023-01-01T01:12:30Z
       desc: flashcard "Golang Logo" [93267c32147a4ab7a1100ce82faab56a99fca1cd]
-      data: eJykkNGL00AQxt/3rxj7pIG2u2nvapdc5J588VEQFAnT7CRZbptZN9NTwT9ektRSFeQOYWGH4fs+fvOxdxb2m/x2V29ys93hFg87NEbrml7nDeLh5hb3+6ZGUzs1dJykEi+BLLzlgH0L77hl1fhA1fOyepbnWhIFFP9IVUTpLLS8Ojol2A5WAQAsoWUl3yNZ0OrLiU7T4ObP90LpEYMFowgHqhqshZOF/EZrlSiSePHcD6M4YBxonqiR8W8S91IdMT04/tpb+NChgGMaQDqCLDuXEbjlLINEMdFAvbxRB6wfrnw/lhPqPWRZy7GjlGUrNa1efBqb/PxyrGSrt095+tWZq5NjsFDE8nesYpDEfVtewRXr8+6KsVjHcuacc86MRSzvLxEz7MW9mjy/ZMWRnEdg7+4WT0VfAAa5W4w3L2BdTnnzMULf5M+Cry74q9xZfyl2Jv2vUutEKOQqFAu5zjdLbZbavNfGmtxu9Ed1iu7fgp8BAAD//2En+4o=
+      data: eJykkE9r20AQxe/6FFOd2gXZu5Jq14us4lMvPRYKLUWMtWtJWNKI1TTJIR8+6E+MkkCwCcxpeO/xe48qo2EXhZttHoUq3mKMxy0qJWVuv4UnxOPXDe52pxxVbry+JMcZV1xbDT+oxraAn1SQd6pqm92W1RLfanG2Rq7ubNYhlxoKWjXGYyx67QEABDCQOGo5a9CdDd23Gn6XyGDI9sClBSFm6poKEgKc7ZztbcvfvSPm54XvMRgzDyBEQV1pnRArb3x9+jtU/vd5YI9lfM3JLzNXyU2tIenSl1hJz47aIl3AJev5t2BM1l06cU45M2PSpYdLxAR7ca9Gz7MsaaypEKgye/9adB+w5r0/dPZhnY55Uxm2D/x64EWDN+NO+suwE+mHRs2dRbYmQ9YQyjAKpAqk+iWVVqGO5B/vf2feFzwFAAD//+eX4GM=
 `), strings.TrimSpace(cYAML))
 
 		// Unmarshall YAML

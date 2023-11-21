@@ -264,16 +264,16 @@ func TestEditFileFrontMatter(t *testing.T) {
 	assert.Equal(t, "7bd2eeb34151be89fad00c85274dd1a42c6e87b0", f.Hash)
 
 	// Check initial content
-	assertFrontMatterEqual(t, `tags: [favorite, inspiration]`, f)
-	assertContentEqual(t, `Blabla`, f)
+	AssertFrontMatterEqual(t, `tags: [favorite, inspiration]`, f)
+	AssertContentEqual(t, `Blabla`, f)
 
 	// Override an attribute
 	f.SetAttribute("tags", []string{"ancient"})
-	assertFrontMatterEqual(t, `tags: [ancient]`, f)
+	AssertFrontMatterEqual(t, `tags: [ancient]`, f)
 
 	// Add an attribute
 	f.SetAttribute("extras", map[string]string{"key1": "value1", "key2": "value2"})
-	assertFrontMatterEqual(t, `
+	AssertFrontMatterEqual(t, `
 tags: [ancient]
 extras:
   key1: value1
@@ -312,7 +312,7 @@ tags: [favorite, inspiration] # Custom tags
 	// Change attributes
 	f.SetAttribute("tags", []string{"ancient"})
 	f.SetAttribute("new", 10)
-	assertFrontMatterEqual(t, `
+	AssertFrontMatterEqual(t, `
 # Front-Matter
 tags: [ancient] # Custom tags
 # published: true
@@ -441,12 +441,12 @@ func TestGetMedias(t *testing.T) {
 func TestFileSave(t *testing.T) {
 	root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
 	FreezeNow(t)
-	assertNoFiles(t)
-	assertNoNotes(t)
-	assertNoFlashcards(t)
-	assertNoLinks(t)
-	assertNoReminders(t)
-	assertNoMedias(t)
+	AssertNoFiles(t)
+	AssertNoNotes(t)
+	AssertNoFlashcards(t)
+	AssertNoLinks(t)
+	AssertNoReminders(t)
+	AssertNoMedias(t)
 
 	// Init the file
 	f, err := NewFileFromPath(nil, filepath.Join(root, "go.md"))
@@ -462,12 +462,12 @@ func TestFileSave(t *testing.T) {
 	}
 	err = CurrentDB().CommitTransaction()
 	require.NoError(t, err)
-	require.Equal(t, 1, mustCountFiles(t))
-	require.Equal(t, 3, mustCountNotes(t))
-	require.Equal(t, 1, mustCountMedias(t))
-	require.Equal(t, 1, mustCountFlashcards(t))
-	require.Equal(t, 1, mustCountLinks(t))
-	require.Equal(t, 1, mustCountReminders(t))
+	require.Equal(t, 1, MustCountFiles(t))
+	require.Equal(t, 3, MustCountNotes(t))
+	require.Equal(t, 1, MustCountMedias(t))
+	require.Equal(t, 1, MustCountFlashcards(t))
+	require.Equal(t, 1, MustCountLinks(t))
+	require.Equal(t, 1, MustCountReminders(t))
 
 	// Check the file
 	actual, err := CurrentCollection().FindFileByRelativePath(f.RelativePath)
@@ -531,14 +531,11 @@ func TestFileSave(t *testing.T) {
 	assert.EqualValues(t, actual.OID, flashcard.FileOID)
 	assert.Equal(t, flashcardNote.OID, flashcard.NoteOID)
 	assert.Equal(t, []string{"go"}, flashcard.Tags)
-	assert.Equal(t, CardNew, flashcard.Type)
-	assert.Equal(t, QueueNew, flashcard.Queue)
-	assert.EqualValues(t, 0, flashcard.Due)
-	assert.EqualValues(t, 1, flashcard.Interval)
-	assert.Equal(t, 2500, flashcard.EaseFactor)
-	assert.Equal(t, 0, flashcard.Repetitions)
-	assert.Equal(t, 0, flashcard.Lapses)
-	assert.Equal(t, 0, flashcard.Left)
+	// SRS fields are not defined
+	assert.Zero(t, flashcard.DueAt)
+	assert.Zero(t, QueueNew, flashcard.StudiedAt)
+	assert.Empty(t, 0, flashcard.Settings)
+	// Content is extracted from the note
 	assert.Equal(t, "What does the **Golang logo** represent?", flashcard.FrontMarkdown)
 	assert.Equal(t, "A **gopher**.\n\n![Logo](oid:4044044044044044044044044044044044044040)", flashcard.BackMarkdown) // Must Refresh
 	assert.Equal(t, "<p>What does the <strong>Golang logo</strong> represent?</p>", flashcard.FrontHTML)

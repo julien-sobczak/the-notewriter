@@ -206,41 +206,6 @@ CREATE TABLE flashcard (
   -- Comma separated list of tags
   tags TEXT DEFAULT '',
 
-  -- 0=new, 1=learning, 2=review, 3=relearning
-  "type" INTEGER NOT NULL DEFAULT 0,
-
-  -- Queue types:
-  --   -1=suspend     => leeches as manual suspension is not supported
-  --    0=new         => new (never shown)
-  --    1=(re)lrn     => learning/relearning
-  --    2=rev         => review (as for type)
-  --    3=day (re)lrn => in learning, next review in at least a day after the previous review
-  queue INTEGER NOT NULL DEFAULT 0,
-
-  -- Due is used differently for different card types:
-  --    new: note oid or random int
-  --    due: integer day, relative to the collection's creation time
-  --    learning: integer timestamp in second
-  due INTEGER NOT NULL DEFAULT 0,
-
-  -- The interval. Negative = seconds, positive = days
-  ivl INTEGER NOT NULL DEFAULT 0,
-
-  -- The ease factor in permille (ex: 2500 = the interval will be multiplied by 2.5 the next time you press "Good").
-  ease_factor INTEGER NOT NULL DEFAULT 0,
-
-  -- The number of reviews.
-  repetitions INTEGER NOT NULL DEFAULT 0,
-
-  -- The number of times the card went from a "was answered correctly" to "was answered incorrectly" state.
-  lapses INTEGER NOT NULL DEFAULT 0,
-
-  -- Of the form a*1000+b, with:
-  --    a the number of reps left today
-  --    b the number of reps left till graduation
-  --    for example: '2004' means 2 reps left today and 4 reps till graduation
-  left INTEGER NOT NULL DEFAULT 0,
-
   -- Fields in Markdown (best for editing)
   front_markdown TEXT NOT NULL,
   back_markdown TEXT NOT NULL,
@@ -252,6 +217,11 @@ CREATE TABLE flashcard (
   -- Fields in raw text (best for indexing)
   front_text TEXT NOT NULL,
   back_text TEXT NOT NULL,
+
+  -- SRS
+  due_at TEXT, -- null = suspended card
+	studied_at TEXT, -- null = never studied
+	settings TEXT, -- JSON document containing settings for the SRS algorithm
 
   -- Timestamps to track changes
   created_at TEXT NOT NULL,

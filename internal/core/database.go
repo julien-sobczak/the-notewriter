@@ -325,8 +325,8 @@ func (db *DB) DeletePackFile(packFile *PackFile) error {
 	return nil
 }
 
-// ReadPackFiles reads all pack files referenced by the commit.
-func (db *DB) ReadPackFiles(commit *Commit) ([]*PackFile, error) {
+// ReadPackFilesFromCommit reads all pack files referenced by the commit.
+func (db *DB) ReadPackFilesFromCommit(commit *Commit) ([]*PackFile, error) {
 	var results []*PackFile
 	for _, packFileOID := range commit.PackFiles {
 		packFile, err := db.ReadPackFile(packFileOID)
@@ -635,7 +635,10 @@ func (db *DB) Pull() error {
 				remoteObject.ForceState(newState)
 
 				// Add in SQL database
-				remoteObject.Save()
+				if err := remoteObject.Save(); err != nil {
+					return err
+				}
+
 			}
 
 			// Write on disk
@@ -889,6 +892,23 @@ func (db *DB) PrintIndex() {
 
 // GC removes non referenced objects/blobs in the local directory.
 func (db *DB) GC() error {
+	// Why GC is required? Why commits cannot do the housekeeping directly?
+	//
+	// The main reason is to reclaim disk space (and thus limit the storage consumption, especially useful for remotes).
+	//
+	// For example:
+	//
+	// * Notes can embed medias. Notes can later be rewritten and no longer reference this media. The media is maybe
+	//   referenced by another note. It's not easy to find out when adding the edited note.
+	//   The GC searches for all these orphan blobs at once.
+	// * Notes can be edited over times and be committed again and again. We don't want to store all revisions in pack files
+	//   (Git is recommended to version your notes).
+	//   The GC traverses the commit graph to analyze packfiles and remove old revisions
+	//   that are no longer relevant. Pack files will be rewritten to remove old data.
+	//   In addition, we also want to limit the number of files on disk (preferable
+	//   when using an object storage as remotes). The GC merges packfiles present
+	// in a single commit when their number of objects becomes too low.
+
 	// Implementation: We use a multi-stage algorithm even when a single pass would be possible.
 	// The only motivation is to keep the code approachable for every stage.
 
@@ -1085,7 +1105,7 @@ func (db *DB) OriginGC() error {
 func (db *DB) CompressCommit(commit *Commit) (bool, error) {
 	commitRevised := false
 
-	packFiles, err := db.ReadPackFiles(commit)
+	packFiles, err := db.ReadPackFilesFromCommit(commit)
 	if err != nil {
 		return false, err
 	}

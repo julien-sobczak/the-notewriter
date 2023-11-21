@@ -494,11 +494,17 @@ func (c *CommitGraph) Write(w io.Writer) error {
 
 // Save persists the commit-graph locally.
 func (c *CommitGraph) Save() error {
-	dir := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects/info/")
+	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects/info/commit-graph")
+	return c.SaveTo(path)
+}
+
+// SaveTo persists the commit-graph to the given path.
+func (c *CommitGraph) SaveTo(path string) error {
+	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
 		return err
 	}
-	f, err := os.Create(filepath.Join(dir, "commit-graph"))
+	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
@@ -548,6 +554,10 @@ func (p *PackObject) ReadObject() StatefulObject {
 		flashcard := new(Flashcard)
 		p.Data.Unmarshal(flashcard)
 		return flashcard
+	case "study":
+		study := new(Study)
+		p.Data.Unmarshal(study)
+		return study
 	case "note":
 		note := new(Note)
 		p.Data.Unmarshal(note)
@@ -625,6 +635,10 @@ func (od ObjectData) Unmarshal(target interface{}) error {
 		f.Read(dest)
 		return nil
 	}
+	if f, ok := target.(*Study); ok {
+		f.Read(dest)
+		return nil
+	}
 	if m, ok := target.(*Media); ok {
 		m.Read(dest)
 		return nil
@@ -649,12 +663,30 @@ func NewCommit() *Commit {
 	}
 }
 
+// NewCommitFromPackFiles initializes a new commit referencing the given pack files.
+func NewCommitFromPackFiles(packFiles ...*PackFile) *Commit {
+	var packFilesOIDs []string
+	for _, packFile := range packFiles {
+		packFilesOIDs = append(packFilesOIDs, packFile.OID)
+	}
+	return &Commit{
+		OID:       NewOID(),
+		CTime:     clock.Now(),
+		PackFiles: packFilesOIDs,
+	}
+}
+
 // NewCommitWithOID initializes a new commit with a given OID.
 func NewCommitWithOID(oid string) *Commit {
 	return &Commit{
 		OID:   oid,
 		CTime: clock.Now(),
 	}
+}
+
+// AppendPackFile appends a new pack file OID in the commit.
+func (c *Commit) AppendPackFile(packFile *PackFile) {
+	c.PackFiles = append(c.PackFiles, packFile.OID)
 }
 
 func (c Commit) String() string {
@@ -773,6 +805,11 @@ func (p *PackFile) Write(w io.Writer) error {
 // Save writes a new pack file inside .nt/objects.
 func (p *PackFile) Save() error {
 	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects/"+OIDToPath(p.OID))
+	return p.SaveTo(path)
+}
+
+// SaveTo writes a new pack file to the given location.
+func (p *PackFile) SaveTo(path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
 		return err
 	}

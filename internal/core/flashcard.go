@@ -3,6 +3,7 @@ package core
 import (
 	"bytes"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -58,36 +59,6 @@ type Flashcard struct {
 	// List of tags
 	Tags []string `yaml:"tags,omitempty"`
 
-	// 0=new, 1=learning, 2=review, 3=relearning
-	Type CardType `yaml:"type"`
-
-	// Queue types
-	Queue QueueType `yaml:"queue"`
-
-	// Due is used differently for different card types:
-	//   - new: note id or random int
-	//   - due: integer day, relative to the collection's creation time
-	//   - learning: integer timestamp in second
-	Due int `yaml:"due"`
-
-	// The interval. Negative = seconds, positive = days
-	Interval int `yaml:"interval"`
-
-	// The ease factor in permille (ex: 2500 = the interval will be multiplied by 2.5 the next time you press "Good").
-	EaseFactor int `yaml:"ease_factor"`
-
-	// Number of reviews
-	Repetitions int `yaml:"repetitions"`
-
-	// The number of times the card went from a "was answered correctly" to "was answered incorrectly" state.
-	Lapses int `yaml:"lapses"`
-
-	// Of the form a*1000+b, with:
-	//   - a the number of reps left today
-	//   - b the number of reps left till graduation
-	// For example: '2004' means 2 reps left today and 4 reps till graduation
-	Left int `yaml:"left"`
-
 	// Fields in Markdown (best for editing)
 	FrontMarkdown string `yaml:"front_markdown"`
 	BackMarkdown  string `yaml:"back_markdown"`
@@ -104,29 +75,42 @@ type Flashcard struct {
 	DeletedAt     time.Time `yaml:"deleted_at,omitempty"`
 	LastCheckedAt time.Time `yaml:"-"`
 
+	// SRS
+	DueAt     time.Time      `yaml:"due_at,omitempty"`
+	StudiedAt time.Time      `yaml:"studied_at,omitempty"`
+	Settings  map[string]any `yaml:"settings,omitempty"`
+
 	new   bool
 	stale bool
 }
 
 type Study struct {
-	Answers []*Answer
+	OID       string    `yaml:"oid"`        // Not persisted in database but can be useful to deduplicate, etc.
+	StartedAt time.Time `yaml:"started_at"` // Timestamp when the first card was revealed
+	EndedAt   time.Time `yaml:"ended_at"`   // Timestamp when the last card was completed
+	Reviews   []*Review `yaml:"reviews"`
 }
 
 type Feedback string
 
 const (
-	FeedbackEasy        Feedback = "easy"
-	FeedbackGood        Feedback = "easy"
-	FeedbackAgain       Feedback = "easy"
-	FeedbackHard        Feedback = "easy"
-	FeedbackAssimilated Feedback = "assimilated"
+	// Anki-inspired feedbacks
+	FeedbackEasy  Feedback = "easy"
+	FeedbackGood  Feedback = "good"
+	FeedbackAgain Feedback = "again"
+	FeedbackHard  Feedback = "hard"
+	// Special feedbacks
+	FeedbackTooEasy Feedback = "too-easy" // Used to bury a card to max interval
+	FeedbackTooHard Feedback = "too-hard" // Used to relearn a card from scratch
 )
 
-type Answer struct {
-	OID          string
-	Feedback     Feedback
-	DurationInMs int
-	// New EaseFactor? etc.
+type Review struct {
+	FlashcardOID string         `yaml:"flashcard_oid"`
+	Feedback     Feedback       `yaml:"feedback"`
+	DurationInMs int            `yaml:"duration_ms"`
+	CompletedAt  time.Time      `yaml:"completed_at"`
+	DueAt        time.Time      `yaml:"due_at"`
+	Settings     map[string]any `yaml:"settings"` // Include algorithm-specific attributes (like the e-factor in SM-2)
 }
 
 func NewOrExistingFlashcard(file *File, note *Note) *Flashcard {
@@ -166,14 +150,7 @@ func NewFlashcard(file *File, note *Note) *Flashcard {
 		Tags:         note.GetTags(),
 
 		// SRS
-		Type:        CardNew,
-		Queue:       QueueNew,
-		Due:         0,
-		Interval:    DefaultFirstInterval,
-		EaseFactor:  DefaultEaseFactor * 1000,
-		Repetitions: 0, // never reviewed
-		Lapses:      0, // never forgotten
-		Left:        0,
+		// Wait for first study to initialize SRS fields
 
 		// Timestamps
 		CreatedAt: clock.Now(),
@@ -395,14 +372,6 @@ func (f *Flashcard) Insert() error {
 			relative_path,
 			short_title,
 			tags,
-			"type",
-			queue,
-			due,
-			ivl,
-			ease_factor,
-			repetitions,
-			lapses,
-			left,
 			front_markdown,
 			back_markdown,
 			front_html,
@@ -413,7 +382,7 @@ func (f *Flashcard) Insert() error {
 			updated_at,
 			last_checked_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 		`
 	_, err := CurrentDB().Client().Exec(query,
 		f.OID,
@@ -422,14 +391,6 @@ func (f *Flashcard) Insert() error {
 		f.RelativePath,
 		f.ShortTitle,
 		strings.Join(f.Tags, ","),
-		f.Type,
-		f.Queue,
-		f.Due,
-		f.Interval,
-		f.EaseFactor,
-		f.Repetitions,
-		f.Lapses,
-		f.Left,
 		f.FrontMarkdown,
 		f.BackMarkdown,
 		f.FrontHTML,
@@ -456,14 +417,6 @@ func (f *Flashcard) Update() error {
 			relative_path = ?,
 			short_title = ?,
 			tags = ?,
-			"type" = ?,
-			queue = ?,
-			due = ?,
-			ivl = ?,
-			ease_factor = ?,
-			repetitions = ?,
-			lapses = ?,
-			left = ?,
 			front_markdown = ?,
 			back_markdown = ?,
 			front_html = ?,
@@ -480,14 +433,6 @@ func (f *Flashcard) Update() error {
 		f.RelativePath,
 		f.ShortTitle,
 		strings.Join(f.Tags, ","),
-		f.Type,
-		f.Queue,
-		f.Due,
-		f.Interval,
-		f.EaseFactor,
-		f.Repetitions,
-		f.Lapses,
-		f.Left,
 		f.FrontMarkdown,
 		f.BackMarkdown,
 		f.FrontHTML,
@@ -506,6 +451,16 @@ func (f *Flashcard) Delete() error {
 	query := `DELETE FROM flashcard WHERE oid = ?;`
 	_, err := CurrentDB().Client().Exec(query, f.OID)
 	return err
+}
+
+func SettingsJSON(settings map[string]any) (string, error) {
+	var buf bytes.Buffer
+	bufEncoder := json.NewEncoder(&buf)
+	err := bufEncoder.Encode(settings)
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
 }
 
 // CountFlashcards returns the total number of flashcards.
@@ -548,6 +503,9 @@ func (c *Collection) FindFlashcardsLastCheckedBefore(point time.Time, path strin
 func QueryFlashcard(db SQLClient, whereClause string, args ...any) (*Flashcard, error) {
 	var f Flashcard
 	var tagsRaw string
+	var settingsRaw sql.NullString
+	var dueAt sql.NullString
+	var studiedAt sql.NullString
 	var createdAt string
 	var updatedAt string
 	var lastCheckedAt string
@@ -561,20 +519,15 @@ func QueryFlashcard(db SQLClient, whereClause string, args ...any) (*Flashcard, 
 			relative_path,
 			short_title,
 			tags,
-			"type",
-			queue,
-			due,
-			ivl,
-			ease_factor,
-			repetitions,
-			lapses,
-			left,
 			front_markdown,
 			back_markdown,
 			front_html,
 			back_html,
 			front_text,
 			back_text,
+			due_at,
+			studied_at,
+			settings,
 			created_at,
 			updated_at,
 			last_checked_at
@@ -587,20 +540,15 @@ func QueryFlashcard(db SQLClient, whereClause string, args ...any) (*Flashcard, 
 			&f.RelativePath,
 			&f.ShortTitle,
 			&tagsRaw,
-			&f.Type,
-			&f.Queue,
-			&f.Due,
-			&f.Interval,
-			&f.EaseFactor,
-			&f.Repetitions,
-			&f.Lapses,
-			&f.Left,
 			&f.FrontMarkdown,
 			&f.BackMarkdown,
 			&f.FrontHTML,
 			&f.BackHTML,
 			&f.FrontText,
 			&f.BackText,
+			&dueAt,
+			&studiedAt,
+			&settingsRaw,
 			&createdAt,
 			&updatedAt,
 			&lastCheckedAt,
@@ -611,7 +559,18 @@ func QueryFlashcard(db SQLClient, whereClause string, args ...any) (*Flashcard, 
 		return nil, err
 	}
 
+	var settings map[string]any
+	if settingsRaw.Valid {
+		err := yaml.Unmarshal([]byte(settingsRaw.String), &settings)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	f.Tags = strings.Split(tagsRaw, ",")
+	f.Settings = settings
+	f.DueAt = timeFromNullableSQL(dueAt)
+	f.StudiedAt = timeFromNullableSQL(studiedAt)
 	f.CreatedAt = timeFromSQL(createdAt)
 	f.UpdatedAt = timeFromSQL(updatedAt)
 	f.LastCheckedAt = timeFromSQL(lastCheckedAt)
@@ -630,20 +589,15 @@ func QueryFlashcards(db SQLClient, whereClause string, args ...any) ([]*Flashcar
 			relative_path,
 			short_title,
 			tags,
-			"type",
-			queue,
-			due,
-			ivl,
-			ease_factor,
-			repetitions,
-			lapses,
-			left,
 			front_markdown,
 			back_markdown,
 			front_html,
 			back_html,
 			front_text,
 			back_text,
+			due_at,
+			studied_at,
+			settings,
 			created_at,
 			updated_at,
 			last_checked_at
@@ -656,6 +610,9 @@ func QueryFlashcards(db SQLClient, whereClause string, args ...any) ([]*Flashcar
 	for rows.Next() {
 		var f Flashcard
 		var tagsRaw string
+		var settingsRaw sql.NullString
+		var dueAt sql.NullString
+		var studiedAt sql.NullString
 		var createdAt string
 		var updatedAt string
 		var lastCheckedAt string
@@ -667,20 +624,15 @@ func QueryFlashcards(db SQLClient, whereClause string, args ...any) ([]*Flashcar
 			&f.RelativePath,
 			&f.ShortTitle,
 			&tagsRaw,
-			&f.Type,
-			&f.Queue,
-			&f.Due,
-			&f.Interval,
-			&f.EaseFactor,
-			&f.Repetitions,
-			&f.Lapses,
-			&f.Left,
 			&f.FrontMarkdown,
 			&f.BackMarkdown,
 			&f.FrontHTML,
 			&f.BackHTML,
 			&f.FrontText,
 			&f.BackText,
+			&dueAt,
+			&studiedAt,
+			&settingsRaw,
 			&createdAt,
 			&updatedAt,
 			&lastCheckedAt,
@@ -688,7 +640,19 @@ func QueryFlashcards(db SQLClient, whereClause string, args ...any) ([]*Flashcar
 		if err != nil {
 			return nil, err
 		}
+
+		var settings map[string]any
+		if settingsRaw.Valid {
+			err := yaml.Unmarshal([]byte(settingsRaw.String), &settings)
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		f.Tags = strings.Split(tagsRaw, ",")
+		f.Settings = settings
+		f.DueAt = timeFromNullableSQL(dueAt)
+		f.StudiedAt = timeFromNullableSQL(studiedAt)
 		f.CreatedAt = timeFromSQL(createdAt)
 		f.UpdatedAt = timeFromSQL(updatedAt)
 		f.LastCheckedAt = timeFromSQL(lastCheckedAt)
@@ -702,3 +666,163 @@ func QueryFlashcards(db SQLClient, whereClause string, args ...any) ([]*Flashcar
 
 	return flashcards, err
 }
+
+/*
+ * Study
+ */
+
+// NewStudy creates a new study.
+func NewStudy(flashcardOID string) *Study {
+	return &Study{
+		OID: NewOID(),
+	}
+}
+
+/* Object */
+
+func (s *Study) Kind() string {
+	return "study"
+}
+
+func (s *Study) UniqueOID() string {
+	return s.OID
+}
+
+func (s *Study) ModificationTime() time.Time {
+	return s.EndedAt
+}
+
+func (s *Study) Refresh() (bool, error) {
+	// Study are immutable
+	return false, nil
+}
+
+func (s *Study) State() State {
+	// Mark study as new to try to update the corresponding flashcard
+	// if the study is more recent that the last review.
+	return Added
+}
+
+func (s *Study) ForceState(state State) {
+	// Do nothing
+}
+
+func (s *Study) Read(r io.Reader) error {
+	err := yaml.NewDecoder(r).Decode(s)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Study) Write(w io.Writer) error {
+	data, err := yaml.Marshal(s)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(data)
+	return err
+}
+
+func (s *Study) SubObjects() []StatefulObject {
+	return nil
+}
+
+func (s *Study) Blobs() []*BlobRef {
+	return nil
+}
+
+func (s *Study) Relations() []*Relation {
+	return nil
+}
+
+func (s Study) String() string {
+	return fmt.Sprintf("study %q started on %v", s.OID, s.StartedAt)
+}
+
+func (s *Study) Save() error {
+	CurrentLogger().Debugf("Study %s has %d reviews", s.OID, len(s.Reviews))
+	for _, review := range s.Reviews {
+		CurrentLogger().Debugf("Saving review for flashcard %s...", review.FlashcardOID)
+		// Read the flashcard to determine if the study is more recent that the last study
+		flashcard, err := CurrentCollection().LoadFlashcardByOID(review.FlashcardOID)
+		if err != nil {
+			return err
+		}
+		if flashcard == nil {
+			CurrentLogger().Debugf("Flashcard %s not found", review.FlashcardOID)
+			continue
+		}
+
+		if flashcard.StudiedAt.After(review.CompletedAt) {
+			// The last known study is more recent. Ignore this study.
+			CurrentLogger().Debugf("Flashcard %s already studied since", review.FlashcardOID)
+			continue
+		}
+
+		// Record the study
+		CurrentLogger().Debugf("Updating flashcard %s following new study...", flashcard.ShortTitle)
+
+		settingsRaw, err := SettingsJSON(review.Settings)
+		if err != nil {
+			return err
+		}
+		query := `
+			UPDATE flashcard
+			SET
+				due_at = ?,
+				studied_at = ?,
+				settings = ?
+			WHERE oid = ?;
+			`
+		_, err = CurrentDB().Client().Exec(query,
+			timeToSQL(review.DueAt),
+			timeToSQL(review.CompletedAt),
+			settingsRaw,
+			review.FlashcardOID)
+		if err != nil {
+			return err
+		}
+		CurrentLogger().Debugf("Updated flashcard %s following new study", flashcard.ShortTitle)
+	}
+
+	return nil
+}
+
+/* Anki SM-2 settings */
+/*
+-- 0=new, 1=learning, 2=review, 3=relearning
+"type" INTEGER NOT NULL DEFAULT 0,
+
+-- Queue types:
+--   -1=suspend     => leeches as manual suspension is not supported
+--    0=new         => new (never shown)
+--    1=(re)lrn     => learning/relearning
+--    2=rev         => review (as for type)
+--    3=day (re)lrn => in learning, next review in at least a day after the previous review
+queue INTEGER NOT NULL DEFAULT 0,
+
+-- Due is used differently for different card types:
+--    new: note oid or random int
+--    due: integer day, relative to the collection's creation time
+--    learning: integer timestamp in second
+due INTEGER NOT NULL DEFAULT 0,
+
+-- The interval. Negative = seconds, positive = days
+ivl INTEGER NOT NULL DEFAULT 0,
+
+-- The ease factor in permille (ex: 2500 = the interval will be multiplied by 2.5 the next time you press "Good").
+ease_factor INTEGER NOT NULL DEFAULT 0,
+
+-- The number of reviews.
+repetitions INTEGER NOT NULL DEFAULT 0,
+
+-- The number of times the card went from a "was answered correctly" to "was answered incorrectly" state.
+lapses INTEGER NOT NULL DEFAULT 0,
+
+-- Of the form a*1000+b, with:
+--    a the number of reps left today
+--    b the number of reps left till graduation
+--    for example: '2004' means 2 reps left today and 4 reps till graduation
+left INTEGER NOT NULL DEFAULT 0,
+*/

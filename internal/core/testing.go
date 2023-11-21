@@ -3,6 +3,7 @@ package core
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -63,6 +64,7 @@ func SetUpCollectionFromGoldenDirNamed(t *testing.T, testname string) string {
 func SetUpCollectionFromTempDir(t *testing.T) string {
 	dirname := t.TempDir()
 	configureDir(t, dirname)
+	t.Logf("Working in configured directory %s", dirname)
 	return dirname
 }
 
@@ -135,91 +137,98 @@ func UseSequenceOID(t *testing.T) {
 
 /* Test Helpers */
 
-func mustCountFiles(t *testing.T) int {
+func MustCountFiles(t *testing.T) int {
 	count, err := CurrentCollection().CountFiles()
 	require.NoError(t, err)
 	return count
 }
 
-func mustCountMedias(t *testing.T) int {
+func MustCountMedias(t *testing.T) int {
 	count, err := CurrentCollection().CountMedias()
 	require.NoError(t, err)
 	return count
 }
 
-func mustCountNotes(t *testing.T) int {
+func MustCountNotes(t *testing.T) int {
 	count, err := CurrentCollection().CountNotes()
 	require.NoError(t, err)
 	return count
 }
 
-func mustCountLinks(t *testing.T) int {
+func MustCountLinks(t *testing.T) int {
 	count, err := CurrentCollection().CountLinks()
 	require.NoError(t, err)
 	return count
 }
 
-func mustCountFlashcards(t *testing.T) int {
+func MustCountFlashcards(t *testing.T) int {
 	count, err := CurrentCollection().CountFlashcards()
 	require.NoError(t, err)
 	return count
 }
 
-func mustCountReminders(t *testing.T) int {
+func MustCountReminders(t *testing.T) int {
 	count, err := CurrentCollection().CountReminders()
 	require.NoError(t, err)
 	return count
 }
 
-func assertNoFiles(t *testing.T) {
+func AssertNoFiles(t *testing.T) {
 	count, err := CurrentCollection().CountFiles()
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 }
 
-func assertNoNotes(t *testing.T) {
+func AssertNoNotes(t *testing.T) {
 	count, err := CurrentCollection().CountNotes()
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 }
 
-func assertNoFlashcards(t *testing.T) {
+func AssertNoFlashcards(t *testing.T) {
 	count, err := CurrentCollection().CountFlashcards()
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 }
 
-func assertNoLinks(t *testing.T) {
+func AssertNoLinks(t *testing.T) {
 	count, err := CurrentCollection().CountLinks()
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 }
 
-func assertNoReminders(t *testing.T) {
+func AssertNoReminders(t *testing.T) {
 	count, err := CurrentCollection().CountReminders()
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 }
 
-func assertNoMedias(t *testing.T) {
+func AssertNoMedias(t *testing.T) {
 	count, err := CurrentCollection().CountMedias()
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 }
 
-func assertFrontMatterEqual(t *testing.T, expected string, file *File) {
+func AssertFrontMatterEqual(t *testing.T, expected string, file *File) {
 	actual, err := file.FrontMatterString()
 	require.NoError(t, err)
-	assertTrimEqual(t, expected, actual)
+	AssertTrimEqual(t, expected, actual)
 }
 
-func assertContentEqual(t *testing.T, expected string, file *File) {
+func AssertContentEqual(t *testing.T, expected string, file *File) {
 	actual := file.Body
-	assertTrimEqual(t, expected, actual)
+	AssertTrimEqual(t, expected, actual)
 }
 
-func assertTrimEqual(t *testing.T, expected string, actual string) {
+func AssertTrimEqual(t *testing.T, expected string, actual string) {
 	assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
+}
+
+func MustFindFlashcardByShortTitle(t *testing.T, shortTitle string) *Flashcard {
+	flashcard, err := CurrentCollection().FindFlashcardByShortTitle(shortTitle)
+	require.NoError(t, err)
+	require.NotNil(t, flashcard)
+	return flashcard
 }
 
 /* Text Helpers */
@@ -245,4 +254,24 @@ func AppendLines(t *testing.T, path string, text string) {
 	lines = append(lines, newLines...)
 	content := strings.Join(lines, "\n")
 	os.WriteFile(path, []byte(content), 0644)
+}
+
+/* Date Management */
+
+func HumanTime(t *testing.T, str string) time.Time {
+	patterns := map[string]string{
+		"2006-01-02":              `^\d{4}-\d{2}-\d{2}$`,
+		"2006-01-02 15:04":        `^\d{4}-\d{2}-\d{2} \d{1,2}:\d{2}$`,
+		"2006-01-02 15:04:05":     `^\d{4}-\d{2}-\d{2} \d{1,2}:\d{2}:\d{2}$`,
+		"2006-01-02 15:04:05.000": `^\d{4}-\d{2}-\d{2} \d{1,2}:\d{2}:\d{2}[.]\d{3}$`,
+	}
+	for layout, regex := range patterns {
+		if match, _ := regexp.MatchString(regex, str); match {
+			result, err := time.Parse(layout, str)
+			require.NoError(t, err)
+			return result
+		}
+	}
+	t.Fatalf("No matching pattern for date %q", str)
+	return time.Time{} // zero
 }

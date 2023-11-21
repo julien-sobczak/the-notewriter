@@ -25,11 +25,19 @@ func timeToSQL(date time.Time) string {
 	return dateStr
 }
 
-// timeToSQL parses a string representation of a time to a time struct.
+// timeFromSQL parses a string representation of a time to a time struct.
 func timeFromSQL(dateStr string) time.Time {
 	date, err := time.Parse(time.RFC3339Nano, dateStr)
 	if err != nil {
 		return time.Time{}
 	}
 	return date
+}
+
+// timeFromNullableSQL parses a string representation of a time to a time struct.
+func timeFromNullableSQL(dateStr sql.NullString) time.Time {
+	if !dateStr.Valid {
+		return time.Time{} // zero date
+	}
+	return timeFromSQL(dateStr.String)
 }
