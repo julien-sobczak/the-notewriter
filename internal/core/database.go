@@ -328,8 +328,8 @@ func (db *DB) DeletePackFile(packFile *PackFile) error {
 // ReadPackFilesFromCommit reads all pack files referenced by the commit.
 func (db *DB) ReadPackFilesFromCommit(commit *Commit) ([]*PackFile, error) {
 	var results []*PackFile
-	for _, packFileOID := range commit.PackFiles {
-		packFile, err := db.ReadPackFile(packFileOID)
+	for _, packFileRef := range commit.PackFiles {
+		packFile, err := db.ReadPackFile(packFileRef.OID)
 		if err != nil {
 			return nil, err
 		}
@@ -362,6 +362,7 @@ func (db *DB) CompressPackFile(packFile *PackFile) (bool, error) {
 
 	// Edit the pack file to remove obsolete pack objects
 	packFile.PackObjects = stillActualPackObjects
+	packFile.MTime = clock.Now()
 	if err := packFile.Save(); err != nil {
 		return false, err
 	}
@@ -579,7 +580,8 @@ func (db *DB) Pull() error {
 	}
 
 	// Iterate over missing commits
-	commits := db.commitGraph.MissingCommitsFrom(cg)
+	diff := db.commitGraph.Diff(cg)
+	commits := diff.MissingCommits
 	for _, commit := range commits {
 
 		// Download each commit in a single transaction
@@ -589,11 +591,11 @@ func (db *DB) Pull() error {
 		}
 		defer db.RollbackTransaction()
 
-		for _, packFileOID := range commit.PackFiles {
+		for _, packFileRef := range commit.PackFiles {
 			// Retrieve the pack file content
-			data, err = origin.GetObject(OIDToPath(packFileOID))
+			data, err = origin.GetObject(OIDToPath(packFileRef.OID))
 			if errors.Is(err, ErrObjectNotExist) {
-				return fmt.Errorf("missing pack file %q", packFileOID)
+				return fmt.Errorf("missing pack file %q", packFileRef.OID)
 			} else if err != nil {
 				return err
 			}
@@ -681,36 +683,72 @@ func (db *DB) Push() error {
 		return errors.New("no remote found")
 	}
 
-	// List of commits to push
-	var commits []*Commit
+	// List of changes to push
+	var commitsToPush []*Commit
+	// + local changes made during gc:
+	var packFilesToPush []*PackFileRef
+	var packFilesToDelete []*PackFileRef
+	var blobsToDelete []string
 
 	// Read remote's commit-graph to find commits to push
 	data, err := origin.GetObject("info/commit-graph")
 	if errors.Is(err, ErrObjectNotExist) {
 		// Push all local commits
-		commits = db.commitGraph.Commits
+		commitsToPush = db.commitGraph.Commits
 	} else if err != nil {
 		return err
 	} else {
-		cg := new(CommitGraph)
-		if err := cg.Read(bytes.NewReader(data)); err != nil {
+
+		// Read the origin commit graph
+		originCommitGraph := new(CommitGraph)
+		if err := originCommitGraph.Read(bytes.NewReader(data)); err != nil {
 			return err
 		}
-		// Check if we miss some commits locally
-		missingCommits := db.commitGraph.MissingCommitsFrom(cg)
-		if len(missingCommits) > 0 {
+
+		// Important! Check if we miss some commits locally
+		diff := db.commitGraph.Diff(originCommitGraph)
+		if len(diff.MissingCommits) > 0 {
 			return errors.New("missing commits from origin")
 		}
 
+		// Read the origin index (must exist if commit-graph exists)
+		data, err := origin.GetObject("index")
+		if errors.Is(err, ErrObjectNotExist) {
+			return errors.New("missing index in remote")
+		}
+		if err != nil {
+			return err
+		}
+		originIndex := new(Index)
+		if err := originIndex.Read(bytes.NewReader(data)); err != nil {
+			return err
+		}
+
+		// Compare local and remote databases
+		commitGraphDiff := originCommitGraph.Diff(db.commitGraph)
+		indexDiff := originIndex.Diff(db.index)
+
 		// Find only missing commits
-		commits = cg.MissingCommitsFrom(db.commitGraph)
+		commitsToPush = commitGraphDiff.MissingCommits
+
+		// Apply changes made during previous invocation of GC
+		packFilesToPush = append(packFilesToPush, commitGraphDiff.MissingPackFiles...)
+		packFilesToPush = append(packFilesToPush, commitGraphDiff.EditedPackFiles...)
+		packFilesToDelete = commitGraphDiff.ObsoletePackFiles
+		blobsToDelete = indexDiff.MissingOrphanBlobs
 	}
 
-	// Iterate over commits to push
-	for _, commit := range commits {
+	CurrentLogger().Infof("Found %d new commit(s), %d updated new pack file(s), %d updated old pack file(s), %d obsolete blobs",
+		len(commitsToPush),
+		len(packFilesToPush),
+		len(packFilesToDelete),
+		len(blobsToDelete))
 
-		for _, packFileOID := range commit.PackFiles {
-			packFile, err := db.ReadPackFile(packFileOID)
+	// Iterate over commits to push
+	for _, commit := range commitsToPush {
+
+		for _, packFileRef := range commit.PackFiles {
+			packFile, err := db.ReadPackFile(packFileRef.OID)
 			if err != nil {
 				return err
 			}
@@ -723,6 +761,7 @@ func (db *DB) Push() error {
 					if err != nil {
 						return err
 					}
+					CurrentLogger().Debugf("Uploading blob %s...", blobRef.OID)
 					if err := origin.PutObject(OIDToPath(blobRef.OID), blobData); err != nil {
 						return err
 					}
@@ -734,9 +773,45 @@ func (db *DB) Push() error {
 			if err := packFile.Write(buf); err != nil {
 				return err
 			}
-			if err := origin.PutObject(OIDToPath(packFileOID), buf.Bytes()); err != nil {
+			CurrentLogger().Debugf("Uploading new commit including pack file %s...", packFileRef.OID)
+			if err := origin.PutObject(OIDToPath(packFileRef.OID), buf.Bytes()); err != nil {
 				return err
 			}
+		}
+	}
+
+	// Iterate over pack files to push
+	for _, packFileRef := range packFilesToPush {
+		// Upload the pack file
+		packFile, err := CurrentDB().ReadPackFile(packFileRef.OID)
+		if err != nil {
+			return err
+		}
+		buf := new(bytes.Buffer)
+		if err := packFile.Write(buf); err != nil {
+			return err
+		}
+		CurrentLogger().Debugf("Uploading merged pack file %s...", packFileRef.OID)
+		if err := origin.PutObject(OIDToPath(packFile.OID), buf.Bytes()); err != nil {
+			return err
+		}
+	}
+
+	// Iterate over pack files to remove
+	for _, packFileRef := range packFilesToDelete {
+		// Remove the pack file
+		CurrentLogger().Debugf("Deleting obsolete pack file %s...", packFileRef.OID)
+		if err := origin.DeleteObject(OIDToPath(packFileRef.OID)); err != nil {
+			return err
+		}
+	}
+
+	// Iterate over blobs to remove
+	for _, blobOID := range blobsToDelete {
+		// Remove the blob
+		CurrentLogger().Debugf("Deleting obsolete blob %s...", blobOID)
+		if err := origin.DeleteObject(OIDToPath(blobOID)); err != nil {
+			return err
 		}
 	}
 
@@ -751,7 +826,7 @@ func (db *DB) Push() error {
 
 	// Update remote index
 	buf = new(bytes.Buffer)
-	if err := db.index.Write(buf); err != nil {
+	if err := db.index.CloneForRemote().Write(buf); err != nil {
 		return err
 	}
 	if err := origin.PutObject("index", buf.Bytes()); err != nil {
@@ -920,8 +995,8 @@ func (db *DB) GC() error {
 	// Walk the commits to locate all medias
 	var allMedias []*Media
 	for _, commit := range db.commitGraph.Commits {
-		for _, packFileOID := range commit.PackFiles {
-			packFile, err := db.ReadPackFile(packFileOID)
+		for _, packFileRef := range commit.PackFiles {
+			packFile, err := db.ReadPackFile(packFileRef.OID)
 			if err != nil {
 				return err
 			}
@@ -1004,103 +1079,6 @@ func (db *DB) GC() error {
 	return db.index.Save()
 }
 
-// GC removes non-referenced objects/blobs in the remote directory.
-func (db *DB) OriginGC() error {
-	origin := db.Origin()
-	if origin == nil {
-		return errors.New("no remote found")
-	}
-
-	// Retrieve the origin commit graph
-	data, err := origin.GetObject("info/commit-graph")
-	if errors.Is(err, ErrObjectNotExist) {
-		// Nothing to clean
-		return nil
-	}
-	originCommitGraph := new(CommitGraph)
-	if err := originCommitGraph.Read(bytes.NewReader(data)); err != nil {
-		return err
-	}
-
-	// Retrieve the origin index
-	data, err = origin.GetObject("index")
-	if errors.Is(err, ErrObjectNotExist) {
-		// Nothing to clean
-		return nil
-	}
-	originIndex := new(Index)
-	if err := originIndex.Read(bytes.NewReader(data)); err != nil {
-		return err
-	}
-
-	// Walk the commits to locate all medias
-	var allMedias []*Media
-	for _, commit := range originCommitGraph.Commits {
-		for _, packFileOID := range commit.PackFiles {
-			data, err := origin.GetObject(OIDToPath(packFileOID))
-			if err != nil {
-				return err
-			}
-			packFile := new(PackFile)
-			if err := packFile.Read(bytes.NewReader(data)); err != nil {
-				return err
-			}
-
-			for _, object := range packFile.PackObjects {
-				if object.Kind == "media" {
-					// Read the media
-					media := new(Media)
-					if err := object.Data.Unmarshal(media); err != nil {
-						return err
-					}
-
-					allMedias = append(allMedias, media)
-				}
-			}
-		}
-	}
-
-	// Traverse in reverse order to find used blobs
-	traversedMedias := make(map[string]bool)
-	usedBlobs := make(map[string]bool)
-	for i := len(allMedias) - 1; i >= 0; i-- {
-		media := allMedias[i]
-		if _, ok := traversedMedias[media.OID]; ok {
-			// Old media version
-			continue
-		}
-		traversedMedias[media.OID] = true
-		if !media.DeletedAt.IsZero() {
-			// Media no longer exists = blobs are no longer truly referenced by it
-			continue
-		}
-		for _, blob := range media.BlobRefs {
-			usedBlobs[blob.OID] = true
-		}
-	}
-
-	// Traverse all medias to detect unused blobs based on the previous list
-	for _, media := range allMedias {
-		for _, blob := range media.BlobRefs {
-			if originIndex.IsOrphanBlob(blob.OID) {
-				// already deleted
-				continue
-			}
-			if _, ok := usedBlobs[blob.OID]; !ok {
-				CurrentLogger().Infof("💾 Deleted remote blob %s", blob.OID)
-				if err := origin.DeleteObject(OIDToPath(blob.OID)); err != nil {
-					if !errors.Is(err, ErrObjectNotExist) {
-						return err
-					}
-					// Ignore objects already deleted
-				}
-			}
-		}
-	}
-
-	return nil
-}
-
 // CompressCommit remove obsolete pack objects and merge small pack files together.
 func (db *DB) CompressCommit(commit *Commit) (bool, error) {
 	commitRevised := false
@@ -1110,7 +1088,7 @@ func (db *DB) CompressCommit(commit *Commit) (bool, error) {
 		return false, err
 	}
 
-	CurrentLogger().Debugf("Analyzing %d pack files in commit %s", len(packFiles), commit.OID)
+	CurrentLogger().Debugf("Analyzing %d pack files in commit %s...", len(packFiles), commit.OID)
 
 	// The resulting pack files after compressing/merging
 	var newPackFiles []*PackFile
@@ -1166,11 +1144,12 @@ func (db *DB) CompressCommit(commit *Commit) (bool, error) {
 	}
 
 	// Update the commit with new pack files OIDs
-	var packFilesOID []string
+	var packFilesRefs []*PackFileRef
 	for _, packFile := range newPackFiles {
-		packFilesOID = append(packFilesOID, packFile.OID)
+		packFilesRefs = append(packFilesRefs, packFile.Ref())
 	}
-	commit.PackFiles = packFilesOID
+	commit.PackFiles = packFilesRefs
+	commit.MTime = clock.Now()
 
 	return commitRevised, nil
 }

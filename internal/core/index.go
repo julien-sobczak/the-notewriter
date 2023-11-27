@@ -183,6 +183,19 @@ func (i *Index) CountChanges() int {
 	return i.StagingArea.Count()
 }
 
+// CloneForRemote prepares a cleaned index before a push.
+func (i *Index) CloneForRemote() *Index {
+	return &Index{
+		Objects:         i.Objects,
+		objectsRef:      i.objectsRef,
+		filesRef:        i.filesRef,
+		PackFiles:       i.PackFiles,
+		OrphanPackFiles: i.OrphanPackFiles,
+		OrphanBlobs:     i.OrphanBlobs,
+		// IMPORTANT: StagingArea must not be pushed remotely
+	}
+}
+
 // Save persists the index on disk.
 func (i *Index) Save() error {
 	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/index")
@@ -298,7 +311,7 @@ func (i *Index) CreateCommitFromStagingArea() (*Commit, []*PackFile) {
 
 		if objectsInPackFile == CurrentConfig().ConfigFile.Core.MaxObjectsPerPackFile {
 			packFiles = append(packFiles, packFile)
-			commit.PackFiles = append(commit.PackFiles, packFile.OID)
+			commit.PackFiles = append(commit.PackFiles, packFile.Ref())
 			i.PackFiles[packFile.OID] = commit.OID
 			// Start a new pack file
 			packFile = NewPackFile()
@@ -307,7 +320,7 @@ func (i *Index) CreateCommitFromStagingArea() (*Commit, []*PackFile) {
 	}
 	if objectsInPackFile > 0 {
 		packFiles = append(packFiles, packFile)
-		commit.PackFiles = append(commit.PackFiles, packFile.OID)
+		commit.PackFiles = append(commit.PackFiles, packFile.Ref())
 		i.PackFiles[packFile.OID] = commit.OID
 	}
 
@@ -376,6 +389,55 @@ func (i *Index) Write(w io.Writer) error {
 	}
 	_, err = w.Write(data)
 	return err
+}
+
+type IndexDiff struct {
+	// Objects present only in the compared index
+	MissingObjects []*IndexObject
+	// Pack Files no longer present in the compared index
+	MissingOrphanPackFiles []string
+	// Blobs no longer present in the compared index
+	MissingOrphanBlobs []string
+}
+
+// Diff reports differences to reconcile the receiver with the given index.
+func (i *Index) Diff(other *Index) *IndexDiff {
+	result := new(IndexDiff)
+
+	// Search for objects present in the given index and not present in the current index
+	for _, objectOther := range other.Objects {
+		if _, ok := i.objectsRef[objectOther.OID]; !ok {
+			result.MissingObjects = append(result.MissingObjects, objectOther)
+		}
+	}
+	// Search for orphan pack files present in the given index and not declared as such in the current index
+	for _, orphanOther := range other.OrphanPackFiles {
+		found := false
+		for _, orphanLocal := range i.OrphanPackFiles {
+			if orphanLocal.OID == orphanOther.OID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			result.MissingOrphanPackFiles = append(result.MissingOrphanPackFiles, orphanOther.OID)
+		}
+	}
+	// Search for orphan blobs present in the given index and not declared as such in the current index
+	for _, orphanOther := range other.OrphanBlobs {
+		found := false
+		for _, orphanLocal := range i.OrphanBlobs {
+			if orphanLocal.OID == orphanOther.OID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			result.MissingOrphanBlobs = append(result.MissingOrphanBlobs, orphanOther.OID)
+		}
+	}
+
+	return result
 }
 
 /* Commit Graph */
@@ -462,24 +524,67 @@ func (c *CommitGraph) LastCommitsFrom(head string) ([]*Commit, error) {
 	return results, nil
 }
 
-// MissingCommitsFrom returns all commits present in origin and not present in current commit graph.
-func (c *CommitGraph) MissingCommitsFrom(origin *CommitGraph) []*Commit {
-	var results []*Commit
+type CommitGraphDiff struct {
+	// Commits present only in the compared commit graph
+	MissingCommits []*Commit
+	// Pack files present only in the compared commit graph
+	MissingPackFiles PackFileRefs
+	// Pack files no longer present in the compared commit graph
+	ObsoletePackFiles PackFileRefs
+	// Pack files edited since by a gc
+	EditedPackFiles PackFileRefs
+}
 
-	for _, commitOrigin := range origin.Commits {
+// Diff reports differences to reconcile the receiver with the given commit graph.
+func (c *CommitGraph) Diff(other *CommitGraph) *CommitGraphDiff {
+	result := new(CommitGraphDiff)
+
+	for _, commitOther := range other.Commits {
 		found := false
 		for _, commitLocal := range c.Commits {
-			if commitLocal.OID == commitOrigin.OID {
+			if commitLocal.OID == commitOther.OID {
 				found = true
+
+				// Great, the commit is present on both sides.
+				// Let's compare the content to see if GC has updated it
+				for _, packFileOther := range commitOther.PackFiles {
+					packFileLocal, ok := commitLocal.IncludePackFile(packFileOther.OID)
+					if !ok {
+						result.MissingPackFiles = append(result.MissingPackFiles, packFileOther)
+						continue
+					}
+					if packFileLocal.MTime.Before(packFileOther.MTime) {
+						result.EditedPackFiles = append(result.EditedPackFiles, packFileOther)
+					}
+				}
+				for _, packFileLocal := range commitLocal.PackFiles {
+					_, ok := commitOther.IncludePackFile(packFileLocal.OID)
+					if !ok {
+						result.ObsoletePackFiles = append(result.ObsoletePackFiles, packFileLocal)
+					}
+				}
+
 				break
 			}
 		}
 		if !found {
-			results = append(results, commitOrigin)
+			result.MissingCommits = append(result.MissingCommits, commitOther)
 		}
 	}
 
-	return results
+	return result
+}
+
+// Dump must be used for debug purpose only.
+func (c *CommitGraph) Dump() {
+	fmt.Println("\n> Commit Graph:")
+	for _, commit := range c.Commits {
+		fmt.Printf("  - %s\n", commit.OID)
+		for _, packFile := range commit.PackFiles {
+			fmt.Printf("    %s (last: %s)\n", packFile.OID, packFile.MTime)
+		}
+	}
+	fmt.Println()
 }
 
 // Write dumps the commit graph.
@@ -515,14 +620,33 @@ func (c *CommitGraph) SaveTo(path string) error {
 /* Commit */
 
 type Commit struct {
-	OID       string    `yaml:"oid"`
-	CTime     time.Time `yaml:"ctime"`
-	PackFiles []string  `yaml:"packfiles"`
+	OID       string       `yaml:"oid"`
+	CTime     time.Time    `yaml:"ctime"`
+	MTime     time.Time    `yaml:"mtime"`
+	PackFiles PackFileRefs `yaml:"packfiles"`
+}
+
+type PackFileRef struct {
+	OID   string    `yaml:"oid"`
+	CTime time.Time `yaml:"ctime"`
+	MTime time.Time `yaml:"mtime"`
+}
+
+// Convenient type to add methods
+type PackFileRefs []*PackFileRef
+
+func (p PackFileRefs) OIDs() []string {
+	var results []string
+	for _, packFileRef := range p {
+		results = append(results, packFileRef.OID)
+	}
+	return results
 }
 
 type PackFile struct {
 	OID         string        `yaml:"oid"`
 	CTime       time.Time     `yaml:"ctime"`
+	MTime       time.Time     `yaml:"mtime"`
 	PackObjects []*PackObject `yaml:"objects"`
 }
 
@@ -535,11 +659,30 @@ type PackObject struct {
 	Data        ObjectData `yaml:"data"`
 }
 
+// NewPackFileRefWithOID initializes a new empty pack file ref with a given OID.
+func NewPackFileRefWithOID(oid string) *PackFileRef {
+	return &PackFileRef{
+		OID:   oid,
+		CTime: clock.Now(),
+		MTime: clock.Now(),
+	}
+}
+
 // NewPackFile initializes a new empty pack file.
 func NewPackFile() *PackFile {
 	return &PackFile{
 		OID:   NewOID(),
 		CTime: clock.Now(),
+		MTime: clock.Now(),
+	}
+}
+
+// NewPackFileWithOID initializes a new empty pack file with a given OID.
+func NewPackFileWithOID(oid string) *PackFile {
+	return &PackFile{
+		OID:   oid,
+		CTime: clock.Now(),
+		MTime: clock.Now(),
 	}
 }
 
@@ -660,19 +803,21 @@ func NewCommit() *Commit {
 	return &Commit{
 		OID:   NewOID(),
 		CTime: clock.Now(),
+		MTime: clock.Now(),
 	}
 }
 
 // NewCommitFromPackFiles initializes a new commit referencing the given pack files.
 func NewCommitFromPackFiles(packFiles ...*PackFile) *Commit {
-	var packFilesOIDs []string
+	var packFilesRefs []*PackFileRef
 	for _, packFile := range packFiles {
-		packFilesOIDs = append(packFilesOIDs, packFile.OID)
+		packFilesRefs = append(packFilesRefs, packFile.Ref())
 	}
 	return &Commit{
 		OID:       NewOID(),
 		CTime:     clock.Now(),
-		PackFiles: packFilesOIDs,
+		MTime:     clock.Now(),
+		PackFiles: packFilesRefs,
 	}
 }
 
@@ -681,12 +826,23 @@ func NewCommitWithOID(oid string) *Commit {
 	return &Commit{
 		OID:   oid,
 		CTime: clock.Now(),
+		MTime: clock.Now(),
 	}
 }
 
 // AppendPackFile appends a new pack file OID in the commit.
 func (c *Commit) AppendPackFile(packFile *PackFile) {
-	c.PackFiles = append(c.PackFiles, packFile.OID)
+	c.PackFiles = append(c.PackFiles, packFile.Ref())
+}
+
+// IncludePackFile returns the pack file is present in the commit.
+func (c *Commit) IncludePackFile(oid string) (*PackFileRef, bool) {
+	for _, packFile := range c.PackFiles {
+		if packFile.OID == oid {
+			return packFile, true
+		}
+	}
+	return nil, false
 }
 
 func (c Commit) String() string {
@@ -709,6 +865,15 @@ func NewPackFileFromPath(path string) (*PackFile, error) {
 	}
 	in.Close()
 	return result, nil
+}
+
+// Ref returns a ref to the pack file.
+func (p *PackFile) Ref() *PackFileRef {
+	return &PackFileRef{
+		OID:   p.OID,
+		CTime: p.CTime,
+		MTime: p.MTime,
+	}
 }
 
 // GetPackObject retrieves an object from a pack file.

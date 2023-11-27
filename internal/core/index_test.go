@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/julien-sobczak/the-notewriter/internal/helpers"
+	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -61,6 +62,7 @@ func TestCommitGraph(t *testing.T) {
 			{
 				OID:   "52d614e255d914e2f6022689617da983381c27a3",
 				CTime: now,
+				MTime: now,
 			},
 		}, commits)
 
@@ -73,12 +75,15 @@ updated_at: 2023-01-01T01:14:30Z
 commits:
     - oid: a757e67f5ae2a8df3a4634c96c16af5c8491bea2
       ctime: 2023-01-01T01:14:30Z
+      mtime: 2023-01-01T01:14:30Z
       packfiles: []
     - oid: a04d20dec96acfc2f9785802d7e3708721005d5d
       ctime: 2023-01-01T01:14:30Z
+      mtime: 2023-01-01T01:14:30Z
       packfiles: []
     - oid: 52d614e255d914e2f6022689617da983381c27a3
       ctime: 2023-01-01T01:14:30Z
+      mtime: 2023-01-01T01:14:30Z
       packfiles: []
 `), strings.TrimSpace(cgYAML))
 	})
@@ -95,12 +100,15 @@ commits:
 commits:
     - oid: a757e67f5ae2a8df3a4634c96c16af5c8491bea2
       ctime: 2023-01-01T01:14:30Z
+      mtime: 2023-01-01T01:14:30Z
       packfiles: []
     - oid: a04d20dec96acfc2f9785802d7e3708721005d5d
       ctime: 2023-01-01T01:14:30Z
+      mtime: 2023-01-01T01:14:30Z
       packfiles: []
     - oid: 52d614e255d914e2f6022689617da983381c27a3
       ctime: 2023-01-01T01:14:30Z
+      mtime: 2023-01-01T01:14:30Z
       packfiles: []
 `) // Caution: spaces are important as we compare hashes at the end of the test
 		in.Close()
@@ -132,14 +140,30 @@ commits:
 		cg1 := NewCommitGraph()
 		cg2 := NewCommitGraph()
 
-		c1 := NewCommitWithOID("a757e67f5ae2a8df3a4634c96c16af5c8491bea2")
-		c2 := NewCommitWithOID("a757e67f5ae2a8df3a4634c96c16af5c8491bea2")
-		c3 := NewCommitWithOID("5bb55dad2b3157a81893bc25f809d85a1fab2911")
-		c4 := NewCommitWithOID("f3aaf5433ec0357844d88f860c42e044fe44ee61")
-		c5 := NewCommitWithOID("3c2fbfe30b58a9737ddfc45ef54587339b2a6c79")
+		c1 := NewCommit()
+		c2 := NewCommitWithOID("e71e62ef-5e8a-4446-9833-329271f7fc41")
+		c2.PackFiles = []*PackFileRef{
+			NewPackFileRefWithOID("b679d872-d529-4d74-845f-80ef1439e66a"),
+			NewPackFileRefWithOID("ae38fc3e-4b0e-416a-af09-816d78f4b9ec"),
+			NewPackFileRefWithOID("9d4571bc-bed9-48fc-a75b-51a0ac387247"),
+		}
+		c2Compressed := NewCommitWithOID("e71e62ef-5e8a-4446-9833-329271f7fc41")
+		c2Compressed.PackFiles = []*PackFileRef{
+			NewPackFileRefWithOID("9d4571bc-bed9-48fc-a75b-51a0ac387247"),
+			NewPackFileRefWithOID("250e8fac-baad-40d8-b1f0-7c1d6bb06e86"),
+		} // two first pack files were replaced by a new one
+		c3 := NewCommit()
+		c4 := NewCommit()
+		c5 := NewCommit()
 
 		// Start with a common commit
 		err := cg1.AppendCommit(c1)
+		require.NoError(t, err)
+		err = cg2.AppendCommit(c1)
+		require.NoError(t, err)
+
+		// Add a common commit with pack files merged by gc only in cg1
+		err = cg1.AppendCommit(c2Compressed)
 		require.NoError(t, err)
 		err = cg2.AppendCommit(c2)
 		require.NoError(t, err)
@@ -154,8 +178,19 @@ commits:
 		err = cg2.AppendCommit(c5)
 		require.NoError(t, err)
 
-		assert.EqualValues(t, []*Commit{c4, c5}, cg1.MissingCommitsFrom(cg2))
-		assert.EqualValues(t, []*Commit{c3}, cg2.MissingCommitsFrom(cg1))
+		// Compare
+		diffA := cg1.Diff(cg2)
+		diffB := cg2.Diff(cg1)
+
+		// Unique commits in each graph must be reported
+		assert.EqualValues(t, []*Commit{c4, c5}, diffA.MissingCommits)
+		assert.EqualValues(t, []*Commit{c3}, diffB.MissingCommits)
+		// Merge pack files must be reported in addition to the new pack file
+		assert.EqualValues(t, []string{"250e8fac-baad-40d8-b1f0-7c1d6bb06e86"}, diffB.MissingPackFiles.OIDs())
+		assert.EqualValues(t, []string{
+			"b679d872-d529-4d74-845f-80ef1439e66a",
+			"ae38fc3e-4b0e-416a-af09-816d78f4b9ec",
+		}, diffB.ObsoletePackFiles.OIDs())
 	})
 
 }
@@ -209,6 +244,7 @@ func TestPackFile(t *testing.T) {
 		assert.Equal(t, strings.TrimSpace(`
 oid: 93267c32147a4ab7a1100ce82faab56a99fca1cd
 ctime: 2023-01-01T01:12:30Z
+mtime: 2023-01-01T01:12:30Z
 objects:
     - oid: 93267c32147a4ab7a1100ce82faab56a99fca1cd
       kind: note
@@ -315,8 +351,8 @@ Guido van Rossum
 		// Create a large file containing many notes
 		var newFileContent bytes.Buffer
 		newFileContent.WriteString("# New File\n\n")
-		for i := 0; i < MaxObjectsPerPackFileDefault + 1; i++ {
-			newFileContent.WriteString(fmt.Sprintf("## Note: Test %d\n\nBlabla\n\n", i + 1))
+		for i := 0; i < MaxObjectsPerPackFileDefault+1; i++ {
+			newFileContent.WriteString(fmt.Sprintf("## Note: Test %d\n\nBlabla\n\n", i+1))
 		}
 		newFilePath := filepath.Join(root, "large.md")
 		err := os.WriteFile(newFilePath, newFileContent.Bytes(), 0644)
@@ -360,4 +396,84 @@ Guido van Rossum
 		assert.Equal(t, 2, idx.StagingArea.CountByState(Added))
 	})
 
+	t.Run("Diff", func(t *testing.T) {
+		// The two indices we will compare
+		i1 := NewIndex()
+		i2 := NewIndex()
+
+		// A few files to create pack files and commits
+		python := NewEmptyFile("python.md")
+		golang := NewEmptyFile("go.md")
+		english := NewEmptyFile("english.md")
+		programming := NewEmptyFile("programming.md")
+		linux := NewEmptyFile("linux.md")
+
+		// Group files into different pack files...
+		p1 := NewPackFile()
+		p1.AppendObject(python)
+		p1.AppendObject(golang)
+
+		p2 := NewPackFile()
+		p2.AppendObject(english)
+
+		p3 := NewPackFile()
+		p3.AppendObject(programming)
+		p3.AppendObject(linux)
+
+		// ... and different commits
+		c1 := NewCommitFromPackFiles(p1, p2)
+		c2 := NewCommitFromPackFiles(p3)
+
+		// Append c1 to both index
+		i1.AppendPackFile(c1.OID, p1)
+		i1.AppendPackFile(c1.OID, p2)
+		i2.AppendPackFile(c1.OID, p1)
+		i2.AppendPackFile(c1.OID, p2)
+
+		// Append c2 to only i1
+		i1.AppendPackFile(c2.OID, p3)
+
+		// Append orphans
+		orphanBlob1 := NewIndexOrphanBlobWithOID("a1d1a55c-5f7f-4203-83b2-b5ece49e9f90")
+		orphanPackFile1 := NewIndexOrphanPackFileWithOID("1b74bc4c-0cd8-41b8-9ff0-28dac59ec101")
+		orphanPackFile2 := NewIndexOrphanPackFileWithOID("56df3bf6-4813-41e2-8c20-22d6cfb3dd64")
+
+		i1.OrphanBlobs = []*IndexOrphanBlob{orphanBlob1}
+		i1.OrphanPackFiles = []*IndexOrphanPackFile{orphanPackFile1, orphanPackFile2}
+		i2.OrphanPackFiles = []*IndexOrphanPackFile{orphanPackFile1}
+
+		// Compare
+		diffA := i1.Diff(i2)
+		diffB := i2.Diff(i1)
+
+		// Unique commits in each graph must be reported
+		assert.Empty(t, diffA.MissingObjects)  // i1 contains all objects present in i2
+		assert.Len(t, diffB.MissingObjects, 2) // i2 lacks the objects in p3
+		assert.Equal(t, programming.OID, diffB.MissingObjects[0].OID)
+		assert.Equal(t, linux.OID, diffB.MissingObjects[1].OID)
+
+		// Check orphans
+		assert.Empty(t, diffA.MissingOrphanBlobs)
+		assert.Empty(t, diffA.MissingOrphanPackFiles)
+		assert.Equal(t, []string{orphanBlob1.OID}, diffB.MissingOrphanBlobs)
+		assert.Equal(t, []string{orphanPackFile2.OID}, diffB.MissingOrphanPackFiles)
+	})
+
+}
+
+/* Test Helpers */
+
+func NewIndexOrphanPackFileWithOID(oid string) *IndexOrphanPackFile {
+	return &IndexOrphanPackFile{
+		OID:   oid,
+		DTime: clock.Now(),
+	}
+}
+
+func NewIndexOrphanBlobWithOID(oid string) *IndexOrphanBlob {
+	return &IndexOrphanBlob{
+		OID:      oid,
+		DTime:    clock.Now(),
+		MediaOID: "848be7af-8d4e-4405-8a5c-58c9a9efaace",
+	}
 }

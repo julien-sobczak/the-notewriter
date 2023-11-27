@@ -393,7 +393,7 @@ The main motivation behind pack files is to limit the number of files on disk (a
 
 #### `.nt/objects/info/commit-graph`
 
-The `commit-graph` file lists in a sequential order all commits that was processed in this repository. The list is useful when retrieving new objects from a [remote](../guides/remote.md) to quickly determine the missing commits to replay.
+The `commit-graph` file lists in a sequential order all commits that was processed in this repository. The list is useful when retrieving new objects from a [remote](../guides/remote.md) to quickly determine the missing commits and pack files to replay.
 
 Ex:
 
@@ -402,13 +402,28 @@ updated_at: 2023-01-01T12:00:00       # Date of the last applied commit
 commits:                              # List of commits
     - oid: 4a03d1ab                   # - Older commit
       ctime: 2023-01-01T10:00:00      #
-      packfiles: [de29102f]           #
+      mtime: 2023-01-01T10:00:00      #
+      packfiles:                      #
+        - oid: de29102f               #
+          ctime: 2023-01-01T10:00:00  #
+          mtime: 2023-01-01T10:00:00  #
     - oid: dbeaba70                   # - ...
       ctime: 2023-01-01T11:00:00      #
-      packfiles: [ed431a12, 34fa982a] #
+      mtime: 2023-01-01T11:00:00      #
+      packfiles:                      #
+        - oid: ed431a12               #
+          ctime: 2023-01-01T10:00:00  #
+          mtime: 2023-01-01T10:00:00  #
+        - oid: 34fa982a               #
+          ctime: 2023-01-01T10:00:00  #
+          mtime: 2023-01-01T10:00:00  #
     - oid: afe988e5                   # - Last commit
       ctime: 2023-01-01T12:00:00      #
-      packfiles: [aa8765d1]           #
+      mtime: 2023-01-01T12:00:00      #
+      packfiles:                      #
+        - oid: aa8765d1               #
+          ctime: 2023-01-01T10:00:00  #
+          mtime: 2023-01-01T10:00:00  #
 ```
 
 ### `.nt/index`

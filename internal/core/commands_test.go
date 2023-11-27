@@ -85,8 +85,8 @@ func TestCommandAdd(t *testing.T) {
 		assert.Len(t, commit.PackFiles, 1)
 
 		// Check pack file is present
-		packFileOID := commit.PackFiles[0]
-		packFile, err := CurrentDB().ReadPackFile(packFileOID)
+		packFileRef := commit.PackFiles[0]
+		packFile, err := CurrentDB().ReadPackFile(packFileRef.OID)
 		require.NoError(t, err)
 		assert.Len(t, packFile.PackObjects, changes)
 
@@ -310,7 +310,7 @@ func TestCommandPushPull(t *testing.T) {
 		require.True(t, ok)
 		require.Len(t, headCommit.PackFiles, 1)
 		packFile := headCommit.PackFiles[0]
-		require.FileExists(t, filepath.Join(origin, OIDToPath(packFile)))
+		require.FileExists(t, filepath.Join(origin, OIDToPath(packFile.OID)))
 
 		Reset()
 
@@ -382,6 +382,46 @@ Guido van Rossum
 		// Try to repush
 		err = CurrentDB().Push()
 		require.NoError(t, err)
+	})
+
+	t.Run("Push with staged changes", func(t *testing.T) {
+		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+		// Configure origin
+		origin := t.TempDir()
+		CurrentConfig().ConfigFile.Remote = ConfigRemote{
+			Type: "fs",
+			Dir:  origin,
+		}
+
+		// Commit
+		err := CurrentCollection().Add(".")
+		require.NoError(t, err)
+		err = CurrentDB().Commit("initial commit")
+		require.NoError(t, err)
+
+		// Stage a few changes
+		newFilepath := filepath.Join(root, "python.md")
+		err = os.WriteFile(newFilepath, []byte(`# Python
+
+## Flashcard: Python's creator
+
+Who invented Python?
+---
+Guido van Rossum
+`), 0644)
+		require.NoError(t, err)
+		err = CurrentCollection().Add(".")
+		require.NoError(t, err)
+
+		// Push
+		err = CurrentDB().Push()
+		require.NoError(t, err)
+
+		// Check staged changes are not pushed
+		require.FileExists(t, filepath.Join(origin, "index"))
+		originIndex, err := NewIndexFromPath(filepath.Join(origin, "index"))
+		require.NoError(t, err)
+		assert.Empty(t, originIndex.StagingArea) // Must not include non-committed changes
 	})
 
 }
@@ -566,8 +606,8 @@ A **gopher**.
 		require.FileExists(t, filepath.Join(origin, OIDToPath(logoOriginalBlob.OID))) // not garbage collected by this command
 		require.FileExists(t, filepath.Join(origin, OIDToPath(logoModifiedBlob.OID)))
 
-		// Run "nt origin gc"
-		err = CurrentDB().OriginGC()
+		// Run "nt push"
+		err = CurrentDB().Push() // apply local gc changes
 		require.NoError(t, err)
 		require.NoFileExists(t, filepath.Join(origin, OIDToPath(logoOriginalBlob.OID))) // garbage collected
 		require.FileExists(t, filepath.Join(origin, OIDToPath(logoModifiedBlob.OID)))
@@ -622,6 +662,7 @@ A **gopher**.
 		initialCommit := CurrentDB().Head()
 		require.NotNil(t, initialCommit)
 		require.Len(t, initialCommit.PackFiles, 4)
+		initialPackFilesOIDs := initialCommit.PackFiles.OIDs() // Backup to compare later after gc
 
 		// Inspect stats
 		statsOnDisk, err := CurrentDB().StatsOnDisk()
@@ -652,7 +693,7 @@ A **gopher**.
 		err = CurrentDB().Push()
 		require.NoError(t, err)
 
-		// We now have two commits. The second commit rewrite all objects comming the file A.
+		// We now have two commits. The second commit rewrite all objects coming from file A.
 		// It means:
 		// - The first pack file of the initial commit can be reclaimed (contains only old versions).
 		// - The second pack file of the initial commit can be edited to remove objects from file A.
@@ -687,9 +728,9 @@ A **gopher**.
 		initialCommitEdited, ok := CurrentDB().ReadCommit(initialCommit.OID)
 		require.True(t, ok)
 		assert.Len(t, initialCommitEdited.PackFiles, 3) // The first pack file must have been dropped
-		packFile1, err := CurrentDB().ReadPackFile(initialCommitEdited.PackFiles[0])
+		packFile1, err := CurrentDB().ReadPackFile(initialCommitEdited.PackFiles[0].OID)
 		require.NoError(t, err)
-		packFile2, err := CurrentDB().ReadPackFile(initialCommitEdited.PackFiles[1])
+		packFile2, err := CurrentDB().ReadPackFile(initialCommitEdited.PackFiles[1].OID)
 		require.NoError(t, err)
 		// Ensure only objects from file B remains
 		var allPackObjects []*PackObject
@@ -707,16 +748,28 @@ A **gopher**.
 
 		// Step 4:
 		// ------
-		// Run the GC remotely
+		// Push to apply GC changes remotely
 		// We must reclaim the same objects as in step 3.
-		t.SkipNow() // TODO Study if GC is really useful
-
-		// Run "nt origin gc"
-		err = CurrentDB().OriginGC()
+		// But first check for timestamps before the operation
+		path1 := filepath.Join(origin, OIDToPath(initialPackFilesOIDs[0]))
+		path2 := filepath.Join(origin, OIDToPath(initialPackFilesOIDs[1]))
+		path3 := filepath.Join(origin, OIDToPath(initialPackFilesOIDs[2]))
+		path4 := filepath.Join(origin, OIDToPath(initialPackFilesOIDs[3]))
+		timestamp2Before := MustReadMTime(t, path2)
+		timestamp3Before := MustReadMTime(t, path3)
+		timestamp4Before := MustReadMTime(t, path4)
+		err = CurrentDB().Push()
 		require.NoError(t, err)
-		require.NoFileExists(t, filepath.Join(origin, OIDToPath(initialCommit.PackFiles[0]))) // garbage collected
-		require.FileExists(t, filepath.Join(origin, OIDToPath(initialCommit.PackFiles[1])))   // edited
-		require.FileExists(t, filepath.Join(origin, OIDToPath(initialCommit.PackFiles[2])))   // unchanged
+		require.NoFileExists(t, path1) // garbage collected
+		require.FileExists(t, path2)   // edited
+		require.FileExists(t, path3)   // unchanged
+		require.FileExists(t, path4)   // unchanged
+		timestamp2After := MustReadMTime(t, path2)
+		timestamp3After := MustReadMTime(t, path3)
+		timestamp4After := MustReadMTime(t, path4)
+		assert.NotEqual(t, timestamp2Before, timestamp2After) // edited
+		assert.Equal(t, timestamp3Before, timestamp3After)    // unchanged
+		assert.Equal(t, timestamp4Before, timestamp4After)    // unchanged
 	})
 
 }
@@ -950,4 +1003,13 @@ func TestSourcegraphGoDiff(t *testing.T) {
 		" }\n"
 
 	assert.Equal(t, expected, patch)
+}
+
+/* Test Helpers */
+
+// MustReadMTime returns the last modification time for a local file using stat.
+func MustReadMTime(t *testing.T, path string) time.Time {
+	fileInfo, err := os.Stat(path)
+	require.NoError(t, err)
+	return fileInfo.ModTime()
 }

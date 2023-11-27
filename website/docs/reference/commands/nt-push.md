@@ -24,6 +24,8 @@ Updates the remote ref using the local ref, while sending objects necessary to c
 
 If the remote ref contains objects not present in the local ref, the command is aborted. Run `nt pull` first.
 
+If objects were reclaimed by `nt gc`, they will be reclaimed in the remote ref too.
+
 ## Configuration
 
 Remotes are declared inside the `.nt/config` file. Several remote implementations are supported:
