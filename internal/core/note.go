@@ -58,7 +58,10 @@ var (
 )
 
 type Note struct {
+	// A unique identifier among all files
 	OID string `yaml:"oid"`
+	// A unique human-friendly slug
+	Slug string `yaml:"slug"`
 
 	// File containing the note
 	FileOID string `yaml:"file_oid"`
@@ -116,64 +119,47 @@ type Note struct {
 }
 
 // NewOrExistingNote loads and updates an existing note or creates a new one if new.
-func NewOrExistingNote(f *File, parent *Note, title string, content string, lineNumber int) *Note {
-	content = strings.TrimSpace(content)
-
-	note, _ := CurrentCollection().FindNoteByWikilink(f.RelativePath + "#" + title)
+func NewOrExistingNote(f *File, parent *Note, parsedNote *ParsedNote) *Note {
+	// Try to find an existing note (instead of recreating it from scratch after every change)
+	note, _ := CurrentCollection().FindMatchingNote(f.RelativePath, parsedNote)
 	if note != nil {
-		note.update(f, title, content, lineNumber)
+		note.update(f, parent, parsedNote)
 		return note
 	}
 
-	hash := helpers.Hash([]byte(content))
-	note, _ = CurrentCollection().FindMatchingNotes(f.RelativePath, title, hash)
-	if note != nil {
-		note.update(f, title, content, lineNumber)
-		return note
-	}
-
-	return NewNote(f, parent, title, content, lineNumber)
+	return NewNote(f, parent, parsedNote)
 }
 
 // NewNote creates a new note from given attributes.
-func NewNote(f *File, parent *Note, title string, content string, lineNumber int) *Note {
-	rawContent := strings.TrimSpace(content)
-
-	_, kind, shortTitle := isSupportedNote(title)
-
-	var titles []string
-	if f.ShortTitle != "" {
-		titles = append(titles, f.ShortTitle)
-	}
-	if parent != nil {
-		titles = append(titles, parent.ShortTitle)
-	}
-	titles = append(titles, shortTitle)
-	longTitle := FormatLongTitle(titles...)
-
+func NewNote(f *File, parent *Note, parsedNote *ParsedNote) *Note {
+	// Set basic properties
 	n := &Note{
 		OID:          NewOID(),
 		FileOID:      f.OID,
 		File:         f,
-		NoteKind:     kind,
-		Title:        title,
-		LongTitle:    longTitle,
-		ShortTitle:   shortTitle,
+		Title:        parsedNote.Title,
+		ShortTitle:   parsedNote.ShortTitle,
+		NoteKind:     parsedNote.Kind,
 		RelativePath: f.RelativePath,
-		Wikilink:     f.Wikilink + "#" + strings.TrimSpace(title),
-		Line:         lineNumber,
+		Attributes:   make(map[string]interface{}),
+		Wikilink:     f.Wikilink + "#" + strings.TrimSpace(parsedNote.Title),
+		Line:         f.AbsoluteBodyLine(parsedNote.Line),
 		CreatedAt:    clock.Now(),
 		UpdatedAt:    clock.Now(),
 		new:          true,
 		stale:        true,
 	}
+
+	// Set optional parent
 	if parent != nil {
 		n.ParentNote = parent
 		n.ParentNoteOID = parent.OID
-		n.LongTitle = parent.LongTitle + " / " + n.LongTitle
 	}
 
-	n.updateContent(rawContent)
+	// Set dynamic properties
+	n.updateLongTitle()              // Require the file and optional parent
+	n.updateContent(parsedNote.Body) // Require the file
+	n.updateSlug()                   // Require the file and note attributes
 
 	CurrentDB().WIP().Register(n)
 
@@ -195,7 +181,7 @@ func (n *Note) ModificationTime() time.Time {
 }
 
 func (n *Note) Refresh() (bool, error) {
-	// Simply force the content to be reevaluated to force inluded notes to be reread
+	// Simply force the content to be reevaluated to force included notes to be reread
 	n.updateContent(n.ContentRaw)
 	return n.stale, nil
 }
@@ -347,22 +333,53 @@ func (n Note) String() string {
 
 /* Update */
 
-func (n *Note) update(f *File, title string, content string, lineNumber int) {
-	rawContent := strings.TrimSpace(content)
-
-	if f.OID != n.FileOID {
-		n.File = f
+func (n *Note) update(f *File, parent *Note, parsedNote *ParsedNote) {
+	// Set basic properties
+	if n.FileOID != f.OID {
 		n.FileOID = f.OID
+		n.File = f
+		n.RelativePath = f.RelativePath
 		n.stale = true
 	}
 
-	if rawContent != n.ContentRaw {
-		n.updateContent(rawContent)
+	// New parent
+	if parent != nil && n.ParentNoteOID != parent.OID {
+		n.ParentNoteOID = parent.OID
+		n.ParentNote = parent
 		n.stale = true
 	}
-	if lineNumber != n.Line {
-		n.Line = lineNumber
+	// Old parent is no longer present
+	if parent == nil && n.ParentNoteOID != "" {
+		n.ParentNoteOID = ""
+		n.ParentNote = nil
+	}
+
+	if n.Title != parsedNote.Title {
+		n.Title = parsedNote.Title
+		n.ShortTitle = parsedNote.ShortTitle
+		n.NoteKind = parsedNote.Kind
 		n.stale = true
+	}
+
+	newWikilink := f.Wikilink + "#" + strings.TrimSpace(parsedNote.Title)
+	if n.Wikilink != newWikilink {
+		n.Wikilink = newWikilink
+		n.stale = true
+	}
+
+	newLine := f.AbsoluteBodyLine(parsedNote.Line)
+	if n.Line != newLine {
+		n.Line = newLine
+		n.stale = true
+	}
+
+	// Set dynamic properties
+	n.updateLongTitle()              // Require the file and optional parent
+	n.updateContent(parsedNote.Body) // Require the file
+	n.updateSlug()                   // Require the file and note attributes
+
+	if n.stale {
+		n.UpdatedAt = clock.Now()
 	}
 }
 
@@ -561,8 +578,69 @@ func (n *Note) ReplaceMediasByOIDLinks(md string) string {
 	return result.String()
 }
 
-func (n *Note) updateContent(rawContent string) {
+func (n *Note) updateLongTitle() {
+	var titles []string
+	if n.GetFile() != nil && n.GetFile().ShortTitle != "" {
+		titles = append(titles, n.GetFile().ShortTitle)
+	}
+	if n.GetParentNote() != nil {
+		titles = append(titles, n.GetParentNote().ShortTitle)
+	}
+	titles = append(titles, n.ShortTitle)
+	newLongTitle := FormatLongTitle(titles...)
+	if n.LongTitle != newLongTitle {
+		n.LongTitle = newLongTitle
+		n.stale = true
+	}
+}
 
+func (n *Note) updateSlug() {
+	// Slug is determined based on the following values
+	var fileSlug string
+	var attributeSlug string
+	var kind NoteKind
+	var shortTitle string
+
+	// Check if a specific slug is specified
+	noteAttributes := n.GetNoteAttributes()
+	if value, ok := noteAttributes["slug"]; ok {
+		if newSlug, ok := value.(string); ok {
+			attributeSlug = newSlug
+		}
+	}
+
+	// Check the slug on the file
+	if n.GetFile() != nil {
+		fileSlug = n.GetFile().Slug
+	}
+
+	kind = n.NoteKind
+	shortTitle = n.ShortTitle
+
+	newSlug := determineSlug(
+		fileSlug,
+		attributeSlug,
+		kind,
+		shortTitle,
+	)
+	if n.Slug != newSlug {
+		n.Slug = newSlug
+		n.stale = true
+	}
+}
+
+// determineSlug determines the note slug from the attributes.
+func determineSlug(fileSlug string, attributeSlug string, kind NoteKind, shortTitle string) string {
+	if attributeSlug != "" {
+		// @slug takes priority
+		return attributeSlug
+	}
+
+	// Slug must be generated
+	return markdown.Slug(fileSlug, string(kind), shortTitle)
+}
+
+func (n *Note) updateContent(rawContent string) {
 	prevContentMarkdown := n.ContentMarkdown
 	prevAttributes := n.Attributes
 
@@ -570,11 +648,6 @@ func (n *Note) updateContent(rawContent string) {
 	n.Hash = helpers.Hash([]byte(n.ContentRaw))
 
 	tags, attributes := ExtractBlockTagsAndAttributes(n.ContentRaw)
-
-	// Append note title in a attribute title if not already present
-	if _, ok := attributes["title"]; !ok {
-		attributes["title"] = n.ShortTitle
-	}
 
 	// Merge with parent attributes
 	if n.ParentNoteOID == "" {
@@ -592,6 +665,11 @@ func (n *Note) updateContent(rawContent string) {
 
 	n.Tags = tags
 	n.Attributes = attributes
+
+	// Append note title in a attribute title if not already present
+	if _, ok := attributes["title"]; !ok {
+		n.SetAttribute("title", n.ShortTitle)
+	}
 
 	// Reread content as tags and attributes previously defined on the note can influence the output.
 	mdTitle, htmlTitle, txtTitle, mdContent, htmlContent, txtContent, mdComment, htmlComment, txtComment := n.parseContentRaw()
@@ -671,6 +749,9 @@ func (n *Note) HasAttribute(name string) bool {
 }
 
 func (n *Note) SetAttribute(name string, value interface{}) {
+	if n.Attributes == nil {
+		n.Attributes = make(map[string]interface{})
+	}
 	n.Attributes[name] = value
 }
 
@@ -865,6 +946,7 @@ func (n *Note) Insert() error {
 			oid,
 			file_oid,
 			note_oid,
+			slug,
 			kind,
 			relative_path,
 			wikilink,
@@ -888,7 +970,7 @@ func (n *Note) Insert() error {
 			created_at,
 			updated_at,
 			last_checked_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 
 	attributesJSON, err := AttributesJSON(n.Attributes)
@@ -900,6 +982,7 @@ func (n *Note) Insert() error {
 		n.OID,
 		n.FileOID,
 		n.ParentNoteOID,
+		n.Slug,
 		n.NoteKind,
 		n.RelativePath,
 		n.Wikilink,
@@ -938,6 +1021,7 @@ func (n *Note) Update() error {
 		SET
 			file_oid = ?,
 			note_oid = ?,
+			slug = ?,
 			kind = ?,
 			relative_path = ?,
 			wikilink = ?,
@@ -971,6 +1055,7 @@ func (n *Note) Update() error {
 	_, err = CurrentDB().Client().Exec(query,
 		n.FileOID,
 		n.ParentNoteOID,
+		n.Slug,
 		n.NoteKind,
 		n.RelativePath,
 		n.Wikilink,
@@ -1170,12 +1255,33 @@ func (c *Collection) FindNoteByTitle(title string) (*Note, error) {
 	return QueryNote(CurrentDB().Client(), `WHERE title = ?`, title)
 }
 
+func (c *Collection) FindNoteBySlug(slug string) (*Note, error) {
+	return QueryNote(CurrentDB().Client(), `WHERE slug = ?`, slug)
+}
+
 func (c *Collection) FindNoteByHash(hash string) (*Note, error) {
 	return QueryNote(CurrentDB().Client(), `WHERE hashsum = ?`, hash)
 }
 
-func (c *Collection) FindMatchingNotes(relativePath, title, hash string) (*Note, error) {
-	return QueryNote(CurrentDB().Client(), `WHERE relative_path = ? AND (title = ? OR hashsum = ?)`, relativePath, title, hash)
+func (c *Collection) FindNoteByPathAndTitle(relativePath string, title string) (*Note, error) {
+	return QueryNote(CurrentDB().Client(), `WHERE relative_path = ? AND title = ?`, relativePath, title)
+}
+
+func (c *Collection) FindMatchingNote(relativePath string, parsedNote *ParsedNote) (*Note, error) {
+	// Try by slug
+	note, _ := c.FindNoteBySlug(parsedNote.Slug)
+	if note != nil {
+		return note, nil
+	}
+
+	// Try by wikilink
+	note, _ = c.FindNoteByWikilink(relativePath + "#" + parsedNote.Title)
+	if note != nil {
+		return note, nil
+	}
+
+	// Last by same title or same content in the same file
+	return QueryNote(CurrentDB().Client(), `WHERE relative_path = ? AND (title = ? OR hashsum = ?)`, relativePath, parsedNote.Title, parsedNote.Hash())
 }
 
 func (c *Collection) FindNoteByWikilink(wikilink string) (*Note, error) {
@@ -1278,6 +1384,7 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 			oid,
 			file_oid,
 			note_oid,
+			slug,
 			kind,
 			relative_path,
 			wikilink,
@@ -1307,6 +1414,7 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 			&n.OID,
 			&n.FileOID,
 			&n.ParentNoteOID,
+			&n.Slug,
 			&n.NoteKind,
 			&n.RelativePath,
 			&n.Wikilink,
@@ -1359,6 +1467,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			oid,
 			file_oid,
 			note_oid,
+			slug,
 			kind,
 			relative_path,
 			wikilink,
@@ -1400,6 +1509,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			&n.OID,
 			&n.FileOID,
 			&n.ParentNoteOID,
+			&n.Slug,
 			&n.NoteKind,
 			&n.RelativePath,
 			&n.Wikilink,
@@ -1454,6 +1564,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 func (n *Note) FormatToJSON() string {
 	type NoteRepresentation struct {
 		OID                string                 `json:"oid"`
+		Slug               string                 `json:"slug"`
 		RelativePath       string                 `json:"relativePath"`
 		Wikilink           string                 `json:"wikilink"`
 		Attributes         map[string]interface{} `json:"attributes"`
@@ -1472,6 +1583,7 @@ func (n *Note) FormatToJSON() string {
 	}
 	repr := NoteRepresentation{
 		OID:                n.OID,
+		Slug:               n.Slug,
 		RelativePath:       n.RelativePath,
 		Wikilink:           n.Wikilink,
 		ShortTitleRaw:      n.ShortTitle,

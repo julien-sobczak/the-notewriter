@@ -4,6 +4,9 @@ CREATE TABLE file (
   -- Parent file
   file_oid TEXT,
 
+  -- Slug
+  slug TEXT,
+
   -- Relative file path to the file
   relative_path TEXT NOT NULL,
   -- The full wikilink to this note
@@ -44,6 +47,9 @@ CREATE TABLE note (
 
   -- Optional parent note containing the note
   note_oid TEXT,
+
+  -- Slug
+  slug TEXT,
 
   -- Type of note: free, reference, ...
   kind TEXT NOT NULL,

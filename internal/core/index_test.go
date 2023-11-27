@@ -197,7 +197,10 @@ commits:
 
 func TestObjectData(t *testing.T) {
 	SetUpCollectionFromTempDir(t)
-	noteSrc := NewNote(NewEmptyFile("todo.md"), nil, "TODO: Backlog", "* [ ] Test ObjectData", 2)
+
+	fileSrc := NewEmptyFile("todo.md")
+	noteParsedSrc := MustParseNote("## TODO: Backlog\n\n* [ ] Test ObjectData", "")
+	noteSrc := NewNote(fileSrc, nil, noteParsedSrc)
 	dataSrc, err := NewObjectData(noteSrc)
 	require.NoError(t, err)
 
@@ -251,7 +254,7 @@ objects:
       state: added
       mtime: 2023-01-01T01:12:30Z
       desc: 'note "Reference: Golang History" [93267c32147a4ab7a1100ce82faab56a99fca1cd]'
-      data: eJzEUlFr2zAQfvevOJyHtNDEspMmjkjC3jLYyyh92hju2TrLwrZkZKVZYT9+uHaSZusKY4XpTXff9+m7T2eU4LCaRYtlNovC+RLnmC4xDBnLKI5yxPR2gatVnmGYCS9XFSV/R2nQknaJNm5g+r5XKi04WMrJks7Ic8pVxGF8d6xw2JkKtYSPqnXGPo29ymiZDLjLntcWxro/9CxV6NQjJQ26goM001p4B1WqSumSw1ia0RuPonNWpXtHLfcAAFqztx2ucK5peRCQnnZaDQmFU2Nl0N2CnUmuGmukxbpWWiad5h4lXT9rOJSDWncmIM2LSzHYfga+OtCZfqKeaZXSxCH2MqNdF7rFA4cfk2fUw2hAPXj9/cM/TjPofO0Nfrs6ykgzFfQYCJMF4I+kCaTxr+GALQhqldQkIH2CO5OSdbCzpFqqyd50FfisSroB1AI+kYb7wtRNazSgg50xsiJQGiLGltPTiAW2BQdGKcaLLE4ZizMWRVG8WFF+O7uNxTzGNI7mYZ5n8bBpSY22FOagOYxHv316DylcXXFYF+H2sr8OinA7YBx9d6d8f/mnrrS5OCfLL17/P+GNz+n1UzbbNUJhKd/4rxjxwaGV5DZ+klaoS79fzc3R35DQOsDteztdB832ZLaPe8j53ffJEjoSCToOEYtmExZOWHjPQh5GfMa+ePtGvA34GQAA///axbcB
+      data: eJzEUsFq20AQvesrBvngBCJrJTu2vNimNxd6KSGnlqKMtKPVYmlXrNZxA/34Ikt24jYNlAa6t5l58+bN2zFKcFhO4/kin8bRbIEzzBYYRYzllMQFYnY7x+WyyDHKhddWe8lBmsBSQZZ0ToE0FWoZlKp1xj55haoo/TvSBi1pl2rjhk7f93ZKCw7nKZ5TriIO47tThsP2OBg+9oPHXmW0TAfcZc1rS2PdH2qWKnTqkdIGXdntNqmFd1A7VSm94zCWZvTGUHTOqmzvqOUeAEBr9rbDlc41LQ9D0pOOqyGhcGKsDLso3Jr0qrFGWqxrpWXace5R0vWRw6Ec2LoXgDQvgpPPR+CrCz23n1uf2yqliUPi5Ua7znSLBw4/giPqYTSgHrw+/vCP2ww8X3uB365ONNJMBD2GwuQh+CNpQmn8azhgC4JaJTUJyJ7gzmRkHWwtqZZqsjddBj6rHd0AagGfSMN9aeqmNRrQwdYYWREoDTFji8l5xRLbkgOjDJN5nmSMJTmL4ziZL6m4nd4mYpZglsSzqCjyZLi0tEa7E+agOYxHv316DyldXXFYldHmsr4Ky2gzYBx9d2d/f/mnLrW+eGfJL6b/H/PGz+71WzabFUJpqVj7rwjxwaGV5NZ+mlWod35/muuTvsGhVYib91a6CpvNWWxv9+Dzu9+TJXQkUnQcYhZPAxYFLLpnEY9iPmVfvH0j3gb8DAAA//9fO8O2
     - oid: 93267c32147a4ab7a1100ce82faab56a99fca1cd
       kind: flashcard
       state: added

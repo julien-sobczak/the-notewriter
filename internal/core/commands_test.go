@@ -200,9 +200,90 @@ func TestCommandAdd(t *testing.T) {
 		require.Len(t, idx.Objects, initialObjectsCount) // must not have changed as we have always edited an existing file
 	})
 
+	t.Run("Slug", func(t *testing.T) {
+		SetUpCollectionFromTempDir(t)
+
+		// Step 1: Add a new file containing a note note with an explicit slug
+		MustWriteFile(t, "python.md", `
+---
+slug: code
+---
+
+# Python
+
+## Flashcard: Python's creator
+
+”@slug: flashcard-python-creator”
+
+Who invented Python?
+---
+Guido van Rossum
+
+## Reference: The History of Python
+
+Python was conceived in the Netherlands as a successor to the ABC programming language.
+`)
+		err := CurrentCollection().Add(".")
+		require.NoError(t, err)
+		err = CurrentDB().Commit("first commit")
+		require.NoError(t, err)
+
+		notePythonInventorInitial := MustFindNoteByPathAndTitle(t, "python.md", "Flashcard: Python's creator")
+		notePythonHistoryInitial := MustFindNoteByPathAndTitle(t, "python.md", "Reference: The History of Python")
+
+		assert.Equal(t, "flashcard-python-creator", notePythonInventorInitial.Slug)
+		assert.Equal(t, "code-reference-the-history-of-python", notePythonHistoryInitial.Slug)
+
+		// Rename the file, the title and update the content of the notes
+		MustWriteFile(t, "programming.md", `
+---
+slug: code
+---
+
+# Programming
+
+## Flashcard: The Creator of Python
+
+”@slug: flashcard-python-creator”
+
+Who invented Python?
+---
+Guido van Rossum
+
+## Reference: The History of Python Language
+
+Python was conceived in the Netherlands by Guido van Rossum as a successor to the ABC programming language.
+`)
+		MustDeleteFile(t, "python.md")
+		// The wikilink, the hash and title are now different.
+		// Only the note with the specified slug are updated.
+		// The other note is recreated from scratch as no match can be made.
+
+		err = CurrentCollection().Add(".")
+		require.NoError(t, err)
+		err = CurrentDB().Commit("second commit")
+		require.NoError(t, err)
+
+		notePythonInventorAfter := MustFindNoteByPathAndTitle(t, "programming.md", "Flashcard: The Creator of Python")
+		notePythonHistoryAfter := MustFindNoteByPathAndTitle(t, "programming.md", "Reference: The History of Python Language")
+
+		assert.Equal(t, "flashcard-python-creator", notePythonInventorAfter.Slug)
+		assert.Equal(t, "code-reference-the-history-of-python-language", notePythonHistoryAfter.Slug)
+
+		assert.Equal(t, notePythonInventorInitial.OID, notePythonInventorAfter.OID) // Same
+		assert.NotEqual(t, notePythonHistoryInitial, notePythonHistoryAfter.OID)    // Different
+
+		// Check that we still have only two notes in database
+		fmt.Println(CurrentConfig().RootDirectory)
+		stats, err := CurrentCollection().StatsInDB()
+		require.NoError(t, err)
+		assert.Equal(t, 1, stats.Objects["file"])
+		assert.Equal(t, 2, stats.Objects["note"])
+	})
+
 }
 
-func TestCommandRestore(t *testing.T) {
+func TestCommandReset(t *testing.T) {
 
 	t.Run("Basic", func(t *testing.T) {
 		SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
@@ -581,10 +662,10 @@ A **gopher**.
 
 		logo, err = CurrentCollection().FindMediaByRelativePath("medias/go.svg")
 		require.NoError(t, err)
-		require.NotNil(t, logo) // Must still exists as we delay the deletion until next gc
+		require.Nil(t, logo) // Old file must not longer exist
 		logo, err = CurrentCollection().FindMediaByRelativePath("medias/go.png")
 		require.NoError(t, err)
-		require.NotNil(t, logo)
+		require.NotNil(t, logo) // No file must now exist
 		require.Len(t, logo.BlobRefs, 2)
 		logoModifiedBlob := logo.BlobRefs[0]
 		require.NotEqual(t, logoOriginalBlob.OID, logoModifiedBlob.OID) // Must be different blobs

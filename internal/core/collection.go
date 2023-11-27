@@ -471,6 +471,9 @@ func (c *Collection) Add(paths ...string) error {
 
 	for _, deletion := range deletions {
 		deletion.ForceState(Deleted)
+		if err := deletion.Save(); err != nil {
+			return err
+		}
 		if err := db.StageObject(deletion); err != nil {
 			return fmt.Errorf("unable to stage deleted object %s: %v", deletion, err)
 		}

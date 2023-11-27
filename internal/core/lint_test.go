@@ -13,8 +13,8 @@ func TestGetSchemaAttributes(t *testing.T) {
 
 	file, err := ParseFile(filepath.Join(root, "check-attribute/check-attribute.md"))
 	require.NoError(t, err)
-	notes := ParseNotes(file.Body)
-	require.Equal(t, "Quote: Steve Jobs on Life", notes[0].LongTitle)
+	notes := ParseNotes(file.Body, "")
+	require.Equal(t, "Quote: Steve Jobs on Life", notes[0].Title)
 	definitions := GetSchemaAttributes(file.RelativePath, notes[0].Kind)
 	assert.Equal(t, []*ConfigLintSchemaAttribute{
 		{
@@ -53,8 +53,8 @@ func TestGetSchemaAttributes(t *testing.T) {
 
 	file, err = ParseFile(filepath.Join(root, "check-attribute.md"))
 	require.NoError(t, err)
-	notes = ParseNotes(file.Body)
-	require.Equal(t, "Note: _Steve Jobs_ by Walter Isaacson", notes[1].LongTitle)
+	notes = ParseNotes(file.Body, "")
+	require.Equal(t, "Note: _Steve Jobs_ by Walter Isaacson", notes[1].Title)
 	definitions = GetSchemaAttributes(file.RelativePath, notes[1].Kind)
 	assert.Equal(t, []*ConfigLintSchemaAttribute{
 		{
@@ -99,6 +99,66 @@ func TestNoDuplicateNoteTitle(t *testing.T) {
 			Name:         "no-duplicate-note-title",
 			RelativePath: "no-duplicate-note-title.md",
 			Message:      `duplicated note with title "Long title must be unique inside a file"`,
+			Line:         15,
+		},
+	}, violations)
+}
+
+func TestNoDuplicateSlug(t *testing.T) {
+	root := SetUpCollectionFromGoldenDirNamed(t, "TestLint")
+
+	// File a.md is valid
+	file, err := ParseFile(filepath.Join(root, "no-duplicate-slug/a.md"))
+	require.NoError(t, err)
+
+	violations, err := NoDuplicateSlug(file, nil)
+	require.NoError(t, err)
+	require.Len(t, violations, 0)
+
+	// File b.md contains non-unique slugs
+	file, err = ParseFile(filepath.Join(root, "no-duplicate-slug/b.md"))
+	require.NoError(t, err)
+
+	violations, err = NoDuplicateSlug(file, nil)
+	require.NoError(t, err)
+	require.Equal(t, []*Violation{
+		{
+			Name:         "no-duplicate-slug",
+			RelativePath: "no-duplicate-slug/b.md",
+			Message:      `duplicated slug "b-note-1"`,
+			Line:         11,
+		},
+		{
+			Name:         "no-duplicate-slug",
+			RelativePath: "no-duplicate-slug/b.md",
+			Message:      `duplicated slug "a-note-1"`,
+			Line:         23,
+		},
+	}, violations)
+
+	// File c.md contains unique slugs but using an invalid format
+	file, err = ParseFile(filepath.Join(root, "no-duplicate-slug/c.md"))
+	require.NoError(t, err)
+
+	violations, err = NoDuplicateSlug(file, nil)
+	require.NoError(t, err)
+	require.Equal(t, []*Violation{
+		{
+			Name:         "no-duplicate-slug",
+			RelativePath: "no-duplicate-slug/c.md",
+			Message:      `invalid slug format "no space allowed"`,
+			Line:         3,
+		},
+		{
+			Name:         "no-duplicate-slug",
+			RelativePath: "no-duplicate-slug/c.md",
+			Message:      `invalid slug format "éà"`,
+			Line:         9,
+		},
+		{
+			Name:         "no-duplicate-slug",
+			RelativePath: "no-duplicate-slug/c.md",
+			Message:      `invalid slug format "TitleCase"`,
 			Line:         15,
 		},
 	}, violations)

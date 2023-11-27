@@ -15,15 +15,17 @@ func TestParsing(t *testing.T) {
 	t.Run("Tags & Attributes", func(t *testing.T) {
 		var tests = []struct {
 			name       string
-			input      string                 // Input
+			content    string                 // Input
 			tags       []string               // Output
 			attributes map[string]interface{} // Output
 		}{
 			{
 				name: "Only tags",
-				input: "\n" +
-					"`#favorite` `#life-changing` `#0Aa-1Bb`\n" +
-					"\n",
+				content: `
+## Note: Only tags
+
+”#favorite” ”#life-changing” ”#0Aa-1Bb”
+`,
 				tags: []string{"favorite", "life-changing", `0Aa-1Bb`},
 				attributes: map[string]interface{}{
 					"tags":  []interface{}{"favorite", "life-changing", `0Aa-1Bb`},
@@ -33,9 +35,11 @@ func TestParsing(t *testing.T) {
 
 			{
 				name: "Only attributes",
-				input: "\n" +
-					"`@isbn: 9780807014271` `@name: Viktor Frankl` `@source: https://en.wikipedia.org/wiki/Man%27s_Search_for_Meaning`\n" +
-					"\n",
+				content: `
+## Note: Only attributes
+
+”@isbn: 9780807014271” ”@name: Viktor Frankl” ”@source: https://en.wikipedia.org/wiki/Man%27s_Search_for_Meaning”
+`,
 				tags: nil,
 				attributes: map[string]interface{}{
 					"isbn":   "9780807014271",
@@ -47,9 +51,11 @@ func TestParsing(t *testing.T) {
 
 			{
 				name: "Mixed on single lines",
-				input: "\n" +
-					"`#favorite` `@isbn: 9780807014271` `#life-changing` `@name: Viktor Frankl`\n" +
-					"\n",
+				content: `
+## Note: Mixed on single lines
+
+”#favorite” ”@isbn: 9780807014271” ”#life-changing” ”@name: Viktor Frankl”
+`,
 				tags: []string{"favorite", "life-changing"},
 				attributes: map[string]interface{}{
 					"isbn":  "9780807014271",
@@ -61,10 +67,12 @@ func TestParsing(t *testing.T) {
 
 			{
 				name: "Mixed on different lines",
-				input: "\n" +
-					"`#favorite` `#life-changing`\n" +
-					"`@isbn: 9780807014271` `@name: Viktor Frankl`\n" +
-					"\n",
+				content: `
+## Note: Mixed on different lines
+
+”#favorite” ”#life-changing”
+”@isbn: 9780807014271” ”@name: Viktor Frankl”
+`,
 				tags: []string{"favorite", "life-changing"},
 				attributes: map[string]interface{}{
 					"isbn":  "9780807014271",
@@ -76,9 +84,12 @@ func TestParsing(t *testing.T) {
 
 			{
 				name: "Array Types",
-				input: "\n" +
-					"`@references: [[fileA]]`\n" +
-					"`@references: [[fileB#Section]]`\n",
+				content: `
+## Note: Array Types
+
+”@references: [[fileA]]”
+”@references: [[fileB#Section]]”
+`,
 				tags: []string{},
 				attributes: map[string]interface{}{
 					"references": []interface{}{
@@ -97,8 +108,9 @@ func TestParsing(t *testing.T) {
 				schemasTypes := GetSchemaAttributeTypes()
 				require.Equal(t, "array", schemasTypes["references"])
 
-				file := NewEmptyFile("example.md")
-				actual := NewNote(file, nil, tt.name, tt.input, 10)
+				file := NewEmptyFile("tags-attributes.md")
+				parsedNote := MustParseNote(UnescapeTestContent(tt.content), "")
+				actual := NewNote(file, nil, parsedNote)
 				if len(tt.tags) == 0 {
 					tt.tags = nil
 				}
@@ -117,83 +129,95 @@ func TestParsing(t *testing.T) {
 		}
 	})
 
-	t.Run("Body", func(t *testing.T) {
+	t.Run("Markdown Syntaxic Sugar", func(t *testing.T) {
 		var tests = []struct {
-			name    string
-			input   string // Input
-			content string // Output
-			strict  bool   // Output
+			name     string
+			content  string // Input
+			expected string // Output
+			strict   bool   // Output
 		}{
 
 			{
 				name: "Note: Basic",
-				input: `
+				content: `
+## Note: Basic
+
 This is a **basic, multiline note**
 that says nothing _interesting_.`,
 				// Nothing to do
-				content: `
+				expected: `
 This is a **basic, multiline note**
 that says nothing _interesting_.`,
 			},
 
 			{
 				name: "Quote: without author",
-				input: `
+				content: `
+## Quote: without author
+
 We are all born ignorant, but one must work
 hard to remain stupid.`,
 				// Prefix line with quotation syntax
-				content: `
+				expected: `
 > We are all born ignorant, but one must work
 > hard to remain stupid.`,
 			},
 
 			{
 				name: "Quote: with author",
-				input: `
-` + "`@name: Henry Ford`" + `
-Quality means doing it right when no one is looking.`,
-				// Append the author after the quotation
 				content: `
+## Quote: with author
+
+”@name: Henry Ford”
+
+Quality means doing it right when no one is looking.
+`,
+				// Append the author after the quotation
+				expected: `
 > Quality means doing it right when no one is looking.
 > — Henry Ford`,
 			},
 
 			{
 				name: "Quote: with tags",
-				input: "\n" +
-					"`#favorite` `#life`\n" +
-					"Action is a necessary part of success.\n" +
-					"\n" +
-					"`#todo`\n",
+				content: `
+## Quote: with tags
+
+”#favorite” ”#life”
+Action is a necessary part of success.
+”#todo”
+`,
 				// Strip tags
-				content: "> Action is a necessary part of success.",
-				strict:  true,
+				expected: "> Action is a necessary part of success.",
+				strict:   true,
 			},
 
 			{
 				name: "Quote: With attribute",
-				input: `
-` + "`@source: https://jamesclear.com/3-2-1/july-14-2022`" + `
-` + "`@author: James Clear`" + `
+				content: `
+## Quote: With attribute
+
+”@source: https://jamesclear.com/3-2-1/july-14-2022”
+”@author: James Clear”
 
 Knowledge is making the right choice with all the information.
 Wisdom is making the right choice without all the information.
 `,
 				// Strip attributes
-				content: "> Knowledge is making the right choice with all the information.\n> Wisdom is making the right choice without all the information.\n> — James Clear",
-				strict:  true,
+				expected: "> Knowledge is making the right choice with all the information.\n> Wisdom is making the right choice without all the information.\n> — James Clear",
+				strict:   true,
 			},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				SetUpCollectionFromTempDir(t)
 				file := NewEmptyFile("example.md")
-				actual := NewNote(file, nil, tt.name, tt.input, 10)
-				_, _, _, markdown, _, _, _, _, _ := actual.parseContentRaw()
+				parsedNote := MustParseNote(UnescapeTestContent(tt.content), "")
+				actual := NewNote(file, nil, parsedNote)
 				if tt.strict {
-					assert.Equal(t, tt.content, markdown)
+					assert.Equal(t, tt.expected, actual.ContentMarkdown)
 				} else {
-					assert.Equal(t, strings.TrimSpace(tt.content), strings.TrimSpace(markdown))
+					assert.Equal(t, strings.TrimSpace(tt.expected), strings.TrimSpace(actual.ContentMarkdown))
 				}
 			})
 		}
@@ -204,18 +228,19 @@ Wisdom is making the right choice without all the information.
 func TestGetLinks(t *testing.T) {
 	var tests = []struct {
 		name     string  // name
-		title    string  // input
 		content  string  // input
 		expected []*Link // output
 	}{
 		{
-			name:  "Different link syntaxes",
-			title: "Cheatsheet: How to create a module?",
+			name: "Different link syntaxes",
 			content: `
+## Cheatsheet: How to create a module?
+
 [Link 1](https://docs.npmjs.com "Tutorial to creating Node.js modules")
 [Link 2](https://docs.npmjs.com "Tutorial to creating Node.js modules #go/node/module")
 [Link 3](https://docs.npmjs.com "#go/node/module")
-[Link 4](https://docs.npmjs.com)`,
+[Link 4](https://docs.npmjs.com)
+`,
 			expected: []*Link{
 				{
 					Text:   "Link 2",
@@ -236,7 +261,7 @@ func TestGetLinks(t *testing.T) {
 	SetUpCollectionFromTempDir(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			note := NewNote(NewEmptyFile("example.md"), nil, tt.title, tt.content, 1)
+			note := NewNote(NewEmptyFile("example.md"), nil, MustParseNote(tt.content, ""))
 			links := note.GetLinks()
 			require.Len(t, links, len(tt.expected))
 			for i, actualLink := range links {
@@ -255,15 +280,16 @@ func TestGetReminders(t *testing.T) {
 
 	var tests = []struct {
 		name     string      // name
-		title    string      // input
 		content  string      // input
 		expected []*Reminder // output
 	}{
 		{
-			name:  "Different reminder syntaxes",
-			title: "TODO: Activities",
-			content: "\n" +
-				"* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`\n",
+			name: "Different reminder syntaxes",
+			content: `
+## TODO: Activities
+
+* [ ] Buy **Lego Christmas** sets to create a village ”#reminder-2025-09”
+`,
 			expected: []*Reminder{
 				{
 					DescriptionRaw:  "Buy **Lego Christmas** sets to create a village",
@@ -277,8 +303,15 @@ func TestGetReminders(t *testing.T) {
 	SetUpCollectionFromTempDir(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			note := NewNote(NewEmptyFile("example.md"), nil, tt.title, tt.content, 1)
+			// Given
+			file := NewEmptyFile("example.md")
+			parsedNote := MustParseNote(UnescapeTestContent(tt.content), "")
+			note := NewNote(file, nil, parsedNote)
+
+			// When
 			reminders := note.GetReminders()
+
+			// Then
 			require.Len(t, reminders, len(tt.expected))
 			for i, actualReminder := range reminders {
 				expectedReminder := tt.expected[i]
@@ -302,21 +335,21 @@ func TestNoteFormat(t *testing.T) {
 	FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
 
 	var tests = []struct {
-		name         string // name
-		title        string // input
-		content      string // input
-		expectedJSON string // output
-
+		name             string // name
+		content          string // input
+		expectedJSON     string // output
 		expectedMarkdown string // output
 		expectedHTML     string // output
 		expectedText     string // output
 	}{
 		{
-			name:  "Basic note",
-			title: "TODO: **Activities**",
-			content: "\n" +
-				"* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`\n",
-			expectedJSON:     "{\n \"oid\": \"16252dafd6355e678bf8ae44b127f657cd3cdd0e\",\n \"relativePath\": \"\",\n \"wikilink\": \"#TODO: **Activities**\",\n \"attributes\": {\n  \"title\": \"**Activities**\"\n },\n \"tags\": null,\n \"shortTitleRaw\": \"**Activities**\",\n \"shortTitleMarkdown\": \"**Activities**\",\n \"shortTitleHTML\": \"\\u003cp\\u003e\\u003cstrong\\u003eActivities\\u003c/strong\\u003e\\u003c/p\\u003e\",\n \"shortTitleText\": \"Activities\",\n \"contentRaw\": \"* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`\",\n \"contentMarkdown\": \"* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`\",\n \"contentHTML\": \"\\u003cul\\u003e\\n\\u003cli\\u003e\\u003cinput type=\\\"checkbox\\\" /\\u003e Buy \\u003cstrong\\u003eLego Christmas\\u003c/strong\\u003e sets to create a village \\u003ccode\\u003e#reminder-2025-09\\u003c/code\\u003e\\u003c/li\\u003e\\n\\u003c/ul\\u003e\",\n \"contentText\": \"* [ ] Buy Lego Christmas sets to create a village `#reminder-2025-09`\",\n \"createdAt\": \"2023-01-01T01:12:30Z\",\n \"updatedAt\": \"2023-01-01T01:12:30Z\",\n \"deletedAt\": null\n}",
+			name: "Basic note",
+			content: `
+## TODO: **Activities**
+
+* [ ] Buy **Lego Christmas** sets to create a village ”#reminder-2025-09”
+`,
+			expectedJSON:     "{\n \"oid\": \"16252dafd6355e678bf8ae44b127f657cd3cdd0e\",\n \"slug\": \"todo-activities\",\n \"relativePath\": \"\",\n \"wikilink\": \"#TODO: **Activities**\",\n \"attributes\": {\n  \"title\": \"**Activities**\"\n },\n \"tags\": null,\n \"shortTitleRaw\": \"**Activities**\",\n \"shortTitleMarkdown\": \"**Activities**\",\n \"shortTitleHTML\": \"\\u003cp\\u003e\\u003cstrong\\u003eActivities\\u003c/strong\\u003e\\u003c/p\\u003e\",\n \"shortTitleText\": \"Activities\",\n \"contentRaw\": \"* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`\",\n \"contentMarkdown\": \"* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`\",\n \"contentHTML\": \"\\u003cul\\u003e\\n\\u003cli\\u003e\\u003cinput type=\\\"checkbox\\\" /\\u003e Buy \\u003cstrong\\u003eLego Christmas\\u003c/strong\\u003e sets to create a village \\u003ccode\\u003e#reminder-2025-09\\u003c/code\\u003e\\u003c/li\\u003e\\n\\u003c/ul\\u003e\",\n \"contentText\": \"* [ ] Buy Lego Christmas sets to create a village `#reminder-2025-09`\",\n \"createdAt\": \"2023-01-01T01:12:30Z\",\n \"updatedAt\": \"2023-01-01T01:12:30Z\",\n \"deletedAt\": null\n}",
 			expectedMarkdown: "# TODO: **Activities**\n\n* [ ] Buy **Lego Christmas** sets to create a village `#reminder-2025-09`",
 			expectedHTML:     "<h1><p>TODO: <strong>Activities</strong></p></h1>\n\n<ul>\n<li><input type=\"checkbox\" /> Buy <strong>Lego Christmas</strong> sets to create a village <code>#reminder-2025-09</code></li>\n</ul>",
 			expectedText:     "TODO: Activities\n\n* [ ] Buy Lego Christmas sets to create a village `#reminder-2025-09`",
@@ -326,7 +359,9 @@ func TestNoteFormat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			note := NewNote(NewEmptyFile(""), nil, tt.title, tt.content, 1)
+			file := NewEmptyFile("")
+			parsedNote := MustParseNote(UnescapeTestContent(tt.content), "")
+			note := NewNote(file, nil, parsedNote)
 			actualJSON := note.FormatToJSON()
 			actualMarkdown := note.FormatToMarkdown()
 			actualHTML := note.FormatToHTML()
@@ -345,7 +380,9 @@ func TestSearchNotes(t *testing.T) {
 	CurrentLogger().SetVerboseLevel(VerboseTrace)
 
 	// Insert a note
-	note := NewNote(NewEmptyFile("example.md"), nil, "Reference: FTS5", "TODO", 2)
+	file := NewEmptyFile("example.md")
+	parsedNote := MustParseNote("## Reference: FTS5\n\nTODO", "")
+	note := NewNote(file, nil, parsedNote)
 	err := CurrentDB().BeginTransaction()
 	require.NoError(t, err)
 	err = note.Insert()
@@ -395,7 +432,12 @@ func TestNote(t *testing.T) {
 		UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
 		FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
 
-		noteSrc := NewNote(NewEmptyFile("example.md"), nil, "TODO: Backlog", "* [ ] Test", 2)
+		parsedNoteSrc := MustParseNote(`
+## TODO: Backlog
+
+* [ ] Test
+`, "")
+		noteSrc := NewNote(NewEmptyFile("example.md"), nil, parsedNoteSrc)
 
 		// Marshall
 		buf := new(bytes.Buffer)
@@ -404,6 +446,7 @@ func TestNote(t *testing.T) {
 		noteYAML := buf.String()
 		assert.Equal(t, strings.TrimSpace(`
 oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
+slug: todo-backlog
 file_oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
 parent_note_oid: ""
 kind: todo
@@ -414,7 +457,7 @@ relative_path: example.md
 wikilink: 'example.md#TODO: Backlog'
 attributes:
     title: Backlog
-line: 2
+line: 1
 content_raw: '* [ ] Test'
 content_hash: 3d14810b17a61366392fce8a69fbebf5d685f2fb
 title_markdown: '# Backlog'

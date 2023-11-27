@@ -29,6 +29,7 @@ Rules are declared under the attribute `rules`. Some rules accept arguments usin
 | Rule  | Description  | Arguments  |
 |---|---|---|
 | `no-duplicate-note-title` | Enforce no duplicate between note titles inside the same file | - |
+| `no-duplicate-slug` | Enforce no duplicate slugs between notes across files | - |
 | `min-lines-between-notes` | Enforce a minimum number of lines between notes | <ul><li><code>int</code> The number of lines</li></ul> |
 |	`max-lines-between-notes` | Enforce a maximum number of lines between notes | <ul><li><code>int</code> The number of lines</li></ul> |
 |	`note-title-match` | Enforce a consistent naming for notes | <ul><li><code>string</code> A Golang regex</li></ul> |
@@ -75,6 +76,45 @@ This is a note with the same title.
 :::tip
 
 Use the rule `no-duplicate-note-title` to ensure internal links are not ambiguous.
+
+:::
+
+### `no-duplicate-slug`
+
+Configuration:
+
+```yaml title=.nt/lint
+rules:
+- name: no-duplicate-slug
+```
+
+Example (with violations highlighted):
+
+```md {11,17}
+# Example
+
+## Note: The slug attribute is supported
+
+`@slug: note1`
+
+This is a note.
+
+### Note: The same slug cannot be reused
+
+`@slug: note1`
+
+This is a note.
+
+## Note: Slugs must be compatible with URLs
+
+`@slug: not a valid slug`
+
+This is a note.
+```
+
+:::tip
+
+Use the rule `no-duplicate-slug` to ensure slugs can be used in URLs and match only a single note.
 
 :::
 

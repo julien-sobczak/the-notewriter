@@ -645,6 +645,7 @@ func TestFile(t *testing.T) {
 		noteYAML := buf.String()
 		assert.Equal(t, strings.TrimSpace(`
 oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
+slug: go
 relative_path: go.md
 wikilink: go
 front_matter:
@@ -1296,7 +1297,7 @@ Presentation of idea B
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			SetUpCollectionFromTempDir(t)
-			notes := ParseNotes(tt.input)
+			notes := ParseNotes(tt.input, "")
 			tt.checkFn(t, notes)
 		})
 	}
@@ -1307,7 +1308,7 @@ func TestParseFileComplex(t *testing.T) {
 	file, err := ParseFile(filepath.Join(root, "syntax.md"))
 	require.NoError(t, err)
 
-	notes := ParseNotes(file.Body)
+	notes := ParseNotes(file.Body, "markdown-language")
 
 	// Check note by note
 	var note *ParsedNote
@@ -1316,7 +1317,8 @@ func TestParseFileComplex(t *testing.T) {
 	assert.Equal(t, &ParsedNote{
 		Kind:       "note",
 		Level:      2,
-		LongTitle:  "Note: Markdown in Markdown",
+		Slug:       "markdown-language-note-markdown-in-markdown",
+		Title:      "Note: Markdown in Markdown",
 		ShortTitle: "Markdown in Markdown",
 		Line:       27 - file.BodyLine + 1,
 		NoteTags:   nil,
@@ -1329,7 +1331,8 @@ func TestParseFileComplex(t *testing.T) {
 	assert.Equal(t, &ParsedNote{
 		Kind:       "cheatsheet",
 		Level:      2,
-		LongTitle:  "Cheatsheet: How to include HTML in Markdown",
+		Slug:       "markdown-language-cheatsheet-how-to-include-html-in-markdown",
+		Title:      "Cheatsheet: How to include HTML in Markdown",
 		ShortTitle: "How to include HTML in Markdown",
 		Line:       44 - file.BodyLine + 1,
 		NoteTags:   []string{"html"},
@@ -1342,7 +1345,8 @@ func TestParseFileComplex(t *testing.T) {
 	assert.Equal(t, &ParsedNote{
 		Kind:       "note",
 		Level:      2,
-		LongTitle:  "Note: A",
+		Slug:       "markdown-language-note-a",
+		Title:      "Note: A",
 		ShortTitle: "A",
 		Line:       55 - file.BodyLine + 1,
 		NoteTags:   []string{"tag-a"},
@@ -1356,7 +1360,8 @@ func TestParseFileComplex(t *testing.T) {
 	assert.Equal(t, &ParsedNote{
 		Kind:       "note",
 		Level:      3,
-		LongTitle:  "Note: B",
+		Slug:       "markdown-language-note-b",
+		Title:      "Note: B",
 		ShortTitle: "B",
 		Line:       63 - file.BodyLine + 1,
 		NoteTags:   []string{"tag-b1", "tag-b2"},
@@ -1369,7 +1374,8 @@ func TestParseFileComplex(t *testing.T) {
 	assert.Equal(t, &ParsedNote{
 		Kind:       "note",
 		Level:      4,
-		LongTitle:  "Note: C",
+		Slug:       "markdown-language-note-c",
+		Title:      "Note: C",
 		ShortTitle: "C",
 		Line:       69 - file.BodyLine + 1,
 		NoteTags:   nil,
@@ -1382,7 +1388,8 @@ func TestParseFileComplex(t *testing.T) {
 	assert.Equal(t, &ParsedNote{
 		Kind:       "note",
 		Level:      5,
-		LongTitle:  "Note: D",
+		Slug:       "markdown-language-note-d",
+		Title:      "Note: D",
 		ShortTitle: "D",
 		Line:       75 - file.BodyLine + 1,
 		NoteTags:   []string{"tag-d"},
@@ -1395,7 +1402,8 @@ func TestParseFileComplex(t *testing.T) {
 	assert.Equal(t, &ParsedNote{
 		Kind:           "note",
 		Level:          6,
-		LongTitle:      "Note: E",
+		Slug:           "markdown-language-note-e",
+		Title:          "Note: E",
 		ShortTitle:     "E",
 		Line:           81 - file.BodyLine + 1,
 		NoteTags:       nil,
@@ -1406,7 +1414,8 @@ func TestParseFileComplex(t *testing.T) {
 	assert.Equal(t, &ParsedNote{
 		Kind:           "todo",
 		Level:          2,
-		LongTitle:      "TODO: List",
+		Slug:           "markdown-language-todo-list",
+		Title:          "TODO: List",
 		ShortTitle:     "List",
 		Line:           86 - file.BodyLine + 1,
 		NoteTags:       nil,
@@ -1417,7 +1426,8 @@ func TestParseFileComplex(t *testing.T) {
 	assert.Equal(t, &ParsedNote{
 		Kind:           "note",
 		Level:          2,
-		LongTitle:      "Note: Comments",
+		Slug:           "markdown-language-note-comments",
+		Title:          "Note: Comments",
 		ShortTitle:     "Comments",
 		Line:           100 - file.BodyLine + 1,
 		NoteTags:       nil,
@@ -1428,7 +1438,8 @@ func TestParseFileComplex(t *testing.T) {
 	assert.Equal(t, &ParsedNote{
 		Kind:       "quote",
 		Level:      2,
-		LongTitle:  "Quote: Richly Annotated Quote",
+		Slug:       "markdown-language-quote-richly-annotated-quote",
+		Title:      "Quote: Richly Annotated Quote",
 		ShortTitle: "Richly Annotated Quote",
 		Line:       116 - file.BodyLine + 1,
 		NoteTags:   []string{"life", "doing", "life-changing", "courage"},

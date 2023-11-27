@@ -87,7 +87,14 @@ func TestReminder(t *testing.T) {
 		UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
 		FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
 
-		noteSrc := NewNote(NewEmptyFile("example.md"), nil, "TODO: Backlog", "* [ ] Test `#reminder-2025-09`", 2)
+		// Given
+		fileSrc := NewEmptyFile("example.md")
+		parsedNoteSrc := MustParseNote(`
+## TODO: Backlog
+
+* [ ] Test ”#reminder-2025-09”
+`, "")
+		noteSrc := NewNote(fileSrc, nil, parsedNoteSrc)
 		reminderSrc, err := NewReminder(noteSrc, "Test", "#reminder-2025-09")
 		require.NoError(t, err)
 

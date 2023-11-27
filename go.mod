@@ -11,6 +11,8 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.15.2
 	github.com/gomarkdown/markdown v0.0.0-20221013030248-663e2500819c
 	github.com/google/uuid v1.3.0
+	github.com/gosimple/slug v1.13.1
+	github.com/jinzhu/copier v0.3.5
 	github.com/minio/minio-go/v7 v7.0.49
 	github.com/otiai10/copy v1.9.0
 	github.com/pelletier/go-toml/v2 v2.0.6
@@ -22,7 +24,6 @@ require (
 	go.nhat.io/surveyexpect v0.8.0
 	golang.org/x/exp v0.0.0-20230321023759-10a507213a29
 	gopkg.in/yaml.v3 v3.0.1
-	github.com/jinzhu/copier v0.3.5
 )
 
 require (
@@ -38,6 +39,7 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
+	github.com/gosimple/unidecode v1.0.1 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hinshun/vt10x v0.0.0-20220301184237-5011da428d02 // indirect

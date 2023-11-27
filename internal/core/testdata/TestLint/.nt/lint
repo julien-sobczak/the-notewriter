@@ -1,5 +1,6 @@
 rules:
 - name: no-duplicate-note-title
+- name: no-duplicate-slug
 - name: min-lines-between-notes
   args: [2]
 - name: no-free-note

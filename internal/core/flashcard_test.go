@@ -25,7 +25,8 @@ func TestFlashcard(t *testing.T) {
 		FreezeAt(t, HumanTime(t, "2023-01-01 01:12:30"))
 
 		fileSrc := NewEmptyFile("example.md")
-		noteSrc := NewNote(fileSrc, nil, "Flashcard: Syntax", "Question\n---\nAnswer", 1)
+		parsedNoteSrc := MustParseNote("## Flashcard: Syntax\n\nQuestion\n---\nAnswer", "")
+		noteSrc := NewNote(fileSrc, nil, parsedNoteSrc)
 		flashcardSrc := NewFlashcard(fileSrc, noteSrc)
 
 		// Marshall

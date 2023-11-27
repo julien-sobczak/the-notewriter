@@ -23,6 +23,7 @@ func Reset() {
 	dbOnce.Reset()
 	loggerOnce.Reset()
 	sectionsInventoryOnce.Reset()
+	slugInventoryOnce.Reset()
 }
 
 /* Fixtures */
@@ -230,6 +231,45 @@ func MustFindFlashcardByShortTitle(t *testing.T, shortTitle string) *Flashcard {
 	require.NotNil(t, flashcard)
 	return flashcard
 }
+
+func MustFindNoteByPathAndTitle(t *testing.T, relativePath, longTitle string) *Note {
+	note, err := CurrentCollection().FindNoteByPathAndTitle(relativePath, longTitle)
+	require.NoError(t, err)
+	require.NotNil(t, note)
+	return note
+}
+
+
+/* Collection Helpers */
+
+// MustWriteFile edits the file in the current collection to force the given content.
+func MustWriteFile(t *testing.T, path string, content string) {
+	root := CurrentConfig().RootDirectory
+	newFilepath := filepath.Join(root, path)
+	err := os.WriteFile(newFilepath, []byte(UnescapeTestContent(content)), 0644)
+	require.NoError(t, err)
+}
+
+// UnescapeTestContent supports content using a special character instead of backticks.
+func UnescapeTestContent(content string) string {
+	// We support a special syntax for backticks in content.
+	// Backticks are used to define note attributes (= common syntax with The NoteWriter) but
+	// multiline strings in Golang cannot contains backticks.
+	// We allows the ” character instead as suggested here: https://stackoverflow.com/a/59900008
+	//
+	// Example: ”@slug: toto” will become `@slug: toto`
+	return strings.ReplaceAll(content, "”", "`")
+}
+
+// MustDeleteFile remove a file iin the current collection.
+func MustDeleteFile(t *testing.T, path string) {
+	root := CurrentConfig().RootDirectory
+	existingFilepath := filepath.Join(root, path)
+
+	err := os.Remove(existingFilepath)
+	require.NoError(t, err)
+}
+
 
 /* Text Helpers */
 

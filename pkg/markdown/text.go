@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/gosimple/slug"
 )
 
 // How many spaces to indent headings per level
@@ -50,15 +52,7 @@ func ToText(md string) string {
 	txt := res.String()
 
 	// Emphasis
-	reBoldAsterisks := regexp.MustCompile(`\*\*(.*?)\*\*`)
-	reBoldUnderscores := regexp.MustCompile(`__(.*?)__`)
-	reItalicAsterisks := regexp.MustCompile(`\*(.*?)\*`)
-	reItalicUnderscores := regexp.MustCompile(`_(.*?)_`)
-
-	txt = reBoldAsterisks.ReplaceAllString(txt, "$1")
-	txt = reBoldUnderscores.ReplaceAllString(txt, "$1")
-	txt = reItalicAsterisks.ReplaceAllString(txt, "$1")
-	txt = reItalicUnderscores.ReplaceAllString(txt, "$1")
+	txt = StripEmphasis(txt)
 
 	// Quotes
 	res.Reset()
@@ -114,4 +108,29 @@ func ToText(md string) string {
 	txt = reEmail.ReplaceAllString(txt, "$1")
 
 	return strings.TrimSpace(txt)
+}
+
+// StripEmphasis remove Markdown emphasis characters.
+func StripEmphasis(text string) string {
+	reBoldAsterisks := regexp.MustCompile(`\*\*(.*?)\*\*`)
+	reBoldUnderscores := regexp.MustCompile(`__(.*?)__`)
+	reItalicAsterisks := regexp.MustCompile(`\*(.*?)\*`)
+	reItalicUnderscores := regexp.MustCompile(`_(.*?)_`)
+
+	text = reBoldAsterisks.ReplaceAllString(text, "$1")
+	text = reBoldUnderscores.ReplaceAllString(text, "$1")
+	text = reItalicAsterisks.ReplaceAllString(text, "$1")
+	text = reItalicUnderscores.ReplaceAllString(text, "$1")
+
+	return text
+}
+
+// Slug returns a slug from a list of raw Markdown input values that will be processed.
+func Slug(values ...string) string {
+	var parts []string
+	for _, value := range values {
+		value = StripEmphasis(value)
+		parts = append(parts, value)
+	}
+	return slug.Make(strings.Join(parts, " "))
 }

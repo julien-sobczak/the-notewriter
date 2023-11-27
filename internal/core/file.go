@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"log"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"time"
@@ -33,6 +34,8 @@ type Attribute struct {
 type File struct {
 	// A unique identifier among all files
 	OID string `yaml:"oid"`
+	// A unique human-friendly slug
+	Slug string `yaml:"slug"`
 
 	// Optional parent file (= index.md)
 	ParentFileOID string `yaml:"file_oid,omitempty"`
@@ -99,6 +102,7 @@ func NewOrExistingFile(parent *File, path string) (*File, error) {
 func NewEmptyFile(name string) *File {
 	return &File{
 		OID:          NewOID(),
+		Slug:         "",
 		stale:        true,
 		new:          true,
 		Wikilink:     name,
@@ -123,6 +127,7 @@ func NewFileFromAttributes(parent *File, name string, attributes []Attribute) *F
 func NewFileFromParsedFile(parent *File, parsedFile *ParsedFile) *File {
 	file := &File{
 		OID:          NewOID(),
+		Slug:         parsedFile.Slug,
 		RelativePath: parsedFile.RelativePath,
 		Wikilink:     text.TrimExtension(parsedFile.RelativePath),
 		Mode:         parsedFile.LStat.Mode(),
@@ -333,6 +338,11 @@ func (f *File) Updated() bool {
 
 /* Front Matter */
 
+// AbsoluteBodyLine returns the line number in the file by taking into consideration the front matter.
+func (f *File) AbsoluteBodyLine(bodyLine int) int {
+	return f.BodyLine + bodyLine - 1
+}
+
 // FrontMatterString formats the current attributes to the YAML front matter format.
 func (f *File) FrontMatterString() (string, error) {
 	var buf bytes.Buffer
@@ -445,7 +455,7 @@ func (f *File) GetNotes() []*Note {
 		return f.notes
 	}
 
-	parsedNotes := ParseNotes(f.Body)
+	parsedNotes := ParseNotes(f.Body, f.Slug)
 
 	if len(parsedNotes) == 0 {
 		return nil
@@ -503,7 +513,7 @@ func (f *File) GetNotes() []*Note {
 
 			if parentSatisfied && internalLinksSatisfied {
 				addedNoteIndices[i] = true
-				addedSections[note.LongTitle] = true
+				addedSections[note.Title] = true
 				sortedParsedNotes = append(sortedParsedNotes, note)
 				changedDuringIteration = true
 			}
@@ -528,12 +538,11 @@ func (f *File) GetNotes() []*Note {
 	var notes []*Note
 
 	for i, currentNote := range sortedParsedNotes {
-		noteLine := f.BodyLine + currentNote.Line - 1
 		var parent *Note
 		if parentNoteIndices[i] != -1 {
 			parent = notes[parentNoteIndices[i]]
 		}
-		note := NewOrExistingNote(f, parent, currentNote.LongTitle, currentNote.Body, noteLine)
+		note := NewOrExistingNote(f, parent, currentNote)
 		if note.HasTag("ignore") {
 			// Do not add notes marked as ignorable
 			continue
@@ -551,7 +560,8 @@ func (f *File) GetNotes() []*Note {
 type ParsedNote struct {
 	Level          int
 	Kind           NoteKind
-	LongTitle      string
+	Slug           string
+	Title          string
 	ShortTitle     string
 	Line           int
 	Body           string
@@ -559,12 +569,21 @@ type ParsedNote struct {
 	NoteTags       []string
 }
 
+// MustParseNote is pratical in unit test to setup a new note.
+func MustParseNote(noteContent string, fileSlug string) *ParsedNote {
+	notes := ParseNotes(noteContent, fileSlug)
+	if len(notes) != 1 {
+		log.Fatalf("Must only contain a single note. Found %d note(s)", len(notes))
+	}
+	return notes[0]
+}
+
 // ParseNotes extracts the notes from a file body.
-func ParseNotes(fileBody string) []*ParsedNote {
+func ParseNotes(fileBody string, fileSlug string) []*ParsedNote {
 	type Section struct {
 		level      int
 		kind       NoteKind
-		longTitle  string
+		title      string
 		shortTitle string
 		lineNumber int
 	}
@@ -609,7 +628,7 @@ func ParseNotes(fileBody string) []*ParsedNote {
 			// Ignore possible Markdown heading in code blocks
 			continue
 		}
-		if ok, longTitle, level := markdown.IsHeading(line); ok {
+		if ok, title, level := markdown.IsHeading(line); ok {
 			if level == 1 && ignoreTopHeading {
 				continue
 			}
@@ -620,12 +639,12 @@ func ParseNotes(fileBody string) []*ParsedNote {
 			if level <= lastLevel {
 				insideNote = false
 			}
-			ok, kind, shortTitle := isSupportedNote(longTitle)
+			ok, kind, shortTitle := isSupportedNote(title)
 			if ok {
 				sections = append(sections, &Section{
 					level:      level,
 					kind:       kind,
-					longTitle:  longTitle,
+					title:      title,
 					shortTitle: shortTitle,
 					lineNumber: lineNumber,
 				})
@@ -635,7 +654,7 @@ func ParseNotes(fileBody string) []*ParsedNote {
 					sections = append(sections, &Section{
 						level:      level,
 						kind:       KindFree,
-						longTitle:  longTitle,
+						title:      title,
 						shortTitle: shortTitle,
 						lineNumber: lineNumber,
 					})
@@ -672,10 +691,19 @@ func ParseNotes(fileBody string) []*ParsedNote {
 
 		tags, attributes := ExtractBlockTagsAndAttributes(noteContent)
 
+		// Determine slug from attribute or define a default one otherwise
+		slug := markdown.Slug(fileSlug, string(section.kind), section.shortTitle)
+		if value, ok := attributes["slug"]; ok {
+			if v, ok := value.(string); ok {
+				slug = v
+			}
+		}
+
 		parsedNote := &ParsedNote{
 			Level:          section.level,
 			Kind:           section.kind,
-			LongTitle:      section.longTitle,
+			Slug:           slug,
+			Title:          section.title,
 			ShortTitle:     section.shortTitle,
 			Line:           section.lineNumber,
 			NoteAttributes: CastAttributes(attributes, GetSchemaAttributeTypes()),
@@ -686,6 +714,13 @@ func ParseNotes(fileBody string) []*ParsedNote {
 	}
 
 	return notes
+}
+
+// Hash returns the current hash to use when searching for an existing note in database to avoid recreating it.
+func (n *ParsedNote) Hash() string {
+	raw := strings.TrimSpace(n.Body)
+	hash := helpers.Hash([]byte(raw))
+	return hash
 }
 
 // Wikilinks returns the wikilinks present in the note.
@@ -747,6 +782,7 @@ type ParsedFile struct {
 	Bytes []byte
 
 	// Main Heading
+	Slug       string
 	Title      string
 	ShortTitle string
 
@@ -761,10 +797,10 @@ type ParsedFile struct {
 }
 
 // ParseFile contains the main logic to parse a raw note file.
-func ParseFile(filepath string) (*ParsedFile, error) {
-	CurrentLogger().Debugf("Parsing file %s...", filepath)
+func ParseFile(path string) (*ParsedFile, error) {
+	CurrentLogger().Debugf("Parsing file %s...", path)
 
-	relativePath, err := CurrentCollection().GetFileRelativePath(filepath)
+	relativePath, err := CurrentCollection().GetFileRelativePath(path)
 	if err != nil {
 		return nil, err
 	}
@@ -780,7 +816,7 @@ func ParseFile(filepath string) (*ParsedFile, error) {
 		return nil, err
 	}
 
-	contentBytes, err := os.ReadFile(filepath)
+	contentBytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -843,11 +879,20 @@ func ParseFile(filepath string) (*ParsedFile, error) {
 	}
 	_, _, shortTitle := isSupportedNote(title)
 
+	// Extract/Generate slug
+	slug := markdown.Slug(text.TrimExtension(filepath.Base(relativePath)))
+	if value, ok := attributes["slug"]; ok {
+		if v, ok := value.(string); ok {
+			slug = v
+		}
+	}
+
 	return &ParsedFile{
 		AbsolutePath:   absolutePath,
 		RelativePath:   relativePath,
 		Stat:           stat,
 		LStat:          lstat,
+		Slug:           slug,
 		Title:          title,
 		ShortTitle:     shortTitle,
 		Bytes:          contentBytes,
@@ -901,7 +946,6 @@ func (f *ParsedFile) Wikilinks() []*Wikilink {
 func (f *ParsedFile) AbsoluteBodyLine(bodyLine int) int {
 	return f.BodyLine + bodyLine - 1
 }
-
 
 /* Data Management */
 
@@ -1000,6 +1044,7 @@ func (f *File) Insert() error {
 		INSERT INTO file(
 			oid,
 			file_oid,
+			slug,
 			relative_path,
 			wikilink,
 			front_matter,
@@ -1016,7 +1061,7 @@ func (f *File) Insert() error {
 			hashsum,
 			mode
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 	frontMatter, err := f.FrontMatterString()
 	if err != nil {
@@ -1030,6 +1075,7 @@ func (f *File) Insert() error {
 	_, err = CurrentDB().Client().Exec(query,
 		f.OID,
 		f.ParentFileOID,
+		f.Slug,
 		f.RelativePath,
 		f.Wikilink,
 		frontMatter,
@@ -1059,6 +1105,7 @@ func (f *File) Update() error {
 		UPDATE file
 		SET
 		    file_oid = ?,
+		    slug = ?,
 			relative_path = ?,
 			wikilink = ?,
 			front_matter = ?,
@@ -1085,6 +1132,7 @@ func (f *File) Update() error {
 	}
 	_, err = CurrentDB().Client().Exec(query,
 		f.ParentFileOID,
+		f.Slug,
 		f.RelativePath,
 		f.Wikilink,
 		frontMatter,
@@ -1166,6 +1214,7 @@ func QueryFile(db SQLClient, whereClause string, args ...any) (*File, error) {
 		SELECT
 			oid,
 			file_oid,
+			slug,
 			relative_path,
 			wikilink,
 			front_matter,
@@ -1186,6 +1235,7 @@ func QueryFile(db SQLClient, whereClause string, args ...any) (*File, error) {
 		Scan(
 			&f.OID,
 			&f.ParentFileOID,
+			&f.Slug,
 			&f.RelativePath,
 			&f.Wikilink,
 			&rawFrontMatter,
@@ -1238,6 +1288,7 @@ func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) 
 		SELECT
 			oid,
 			file_oid,
+			slug,
 			relative_path,
 			wikilink,
 			front_matter,
@@ -1271,6 +1322,7 @@ func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) 
 		err = rows.Scan(
 			&f.OID,
 			&f.ParentFileOID,
+			&f.Slug,
 			&f.RelativePath,
 			&f.Wikilink,
 			&rawFrontMatter,
@@ -1327,6 +1379,7 @@ func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) 
 func (f *File) FormatToJSON() string {
 	type FileRepresentation struct {
 		OID                string                 `json:"oid"`
+		Slug               string                 `json:"slug"`
 		RelativePath       string                 `json:"relativePath"`
 		Wikilink           string                 `json:"wikilink"`
 		Attributes         map[string]interface{} `json:"attributes"`
@@ -1341,6 +1394,7 @@ func (f *File) FormatToJSON() string {
 	}
 	repr := FileRepresentation{
 		OID:                f.OID,
+		Slug:               f.Slug,
 		RelativePath:       f.RelativePath,
 		Wikilink:           f.Wikilink,
 		ShortTitleRaw:      f.ShortTitle,
