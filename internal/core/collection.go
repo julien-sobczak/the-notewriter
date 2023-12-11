@@ -9,9 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/julien-sobczak/the-notewriter/internal/reference"
-	"github.com/julien-sobczak/the-notewriter/internal/reference/wikipedia"
-	"github.com/julien-sobczak/the-notewriter/internal/reference/zotero"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/filesystem"
 	"github.com/julien-sobczak/the-notewriter/pkg/resync"
@@ -30,17 +27,13 @@ var (
 )
 
 type Collection struct {
-	Path          string `yaml:"path"`
-	bookManager   reference.Manager
-	personManager reference.Manager
+	Path string `yaml:"path"`
 }
 
 func CurrentCollection() *Collection {
 	collectionOnce.Do(func() {
 		var err error
-		zoteroManager := zotero.NewReferenceManager()
-		wikipediaManager := wikipedia.NewReferenceManager()
-		collectionSingleton, err = NewCollection(zoteroManager, wikipediaManager)
+		collectionSingleton, err = NewCollection()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Unable to init current collection: %v\n", err)
 			os.Exit(1)
@@ -49,7 +42,7 @@ func CurrentCollection() *Collection {
 	return collectionSingleton
 }
 
-func NewCollection(bookManager reference.Manager, personManager reference.Manager) (*Collection, error) {
+func NewCollection() (*Collection, error) {
 	config := CurrentConfig()
 
 	absolutePath, err := filepath.Abs(config.RootDirectory)
@@ -58,46 +51,9 @@ func NewCollection(bookManager reference.Manager, personManager reference.Manage
 	}
 
 	c := &Collection{
-		Path:          absolutePath,
-		bookManager:   bookManager,
-		personManager: personManager,
+		Path: absolutePath,
 	}
 	return c, nil
-}
-
-func (c *Collection) CreateNewReferenceFile(identifier string, kind string) (*File, error) {
-	var ref reference.Reference
-	var err error
-
-	switch kind {
-	case ReferenceKindBook:
-		ref, err = c.bookManager.Search(identifier)
-	case ReferenceKindAuthor:
-		ref, err = c.personManager.Search(identifier)
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	var attributes []Attribute
-	for _, refAttribute := range ref.Attributes() {
-		attributes = append(attributes, Attribute{
-			Key:   refAttribute.Key,
-			Value: refAttribute.Value,
-		})
-	}
-
-	return NewFileFromAttributes(nil, "", attributes), nil // FIXME use a name
-}
-
-/* Reference Management */
-
-func (c *Collection) AddNewReferenceFile(identifier string, kind string) error {
-	f, err := c.CreateNewReferenceFile(identifier, kind)
-	if err != nil {
-		return err
-	}
-	return f.SaveOnDisk()
 }
 
 func (c *Collection) Close() {

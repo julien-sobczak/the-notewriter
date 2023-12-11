@@ -5,13 +5,18 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-
-	"github.com/julien-sobczak/the-notewriter/internal/reference"
 )
 
 type Infobox struct {
 	Name       string
-	Attributes []reference.Attribute
+	Attributes map[string]any
+}
+
+func NewInfobox(name string) *Infobox {
+	return &Infobox{
+		Name:       name,
+		Attributes: make(map[string]any),
+	}
 }
 
 var regexBirthDate = regexp.MustCompile(`^(?i){{birth[- ]date\|`)
@@ -36,7 +41,7 @@ var months = map[string]string{
 }
 
 func parseWikitext(txt string) *Infobox {
-	var infobox Infobox
+	infobox := NewInfobox("")
 	r := regexp.MustCompile(`\{\{Infobox\s+(\w+)`)
 	indices := r.FindAllStringIndex(txt, -1)
 	for _, matchIndices := range indices {
@@ -93,10 +98,7 @@ func parseWikitext(txt string) *Infobox {
 
 				parsedValue = parseAttributeValue(wikiValue)
 				if parsedValue != nil {
-					infobox.Attributes = append(infobox.Attributes, reference.Attribute{
-						Key:   key,
-						Value: parsedValue,
-					})
+					infobox.Attributes[key] = parsedValue
 				} else {
 					fmt.Printf("Ignoring unknown syntax for atttribute %q: %s", key, wikiValue)
 				}
@@ -105,7 +107,7 @@ func parseWikitext(txt string) *Infobox {
 		}
 
 	}
-	return &infobox
+	return infobox
 }
 
 func parseAttributeValue(value string) interface{} {

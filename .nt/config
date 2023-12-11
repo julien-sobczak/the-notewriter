@@ -1,0 +1,33 @@
+# Demo configuration use when running commands manually
+
+[core]
+extensions = ["md", "markdown"]
+
+[medias]
+command = "ffmpeg"
+parallel = 1
+preset = "ultrafast"
+
+[search.quotes]
+q = "-#ignore @kind:quote"
+name = "Favorite Quotes"
+
+[reference.books]
+title = "A book"
+manager = "google-books"
+path = """references/books/{{index . "title" | slug}}.md"""
+template = """---
+{{jsonPretty .}}
+---
+
+# Excellent Advice for Living
+"""
+
+[reference.persons]
+title = "A person"
+manager = "wikipedia"
+path = "references/persons"
+template = """---
+{{json .}}
+---
+"""

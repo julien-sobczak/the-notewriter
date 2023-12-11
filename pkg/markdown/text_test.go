@@ -77,6 +77,11 @@ func TestStripEmphasis(t *testing.T) {
 			"This is really***very***important text.",
 			"This is reallyveryimportant text.",
 		},
+		{
+			"code",
+			"This is some `code`.",
+			"This is some code.",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -121,6 +126,16 @@ func TestSlug(t *testing.T) {
 			"Empty values",
 			[]string{"hello", "", "  ", "\t", "world"},
 			"hello-world",
+		},
+		{
+			"Punctation",
+			[]string{"Doing = Creating & Improving"},
+			"doing-creating-and-improving",
+		},
+		{
+			"Quote",
+			[]string{`Answering "Why?"`},
+			"answering-why",
 		},
 	}
 	for _, tt := range tests {

@@ -22,6 +22,8 @@ var addCmd = &cobra.Command{
 		}
 
 		CheckConfig()
+
+		
 		err := core.CurrentCollection().Add(args...)
 		if err != nil {
 			fmt.Println(err)

@@ -116,11 +116,13 @@ func StripEmphasis(text string) string {
 	reBoldUnderscores := regexp.MustCompile(`__(.*?)__`)
 	reItalicAsterisks := regexp.MustCompile(`\*(.*?)\*`)
 	reItalicUnderscores := regexp.MustCompile(`_(.*?)_`)
+	reCode := regexp.MustCompile("`([^`].*?)`") // Important: do not match ```
 
 	text = reBoldAsterisks.ReplaceAllString(text, "$1")
 	text = reBoldUnderscores.ReplaceAllString(text, "$1")
 	text = reItalicAsterisks.ReplaceAllString(text, "$1")
 	text = reItalicUnderscores.ReplaceAllString(text, "$1")
+	text = reCode.ReplaceAllString(text, "$1")
 
 	return text
 }

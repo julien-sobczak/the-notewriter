@@ -90,10 +90,11 @@ var (
 
 // Note: Fields must be public for toml package to unmarshall
 type ConfigFile struct {
-	Core   ConfigCore
-	Medias ConfigMedias
-	Remote ConfigRemote
-	Search map[string]ConfigSearch
+	Core      ConfigCore
+	Medias    ConfigMedias
+	Remote    ConfigRemote
+	Search    map[string]ConfigSearch
+	Reference map[string]ConfigReference
 }
 type ConfigCore struct {
 	Extensions            []string
@@ -118,6 +119,13 @@ type ConfigRemote struct {
 type ConfigSearch struct {
 	Q    string
 	Name string
+}
+
+type ConfigReference struct {
+	Title    string // Ex: "A book"
+	Manager  string // Ex: "zotero"
+	Path     string // Ex: "references/books"
+	Template string // Ex: "# {{.Title}}\n"
 }
 
 // SetParallel overrides the value in config file.

@@ -1,24 +1,15 @@
 package zotero
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
-	score "github.com/AlecAivazis/survey/v2/core"
-	"github.com/AlecAivazis/survey/v2/terminal"
-	"github.com/julien-sobczak/the-notewriter/internal/reference"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.nhat.io/surveyexpect"
 )
-
-func init() {
-	// disable color output for all prompts to simplify testing
-	score.DisableColor = true
-}
 
 func TestSearch(t *testing.T) {
 	// Ex: https://en.wikipedia.org/wiki/Nelson_Mandela
@@ -60,105 +51,48 @@ func TestSearch(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	s := surveyexpect.Expect(func(s *surveyexpect.Survey) {
-		s.ExpectSelect("Which reference?  [Use arrows to move, type to filter]").
-			ExpectOptions(
-				"> The infinite game",
-			).
-			Enter()
-	})(t)
-	s.Start(func(stdio terminal.Stdio) {
-		manager := NewReferenceManager()
-		manager.BaseURL = ts.URL
-		manager.Stdio = &stdio
+	manager, err := NewManager()
+	require.NoError(t, err)
+	manager.BaseURL = ts.URL
 
-		ref, err := manager.Search("Nelson Mandela")
-		require.NoError(t, err)
-		actual := ref.Attributes()
-		expected := []reference.Attribute{
-			{
-				Key: "creators",
-				Value: []interface{}{
-					map[string]interface{}{
-						"creatorType": "author",
-						"firstName":   "Simon",
-						"lastName":    "Sinek",
-					},
+	time.Sleep(2 * time.Second)
+	ready, err := manager.Ready()
+	require.NoError(t, err)
+	require.True(t, ready)
+
+	results, err := manager.Search("Nelson Mandela")
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	actual := results[0]
+	expected := &Result{
+		title: "The infinite game",
+		attributes: map[string]any{
+			"itemType":       "book",
+			"title":          "The infinite game",
+			"key":            "6SM7FTLC",
+			"libraryCatalog": "Library of Congress ISBN",
+			"place":          "New York",
+			"publisher":      "Portfolio/Penguin",
+			"date":           "2019",
+			"numPages":       "251",
+			"ISBN":           "9780735213500 9780525538837",
+			"version":        float64(0),
+			"tags": []any{
+				map[string]any{
+					"tag":  "Leadership",
+					"type": float64(1),
 				},
 			},
-			{
-				Key:   "title",
-				Value: "The infinite game",
+			"abstractNote": "\"In finite games, like football or chess, the players are known, the rules are fixed, and the endpoint is clear. The winners and losers are easily identified. In infinite games, like business or politics or life itself, the players come and go, the rules are changeable, and there is no defined endpoint. There are no winners or losers in an infinite game; there is only ahead and behind.",
+			"callNumber":   "HD57.7 .S54866 2019",
+			"creators": []any{
+				map[string]any{
+					"creatorType": "author",
+					"firstName":   "Simon",
+					"lastName":    "Sinek",
+				},
 			},
-			{
-				Key:   "place",
-				Value: "New York",
-			},
-			{
-				Key:   "publisher",
-				Value: "Portfolio/Penguin",
-			},
-			{
-				Key:   "date",
-				Value: "2019",
-			},
-			{
-				Key:   "numPages",
-				Value: "251",
-			},
-			{
-				Key:   "ISBN",
-				Value: "9780735213500 9780525538837",
-			},
-		}
-		assert.Equal(t, expected, actual)
-	})
-
-}
-
-/* Kind tests */
-
-func TestZoteroReferenceOnBook(t *testing.T) {
-	referenceJSON := `  {
-    "key": "TW7KH7DX",
-    "version": 0,
-    "itemType": "book",
-    "creators": [
-      {
-        "firstName": "Patrick",
-        "lastName": "Lencioni",
-        "creatorType": "author"
-      }
-    ],
-    "tags": [
-      {
-        "tag": "Teams in the workplace",
-        "type": 1
-      }
-    ],
-    "ISBN": "9780787960759",
-    "title": "The five dysfunctions of a team: a leadership fable",
-    "edition": "1st ed",
-    "place": "San Francisco",
-    "publisher": "Jossey-Bass",
-    "date": "2002",
-    "numPages": "229",
-    "callNumber": "HD66 .L456 2002",
-    "libraryCatalog": "Library of Congress ISBN",
-    "shortTitle": "The five dysfunctions of a team"
-  }`
-	var reference map[string]interface{}
-	err := json.Unmarshal([]byte(referenceJSON), &reference)
-	require.NoError(t, err)
-
-	ref := ZoteroReference{
-		fields: reference,
+		},
 	}
-	assert.Equal(t, "The five dysfunctions of a team: a leadership fable", ref.Title())
-	assert.Equal(t, "The five dysfunctions of a team", ref.ShortTitle())
-	assert.Equal(t, []string{"Patrick Lencioni"}, ref.Authors())
-	assert.Equal(t, "2002", ref.PublicationYear())
-	assert.Equal(t, "9780787960759", ref.GetAttributeValue("ISBN"))
+	assert.Equal(t, expected, actual)
 }
-
-// TODO complete with more tests

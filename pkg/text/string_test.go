@@ -290,3 +290,41 @@ func TestStripHTMLComments(t *testing.T) {
 		})
 	}
 }
+
+func TestBookTitle(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "title already ok",
+			input:    "Good Inside",
+			expected: "Good Inside",
+		},
+
+		{
+			name:     "title with subtitle already ok",
+			input:    "Good Inside: A Practical Guide to Becoming the Parent You Want to Be",
+			expected: "Good Inside: A Practical Guide to Becoming the Parent You Want to Be",
+		},
+
+		{
+			name:     "lowercase",
+			input:    "good inside: a practical guide to becoming the parent you want to be",
+			expected: "Good Inside: A Practical Guide to Becoming the Parent You Want to Be",
+		},
+
+		{
+			name:     "short words in uppercase",
+			input:    "good inside: A practical guide To becoming The parent you want To be",
+			expected: "Good Inside: A Practical Guide to Becoming the Parent You Want to Be",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := text.ToBookTitle(tt.input)
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}

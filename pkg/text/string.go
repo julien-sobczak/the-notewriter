@@ -3,10 +3,15 @@ package text
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // ExtractLines extract the given lines (1-based indices).
@@ -112,4 +117,52 @@ func StripHTMLComments(text string) string {
 	re := regexp.MustCompile("(?sm)<!--.*?-->")
 	text = re.ReplaceAllString(text, "")
 	return text
+}
+
+// ToBookTitle transform a title to follow common book title conventions (there are many conventions so no one is used in particular)
+func ToBookTitle(text string) string {
+	// See https://kindlepreneur.com/title-capitalization/
+	exclusions := []string{"a", "an", "on", "the", "to", "in", "and", "for", "but", "yet", "so"}
+
+	indexSubtitle := strings.Index(text, ": ")
+	hasSubtitle := indexSubtitle != -1
+
+	titleRaw := text
+	subtitleRaw := ""
+	if hasSubtitle {
+		titleRaw = text[0:indexSubtitle]
+		subtitleRaw = text[indexSubtitle+2:]
+	}
+
+	// Transform a string to a valid book title
+	transform := func(text string) string {
+		words := strings.Split(text, " ")
+
+		caser := cases.Title(language.AmericanEnglish)
+		for i, word := range words {
+			// Always capitalize first and last words
+			if i == 0 || i == len(words)-1 {
+				words[i] = caser.String(word)
+				continue
+			}
+
+			if slices.Contains(exclusions, strings.ToLower(word)) {
+				// Ignore some words
+				words[i] = strings.ToLower(word)
+			} else {
+				// Capitalize others
+				words[i] = caser.String(word)
+			}
+		}
+
+		return strings.Join(words, " ")
+	}
+
+	title := transform(titleRaw)
+	subtitle := transform(subtitleRaw)
+	if hasSubtitle {
+		return fmt.Sprintf("%s: %s", title, subtitle)
+	}
+	return title
+
 }

@@ -1,0 +1,65 @@
+{
+  "kind": "books#volumes",
+  "totalItems": 1,
+  "items": [
+    {
+      "kind": "books#volume",
+      "id": "b6GxzgEACAAJ",
+      "etag": "U5H23233EAY",
+      "selfLink": "https://www.googleapis.com/books/v1/volumes/b6GxzgEACAAJ",
+      "volumeInfo": {
+        "title": "Good Inside",
+        "subtitle": "A Guide to Becoming the Parent You Want to Be",
+        "authors": [
+          "Becky Kennedy"
+        ],
+        "publisher": "HarperThorsons",
+        "publishedDate": "2022-09-15",
+        "description": "Wildly popular parenting expert Dr Becky Kenned shares...",
+        "industryIdentifiers": [
+          {
+            "type": "ISBN_10",
+            "identifier": "0008505543"
+          },
+          {
+            "type": "ISBN_13",
+            "identifier": "9780008505547"
+          }
+        ],
+        "pageCount": 0,
+        "printType": "BOOK",
+        "maturityRating": "NOT_MATURE",
+        "allowAnonLogging": false,
+        "contentVersion": "preview-1.0.0",
+        "imageLinks": {
+          "smallThumbnail": "http://books.google.com/books/content?id=b6GxzgEACAAJ&printsec=frontcover&img=1&zoom=5&source=gbs_api",
+          "thumbnail": "http://books.google.com/books/content?id=b6GxzgEACAAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api"
+        },
+        "language": "en"
+      },
+      "saleInfo": {
+        "country": "FR",
+        "saleability": "NOT_FOR_SALE",
+        "isEbook": false
+      },
+      "accessInfo": {
+        "country": "FR",
+        "viewability": "NO_PAGES",
+        "embeddable": false,
+        "publicDomain": false,
+        "textToSpeechPermission": "ALLOWED",
+        "epub": {
+          "isAvailable": false
+        },
+        "pdf": {
+          "isAvailable": false
+        },
+        "accessViewStatus": "NONE",
+        "quoteSharingAllowed": false
+      },
+      "searchInfo": {
+        "textSnippet": "In Good Inside..."
+      }
+    }
+  ]
+}

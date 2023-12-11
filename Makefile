@@ -8,6 +8,8 @@ APP_VERSION = $(shell git rev-parse HEAD)
 build:
 	go build --tags "fts5" -o build/nt cmd/nt/*.go
 	go build --tags "fts5" -o build/ntlite cmd/ntlite/*.go
+	go build --tags "fts5" -o build/ntreference cmd/ntreference/*.go
+	go build --tags "fts5" -o build/ntanki cmd/ntanki/*.go
 
 test:
 	go test --tags "fts5" ./... -count=1 -v
@@ -24,4 +26,6 @@ test-all:
 
 install: build
 	cp build/nt /Users/julien/go/bin/nt
+	cp build/ntreference /Users/julien/go/bin/nt-reference
+	cp build/ntanki /Users/julien/go/bin/nt-anki
 # go install --tags "fts5" cmd/nt/*.go => FIXME build an invalid main executable instead of a nt file

@@ -1,0 +1,903 @@
+{
+    "kind": "books#volumes",
+    "totalItems": 1168,
+    "items": [
+      {
+        "kind": "books#volume",
+        "id": "TXJLEAAAQBAJ",
+        "etag": "0vz8zbDfc0s",
+        "selfLink": "https://www.googleapis.com/books/v1/volumes/TXJLEAAAQBAJ",
+        "volumeInfo": {
+          "title": "Good Inside",
+          "subtitle": "A Guide to Becoming the Parent You Want to Be",
+          "authors": [
+            "Dr. Becky Kennedy"
+          ],
+          "publisher": "HarperCollins",
+          "publishedDate": "2022-09-13",
+          "description": "“This book is for any parent who has ever struggled under the substantial weight of caregiving—which is to say, all of us. Good Inside is not only a wise and practical guide to raising resilient, emotionally healthy kids, it’s also a supportive resource for overwhelmed parents who need more compassion and less stress. Dr. Becky is the smart, thoughtful, in-the-trenches parenting expert we’ve been waiting for!”—Eve Rodsky, New York Times bestselling author of Fair Play and Find Your Unicorn Space Dr. Becky Kennedy, wildly popular parenting expert and creator of @drbeckyatgoodinside, shares her groundbreaking approach to raising kids and offers practical strategies for parenting in a way that feels good. Over the past several years, Dr. Becky Kennedy—known to her followers as “Dr. Becky”—has been sparking a parenting revolution. Millions of parents, tired of following advice that either doesn’t work or simply doesn’t feel good, have embraced Dr. Becky’s empowering and effective approach, a model that prioritizes connecting with our kids over correcting them. Parents have long been sold a model of childrearing that simply doesn’t work. From reward charts to time outs, many popular parenting approaches are based on shaping behavior, not raising humans. These techniques don’t build the skills kids need for life, or account for their complex emotional needs. Add to that parents’ complicated relationships with their own upbringings, and it’s easy to see why so many caretakers feel lost, burned out, and worried they’re failing their kids. In Good Inside, Dr. Becky shares her parenting philosophy, complete with actionable strategies, that will help parents move from uncertainty and self-blame to confidence and sturdy leadership. Offering perspective-shifting parenting principles and troubleshooting for specific scenarios—including sibling rivalry, separation anxiety, tantrums, and more—Good Inside is a comprehensive resource for a generation of parents looking for a new way to raise their kids while still setting them up for a lifetime of self-regulation, confidence, and resilience.",
+          "industryIdentifiers": [
+            {
+              "type": "ISBN_13",
+              "identifier": "9780063159471"
+            },
+            {
+              "type": "ISBN_10",
+              "identifier": "0063159473"
+            }
+          ],
+          "readingModes": {
+            "text": true,
+            "image": false
+          },
+          "pageCount": 206,
+          "printType": "BOOK",
+          "categories": [
+            "Family & Relationships"
+          ],
+          "maturityRating": "NOT_MATURE",
+          "allowAnonLogging": true,
+          "contentVersion": "1.2.2.0.preview.2",
+          "panelizationSummary": {
+            "containsEpubBubbles": false,
+            "containsImageBubbles": false
+          },
+          "imageLinks": {
+            "smallThumbnail": "http://books.google.com/books/content?id=TXJLEAAAQBAJ&printsec=frontcover&img=1&zoom=5&edge=curl&source=gbs_api",
+            "thumbnail": "http://books.google.com/books/content?id=TXJLEAAAQBAJ&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api"
+          },
+          "language": "en",
+          "previewLink": "http://books.google.fr/books?id=TXJLEAAAQBAJ&printsec=frontcover&dq=good+inside&hl=&cd=1&source=gbs_api",
+          "infoLink": "https://play.google.com/store/books/details?id=TXJLEAAAQBAJ&source=gbs_api",
+          "canonicalVolumeLink": "https://play.google.com/store/books/details?id=TXJLEAAAQBAJ"
+        },
+        "saleInfo": {
+          "country": "FR",
+          "saleability": "FOR_SALE",
+          "isEbook": true,
+          "listPrice": {
+            "amount": 16.99,
+            "currencyCode": "EUR"
+          },
+          "retailPrice": {
+            "amount": 16.99,
+            "currencyCode": "EUR"
+          },
+          "buyLink": "https://play.google.com/store/books/details?id=TXJLEAAAQBAJ&rdid=book-TXJLEAAAQBAJ&rdot=1&source=gbs_api",
+          "offers": [
+            {
+              "finskyOfferType": 1,
+              "listPrice": {
+                "amountInMicros": 16990000,
+                "currencyCode": "EUR"
+              },
+              "retailPrice": {
+                "amountInMicros": 16990000,
+                "currencyCode": "EUR"
+              },
+              "giftable": true
+            }
+          ]
+        },
+        "accessInfo": {
+          "country": "FR",
+          "viewability": "PARTIAL",
+          "embeddable": true,
+          "publicDomain": false,
+          "textToSpeechPermission": "ALLOWED",
+          "epub": {
+            "isAvailable": true,
+            "acsTokenLink": "http://books.google.fr/books/download/Good_Inside-sample-epub.acsm?id=TXJLEAAAQBAJ&format=epub&output=acs4_fulfillment_token&dl_type=sample&source=gbs_api"
+          },
+          "pdf": {
+            "isAvailable": false
+          },
+          "webReaderLink": "http://play.google.com/books/reader?id=TXJLEAAAQBAJ&hl=&source=gbs_api",
+          "accessViewStatus": "SAMPLE",
+          "quoteSharingAllowed": false
+        },
+        "searchInfo": {
+          "textSnippet": "In Good Inside, Dr. Becky shares her parenting philosophy, complete with actionable strategies, that will help parents move from uncertainty and self-blame to confidence and sturdy leadership."
+        }
+      },
+      {
+        "kind": "books#volume",
+        "id": "rqk0DwAAQBAJ",
+        "etag": "qbELLea6+ok",
+        "selfLink": "https://www.googleapis.com/books/v1/volumes/rqk0DwAAQBAJ",
+        "volumeInfo": {
+          "title": "Changing Business from the Inside Out",
+          "subtitle": "A Treehugger’s Guide to Working in Corporations",
+          "authors": [
+            "Timothy Mohin"
+          ],
+          "publisher": "Routledge",
+          "publishedDate": "2017-09-08",
+          "description": "Corporate responsibility is considered an oxymoron by much of society. Corporations are among the least trusted of our institutions; and the 2008 financial crisis, BP's oil spill in the Gulf of Mexico, and the collapse of the house of cards that was Enron have only added to public skepticism. So, at a time when trust in corporations has reached an all-time low, why is interest in corporate responsibility at an all-time high? A plausible explanation is that increasing numbers of stakeholders are demanding responsibility from corporations. Hyper-transparency of corporate activities, fueled by disclosure laws and the Internet, has increased awareness to the point where corporate behavior is under constant scrutiny. Smart business leaders are aware of this scrutiny and of the high costs of a public scandal. They know that in the long run it is cheaper to act responsibly now than to dig out from a PR disaster later. Tim Mohin is a veteran corporate responsibility practitioner who has led programs at Apple, Intel, and AMD. In this book, Tim tells us why he believes he is making a difference where it counts and how others can do the same. His book is a manual on how to steer the corporate supertanker toward doing good for people and our planet. Changing Business from the Inside Out provides a fascinating roadmap to the corporate responsibility and sustainability field, from beginning a career, to forming a program, to navigating the complicated politics of a corporation. Mohin likens the corporate treehugger role to \"being the designated driver at the corporate cocktail party\". Throughout his book, he argues strongly that activists can accomplish more for the planet and society by serving as a voice of responsibility within the corporation rather than protesting outside the factory gates. Corporations are clearly the drivers of the world economy, and the corporate responsibility practitioner has an essential role in bringing ethical and sustainable values to the C-suite and making sure that they are accomplished. Whether you are a practitioner needing advice, a mid-career professional wanting to change course, or an MBA wondering how to incorporate responsibility into your career, this book has the answers you need.",
+          "industryIdentifiers": [
+            {
+              "type": "ISBN_13",
+              "identifier": "9781351277860"
+            },
+            {
+              "type": "ISBN_10",
+              "identifier": "1351277863"
+            }
+          ],
+          "readingModes": {
+            "text": true,
+            "image": true
+          },
+          "pageCount": 212,
+          "printType": "BOOK",
+          "categories": [
+            "Business & Economics"
+          ],
+          "maturityRating": "NOT_MATURE",
+          "allowAnonLogging": false,
+          "contentVersion": "1.4.4.0.preview.3",
+          "panelizationSummary": {
+            "containsEpubBubbles": false,
+            "containsImageBubbles": false
+          },
+          "imageLinks": {
+            "smallThumbnail": "http://books.google.com/books/content?id=rqk0DwAAQBAJ&printsec=frontcover&img=1&zoom=5&edge=curl&source=gbs_api",
+            "thumbnail": "http://books.google.com/books/content?id=rqk0DwAAQBAJ&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api"
+          },
+          "language": "en",
+          "previewLink": "http://books.google.fr/books?id=rqk0DwAAQBAJ&pg=PT14&dq=good+inside&hl=&cd=2&source=gbs_api",
+          "infoLink": "https://play.google.com/store/books/details?id=rqk0DwAAQBAJ&source=gbs_api",
+          "canonicalVolumeLink": "https://play.google.com/store/books/details?id=rqk0DwAAQBAJ"
+        },
+        "saleInfo": {
+          "country": "FR",
+          "saleability": "FOR_SALE",
+          "isEbook": true,
+          "listPrice": {
+            "amount": 33.75,
+            "currencyCode": "EUR"
+          },
+          "retailPrice": {
+            "amount": 23.83,
+            "currencyCode": "EUR"
+          },
+          "buyLink": "https://play.google.com/store/books/details?id=rqk0DwAAQBAJ&rdid=book-rqk0DwAAQBAJ&rdot=1&source=gbs_api",
+          "offers": [
+            {
+              "finskyOfferType": 1,
+              "listPrice": {
+                "amountInMicros": 33750000,
+                "currencyCode": "EUR"
+              },
+              "retailPrice": {
+                "amountInMicros": 23830000,
+                "currencyCode": "EUR"
+              },
+              "giftable": true
+            }
+          ]
+        },
+        "accessInfo": {
+          "country": "FR",
+          "viewability": "PARTIAL",
+          "embeddable": true,
+          "publicDomain": false,
+          "textToSpeechPermission": "ALLOWED",
+          "epub": {
+            "isAvailable": true,
+            "acsTokenLink": "http://books.google.fr/books/download/Changing_Business_from_the_Inside_Out-sample-epub.acsm?id=rqk0DwAAQBAJ&format=epub&output=acs4_fulfillment_token&dl_type=sample&source=gbs_api"
+          },
+          "pdf": {
+            "isAvailable": true,
+            "acsTokenLink": "http://books.google.fr/books/download/Changing_Business_from_the_Inside_Out-sample-pdf.acsm?id=rqk0DwAAQBAJ&format=pdf&output=acs4_fulfillment_token&dl_type=sample&source=gbs_api"
+          },
+          "webReaderLink": "http://play.google.com/books/reader?id=rqk0DwAAQBAJ&hl=&source=gbs_api",
+          "accessViewStatus": "SAMPLE",
+          "quoteSharingAllowed": false
+        },
+        "searchInfo": {
+          "textSnippet": "A Treehugger&#39;s Guide to Working in Corporations Timothy Mohin. Introduction. Working. for. good. inside. a. corporation. I was wise enough to never grow up while fooling most people into believing I had (Margaret Mead) ... \u003cb\u003egood inside\u003c/b\u003e a&nbsp;..."
+        }
+      },
+      {
+        "kind": "books#volume",
+        "id": "uZqFDwAAQBAJ",
+        "etag": "xp1tr40O3D4",
+        "selfLink": "https://www.googleapis.com/books/v1/volumes/uZqFDwAAQBAJ",
+        "volumeInfo": {
+          "title": "Inside Science",
+          "subtitle": "Stories from the Field in Human and Animal Science",
+          "authors": [
+            "Robert E. Kohler"
+          ],
+          "publisher": "University of Chicago Press",
+          "publishedDate": "2019-02-27",
+          "description": "Context and situation always matter in both human and animal lives. Unique insights can be gleaned from conducting scientific studies from within human communities and animal habitats. Inside Science is a novel treatment of this distinctive mode of fieldwork. Robert E. Kohler illuminates these resident practices through close analyses of classic studies: of Trobriand Islanders, Chicago hobos, corner boys in Boston’s North End, Jane Goodall’s chimpanzees of the Gombe Stream Reserve, and more. Intensive firsthand observation; a preference for generalizing from observed particulars, rather than from universal principles; and an ultimate framing of their results in narrative form characterize these inside stories from the field. Resident observing takes place across a range of sciences, from anthropology and sociology to primatology, wildlife ecology, and beyond. What makes it special, Kohler argues, is the direct access it affords scientists to the contexts in which their subjects live and act. These scientists understand their subjects not by keeping their distance but by living among them and engaging with them in ways large and small. This approach also demonstrates how science and everyday life—often assumed to be different and separate ways of knowing—are in fact overlapping aspects of the human experience. This story-driven exploration is perfect for historians, sociologists, and philosophers who want to know how scientists go about making robust knowledge of nature and society.",
+          "industryIdentifiers": [
+            {
+              "type": "ISBN_13",
+              "identifier": "9780226618036"
+            },
+            {
+              "type": "ISBN_10",
+              "identifier": "022661803X"
+            }
+          ],
+          "readingModes": {
+            "text": true,
+            "image": true
+          },
+          "pageCount": 272,
+          "printType": "BOOK",
+          "categories": [
+            "Science"
+          ],
+          "maturityRating": "NOT_MATURE",
+          "allowAnonLogging": false,
+          "contentVersion": "0.1.2.0.preview.3",
+          "panelizationSummary": {
+            "containsEpubBubbles": false,
+            "containsImageBubbles": false
+          },
+          "imageLinks": {
+            "smallThumbnail": "http://books.google.com/books/content?id=uZqFDwAAQBAJ&printsec=frontcover&img=1&zoom=5&edge=curl&source=gbs_api",
+            "thumbnail": "http://books.google.com/books/content?id=uZqFDwAAQBAJ&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api"
+          },
+          "language": "en",
+          "previewLink": "http://books.google.fr/books?id=uZqFDwAAQBAJ&pg=PA239&dq=good+inside&hl=&cd=3&source=gbs_api",
+          "infoLink": "https://play.google.com/store/books/details?id=uZqFDwAAQBAJ&source=gbs_api",
+          "canonicalVolumeLink": "https://play.google.com/store/books/details?id=uZqFDwAAQBAJ"
+        },
+        "saleInfo": {
+          "country": "FR",
+          "saleability": "FOR_SALE",
+          "isEbook": true,
+          "listPrice": {
+            "amount": 36.92,
+            "currencyCode": "EUR"
+          },
+          "retailPrice": {
+            "amount": 36.92,
+            "currencyCode": "EUR"
+          },
+          "buyLink": "https://play.google.com/store/books/details?id=uZqFDwAAQBAJ&rdid=book-uZqFDwAAQBAJ&rdot=1&source=gbs_api",
+          "offers": [
+            {
+              "finskyOfferType": 1,
+              "listPrice": {
+                "amountInMicros": 36920000,
+                "currencyCode": "EUR"
+              },
+              "retailPrice": {
+                "amountInMicros": 36920000,
+                "currencyCode": "EUR"
+              },
+              "giftable": true
+            }
+          ]
+        },
+        "accessInfo": {
+          "country": "FR",
+          "viewability": "PARTIAL",
+          "embeddable": true,
+          "publicDomain": false,
+          "textToSpeechPermission": "ALLOWED",
+          "epub": {
+            "isAvailable": true,
+            "acsTokenLink": "http://books.google.fr/books/download/Inside_Science-sample-epub.acsm?id=uZqFDwAAQBAJ&format=epub&output=acs4_fulfillment_token&dl_type=sample&source=gbs_api"
+          },
+          "pdf": {
+            "isAvailable": true,
+            "acsTokenLink": "http://books.google.fr/books/download/Inside_Science-sample-pdf.acsm?id=uZqFDwAAQBAJ&format=pdf&output=acs4_fulfillment_token&dl_type=sample&source=gbs_api"
+          },
+          "webReaderLink": "http://play.google.com/books/reader?id=uZqFDwAAQBAJ&hl=&source=gbs_api",
+          "accessViewStatus": "SAMPLE",
+          "quoteSharingAllowed": false
+        },
+        "searchInfo": {
+          "textSnippet": "... Great American Cities (New York: Random House, 1961). A \u003cb\u003egood inside\u003c/b\u003e story of project science is Tracy Kidder, The Soul of a New Machine (Boston: Little Brown, 1991). in The American Development of Biology, ed. Ronald Rainer, Keith R&nbsp;..."
+        }
+      },
+      {
+        "kind": "books#volume",
+        "id": "0rwzAQAAMAAJ",
+        "etag": "fur0ujCnZUM",
+        "selfLink": "https://www.googleapis.com/books/v1/volumes/0rwzAQAAMAAJ",
+        "volumeInfo": {
+          "title": "Gardeners' Chronicle",
+          "publishedDate": "1893",
+          "industryIdentifiers": [
+            {
+              "type": "OTHER",
+              "identifier": "PSU:000057728476"
+            }
+          ],
+          "readingModes": {
+            "text": false,
+            "image": true
+          },
+          "pageCount": 856,
+          "printType": "BOOK",
+          "categories": [
+            "Gardening"
+          ],
+          "maturityRating": "NOT_MATURE",
+          "allowAnonLogging": false,
+          "contentVersion": "0.7.7.0.full.1",
+          "panelizationSummary": {
+            "containsEpubBubbles": false,
+            "containsImageBubbles": false
+          },
+          "imageLinks": {
+            "smallThumbnail": "http://books.google.com/books/content?id=0rwzAQAAMAAJ&printsec=frontcover&img=1&zoom=5&edge=curl&source=gbs_api",
+            "thumbnail": "http://books.google.com/books/content?id=0rwzAQAAMAAJ&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api"
+          },
+          "language": "en",
+          "previewLink": "http://books.google.fr/books?id=0rwzAQAAMAAJ&pg=PA199&dq=good+inside&hl=&cd=4&source=gbs_api",
+          "infoLink": "https://play.google.com/store/books/details?id=0rwzAQAAMAAJ&source=gbs_api",
+          "canonicalVolumeLink": "https://play.google.com/store/books/details?id=0rwzAQAAMAAJ"
+        },
+        "saleInfo": {
+          "country": "FR",
+          "saleability": "FREE",
+          "isEbook": true,
+          "buyLink": "https://play.google.com/store/books/details?id=0rwzAQAAMAAJ&rdid=book-0rwzAQAAMAAJ&rdot=1&source=gbs_api"
+        },
+        "accessInfo": {
+          "country": "FR",
+          "viewability": "ALL_PAGES",
+          "embeddable": true,
+          "publicDomain": true,
+          "textToSpeechPermission": "ALLOWED",
+          "epub": {
+            "isAvailable": false,
+            "downloadLink": "http://books.google.fr/books/download/Gardeners_Chronicle.epub?id=0rwzAQAAMAAJ&hl=&output=epub&source=gbs_api"
+          },
+          "pdf": {
+            "isAvailable": false
+          },
+          "webReaderLink": "http://play.google.com/books/reader?id=0rwzAQAAMAAJ&hl=&source=gbs_api",
+          "accessViewStatus": "FULL_PUBLIC_DOMAIN",
+          "quoteSharingAllowed": false
+        },
+        "searchInfo": {
+          "textSnippet": "... \u003cb\u003eGood\u003c/b\u003e all - round experience , \u003cb\u003einside\u003c/b\u003e and out . \u003cb\u003eGood\u003c/b\u003e character as Head from last place . Two children , youngest five years . - GARDENER , 9 , Eyot Gardens , Hammersmith , w . VARDENER ( HEAD WORKING ) .— Life experience . Can be&nbsp;..."
+        }
+      },
+      {
+        "kind": "books#volume",
+        "id": "QhR5zwEACAAJ",
+        "etag": "zfsd+PSk2nI",
+        "selfLink": "https://www.googleapis.com/books/v1/volumes/QhR5zwEACAAJ",
+        "volumeInfo": {
+          "title": "The Good Inside Best Outside Parent",
+          "subtitle": "A Practical Guide to Excellent Parenting",
+          "authors": [
+            "Sebastian Stephenson"
+          ],
+          "publisher": "Independently Published",
+          "publishedDate": "2022-10-25",
+          "description": "The parenting principle involves connecting with our kids instead of criticizing them because they're tired of getting advice that doesn't work or doesn't make them feel good. Parents have been told for decades to raise their kids in a way that doesn't work at all. Many common ways to raise a child are more about shaping a child's behavior than building their character. We forget that they are humans! These methods don't take into account children's complex emotional needs or help them learn the skills they'll need to do well in life. When you think about how complicated their own feelings are, it's easy to see why so many parents and other caregivers feel lost, tired, and afraid they're failing their kids. In this exciting, brief, and comprehensive read from the Stephenson Series, Dr. Sebastian Stephenson talks about the different ways to make parenting more than just yelling at your kids but making it a loveable, enjoyable task. Beyond what you expect, he gives more emphasis not just to the parent that is good inside, but the one that is \"best outside,\" a theory that no one is yet to pinpoint. The Good Inside Best Outside Parent is a complete guide for parents who want to find a new way to raise their kids while still teaching them how to be self-controlled, confident, and resilient for the rest of their lives. A must-read for that busy parent who cannot sit for a novel...",
+          "industryIdentifiers": [
+            {
+              "type": "ISBN_13",
+              "identifier": "9798360141044"
+            }
+          ],
+          "readingModes": {
+            "text": false,
+            "image": false
+          },
+          "pageCount": 0,
+          "printType": "BOOK",
+          "maturityRating": "NOT_MATURE",
+          "allowAnonLogging": false,
+          "contentVersion": "preview-1.0.0",
+          "panelizationSummary": {
+            "containsEpubBubbles": false,
+            "containsImageBubbles": false
+          },
+          "imageLinks": {
+            "smallThumbnail": "http://books.google.com/books/content?id=QhR5zwEACAAJ&printsec=frontcover&img=1&zoom=5&source=gbs_api",
+            "thumbnail": "http://books.google.com/books/content?id=QhR5zwEACAAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api"
+          },
+          "language": "en",
+          "previewLink": "http://books.google.fr/books?id=QhR5zwEACAAJ&dq=good+inside&hl=&cd=5&source=gbs_api",
+          "infoLink": "http://books.google.fr/books?id=QhR5zwEACAAJ&dq=good+inside&hl=&source=gbs_api",
+          "canonicalVolumeLink": "https://books.google.com/books/about/The_Good_Inside_Best_Outside_Parent.html?hl=&id=QhR5zwEACAAJ"
+        },
+        "saleInfo": {
+          "country": "FR",
+          "saleability": "NOT_FOR_SALE",
+          "isEbook": false
+        },
+        "accessInfo": {
+          "country": "FR",
+          "viewability": "NO_PAGES",
+          "embeddable": false,
+          "publicDomain": false,
+          "textToSpeechPermission": "ALLOWED",
+          "epub": {
+            "isAvailable": false
+          },
+          "pdf": {
+            "isAvailable": false
+          },
+          "webReaderLink": "http://play.google.com/books/reader?id=QhR5zwEACAAJ&hl=&source=gbs_api",
+          "accessViewStatus": "NONE",
+          "quoteSharingAllowed": false
+        },
+        "searchInfo": {
+          "textSnippet": "In this exciting, brief, and comprehensive read from the Stephenson Series, Dr. Sebastian Stephenson talks about the different ways to make parenting more than just yelling at your kids but making it a loveable, enjoyable task."
+        }
+      },
+      {
+        "kind": "books#volume",
+        "id": "FvayEAAAQBAJ",
+        "etag": "qwZHKzB6Bw8",
+        "selfLink": "https://www.googleapis.com/books/v1/volumes/FvayEAAAQBAJ",
+        "volumeInfo": {
+          "title": "Parents attentifs - Un guide pour privilégier l'empathie envers l'enfant... Et envers soi",
+          "authors": [
+            "Becky Kennedy"
+          ],
+          "publisher": "Courrier du Livre",
+          "publishedDate": "2023-03-30",
+          "description": "Comment élever son enfant sans cris ni conflits ? Comment communiquer avec lui avec bienveillance, sans pour autant céder au laxisme ou à la permissivité ? Grâce à cet ouvrage du Dr Kennedy, les parents pourront mieux comprendre les réactions de leurs enfants pour les aider à apprivoiser leurs émotions – telles que la colère, la honte ou l'angoisse de séparation –, à atténuer la jalousie ou la rivalité entre frères et sœurs, etc. L'auteure les invite à intervenir auprès de leurs enfants en fonction de leurs personnalités et à identifier leurs besoins spécifiques pour mieux y répondre. L'ouvrage est ponctué d'exemples concrets et de stratégies pour que, sur le long terme, les punitions et les injonctions soient effacées au profit de la communication positive. La bienveillance est une coopération entre parents et enfants, une cocréation qui permet à chacun de s'exprimer sans empiéter sur le territoire émotionnel de l'autre. Lorsqu'elle irrigue les échanges au sein d'une famille, elle mène à un enrichissement individuel comme collectif.",
+          "industryIdentifiers": [
+            {
+              "type": "ISBN_13",
+              "identifier": "9782702926680"
+            },
+            {
+              "type": "ISBN_10",
+              "identifier": "2702926681"
+            }
+          ],
+          "readingModes": {
+            "text": true,
+            "image": true
+          },
+          "pageCount": 300,
+          "printType": "BOOK",
+          "categories": [
+            "Family & Relationships"
+          ],
+          "maturityRating": "NOT_MATURE",
+          "allowAnonLogging": false,
+          "contentVersion": "1.1.1.0.preview.3",
+          "panelizationSummary": {
+            "containsEpubBubbles": false,
+            "containsImageBubbles": false
+          },
+          "imageLinks": {
+            "smallThumbnail": "http://books.google.com/books/content?id=FvayEAAAQBAJ&printsec=frontcover&img=1&zoom=5&edge=curl&source=gbs_api",
+            "thumbnail": "http://books.google.com/books/content?id=FvayEAAAQBAJ&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api"
+          },
+          "language": "fr",
+          "previewLink": "http://books.google.fr/books?id=FvayEAAAQBAJ&printsec=frontcover&dq=good+inside&hl=&cd=6&source=gbs_api",
+          "infoLink": "https://play.google.com/store/books/details?id=FvayEAAAQBAJ&source=gbs_api",
+          "canonicalVolumeLink": "https://play.google.com/store/books/details?id=FvayEAAAQBAJ"
+        },
+        "saleInfo": {
+          "country": "FR",
+          "saleability": "FOR_SALE",
+          "isEbook": true,
+          "listPrice": {
+            "amount": 14.99,
+            "currencyCode": "EUR"
+          },
+          "retailPrice": {
+            "amount": 14.99,
+            "currencyCode": "EUR"
+          },
+          "buyLink": "https://play.google.com/store/books/details?id=FvayEAAAQBAJ&rdid=book-FvayEAAAQBAJ&rdot=1&source=gbs_api",
+          "offers": [
+            {
+              "finskyOfferType": 1,
+              "listPrice": {
+                "amountInMicros": 14990000,
+                "currencyCode": "EUR"
+              },
+              "retailPrice": {
+                "amountInMicros": 14990000,
+                "currencyCode": "EUR"
+              },
+              "giftable": true
+            }
+          ]
+        },
+        "accessInfo": {
+          "country": "FR",
+          "viewability": "PARTIAL",
+          "embeddable": true,
+          "publicDomain": false,
+          "textToSpeechPermission": "ALLOWED",
+          "epub": {
+            "isAvailable": true
+          },
+          "pdf": {
+            "isAvailable": true
+          },
+          "webReaderLink": "http://play.google.com/books/reader?id=FvayEAAAQBAJ&hl=&source=gbs_api",
+          "accessViewStatus": "SAMPLE",
+          "quoteSharingAllowed": false
+        },
+        "searchInfo": {
+          "textSnippet": "Grâce à cet ouvrage du Dr Kennedy, les parents pourront mieux comprendre les réactions de leurs enfants pour les aider à apprivoiser leurs émotions – telles que la colère, la honte ou l&#39;angoisse de séparation –, à atténuer la ..."
+        }
+      },
+      {
+        "kind": "books#volume",
+        "id": "QKg5BAAAQBAJ",
+        "etag": "XTW0O2WYO/E",
+        "selfLink": "https://www.googleapis.com/books/v1/volumes/QKg5BAAAQBAJ",
+        "volumeInfo": {
+          "title": "The Good Times",
+          "authors": [
+            "Russell Baker"
+          ],
+          "publisher": "Diversion Publishing Corp.",
+          "publishedDate": "2014-08-05",
+          "description": "A “superb [and] often hilarious” memoir of a life in journalism, from the Pulitzer Prize–winning author of Growing Up (The New York Times Book Review). “Baker here recalls his years at the Baltimore Sun, where, on ‘starvation wages,’ he worked on the police beat, as a rewrite man, feature writer and White House correspondent. Sent to London in 1953 to report on the coronation, he spent the happiest year of his life there as an innocent abroad. Moving to the New York Times and becoming a ‘two-fisted drinker,’ he covered the Senate and the national political campaigns of 1956 and 1960, and, just as he was becoming bored with routine reporting and the obligation to keep judgments out of his stories, was offered the opportunity to write his own op-ed page column, ‘The Observer.’ With its lively stories about journalists, Washington politicians and topical scandals, the book will delight Baker’s devotees—and significantly expand their already vast number.” —Publishers Weekly “Aspiring writers will chuckle over Baker’s first, horrible day on police beat, his panicked interview with Evelyn Waugh, and his arrival at Queen Elizabeth’s coronation in top hat, tails, and brown-bag lunch.” —Library Journal “A wonderful book.” —Kirkus Reviews",
+          "industryIdentifiers": [
+            {
+              "type": "ISBN_13",
+              "identifier": "9781626813250"
+            },
+            {
+              "type": "ISBN_10",
+              "identifier": "1626813256"
+            }
+          ],
+          "readingModes": {
+            "text": true,
+            "image": true
+          },
+          "pageCount": 447,
+          "printType": "BOOK",
+          "categories": [
+            "Biography & Autobiography"
+          ],
+          "maturityRating": "NOT_MATURE",
+          "allowAnonLogging": true,
+          "contentVersion": "0.8.8.0.preview.3",
+          "panelizationSummary": {
+            "containsEpubBubbles": false,
+            "containsImageBubbles": false
+          },
+          "imageLinks": {
+            "smallThumbnail": "http://books.google.com/books/content?id=QKg5BAAAQBAJ&printsec=frontcover&img=1&zoom=5&edge=curl&source=gbs_api",
+            "thumbnail": "http://books.google.com/books/content?id=QKg5BAAAQBAJ&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api"
+          },
+          "language": "en",
+          "previewLink": "http://books.google.fr/books?id=QKg5BAAAQBAJ&pg=PT115&dq=good+inside&hl=&cd=7&source=gbs_api",
+          "infoLink": "https://play.google.com/store/books/details?id=QKg5BAAAQBAJ&source=gbs_api",
+          "canonicalVolumeLink": "https://play.google.com/store/books/details?id=QKg5BAAAQBAJ"
+        },
+        "saleInfo": {
+          "country": "FR",
+          "saleability": "FOR_SALE",
+          "isEbook": true,
+          "listPrice": {
+            "amount": 17.92,
+            "currencyCode": "EUR"
+          },
+          "retailPrice": {
+            "amount": 17.92,
+            "currencyCode": "EUR"
+          },
+          "buyLink": "https://play.google.com/store/books/details?id=QKg5BAAAQBAJ&rdid=book-QKg5BAAAQBAJ&rdot=1&source=gbs_api",
+          "offers": [
+            {
+              "finskyOfferType": 1,
+              "listPrice": {
+                "amountInMicros": 17920000,
+                "currencyCode": "EUR"
+              },
+              "retailPrice": {
+                "amountInMicros": 17920000,
+                "currencyCode": "EUR"
+              },
+              "giftable": true
+            }
+          ]
+        },
+        "accessInfo": {
+          "country": "FR",
+          "viewability": "PARTIAL",
+          "embeddable": true,
+          "publicDomain": false,
+          "textToSpeechPermission": "ALLOWED",
+          "epub": {
+            "isAvailable": true,
+            "acsTokenLink": "http://books.google.fr/books/download/The_Good_Times-sample-epub.acsm?id=QKg5BAAAQBAJ&format=epub&output=acs4_fulfillment_token&dl_type=sample&source=gbs_api"
+          },
+          "pdf": {
+            "isAvailable": true,
+            "acsTokenLink": "http://books.google.fr/books/download/The_Good_Times-sample-pdf.acsm?id=QKg5BAAAQBAJ&format=pdf&output=acs4_fulfillment_token&dl_type=sample&source=gbs_api"
+          },
+          "webReaderLink": "http://play.google.com/books/reader?id=QKg5BAAAQBAJ&hl=&source=gbs_api",
+          "accessViewStatus": "SAMPLE",
+          "quoteSharingAllowed": false
+        },
+        "searchInfo": {
+          "textSnippet": "... \u003cb\u003eInside\u003c/b\u003e . I was being moved \u003cb\u003einside\u003c/b\u003e . I felt as Edmond Dantès must have felt when he finally escaped the Château D&#39;If . Caulfield was moving me \u003cb\u003einside\u003c/b\u003e . Caulfield was a wonderful editor . 9 \u003cb\u003eInside\u003c/b\u003e It was one of life&#39;s \u003cb\u003egreat\u003c/b\u003e days ."
+        }
+      },
+      {
+        "kind": "books#volume",
+        "id": "HRsEAQAAQBAJ",
+        "etag": "0qPlw5luNsU",
+        "selfLink": "https://www.googleapis.com/books/v1/volumes/HRsEAQAAQBAJ",
+        "volumeInfo": {
+          "title": "Making Good Teaching Great",
+          "subtitle": "Everyday Strategies for Teaching with Impact",
+          "authors": [
+            "Todd Whitaker",
+            "Annette Breaux"
+          ],
+          "publisher": "Routledge",
+          "publishedDate": "2014-01-09",
+          "description": "Every good teacher strives to be a great teacher - and this must-have book shows you how! It's filled with practical tips and strategies for connecting with your students in a meaningful and powerful way. Learn how to improve student learning with easy-to-implement daily activities designed to integrate seamlessly into any day of the school year. This is a readable, hands-on guide for both new and seasoned teachers - complete with \"20-Day Reality Checks\" so you can reflect on your progress and identify areas for improvement.",
+          "industryIdentifiers": [
+            {
+              "type": "ISBN_13",
+              "identifier": "9781317923565"
+            },
+            {
+              "type": "ISBN_10",
+              "identifier": "1317923561"
+            }
+          ],
+          "readingModes": {
+            "text": true,
+            "image": true
+          },
+          "pageCount": 379,
+          "printType": "BOOK",
+          "categories": [
+            "Education"
+          ],
+          "maturityRating": "NOT_MATURE",
+          "allowAnonLogging": false,
+          "contentVersion": "0.10.10.0.preview.3",
+          "panelizationSummary": {
+            "containsEpubBubbles": false,
+            "containsImageBubbles": false
+          },
+          "imageLinks": {
+            "smallThumbnail": "http://books.google.com/books/content?id=HRsEAQAAQBAJ&printsec=frontcover&img=1&zoom=5&edge=curl&source=gbs_api",
+            "thumbnail": "http://books.google.com/books/content?id=HRsEAQAAQBAJ&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api"
+          },
+          "language": "en",
+          "previewLink": "http://books.google.fr/books?id=HRsEAQAAQBAJ&pg=PT311&dq=good+inside&hl=&cd=8&source=gbs_api",
+          "infoLink": "https://play.google.com/store/books/details?id=HRsEAQAAQBAJ&source=gbs_api",
+          "canonicalVolumeLink": "https://play.google.com/store/books/details?id=HRsEAQAAQBAJ"
+        },
+        "saleInfo": {
+          "country": "FR",
+          "saleability": "FOR_SALE",
+          "isEbook": true,
+          "listPrice": {
+            "amount": 26.36,
+            "currencyCode": "EUR"
+          },
+          "retailPrice": {
+            "amount": 18.45,
+            "currencyCode": "EUR"
+          },
+          "buyLink": "https://play.google.com/store/books/details?id=HRsEAQAAQBAJ&rdid=book-HRsEAQAAQBAJ&rdot=1&source=gbs_api",
+          "offers": [
+            {
+              "finskyOfferType": 1,
+              "listPrice": {
+                "amountInMicros": 26360000,
+                "currencyCode": "EUR"
+              },
+              "retailPrice": {
+                "amountInMicros": 18450000,
+                "currencyCode": "EUR"
+              },
+              "giftable": true
+            }
+          ]
+        },
+        "accessInfo": {
+          "country": "FR",
+          "viewability": "PARTIAL",
+          "embeddable": true,
+          "publicDomain": false,
+          "textToSpeechPermission": "ALLOWED",
+          "epub": {
+            "isAvailable": true,
+            "acsTokenLink": "http://books.google.fr/books/download/Making_Good_Teaching_Great-sample-epub.acsm?id=HRsEAQAAQBAJ&format=epub&output=acs4_fulfillment_token&dl_type=sample&source=gbs_api"
+          },
+          "pdf": {
+            "isAvailable": true,
+            "acsTokenLink": "http://books.google.fr/books/download/Making_Good_Teaching_Great-sample-pdf.acsm?id=HRsEAQAAQBAJ&format=pdf&output=acs4_fulfillment_token&dl_type=sample&source=gbs_api"
+          },
+          "webReaderLink": "http://play.google.com/books/reader?id=HRsEAQAAQBAJ&hl=&source=gbs_api",
+          "accessViewStatus": "SAMPLE",
+          "quoteSharingAllowed": false
+        },
+        "searchInfo": {
+          "textSnippet": "... walk up to it and admire it. Notice the \u003cb\u003egood inside\u003c/b\u003e of me And then you&#39;ll also help me to see That I have possibility So tell me I&#39;m good, and better I&#39;ll be! 10 Day 151 What They Need, Indeed DOI: 10.4324/9781315854069-151."
+        }
+      },
+      {
+        "kind": "books#volume",
+        "id": "9s_37IpWF30C",
+        "etag": "qqvaGzqAALU",
+        "selfLink": "https://www.googleapis.com/books/v1/volumes/9s_37IpWF30C",
+        "volumeInfo": {
+          "title": "Inside War",
+          "subtitle": "The Guerrilla Conflict in Missouri During the American Civil War",
+          "authors": [
+            "Michael Fellman"
+          ],
+          "publisher": "Oxford University Press",
+          "publishedDate": "1990-04-19",
+          "description": "During the Civil War, the state of Missouri witnessed the most widespread, prolonged, and destructive guerrilla fighting in American history. With its horrific combination of robbery, arson, torture, murder, and swift and bloody raids on farms and settlements, the conflict approached total war, engulfing the whole populace and challenging any notion of civility. Michael Fellman's Inside War captures the conflict from \"inside,\" drawing on a wealth of first-hand evidence, including letters, diaries, military reports, court-martial transcripts, depositions, and newspaper accounts. He gives us a clear picture of the ideological, social, and economic forces that divided the people and launched the conflict. Along with depicting how both Confederate and Union officials used the guerrilla fighters and their tactics to their own advantage, Fellman describes how ordinary civilian men and women struggled to survive amidst the random terror perpetuated by both sides; what drove the combatants themselves to commit atrocities and vicious acts of vengeance; and how the legend of Jesse James arose from this brutal episode in the American Civil War.",
+          "industryIdentifiers": [
+            {
+              "type": "ISBN_13",
+              "identifier": "9780199839254"
+            },
+            {
+              "type": "ISBN_10",
+              "identifier": "0199839255"
+            }
+          ],
+          "readingModes": {
+            "text": true,
+            "image": true
+          },
+          "pageCount": 352,
+          "printType": "BOOK",
+          "categories": [
+            "History"
+          ],
+          "maturityRating": "NOT_MATURE",
+          "allowAnonLogging": true,
+          "contentVersion": "2.5.4.0.preview.3",
+          "panelizationSummary": {
+            "containsEpubBubbles": false,
+            "containsImageBubbles": false
+          },
+          "imageLinks": {
+            "smallThumbnail": "http://books.google.com/books/content?id=9s_37IpWF30C&printsec=frontcover&img=1&zoom=5&edge=curl&source=gbs_api",
+            "thumbnail": "http://books.google.com/books/content?id=9s_37IpWF30C&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api"
+          },
+          "language": "en",
+          "previewLink": "http://books.google.fr/books?id=9s_37IpWF30C&pg=PT154&dq=good+inside&hl=&cd=9&source=gbs_api",
+          "infoLink": "https://play.google.com/store/books/details?id=9s_37IpWF30C&source=gbs_api",
+          "canonicalVolumeLink": "https://play.google.com/store/books/details?id=9s_37IpWF30C"
+        },
+        "saleInfo": {
+          "country": "FR",
+          "saleability": "FOR_SALE",
+          "isEbook": true,
+          "listPrice": {
+            "amount": 17.26,
+            "currencyCode": "EUR"
+          },
+          "retailPrice": {
+            "amount": 12.08,
+            "currencyCode": "EUR"
+          },
+          "buyLink": "https://play.google.com/store/books/details?id=9s_37IpWF30C&rdid=book-9s_37IpWF30C&rdot=1&source=gbs_api",
+          "offers": [
+            {
+              "finskyOfferType": 1,
+              "listPrice": {
+                "amountInMicros": 17260000,
+                "currencyCode": "EUR"
+              },
+              "retailPrice": {
+                "amountInMicros": 12080000,
+                "currencyCode": "EUR"
+              },
+              "giftable": true
+            }
+          ]
+        },
+        "accessInfo": {
+          "country": "FR",
+          "viewability": "PARTIAL",
+          "embeddable": true,
+          "publicDomain": false,
+          "textToSpeechPermission": "ALLOWED",
+          "epub": {
+            "isAvailable": true,
+            "acsTokenLink": "http://books.google.fr/books/download/Inside_War-sample-epub.acsm?id=9s_37IpWF30C&format=epub&output=acs4_fulfillment_token&dl_type=sample&source=gbs_api"
+          },
+          "pdf": {
+            "isAvailable": true,
+            "acsTokenLink": "http://books.google.fr/books/download/Inside_War-sample-pdf.acsm?id=9s_37IpWF30C&format=pdf&output=acs4_fulfillment_token&dl_type=sample&source=gbs_api"
+          },
+          "webReaderLink": "http://play.google.com/books/reader?id=9s_37IpWF30C&hl=&source=gbs_api",
+          "accessViewStatus": "SAMPLE",
+          "quoteSharingAllowed": false
+        },
+        "searchInfo": {
+          "textSnippet": "... \u003cb\u003egood\u003c/b\u003e from the bad with the soldier–self destroying evil in order to return at last to the \u003cb\u003egood\u003c/b\u003e civilian life back home.23 Many young Union troops resisted coarsening, trying to maintain their prewar civilian sense of self and of others&nbsp;..."
+        }
+      },
+      {
+        "kind": "books#volume",
+        "id": "BfmOAgAAQBAJ",
+        "etag": "udBVLPTvl64",
+        "selfLink": "https://www.googleapis.com/books/v1/volumes/BfmOAgAAQBAJ",
+        "volumeInfo": {
+          "title": "Inside Magazines",
+          "subtitle": "A Career Builder's Guide",
+          "authors": [
+            "Michael Barnard"
+          ],
+          "publisher": "Routledge",
+          "publishedDate": "2005-10-20",
+          "description": "First published in 1989. Routledge is an imprint of Taylor & Francis, an informa company.",
+          "industryIdentifiers": [
+            {
+              "type": "ISBN_13",
+              "identifier": "9781135467067"
+            },
+            {
+              "type": "ISBN_10",
+              "identifier": "1135467064"
+            }
+          ],
+          "readingModes": {
+            "text": false,
+            "image": true
+          },
+          "pageCount": 116,
+          "printType": "BOOK",
+          "categories": [
+            "Education"
+          ],
+          "maturityRating": "NOT_MATURE",
+          "allowAnonLogging": false,
+          "contentVersion": "0.1.0.0.preview.1",
+          "panelizationSummary": {
+            "containsEpubBubbles": false,
+            "containsImageBubbles": false
+          },
+          "imageLinks": {
+            "smallThumbnail": "http://books.google.com/books/content?id=BfmOAgAAQBAJ&printsec=frontcover&img=1&zoom=5&edge=curl&source=gbs_api",
+            "thumbnail": "http://books.google.com/books/content?id=BfmOAgAAQBAJ&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api"
+          },
+          "language": "en",
+          "previewLink": "http://books.google.fr/books?id=BfmOAgAAQBAJ&pg=PA40&dq=good+inside&hl=&cd=10&source=gbs_api",
+          "infoLink": "http://books.google.fr/books?id=BfmOAgAAQBAJ&dq=good+inside&hl=&source=gbs_api",
+          "canonicalVolumeLink": "https://books.google.com/books/about/Inside_Magazines.html?hl=&id=BfmOAgAAQBAJ"
+        },
+        "saleInfo": {
+          "country": "FR",
+          "saleability": "NOT_FOR_SALE",
+          "isEbook": false
+        },
+        "accessInfo": {
+          "country": "FR",
+          "viewability": "PARTIAL",
+          "embeddable": true,
+          "publicDomain": false,
+          "textToSpeechPermission": "ALLOWED",
+          "epub": {
+            "isAvailable": false
+          },
+          "pdf": {
+            "isAvailable": true,
+            "acsTokenLink": "http://books.google.fr/books/download/Inside_Magazines-sample-pdf.acsm?id=BfmOAgAAQBAJ&format=pdf&output=acs4_fulfillment_token&dl_type=sample&source=gbs_api"
+          },
+          "webReaderLink": "http://play.google.com/books/reader?id=BfmOAgAAQBAJ&hl=&source=gbs_api",
+          "accessViewStatus": "SAMPLE",
+          "quoteSharingAllowed": false
+        },
+        "searchInfo": {
+          "textSnippet": "... \u003cb\u003egood\u003c/b\u003e standard. Learning basic skills on the job is now unusual. Secondly, there are specialised abilities which must form part of a general range of talents. \u003cb\u003eGood\u003c/b\u003e production knowledge is essential. Anyone working in a magazine studio&nbsp;..."
+        }
+      }
+    ]
+  }

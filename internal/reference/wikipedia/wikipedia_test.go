@@ -6,20 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/AlecAivazis/survey/v2"
-	score "github.com/AlecAivazis/survey/v2/core"
-	"github.com/AlecAivazis/survey/v2/terminal"
-	"github.com/julien-sobczak/the-notewriter/internal/reference"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.nhat.io/surveyexpect"
-	"go.nhat.io/surveyexpect/options"
 )
-
-func init() {
-	// disable color output for all prompts to simplify testing
-	score.DisableColor = true
-}
 
 func TestSearch(t *testing.T) {
 	// Ex: https://en.wikipedia.org/wiki/Nelson_Mandela
@@ -60,7 +49,7 @@ func TestSearch(t *testing.T) {
     ]
   }
 }`)
-		} else if r.URL.Path == "/w/api.php" && r.URL.Query().Get("action") == "parse" {
+		} else if r.URL.Path == "/w/api.php" && r.URL.Query().Get("action") == "parse" && r.URL.Query().Get("pageid") == "21492751" {
 			// Ex: https://en.wikipedia.org/w/api.php?action=parse&pageid=21492751&contentmodel=wikitext&prop=wikitext&format=json
 			fmt.Fprintln(w, `
 {
@@ -72,101 +61,63 @@ func TestSearch(t *testing.T) {
     }
   }
 }`)
+		} else if r.URL.Path == "/w/api.php" && r.URL.Query().Get("action") == "parse" && r.URL.Query().Get("pageid") == "32300871" {
+			// Ex: https://en.wikipedia.org/w/api.php?action=parse&pageid=32300871&contentmodel=wikitext&prop=wikitext&format=json
+			fmt.Fprintln(w, `
+{
+  "parse":{
+    "title":"Nelson Mandela",
+    "pageid":21492751,
+    "wikitext":{
+      "*":"{{Short description|None}}\n{{EngvarB|date=August 2014}}\n{{Use dmy dates|date=August 2014}}\n{{use South African English|date=November 2017}}\n{{Infobox administration\n| image = Mandela 1991.jpg\n| name =  Presidency of Nelson Mandela\n| term_start = 10 May 1994\n| term_end = 14 June 1999\n| president = Nelson Mandela\n| president_link = President of South Africa\n| cabinet = [[Cabinet of Nelson Mandela]]\n| election = [[1994 South African general election|1994]]\n| seat = [[Mahlamba Ndlopfu]], [[Pretoria]]<br />[[Genadendal Residence]], [[Cape Town]]\n| party = [[African National Congress]]\n| predecessor = ''[[F. W. de Klerk#State presidency|de Klerk state presidency]]''\n| successor = [[Thabo Mbeki|Mbeki]] presidency\n| seal = Coat of arms of South"
+    }
+  }
+}`)
 		}
 	}))
 	defer ts.Close()
 
-	s := surveyexpect.Expect(func(s *surveyexpect.Survey) {
-		s.ExpectSelect("Which page?  [Use arrows to move, type to filter]").
-			ExpectOptions(
-				"> Nelson Mandela",
-				"Presidency of Nelson Mandela",
-			).
-			Enter()
-		s.ExpectMultiSelect("Which attributes?  [Use arrows to move, space to select, <right> to all, <left> to none, type to filter]").
-			ExpectOptions(
-				"> [ ]  office: President of South Africa",
-				"[ ]  birth_date: 1918-07-18",
-				"[ ]  birth_place: Mvezo, Union of South Africa",
-				"[ ]  death_date: 2013-12-05",
-				"[ ]  death_place: Johannesburg, South Africa",
-			).
-			MoveDown().
-			Select().
-			MoveDown().
-			Select().
-			Enter()
-	})(t)
-	s.Start(func(stdio terminal.Stdio) {
-		manager := NewReferenceManager()
-		manager.BaseURL = ts.URL
-		manager.Stdio = &stdio
+	manager := NewManager()
+	manager.BaseURL = ts.URL
 
-		ref, err := manager.Search("Nelson Mandela")
-		require.NoError(t, err)
-		actual := ref.Attributes()
-		expected := []reference.Attribute{
-			{
-				Key:   "name",
-				Value: "Nelson Mandela",
-			},
-			{
-				Key:   "pageId",
-				Value: 21492751,
-			},
-			{
-				Key:   "url",
-				Value: "https://en.wikipedia.org/wiki/Nelson_Mandela",
-			},
-			{
-				Key:   "birth_date",
-				Value: "1918-07-18",
-			},
-			{
-				Key:   "birth_place",
-				Value: "Mvezo, Union of South Africa",
-			},
-		}
-		assert.Equal(t, expected, actual)
-	})
+	results, err := manager.Search("Nelson Mandela")
+	require.NoError(t, err)
+	require.Len(t, results, 2)
 
-}
+	// Check first result
+	firstResult := results[0]
+	actual := firstResult.Attributes()
+	expected := map[string]any{
+		"name":        "Nelson Mandela",
+		"pageId":      21492751,
+		"url":         "https://en.wikipedia.org/wiki/Nelson_Mandela",
+		"birth_date":  "1918-07-18",
+		"birth_place": "Mvezo, Union of South Africa",
+		"death_date":  "2013-12-05",
+		"death_place": "Johannesburg, South Africa",
+		"office":      "President of South Africa",
+	}
+	assert.Equal(t, expected, actual)
 
-/* Learning tests */
-
-func TestDemoSurveyExpect(t *testing.T) {
-	s := surveyexpect.Expect(func(s *surveyexpect.Survey) {
-		s.ExpectPassword("Enter a password:").
-			Answer("secret")
-		s.ExpectSelect("Which digit?  [Use arrows to move, type to filter]").
-			Enter()
-		s.ExpectMultiSelect("Which color?  [Use arrows to move, space to select, <right> to all, <left> to none, type to filter]").
-			Select().
-			Enter()
-	})(t)
-	s.Start(func(stdio terminal.Stdio) {
-		p := &survey.Password{Message: "Enter a password:"}
-		var answer1 string
-		err := survey.AskOne(p, &answer1, options.WithStdio(stdio))
-		assert.NoError(t, err)
-		assert.Equal(t, "secret", answer1)
-
-		var answer2 string
-		prompt1 := &survey.Select{
-			Message: "Which digit?",
-			Options: []string{"one", "two"},
-		}
-		err = survey.AskOne(prompt1, &answer2, survey.WithValidator(survey.Required), options.WithStdio(stdio))
-		assert.NoError(t, err)
-		assert.Equal(t, "one", answer2)
-
-		var answers3 []string
-		prompt2 := &survey.MultiSelect{
-			Message: "Which color?",
-			Options: []string{"blue", "yellow"},
-		}
-		err = survey.AskOne(prompt2, &answers3, survey.WithValidator(survey.Required), options.WithStdio(stdio))
-		assert.NoError(t, err)
-		assert.Equal(t, []string{"blue"}, answers3)
-	})
+	// Check second result
+	secondResult := results[1]
+	actual = secondResult.Attributes()
+	expected = map[string]any{
+		"cabinet":        "Cabinet of Nelson Mandela",
+		"election":       "1994",
+		"image":          "Mandela 1991.jpg",
+		"name":           "Presidency of Nelson Mandela",
+		"pageId":         32300871,
+		"party":          "African National Congress",
+		"predecessor":    "de Klerk state presidency",
+		"president":      "Nelson Mandela",
+		"president_link": "President of South Africa",
+		"seal":           "Coat of arms of South",
+		"seat":           "Mahlamba Ndlopfu, Pretoria<br />Genadendal Residence, Cape Town",
+		"successor":      "Mbeki presidency",
+		"term_end":       "1999-06-14",
+		"term_start":     "1994-05-10",
+		"url":            "https://en.wikipedia.org/wiki/Nelson_Mandela",
+	}
+	assert.Equal(t, expected, actual)
 }
