@@ -115,6 +115,9 @@ type ConfigRemote struct {
 	SecretKey  string
 	BucketName string
 	Secure     bool
+	// Storj-specific attributes
+	AccessGrant string
+	// + reuse BucketName
 }
 type ConfigSearch struct {
 	Q    string

@@ -1,11 +1,13 @@
 package googlebooks
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/julien-sobczak/the-notewriter/internal/reference"
 	"github.com/julien-sobczak/the-notewriter/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -92,4 +94,66 @@ func TestSearch(t *testing.T) {
 		assert.Equal(t, "The Good Inside Best Outside Parent: A Practical Guide to Excellent Parenting", results[4].Description())
 	})
 
+}
+
+func TestTemplates(t *testing.T) {
+	template := `---
+title: "{{index . "title" | title}}{{ if index . "subtitle"}}:{{index . "subtitle" | title}}{{end}}"
+short_title: "{{index . "title" | title}}"
+name: {{index . "authors" | join ", "}}
+occupation: Unknown
+nationality: Unknown
+{{- if index . "publishedDate"}}
+date: "{{index . "publishedDate"}}"
+{{- end -}}
+{{- if index . "publisher"}}
+publisher: {{index . "publisher"}}
+{{- end -}}
+{{- if index . "pageCount"}}
+numPages: {{index . "pageCount"}}
+{{- end -}}
+{{- if index . "unknown"}}
+unknown: {{index . "unknown"}}
+{{- end -}}
+{{- if index . "industryIdentifiers"}}
+isbn: "{{index . "industryIdentifiers" | jq ". | first | .identifier"}}"
+{{- end }}
+---
+
+# {{index . "title" | title}}
+`
+	results := LoadResultsFromGoldenFileNamed(t, "isbn-9780008505547.json")
+	result := results[0]
+	actual, err := reference.EvaluateTemplate(template, result)
+	require.NoError(t, err)
+	expected := `---
+title: "Good Inside:A Guide to Becoming the Parent You Want to Be"
+short_title: "Good Inside"
+name: Becky Kennedy
+occupation: Unknown
+nationality: Unknown
+date: "2022-09-15"
+publisher: HarperThorsons
+isbn: "0008505543"
+---
+
+# Good Inside
+`
+	assert.Equal(t, expected, actual)
+}
+
+/* Test Helpers */
+
+// LoadResultsFromGoldenFileNamed parses a JSON Google Book response to convert them to Result.
+func LoadResultsFromGoldenFileNamed(t *testing.T, filename string) []*Result {
+	content := testutil.GoldenFileNamed(t, filename)
+	var response QueryResponse
+	err := json.Unmarshal(content, &response)
+	require.NoError(t, err)
+
+	var results []*Result
+	for _, item := range response.Items {
+		results = append(results, NewResultFromItem(item))
+	}
+	return results
 }

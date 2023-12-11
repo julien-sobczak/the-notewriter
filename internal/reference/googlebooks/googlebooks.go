@@ -83,7 +83,7 @@ func (m *Manager) Ready() (bool, error) {
 }
 
 func (m *Manager) Search(query string) ([]reference.Result, error) {
-	// Not complete, but match most occurrences
+	// Not perfect, but match most occurrences
 	regexISBN10 := regexp.MustCompile(`^([0-9]{9}X|[0-9]{10}|\d-?\d{6}-?\d{2}-?\d)$`) // Ex: 0-123456-47-9, 0123456479
 	regexISBN13 := regexp.MustCompile(`^\d{3}-?\d-?\d{6}-?\d{2}-?\d$`)                // Ex: 978-0-123456-47-2, 978-0123456472, 9780123456472
 
@@ -120,15 +120,20 @@ func (m *Manager) Search(query string) ([]reference.Result, error) {
 			// Limit results to avoid long lists
 			break
 		}
-		results = append(results, &Result{
-			Kind:       item.Kind,
-			ID:         item.ID,
-			SelfLink:   item.SelfLink,
-			volumeInfo: item.VolumeInfo,
-		})
+		results = append(results, NewResultFromItem(item))
 	}
 
 	return results, nil
+}
+
+// NewResultFromItem creates a new result from a Google Book Item.
+func NewResultFromItem(item *Item) *Result {
+	return &Result{
+		Kind:       item.Kind,
+		ID:         item.ID,
+		SelfLink:   item.SelfLink,
+		volumeInfo: item.VolumeInfo,
+	}
 }
 
 /* Helpers */

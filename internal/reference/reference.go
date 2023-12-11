@@ -3,7 +3,9 @@ package reference
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 	"text/template"
 
 	"github.com/itchyny/gojq"
@@ -27,6 +29,12 @@ type Manager interface {
 
 // EvaluateTemplate evaluate a reference template, supporting additional custom functions.
 func EvaluateTemplate(templateText string, result Result) (string, error) {
+	// Add additional functions in complement to standard functions
+	// See https://pkg.go.dev/text/template#hdr-Functions
+	//
+	// See also Consul Template for inspiration
+	// https://github.com/hashicorp/consul-template/blob/main/template/funcs.go
+	// https://github.com/hashicorp/consul-template/blob/main/docs/templating-language.md#join
 	functions := template.FuncMap{
 		"json": func(data any) (string, error) {
 			jsonData, err := json.Marshal(data)
@@ -53,7 +61,7 @@ func EvaluateTemplate(templateText string, result Result) (string, error) {
 			txt := fmt.Sprintf("%s", data)
 			return markdown.Slug(txt)
 		},
-		"jq": func(data any, expr string) (any, error) {
+		"jq": func(expr string, data any) (any, error) {
 			query, err := gojq.Parse(expr)
 			if err != nil {
 				return nil, err
@@ -78,6 +86,25 @@ func EvaluateTemplate(templateText string, result Result) (string, error) {
 		"title": func(data any) string {
 			txt := fmt.Sprintf("%s", data)
 			return text.ToBookTitle(txt)
+		},
+		// join is a templating version of strings.Join
+		"join": func(sep string, data any) (string, error) {
+			if v, ok := data.(string); ok {
+				return v, nil
+			}
+			if v, ok := data.([]string); ok {
+				return strings.Join(v, sep), nil
+			}
+			if rawValues, ok := data.([]interface{}); ok {
+				var v []string
+				for _, rawValue := range rawValues {
+					if typedValue, ok := rawValue.(string); ok {
+						v = append(v, typedValue)
+					}
+				}
+				return strings.Join(v, sep), nil
+			}
+			return "", errors.New("unsupported type for join")
 		},
 	}
 	tmpl, err := template.New("").Funcs(functions).Parse(templateText)

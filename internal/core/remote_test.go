@@ -1,9 +1,14 @@
 package core
 
 import (
+	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"storj.io/common/testcontext"
+	"storj.io/storj/private/testplanet"
+	"storj.io/uplink"
 )
 
 func TestFSRemote(t *testing.T) {
@@ -57,4 +62,48 @@ commits:
 	// Delete a missing file
 	err = r.DeleteObject("info/commit-graph")
 	require.Error(t, err)
+}
+
+func TestStorjRemote(t *testing.T) {
+	t.Skip() // The test does not execute the closure...
+
+	// See https://raw.githubusercontent.com/wiki/storj/storj/code/Testing.md
+	testplanet.Run(t, testplanet.Config{
+		SatelliteCount:   1,
+		StorageNodeCount: 1,
+		UplinkCount:      1,
+	}, func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet) {
+		// See https://github.com/storj/uplink/blob/main/testsuite/object_test.go for inspiration
+		project := openProject(t, ctx, planet)
+		defer project.Close()
+
+		remote, err := NewStorjRemoteFromProject("my-bucket", project)
+		require.NoError(t, err)
+
+		// Check bucket has been created
+		statBucket, err := project.StatBucket(ctx, "my-bucket")
+		require.NoError(t, err)
+		require.Equal(t, "my-bucket", statBucket.Name)
+
+		// Check object doesn't already exist
+		obj, err := project.StatObject(ctx, "my-bucket", "my-file")
+		require.NoError(t, err)
+		assert.Equal(t, 10, obj.System.ContentLength)
+
+		// Create it
+		err = remote.PutObject("my-file", []byte("Hello World"))
+		require.NoError(t, err)
+		// Check again
+		obj, err = project.StatObject(ctx, "my-bucket", "my-file")
+		require.NoError(t, err)
+		assert.Equal(t, "my-file", obj.Key)
+	})
+}
+
+/* Test Helpers */
+
+func openProject(t *testing.T, ctx context.Context, planet *testplanet.Planet) *uplink.Project {
+	project, err := planet.Uplinks[0].OpenProject(ctx, planet.Satellites[0])
+	require.NoError(t, err)
+	return project
 }

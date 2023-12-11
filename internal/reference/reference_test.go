@@ -186,7 +186,7 @@ title: My Note
 				"tags":  []string{"favorite", "learning"},
 				"pages": 210,
 			},
-			template: `{{jq . ". | {title,pages}"}}`,
+			template: `{{jq ". | {title,pages}" .}}`,
 			output:   `map[pages:210 title:My Note]`,
 		},
 		{
@@ -200,7 +200,7 @@ title: My Note
 					map[string]any{"name": "Joe", "age": 10, "city": "TownB"},
 				},
 			},
-			template: `{{jq . ".results[] | select((.name == \"Joe\") and (.age = 10))"}}`,
+			template: `{{jq ".results[] | select((.name == \"Joe\") and (.age = 10))" .}}`,
 			output:   "map[age:10 city:TownB name:Joe]",
 		},
 		{
@@ -220,6 +220,33 @@ title: My Note
 			},
 			template: `{{index . "title" | slug}}`,
 			output:   `my-note`,
+		},
+		{
+			name: "join (with []string)",
+			result: map[string]any{
+				"authors": []string{"Bob", "Alice"},
+				"pages":   210,
+			},
+			template: `{{index . "authors" | join ", " }}`,
+			output:   "Bob, Alice",
+		},
+		{
+			name: "join (with string)",
+			result: map[string]any{
+				"authors": "Alice",
+				"pages":   210,
+			},
+			template: `{{index . "authors" | join ", " }}`,
+			output:   "Alice",
+		},
+		{
+			name: "join (with any)",
+			result: map[string]any{
+				"authors": []interface{}{"Bob", "Alice"},
+				"pages":   210,
+			},
+			template: `{{index . "authors" | join ", " }}`,
+			output:   "Bob, Alice",
 		},
 	}
 

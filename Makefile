@@ -8,8 +8,8 @@ APP_VERSION = $(shell git rev-parse HEAD)
 build:
 	go build --tags "fts5" -o build/nt cmd/nt/*.go
 	go build --tags "fts5" -o build/ntlite cmd/ntlite/*.go
-	go build --tags "fts5" -o build/ntreference cmd/ntreference/*.go
-	go build --tags "fts5" -o build/ntanki cmd/ntanki/*.go
+	go build --tags "fts5" -o build/ntreference cmd/nt-reference/*.go
+	go build --tags "fts5" -o build/ntanki cmd/nt-anki/*.go
 
 test:
 	go test --tags "fts5" ./... -count=1 -v

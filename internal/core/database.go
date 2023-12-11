@@ -439,6 +439,13 @@ func (db *DB) Origin() Remote {
 				os.Exit(1)
 			}
 			db.origin = remote
+		case "storj":
+			remote, err := NewStorjRemoteWithCredentials(configRemote.BucketName, configRemote.AccessKey)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Unable to init Storj remote: %v\n", err)
+				os.Exit(1)
+			}
+			db.origin = remote
 		default:
 			fmt.Fprintf(os.Stderr, "Unknow remote type %q\n", configRemote.Type)
 			os.Exit(1)

@@ -45,6 +45,9 @@ var newCmd = &cobra.Command{
 
 		// Step 2: Search
 		input := AskSearchQuery()
+		if input == "" {
+			os.Exit(0)
+		}
 		results, err := manager.Search(input)
 		if err != nil {
 			log.Fatal(err)
@@ -58,6 +61,9 @@ var newCmd = &cobra.Command{
 		} else {
 			// Ask which result to use
 			result = SelectSearchResult(results)
+			if result == nil {
+				os.Exit(0)
+			}
 		}
 
 		// Step 3: Review the generate reference text
@@ -70,10 +76,12 @@ var newCmd = &cobra.Command{
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Println(selectedConfigReference.Path, resultPath) // FIXME remove
 
 		// Step 4: Write to save?
 		filename := AskFilename(resultPath)
+		if filename == "" {
+			os.Exit(0)
+		}
 		saveTo(filename, resultText)
 	},
 }

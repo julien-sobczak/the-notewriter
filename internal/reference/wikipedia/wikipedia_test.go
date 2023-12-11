@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/julien-sobczak/the-notewriter/internal/reference"
+	"github.com/julien-sobczak/the-notewriter/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -120,4 +122,60 @@ func TestSearch(t *testing.T) {
 		"url":            "https://en.wikipedia.org/wiki/Nelson_Mandela",
 	}
 	assert.Equal(t, expected, actual)
+}
+
+func TestTemplates(t *testing.T) {
+
+	t.Run("Marcus Aurelius", func(t *testing.T) {
+
+		template := `---
+name: {{index . "name"}}
+occupation: {{if index . "occupation"}}{{index . "occupation"}}{{else}}Unknown{{end}}
+nationality: {{if index . "nationality"}}{{index . "nationality"}}{{else}}Unknown{{end}}
+{{- if index . "birth_date"}}
+birth_date: {{index . "birth_date"}}
+{{- end -}}
+{{- if index . "death_date"}}
+death_date: {{index . "death_date"}}
+{{- end -}}
+{{- if index . "known_for"}}
+known_for: "{{index . "known_for"}}"
+{{- end }}
+---
+
+# {{index . "name"}}
+`
+		result := LoadResultFromGoldenFileNamed(t, "marcus-aurelius.txt")
+		result.PageTitle = "Marcus Aurelius"
+		actual, err := reference.EvaluateTemplate(template, result)
+		require.NoError(t, err)
+		expected := `---
+name: Marcus Aurelius
+occupation: Unknown
+nationality: Unknown
+birth_date: 121-04-26
+death_date: 180-03-17
+---
+
+# Marcus Aurelius
+`
+		assert.Equal(t, expected, actual)
+	})
+}
+
+/* Test Helpers */
+
+// LoadResultFromGoldenFileNamed parses a JSON Google Book response to convert them to Result.
+func LoadResultFromGoldenFileNamed(t *testing.T, filename string) *Result {
+	content := testutil.GoldenFileNamed(t, filename)
+
+	// Load the HTML document
+	infobox := parseWikitext(string(content))
+
+	return &Result{
+		PageID:     1,
+		PageTitle:  filename,
+		URL:        "http://localhost/wikipedia",
+		attributes: infobox.Attributes,
+	}
 }

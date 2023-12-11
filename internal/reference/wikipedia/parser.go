@@ -74,6 +74,11 @@ func parseWikitext(txt string) *Infobox {
 				// new attribute
 				attributeRegex := regexp.MustCompile(`^\|\s+(\w+)\s*=\s*(.*?)\s*$`)
 				res := attributeRegex.FindStringSubmatch(line)
+				if len(res) != 3 {
+					// Line is malformed
+					i++
+					continue
+				}
 				key, wikiValue := res[1], res[2]
 
 				var parsedValue interface{}
@@ -100,7 +105,8 @@ func parseWikitext(txt string) *Infobox {
 				if parsedValue != nil {
 					infobox.Attributes[key] = parsedValue
 				} else {
-					fmt.Printf("Ignoring unknown syntax for atttribute %q: %s", key, wikiValue)
+					// TODO Find a way to log even during Bubbletea commands
+					// fmt.Printf("Ignoring unknown syntax for atttribute %q: %s", key, wikiValue)
 				}
 			}
 			i++

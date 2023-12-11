@@ -17,17 +17,49 @@ title = "A book"
 manager = "google-books"
 path = """references/books/{{index . "title" | slug}}.md"""
 template = """---
-{{jsonPretty .}}
+title: "{{index . "title" | title}}{{ if index . "subtitle"}}:{{index . "subtitle" | title}}{{end}}"
+short_title: "{{index . "title" | title}}"
+name: {{index . "authors" | join ", "}}
+occupation: Unknown
+nationality: Unknown
+{{- if index . "publishedDate"}}
+date: "{{index . "publishedDate"}}"
+{{- end -}}
+{{- if index . "publisher"}}
+publisher: {{index . "publisher"}}
+{{- end -}}
+{{- if index . "pageCount"}}
+numPages: {{index . "pageCount"}}
+{{- end -}}
+{{- if index . "unknown"}}
+unknown: {{index . "unknown"}}
+{{- end -}}
+{{- if index . "industryIdentifiers"}}
+isbn: "{{index . "industryIdentifiers" | jq ". | first | .identifier"}}"
+{{- end }}
 ---
 
-# Excellent Advice for Living
+# {{index . "title" | title}}
 """
 
 [reference.persons]
 title = "A person"
 manager = "wikipedia"
-path = "references/persons"
+path = """references/persons/{{index . "name" | slug}}.md"""
 template = """---
-{{json .}}
+name: {{index . "name"}}
+occupation: {{if index . "occupation"}}{{index . "occupation"}}{{else}}Unknown{{end}}
+nationality: {{if index . "nationality"}}{{index . "nationality"}}{{else}}Unknown{{end}}
+{{- if index . "birth_date"}}
+birth_date: {{index . "birth_date"}}
+{{- end -}}
+{{- if index . "death_date"}}
+death_date: {{index . "death_date"}}
+{{- end -}}
+{{- if index . "known_for"}}
+known_for: "{{index . "known_for"}}"
+{{- end }}
 ---
+
+# {{index . "name"}}
 """

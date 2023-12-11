@@ -144,7 +144,6 @@ func (m *Manager) waitForServerReady() error {
 	// Try to query a famous book to be sure the server is really ready
 	attempts := 0
 	for {
-		fmt.Println("Searching for a book...") // FIXME remove
 		attempts++
 		results, err := m.Search(theFiveDysfunctions)
 		if err != nil {
@@ -176,7 +175,6 @@ func (m *Manager) Search(query string) ([]reference.Result, error) {
 
 	// Ex: curl -XPOST http://localhost:1969/search -H 'Content-Type: text/plain' -d '0525538836' | jq .
 	client := &http.Client{}
-	fmt.Printf("POST %s/search %s\n", m.BaseURL, query) // FIXME remove
 	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/search", m.BaseURL), strings.NewReader(query))
 	if err != nil {
 		return nil, err
