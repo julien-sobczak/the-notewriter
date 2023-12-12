@@ -147,19 +147,19 @@ func TestNoDuplicateSlug(t *testing.T) {
 			Name:         "no-duplicate-slug",
 			RelativePath: "no-duplicate-slug/c.md",
 			Message:      `invalid slug format "no space allowed"`,
-			Line:         3,
+			Line:         7,
 		},
 		{
 			Name:         "no-duplicate-slug",
 			RelativePath: "no-duplicate-slug/c.md",
 			Message:      `invalid slug format "éà"`,
-			Line:         9,
+			Line:         13,
 		},
 		{
 			Name:         "no-duplicate-slug",
 			RelativePath: "no-duplicate-slug/c.md",
 			Message:      `invalid slug format "TitleCase"`,
-			Line:         15,
+			Line:         19,
 		},
 	}, violations)
 }

@@ -617,7 +617,7 @@ func (n *Note) updateSlug() {
 	kind = n.NoteKind
 	shortTitle = n.ShortTitle
 
-	newSlug := determineSlug(
+	newSlug := DetermineNoteSlug(
 		fileSlug,
 		attributeSlug,
 		kind,
@@ -629,8 +629,8 @@ func (n *Note) updateSlug() {
 	}
 }
 
-// determineSlug determines the note slug from the attributes.
-func determineSlug(fileSlug string, attributeSlug string, kind NoteKind, shortTitle string) string {
+// DetermineNoteSlug determines the note slug from the attributes.
+func DetermineNoteSlug(fileSlug string, attributeSlug string, kind NoteKind, shortTitle string) string {
 	if attributeSlug != "" {
 		// @slug takes priority
 		return attributeSlug

@@ -1452,6 +1452,34 @@ func TestParseFileComplex(t *testing.T) {
 	}, ignoreNoteBody(note))
 }
 
+func TestDetermineFileSlug(t *testing.T) {
+	tests := []struct{
+		path string // input
+		slug string // output
+	} {
+		{
+			path: "go/syntax.md",
+			slug: "go-syntax",
+		},
+		{
+			path: "go/index.md",
+			slug: "go",
+		},
+		{
+			path: "go/go/syntax.md",
+			slug: "go-syntax",
+		},
+		{
+			path: "go/go.md",
+			slug: "go",
+		},
+	}
+	for _, tt := range tests {
+		actual := DetermineFileSlug(tt.path)
+		assert.Equal(t, tt.slug, actual)
+	}
+}
+
 /* Test Helpers */
 
 func ignoreNoteBody(note *ParsedNote) *ParsedNote {

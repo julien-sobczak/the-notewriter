@@ -275,7 +275,7 @@ func NoDuplicateSlug(file *ParsedFile, args []string) ([]*Violation, error) {
 		}
 
 		// Determine the note
-		slug := determineSlug(fileSlug, attributeSlug, note.Kind, note.ShortTitle)
+		slug := DetermineNoteSlug(fileSlug, attributeSlug, note.Kind, note.ShortTitle)
 
 		// Check if not already in use
 		if _, ok := slugInventory[slug]; ok {

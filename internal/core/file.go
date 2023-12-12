@@ -880,7 +880,7 @@ func ParseFile(path string) (*ParsedFile, error) {
 	_, _, shortTitle := isSupportedNote(title)
 
 	// Extract/Generate slug
-	slug := markdown.Slug(text.TrimExtension(filepath.Base(relativePath)))
+	slug := DetermineFileSlug(relativePath)
 	if value, ok := attributes["slug"]; ok {
 		if v, ok := value.(string); ok {
 			slug = v
@@ -901,6 +901,24 @@ func ParseFile(path string) (*ParsedFile, error) {
 		Body:           body,
 		BodyLine:       bodyStartLineNumber,
 	}, nil
+}
+
+// DetermineFileSlug generates a slug from a file path.
+func DetermineFileSlug(path string) string {
+	slugsParts := []string{}
+
+	// Include the dirname
+	dirname := filepath.Base(filepath.Dir(path))
+	slugsParts = append(slugsParts, dirname)
+
+	// Include the filename (without the extension) except for index.md (as no additional meaning)
+	// and except when the file is named after the directory.
+	filenameWithoutExtension := text.TrimExtension(filepath.Base(path))
+	if filenameWithoutExtension != "index" && filenameWithoutExtension != dirname {
+		slugsParts = append(slugsParts, filenameWithoutExtension)
+	}
+
+	return markdown.Slug(slugsParts...)
 }
 
 // GetTags returns all defined tags on file.
