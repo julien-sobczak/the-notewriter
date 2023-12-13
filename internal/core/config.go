@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"text/template"
 
 	"github.com/julien-sobczak/the-notewriter/internal/medias"
 	"github.com/julien-sobczak/the-notewriter/pkg/resync"
@@ -721,6 +722,19 @@ func InitConfigFromDirectory(path string) (*Config, error) {
 }
 
 func (c *Config) Check() error {
+
+	// Check for invalid reference templates
+	for key, reference := range c.ConfigFile.Reference {
+		// Only path and template supports Go Templating
+		_, err := template.New("check").Parse(reference.Path)
+		if err != nil {
+			return fmt.Errorf("invalid path for reference %q: %w", key, err)
+		}
+		_, err = template.New("check").Parse(reference.Template)
+		if err != nil {
+			return fmt.Errorf("invalid template for reference %q: %w", key, err)
+		}
+	}
 
 	// Check all rules are valid
 	for _, rule := range c.LintFile.Rules {

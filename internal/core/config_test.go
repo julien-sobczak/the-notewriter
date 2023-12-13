@@ -199,7 +199,7 @@ extensions=["md"]`,
 
 func TestCheckConfig(t *testing.T) {
 
-	t.Run("Unknown Lint", func(t *testing.T) {
+	t.Run("Unknown Lint Rule", func(t *testing.T) {
 		dir := populate(t, map[string]interface{}{
 
 			".nt/lint": `
@@ -279,6 +279,60 @@ schemas:
 
 		err = c.Check()
 		require.ErrorContains(t, err, "invalid pattern")
+	})
+
+	t.Run("Invalid .nt/config", func(t *testing.T) {
+		tests := []struct {
+			name          string
+			config        string
+			expectedError string
+		}{
+
+			{
+				name: "Invalid template in references",
+				config: `
+[reference.books]
+title = "A book"
+manager = "google-books"
+path = """references/books/test.md"""
+template = """---
+title: "{{index . "title" | title
+---
+"""
+`,
+				expectedError: "invalid template for reference",
+			},
+
+			{
+				name: "Invalid path in references",
+				config: `
+[reference.books]
+title = "A book"
+manager = "google-books"
+path = """references/books/{{.md"""
+template = """# {{index . "title" | title }}"""
+`,
+				expectedError: "invalid path for reference",
+			},
+
+		}
+
+		for _, tt := range tests {
+			dir := populate(t, map[string]interface{}{
+				".nt/config": tt.config,
+			})
+
+			c, err := ReadConfigFromDirectory(dir)
+			require.NoError(t, err)
+
+			err = c.Check()
+			if tt.expectedError == "" {
+				assert.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tt.expectedError)
+			}
+		}
+
 	})
 
 }
