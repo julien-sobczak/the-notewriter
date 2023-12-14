@@ -22,7 +22,15 @@ import (
 // How many parent directories to traverse before considering a directory as not a nt repository
 const maxDepth = 10
 
+// Database
 const MaxObjectsPerPackFileDefault = 100
+
+// SRS
+const (
+	DefaultSRSBoostFactor = 100
+	DefaultSRSAlgorithm   = "Anki2"
+	DefaultSRSEaseFactor  = 2.5
+)
 
 // Default .nt/config content
 const DefaultConfig = `
@@ -94,8 +102,9 @@ type ConfigFile struct {
 	Core      ConfigCore
 	Medias    ConfigMedias
 	Remote    ConfigRemote
-	Search    map[string]ConfigSearch
-	Reference map[string]ConfigReference
+	Deck      map[string]*ConfigDeck
+	Search    map[string]*ConfigSearch
+	Reference map[string]*ConfigReference
 }
 type ConfigCore struct {
 	Extensions            []string
@@ -120,11 +129,21 @@ type ConfigRemote struct {
 	AccessGrant string
 	// + reuse BucketName
 }
+type ConfigDeck struct {
+	Name  string
+	Query string
+	// General attributes
+	BoostFactor         int // How passionate I am on this topic (100 = neutral, 80 = challenging, 120 = smooth)
+	NewFlashcardsPerDay int // How many new flashcards to add every day (= 0 no more cards for now)
+	MaxFlashcardsPerDay int // How many flashcards (including new) to review every day (= 0 no limit, review what is due)
+	// Specific attributes
+	Algorithm         string         // Anki2
+	AlgorithmSettings map[string]any // SRS-specific attributes
+}
 type ConfigSearch struct {
 	Q    string
 	Name string
 }
-
 type ConfigReference struct {
 	Title    string // Ex: "A book"
 	Manager  string // Ex: "zotero"
@@ -620,6 +639,28 @@ func parseConfigFile(content string) (*ConfigFile, error) {
 	// Apply default values
 	if result.Core.MaxObjectsPerPackFile == 0 {
 		result.Core.MaxObjectsPerPackFile = MaxObjectsPerPackFileDefault
+	}
+	for _, deck := range result.Deck {
+		if deck.Algorithm == "" {
+			deck.Algorithm = DefaultSRSAlgorithm
+		}
+		// Only a single one currently supported
+		if deck.Algorithm != DefaultSRSAlgorithm {
+			return nil, fmt.Errorf("unsupported SRS algorithm %q", deck.Algorithm)
+		}
+		if deck.BoostFactor == 0 {
+			deck.BoostFactor = DefaultSRSBoostFactor
+		}
+		if deck.AlgorithmSettings == nil {
+			deck.AlgorithmSettings = make(map[string]any)
+		}
+		if _, ok := deck.AlgorithmSettings["easeFactor"]; !ok {
+			deck.AlgorithmSettings["easeFactor"] = DefaultSRSEaseFactor
+		}
+		// And...
+		// - Search for all flashcards if query is empty
+		// - Don't add new cards by default
+		// - Don't limit the number of reviews by default
 	}
 
 	return &result, err

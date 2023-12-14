@@ -12,6 +12,12 @@ preset = "ultrafast"
 q = "-#ignore @kind:quote"
 name = "Favorite Quotes"
 
+[deck.life]
+name = "Life"
+query = "path:skills"
+newFlashcardsPerDay = 10
+algorithmSettings.easeFactor = 2.5
+
 [reference.books]
 title = "A book"
 manager = "google-books"

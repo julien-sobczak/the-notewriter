@@ -86,7 +86,7 @@ var newCmd = &cobra.Command{
 	},
 }
 
-func createManager(category core.ConfigReference) reference.Manager {
+func createManager(category *core.ConfigReference) reference.Manager {
 	switch category.Manager {
 	case "zotero":
 		var err error

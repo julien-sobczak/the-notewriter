@@ -283,9 +283,10 @@ schemas:
 
 	t.Run("Invalid .nt/config", func(t *testing.T) {
 		tests := []struct {
-			name          string
-			config        string
-			expectedError string
+			name             string
+			config           string
+			expectedError    string
+			additionalChecks func(*testing.T, *Config)
 		}{
 
 			{
@@ -315,22 +316,73 @@ template = """# {{index . "title" | title }}"""
 				expectedError: "invalid path for reference",
 			},
 
+			{
+				name: "Supported SRS algorithm",
+				config: `
+[deck.general]
+name = "General"
+algorithm = "stone"
+`,
+				expectedError: "unsupported SRS algorithm",
+			},
+
+			{
+				name: "Deck attributes",
+				config: `
+[deck.life]
+name = "Life"
+query = "path:skills"
+newFlashcardsPerDay = 10
+algorithmSettings.easeFactor = 3.1
+`,
+				additionalChecks: func(t *testing.T, c *Config) {
+					require.Len(t, c.ConfigFile.Deck, 1)
+					deck := c.ConfigFile.Deck["life"]
+
+					// Check specified attributes
+					assert.Equal(t, "Life", deck.Name)
+					assert.Equal(t, 10, deck.NewFlashcardsPerDay)
+					assert.Equal(t, "path:skills", deck.Query)
+
+					// Check defaults
+					assert.Equal(t, DefaultSRSBoostFactor, deck.BoostFactor)
+					assert.Equal(t, DefaultSRSAlgorithm, deck.Algorithm)
+
+					// Check nested attributes are correctly parsed
+					assert.Equal(t, map[string]any{
+						"easeFactor": 3.1,
+					}, deck.AlgorithmSettings)
+				},
+			},
 		}
 
 		for _, tt := range tests {
-			dir := populate(t, map[string]interface{}{
-				".nt/config": tt.config,
+			t.Run(tt.name, func(t *testing.T) {
+				dir := populate(t, map[string]interface{}{
+					".nt/config": tt.config,
+				})
+
+				c, err := ReadConfigFromDirectory(dir)
+				if err != nil {
+					if tt.expectedError == "" {
+						require.NoError(t, err)
+					} else {
+						require.ErrorContains(t, err, tt.expectedError)
+					}
+					t.Skip()
+				}
+
+				err = c.Check()
+				if tt.expectedError == "" {
+					assert.NoError(t, err)
+				} else {
+					require.ErrorContains(t, err, tt.expectedError)
+				}
+
+				if tt.additionalChecks != nil {
+					tt.additionalChecks(t, c)
+				}
 			})
-
-			c, err := ReadConfigFromDirectory(dir)
-			require.NoError(t, err)
-
-			err = c.Check()
-			if tt.expectedError == "" {
-				assert.NoError(t, err)
-			} else {
-				require.ErrorContains(t, err, tt.expectedError)
-			}
 		}
 
 	})

@@ -57,7 +57,7 @@ var (
 * Category Selection
  */
 
-func ChooseCategory(categories map[string]core.ConfigReference) (string, core.ConfigReference) {
+func ChooseCategory(categories map[string]*core.ConfigReference) (string, *core.ConfigReference) {
 	/* Inspired by https://github.com/charmbracelet/bubbletea/blob/master/examples/list-simple/ */
 	res, err := tea.NewProgram(NewCategoryModel(categories)).Run()
 	if err != nil {
@@ -67,7 +67,7 @@ func ChooseCategory(categories map[string]core.ConfigReference) (string, core.Co
 	return category, categories[category]
 }
 
-func NewCategoryModel(categories map[string]core.ConfigReference) CategoryModel {
+func NewCategoryModel(categories map[string]*core.ConfigReference) CategoryModel {
 	items := []list.Item{}
 
 	// Create a slice to store keys and sort them to have the same predictable order on each execution
