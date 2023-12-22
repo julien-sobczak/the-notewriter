@@ -9,9 +9,9 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
-	"text/template"
 
 	"github.com/julien-sobczak/the-notewriter/internal/medias"
+	"github.com/julien-sobczak/the-notewriter/internal/reference"
 	"github.com/julien-sobczak/the-notewriter/pkg/resync"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"github.com/pelletier/go-toml/v2"
@@ -765,13 +765,13 @@ func InitConfigFromDirectory(path string) (*Config, error) {
 func (c *Config) Check() error {
 
 	// Check for invalid reference templates
-	for key, reference := range c.ConfigFile.Reference {
+	for key, referenceConfig := range c.ConfigFile.Reference {
 		// Only path and template supports Go Templating
-		_, err := template.New("check").Parse(reference.Path)
+		_, err := reference.ParseTemplate(referenceConfig.Path)
 		if err != nil {
 			return fmt.Errorf("invalid path for reference %q: %w", key, err)
 		}
-		_, err = template.New("check").Parse(reference.Template)
+		_, err = reference.ParseTemplate(referenceConfig.Template)
 		if err != nil {
 			return fmt.Errorf("invalid template for reference %q: %w", key, err)
 		}

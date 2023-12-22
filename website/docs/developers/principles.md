@@ -22,6 +22,10 @@ As a codebase grows over time, the number of lines of code between the core logi
 
 _The NoteWriter_ is not a general tool. It focus on developers working with Git and hosting their repositories on a platform like GitHub (= most of developers). The goal is to have a codebase where the core logic represents the majority of the lines of code.
 
-## Minimal Existing Features
+## Minimal Features
 
-_The NoteWriter_ was not created to replace other tools but to experiment with a new approach to note-taking. The goal is not to have a long list of features but to implement the main ones in a new way.
+_The NoteWriter_ was not created to replace other tools but to experiment with a new approach to note-taking. The goal is not to have a long list of features but to implement the core ones in a new way.
+
+## Minimal Codebase
+
+My goal is to keep the codebase small for a single person to maintain it over a very long time. Large codebase are slow to change and not all lines of code have the same value. A plugin system would be convenient but when storing notes for decades, any dependency will become a problem someday.

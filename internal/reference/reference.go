@@ -27,8 +27,8 @@ type Manager interface {
 	Search(query string) ([]Result, error)
 }
 
-// EvaluateTemplate evaluate a reference template, supporting additional custom functions.
-func EvaluateTemplate(templateText string, result Result) (string, error) {
+// ParseTemplate parses a reference template, supporting additional custom functions.
+func ParseTemplate(templateText string) (*template.Template, error) {
 	// Add additional functions in complement to standard functions
 	// See https://pkg.go.dev/text/template#hdr-Functions
 	//
@@ -109,8 +109,18 @@ func EvaluateTemplate(templateText string, result Result) (string, error) {
 	}
 	tmpl, err := template.New("").Funcs(functions).Parse(templateText)
 	if err != nil {
+		return nil, err
+	}
+	return tmpl, nil
+}
+
+// EvaluateTemplate evaluate a reference template, supporting additional custom functions.
+func EvaluateTemplate(templateText string, result Result) (string, error) {
+	tmpl, err := ParseTemplate(templateText)
+	if err != nil {
 		return "", err
 	}
+
 	var tpl bytes.Buffer
 	err = tmpl.Execute(&tpl, result.Attributes())
 	if err != nil {
