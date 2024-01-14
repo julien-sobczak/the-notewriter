@@ -112,7 +112,7 @@ func saveTo(path string, text string) {
 		log.Fatalf("Unable to open file %q: %v", absoluteFilepath, err)
 	}
 	defer f.Close()
-	if _, err := f.WriteString(fmt.Sprintf("\n%s\n", text)); err != nil {
+	if _, err := f.WriteString(fmt.Sprintf("%s\n", text)); err != nil {
 		log.Fatalf("Unable to write to file %q: %v", absoluteFilepath, err)
 	}
 }
