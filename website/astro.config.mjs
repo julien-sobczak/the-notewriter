@@ -3,6 +3,8 @@ import starlight from '@astrojs/starlight';
 
 // https://astro.build/config
 export default defineConfig({
+	site: 'https://julien-sobczak.github.io',
+	base: 'the-notewriter',
 	integrations: [
 		starlight({
 			title: 'The NoteWriter Documentation',
