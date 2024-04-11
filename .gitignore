@@ -2,3 +2,5 @@
 build/
 database.db
 
+# Docs
+.astro
