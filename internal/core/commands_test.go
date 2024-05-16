@@ -17,7 +17,7 @@ import (
 func TestCommandLint(t *testing.T) {
 
 	t.Run("Basic", func(t *testing.T) {
-		root := SetUpCollectionFromTempDir(t)
+		root := SetUpRepositoryFromTempDir(t)
 		err := os.WriteFile(filepath.Join(root, ".nt/lint"), []byte(`
 rules:
 - name: no-duplicate-note-title
@@ -39,7 +39,7 @@ This is a second note
 `), 0644)
 		require.NoError(t, err)
 
-		result, err := CurrentCollection().Lint(nil, ".")
+		result, err := CurrentRepository().Lint(nil, ".")
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.Equal(t, 1, result.AnalyzedFiles)
@@ -54,9 +54,9 @@ This is a second note
 func TestCommandAdd(t *testing.T) {
 
 	t.Run("Basic", func(t *testing.T) {
-		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+		root := SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
-		err := CurrentCollection().Add("go.md")
+		err := CurrentRepository().Add("go.md")
 		require.NoError(t, err)
 
 		// Check index file
@@ -102,9 +102,9 @@ func TestCommandAdd(t *testing.T) {
 	})
 
 	t.Run("Add Media", func(t *testing.T) {
-		root := SetUpCollectionFromGoldenDirNamed(t, "TestMedias")
+		root := SetUpRepositoryFromGoldenDirNamed(t, "TestMedias")
 
-		err := CurrentCollection().Add(".")
+		err := CurrentRepository().Add(".")
 		require.NoError(t, err)
 
 		// Check referenced blobs are present
@@ -127,7 +127,7 @@ func TestCommandAdd(t *testing.T) {
 			"medias/aurora.mp4",
 		}
 		for _, expectedMedia := range referencedMedias {
-			media, err := CurrentCollection().FindMediaByRelativePath(expectedMedia)
+			media, err := CurrentRepository().FindMediaByRelativePath(expectedMedia)
 			require.NoError(t, err)
 			require.NotNil(t, media)
 			for _, blob := range media.Blobs() {
@@ -141,7 +141,7 @@ func TestCommandAdd(t *testing.T) {
 			"medias/branch-portrait.avif",
 		}
 		for _, unreferencedMedia := range unreferencedMedias {
-			media, err := CurrentCollection().FindMediaByRelativePath(unreferencedMedia)
+			media, err := CurrentRepository().FindMediaByRelativePath(unreferencedMedia)
 			require.NoError(t, err)
 			require.Nil(t, media)
 		}
@@ -149,9 +149,9 @@ func TestCommandAdd(t *testing.T) {
 	})
 
 	t.Run("Repetitive", func(t *testing.T) {
-		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+		root := SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
-		err := CurrentCollection().Add("go.md")
+		err := CurrentRepository().Add("go.md")
 		require.NoError(t, err)
 		err = CurrentDB().Commit("Initial commit")
 		require.NoError(t, err)
@@ -162,14 +162,14 @@ func TestCommandAdd(t *testing.T) {
 
 		// Check 1: Try to add the same file edited several times
 		ReplaceLine(t, filepath.Join(root, "go.md"), 19, "What does the **Golang logo** represent?", "(Go) What does the **Golang logo** represent?")
-		err = CurrentCollection().Add("go.md")
+		err = CurrentRepository().Add("go.md")
 		require.NoError(t, err)
 		idx = ReadIndex()
 		require.Equal(t, 3, idx.CountChanges()) // the file + the note + the flashcard
 		initialChanges := idx.CountChanges()
 
 		ReplaceLine(t, filepath.Join(root, "go.md"), 19, "(Go) What does the **Golang logo** represent?", "(Go) What does the **logo** represent?")
-		err = CurrentCollection().Add("go.md")
+		err = CurrentRepository().Add("go.md")
 		require.NoError(t, err)
 		// Check only the changes was overriden and not duplicated
 		// We change the same file twice but the second change must override the first one
@@ -183,14 +183,14 @@ func TestCommandAdd(t *testing.T) {
 		initialObjectsCount := len(idx.Objects)
 		ReplaceLine(t, filepath.Join(root, "go.md"), 19, "(Go) What does the **logo** represent?", "What is the **logo**?")
 
-		err = CurrentCollection().Add("go.md")
+		err = CurrentRepository().Add("go.md")
 		require.NoError(t, err)
 		err = CurrentDB().Commit("Second commit")
 		require.NoError(t, err)
 
 		ReplaceLine(t, filepath.Join(root, "go.md"), 19, "What is the **logo**?", "What represents the **logo**?")
 
-		err = CurrentCollection().Add("go.md")
+		err = CurrentRepository().Add("go.md")
 		require.NoError(t, err)
 		err = CurrentDB().Commit("Third commit")
 		require.NoError(t, err)
@@ -201,7 +201,7 @@ func TestCommandAdd(t *testing.T) {
 	})
 
 	t.Run("Slug", func(t *testing.T) {
-		SetUpCollectionFromTempDir(t)
+		SetUpRepositoryFromTempDir(t)
 
 		// Step 1: Add a new file containing a note note with an explicit slug
 		MustWriteFile(t, "python.md", `
@@ -223,7 +223,7 @@ Guido van Rossum
 
 Python was conceived in the Netherlands as a successor to the ABC programming language.
 `)
-		err := CurrentCollection().Add(".")
+		err := CurrentRepository().Add(".")
 		require.NoError(t, err)
 		err = CurrentDB().Commit("first commit")
 		require.NoError(t, err)
@@ -259,7 +259,7 @@ Python was conceived in the Netherlands by Guido van Rossum as a successor to th
 		// Only the note with the specified slug are updated.
 		// The other note is recreated from scratch as no match can be made.
 
-		err = CurrentCollection().Add(".")
+		err = CurrentRepository().Add(".")
 		require.NoError(t, err)
 		err = CurrentDB().Commit("second commit")
 		require.NoError(t, err)
@@ -275,7 +275,7 @@ Python was conceived in the Netherlands by Guido van Rossum as a successor to th
 
 		// Check that we still have only two notes in database
 		fmt.Println(CurrentConfig().RootDirectory)
-		stats, err := CurrentCollection().StatsInDB()
+		stats, err := CurrentRepository().StatsInDB()
 		require.NoError(t, err)
 		assert.Equal(t, 1, stats.Objects["file"])
 		assert.Equal(t, 2, stats.Objects["note"])
@@ -286,11 +286,11 @@ Python was conceived in the Netherlands by Guido van Rossum as a successor to th
 func TestCommandReset(t *testing.T) {
 
 	t.Run("Basic", func(t *testing.T) {
-		SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
 		CurrentLogger().SetVerboseLevel(VerboseDebug)
 
-		err := CurrentCollection().Add("go.md")
+		err := CurrentRepository().Add("go.md")
 		require.NoError(t, err)
 
 		// Check index file
@@ -300,7 +300,7 @@ func TestCommandReset(t *testing.T) {
 		require.Len(t, idx.Objects, 0)
 
 		// Check database
-		file, err := CurrentCollection().FindFileByRelativePath("go.md")
+		file, err := CurrentRepository().FindFileByRelativePath("go.md")
 		require.NoError(t, err)
 		require.NotEqual(t, 0, file.MTime)
 
@@ -313,7 +313,7 @@ func TestCommandReset(t *testing.T) {
 		require.Equal(t, 0, idx.CountChanges())
 
 		// Check database is empty
-		file, err = CurrentCollection().FindFileByRelativePath("go.md")
+		file, err = CurrentRepository().FindFileByRelativePath("go.md")
 		require.NoError(t, err)
 		require.Nil(t, file)
 	})
@@ -323,9 +323,9 @@ func TestCommandReset(t *testing.T) {
 func TestCommandCommit(t *testing.T) {
 
 	t.Run("Basic", func(t *testing.T) {
-		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+		root := SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
-		err := CurrentCollection().Add("go.md")
+		err := CurrentRepository().Add("go.md")
 		require.NoError(t, err)
 
 		err = CurrentDB().Commit("initial commit")
@@ -351,7 +351,7 @@ Guido van Rossum
 		require.Equal(t, refBefore, refAfter)
 
 		// Create a second commit
-		err = CurrentCollection().Add("python.md")
+		err = CurrentRepository().Add("python.md")
 		require.NoError(t, err)
 
 		err = CurrentDB().Commit("second commit")
@@ -365,7 +365,7 @@ Guido van Rossum
 func TestCommandPushPull(t *testing.T) {
 
 	t.Run("Basic", func(t *testing.T) {
-		SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 		// Configure origin
 		origin := t.TempDir()
 		CurrentConfig().ConfigFile.Remote = ConfigRemote{
@@ -374,7 +374,7 @@ func TestCommandPushPull(t *testing.T) {
 		}
 
 		// Push
-		err := CurrentCollection().Add(".")
+		err := CurrentRepository().Add(".")
 		require.NoError(t, err)
 		err = CurrentDB().Commit("initial commit")
 		require.NoError(t, err)
@@ -396,7 +396,7 @@ func TestCommandPushPull(t *testing.T) {
 		Reset()
 
 		// Pull from a new repository
-		root := SetUpCollectionFromTempDir(t)
+		root := SetUpRepositoryFromTempDir(t)
 		// Configure same origin
 		CurrentConfig().ConfigFile.Remote = ConfigRemote{
 			Type: "fs",
@@ -410,7 +410,7 @@ func TestCommandPushPull(t *testing.T) {
 	})
 
 	t.Run("Pull before push", func(t *testing.T) {
-		SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 		// Configure origin
 		origin := t.TempDir()
 		CurrentConfig().ConfigFile.Remote = ConfigRemote{
@@ -419,7 +419,7 @@ func TestCommandPushPull(t *testing.T) {
 		}
 
 		// Push
-		err := CurrentCollection().Add(".")
+		err := CurrentRepository().Add(".")
 		require.NoError(t, err)
 		err = CurrentDB().Commit("initial commit")
 		require.NoError(t, err)
@@ -429,7 +429,7 @@ func TestCommandPushPull(t *testing.T) {
 		Reset()
 
 		// Create a new (empty) repository
-		root := SetUpCollectionFromTempDir(t)
+		root := SetUpRepositoryFromTempDir(t)
 		// Configure same origin
 		CurrentConfig().ConfigFile.Remote = ConfigRemote{
 			Type: "fs",
@@ -447,7 +447,7 @@ Who invented Python?
 Guido van Rossum
 `), 0644)
 		require.NoError(t, err)
-		err = CurrentCollection().Add(".")
+		err = CurrentRepository().Add(".")
 		require.NoError(t, err)
 		err = CurrentDB().Commit("new commit")
 		require.NoError(t, err)
@@ -466,7 +466,7 @@ Guido van Rossum
 	})
 
 	t.Run("Push with staged changes", func(t *testing.T) {
-		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+		root := SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 		// Configure origin
 		origin := t.TempDir()
 		CurrentConfig().ConfigFile.Remote = ConfigRemote{
@@ -475,7 +475,7 @@ Guido van Rossum
 		}
 
 		// Commit
-		err := CurrentCollection().Add(".")
+		err := CurrentRepository().Add(".")
 		require.NoError(t, err)
 		err = CurrentDB().Commit("initial commit")
 		require.NoError(t, err)
@@ -491,7 +491,7 @@ Who invented Python?
 Guido van Rossum
 `), 0644)
 		require.NoError(t, err)
-		err = CurrentCollection().Add(".")
+		err = CurrentRepository().Add(".")
 		require.NoError(t, err)
 
 		// Push
@@ -512,9 +512,9 @@ func TestCommandStatus(t *testing.T) {
 	t.Run("Basic", func(t *testing.T) {
 		UseSequenceOID(t)
 
-		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+		root := SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
-		err := CurrentCollection().Add("go.md")
+		err := CurrentRepository().Add("go.md")
 		require.NoError(t, err)
 
 		newFilepath := filepath.Join(root, "python.md")
@@ -528,7 +528,7 @@ Guido van Rossum
 `), 0644)
 		require.NoError(t, err)
 
-		output, err := CurrentCollection().Status()
+		output, err := CurrentRepository().Status()
 		require.NoError(t, err)
 		assert.Equal(t, strings.TrimSpace(`
 Changes to be committed:
@@ -552,7 +552,7 @@ Changes not staged for commit:
 		require.NoError(t, err)
 
 		// Status must report no change
-		output, err = CurrentCollection().Status()
+		output, err = CurrentRepository().Status()
 		require.NoError(t, err)
 		assert.Equal(t, strings.TrimSpace(`
 Changes to be committed:
@@ -565,11 +565,11 @@ Changes not staged for commit:
 		`), strings.TrimSpace(output))
 
 		// Add a new file
-		err = CurrentCollection().Add("python.md")
+		err = CurrentRepository().Add("python.md")
 		require.NoError(t, err)
 
 		// Status must report only the new files
-		output, err = CurrentCollection().Status()
+		output, err = CurrentRepository().Status()
 		require.NoError(t, err)
 		assert.Equal(t, strings.TrimSpace(`
 Changes to be committed:
@@ -584,11 +584,11 @@ Changes not staged for commit:
 		`), strings.TrimSpace(output))
 
 		// Add the old file
-		err = CurrentCollection().Add("go.md")
+		err = CurrentRepository().Add("go.md")
 		require.NoError(t, err)
 
 		// Status must report both files
-		output, err = CurrentCollection().Status()
+		output, err = CurrentRepository().Status()
 		require.NoError(t, err)
 		assert.Equal(t, strings.TrimSpace(`
 Changes to be committed:
@@ -612,7 +612,7 @@ Changes to be committed:
 func TestCommandGC(t *testing.T) {
 
 	t.Run("Reclaim Orphan Blobs", func(t *testing.T) {
-		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+		root := SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
 		// Configure origin
 		origin := t.TempDir()
@@ -621,13 +621,13 @@ func TestCommandGC(t *testing.T) {
 			Dir:  origin,
 		}
 
-		err := CurrentCollection().Add(".")
+		err := CurrentRepository().Add(".")
 		require.NoError(t, err)
 		err = CurrentDB().Commit("initial commit")
 		require.NoError(t, err)
 		err = CurrentDB().Push()
 		require.NoError(t, err)
-		logo, err := CurrentCollection().FindMediaByRelativePath("medias/go.svg")
+		logo, err := CurrentRepository().FindMediaByRelativePath("medias/go.svg")
 		require.NoError(t, err)
 		require.NotNil(t, logo)
 		require.Len(t, logo.BlobRefs, 3)
@@ -653,17 +653,17 @@ A **gopher**.
 `), 0644)
 		require.NoError(t, err)
 
-		err = CurrentCollection().Add(".") // To force medias cleaning
+		err = CurrentRepository().Add(".") // To force medias cleaning
 		require.NoError(t, err)
 		err = CurrentDB().Commit("update go.svg -> go.png")
 		require.NoError(t, err)
 		err = CurrentDB().Push()
 		require.NoError(t, err)
 
-		logo, err = CurrentCollection().FindMediaByRelativePath("medias/go.svg")
+		logo, err = CurrentRepository().FindMediaByRelativePath("medias/go.svg")
 		require.NoError(t, err)
 		require.Nil(t, logo) // Old file must not longer exist
-		logo, err = CurrentCollection().FindMediaByRelativePath("medias/go.png")
+		logo, err = CurrentRepository().FindMediaByRelativePath("medias/go.png")
 		require.NoError(t, err)
 		require.NotNil(t, logo) // No file must now exist
 		require.Len(t, logo.BlobRefs, 2)
@@ -695,7 +695,7 @@ A **gopher**.
 	})
 
 	t.Run("Edit PackFiles", func(t *testing.T) {
-		root := SetUpCollectionFromTempDir(t)
+		root := SetUpRepositoryFromTempDir(t)
 
 		// Configure origin
 		origin := t.TempDir()
@@ -732,7 +732,7 @@ A **gopher**.
 		require.NoError(t, err)
 
 		// Commit
-		err = CurrentCollection().Add(".")
+		err = CurrentRepository().Add(".")
 		require.NoError(t, err)
 		err = CurrentDB().Commit("initial commit")
 		require.NoError(t, err)
@@ -767,7 +767,7 @@ A **gopher**.
 		require.NoError(t, err)
 
 		// Commit
-		err = CurrentCollection().Add(".")
+		err = CurrentRepository().Add(".")
 		require.NoError(t, err)
 		err = CurrentDB().Commit("second commit")
 		require.NoError(t, err)
@@ -858,15 +858,15 @@ A **gopher**.
 func TestCommandDiff(t *testing.T) {
 
 	t.Run("Diff", func(t *testing.T) {
-		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+		root := SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
 		// Step 1: Nothing staged
 
-		diff, err := CurrentCollection().Diff(true)
+		diff, err := CurrentRepository().Diff(true)
 		require.NoError(t, err)
 		assert.Equal(t, "", diff)
 
-		diff, err = CurrentCollection().Diff(false) // Must contains all new objects
+		diff, err = CurrentRepository().Diff(false) // Must contains all new objects
 		require.NoError(t, err)
 		expected := "" +
 			"--- a/go.md\n" +
@@ -897,10 +897,10 @@ func TestCommandDiff(t *testing.T) {
 
 		// Step 2: Add a file
 
-		err = CurrentCollection().Add("go.md")
+		err = CurrentRepository().Add("go.md")
 		require.NoError(t, err)
 
-		diff, err = CurrentCollection().Diff(true) // Only the file staged must be returned
+		diff, err = CurrentRepository().Diff(true) // Only the file staged must be returned
 		require.NoError(t, err)
 		expected = "--- a/go.md\n" +
 			"+++ b/go.md\n" +
@@ -929,7 +929,7 @@ func TestCommandDiff(t *testing.T) {
 			"\\ No newline at end of file\n"
 		assert.Equal(t, expected, diff)
 
-		diff, err = CurrentCollection().Diff(false) // No other file are present, must be empty
+		diff, err = CurrentRepository().Diff(false) // No other file are present, must be empty
 		require.NoError(t, err)
 		assert.Equal(t, "", diff)
 
@@ -938,11 +938,11 @@ func TestCommandDiff(t *testing.T) {
 		err = CurrentDB().Commit("initial commit")
 		require.NoError(t, err)
 
-		diff, err = CurrentCollection().Diff(true) // Staging area is empty = must be empty
+		diff, err = CurrentRepository().Diff(true) // Staging area is empty = must be empty
 		require.NoError(t, err)
 		assert.Equal(t, "", diff)
 
-		diff, err = CurrentCollection().Diff(false) // No local change = must be empty too
+		diff, err = CurrentRepository().Diff(false) // No local change = must be empty too
 		require.NoError(t, err)
 		assert.Equal(t, "", diff)
 
@@ -965,11 +965,11 @@ func TestCommandDiff(t *testing.T) {
 
 		time.Sleep(2 * time.Second)
 
-		diff, err = CurrentCollection().Diff(true) // Staging area is empty = must be empty
+		diff, err = CurrentRepository().Diff(true) // Staging area is empty = must be empty
 		require.NoError(t, err)
 		assert.Equal(t, "", diff)
 
-		diff, err = CurrentCollection().Diff(false) // Must report the updated and deleted notes
+		diff, err = CurrentRepository().Diff(false) // Must report the updated and deleted notes
 		require.NoError(t, err)
 		expected = "--- a/go.md\n" +
 			"+++ b/go.md\n" +

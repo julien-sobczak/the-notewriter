@@ -48,7 +48,7 @@ type StagingObject struct {
 
 // ReadIndex loads the index file.
 func ReadIndex() *Index {
-	path := filepath.Join(CurrentCollection().Path, ".nt/index")
+	path := filepath.Join(CurrentRepository().Path, ".nt/index")
 	in, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
 		// First use
@@ -67,7 +67,7 @@ func ReadIndex() *Index {
 
 // Save persists the index on disk.
 func (i *Index) Save() error {
-	path := filepath.Join(CurrentCollection().Path, ".nt/index")
+	path := filepath.Join(CurrentRepository().Path, ".nt/index")
 	f, err := os.Create(path)
 	if err != nil {
 		return err

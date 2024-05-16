@@ -39,7 +39,7 @@ func (r Relation) String() string {
 
 /* Database Management */
 
-func (c *Collection) DeleteRelations(obj Object) error {
+func (r *Repository) DeleteRelations(obj Object) error {
 	if obj.UniqueOID() == "" {
 		// No relation was saved
 		return nil
@@ -58,7 +58,7 @@ func (c *Collection) DeleteRelations(obj Object) error {
 	return nil
 }
 
-func (c *Collection) UpdateRelations(source Object) error {
+func (r *Repository) UpdateRelations(source Object) error {
 	// We systematically recreate all relations to be sure to not have dangling relations
 	// (= relations that no longer exist in notes but are still present in database)
 
@@ -104,7 +104,7 @@ func (c *Collection) UpdateRelations(source Object) error {
 }
 
 // CountRelations returns the total number of relations.
-func (c *Collection) CountRelations() (int, error) {
+func (r *Repository) CountRelations() (int, error) {
 	var count int
 	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM relation`).Scan(&count); err != nil {
 		return 0, err
@@ -112,15 +112,15 @@ func (c *Collection) CountRelations() (int, error) {
 	return count, nil
 }
 
-func (c *Collection) FindRelations() ([]*Relation, error) {
+func (r *Repository) FindRelations() ([]*Relation, error) {
 	return QueryRelations(CurrentDB().Client(), "")
 }
 
-func (c *Collection) FindRelationsTo(oid string) ([]*Relation, error) {
+func (r *Repository) FindRelationsTo(oid string) ([]*Relation, error) {
 	return QueryRelations(CurrentDB().Client(), `WHERE target_oid = ?`, oid)
 }
 
-func (c *Collection) FindRelationsFrom(oid string) ([]*Relation, error) {
+func (r *Repository) FindRelationsFrom(oid string) ([]*Relation, error) {
 	return QueryRelations(CurrentDB().Client(), `WHERE source_oid = ?`, oid)
 }
 

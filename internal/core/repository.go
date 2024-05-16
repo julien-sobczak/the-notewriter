@@ -22,27 +22,27 @@ const ReferenceKindAuthor = "author"
 
 var (
 	// Lazy-load configuration and ensure a single read
-	collectionOnce      resync.Once
-	collectionSingleton *Collection
+	repositoryOnce      resync.Once
+	repositorySingleton *Repository
 )
 
-type Collection struct {
+type Repository struct {
 	Path string `yaml:"path"`
 }
 
-func CurrentCollection() *Collection {
-	collectionOnce.Do(func() {
+func CurrentRepository() *Repository {
+	repositoryOnce.Do(func() {
 		var err error
-		collectionSingleton, err = NewCollection()
+		repositorySingleton, err = NewRepository()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Unable to init current collection: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Unable to init current repository: %v\n", err)
 			os.Exit(1)
 		}
 	})
-	return collectionSingleton
+	return repositorySingleton
 }
 
-func NewCollection() (*Collection, error) {
+func NewRepository() (*Repository, error) {
 	config := CurrentConfig()
 
 	absolutePath, err := filepath.Abs(config.RootDirectory)
@@ -50,32 +50,32 @@ func NewCollection() (*Collection, error) {
 		return nil, err
 	}
 
-	c := &Collection{
+	c := &Repository{
 		Path: absolutePath,
 	}
 	return c, nil
 }
 
-func (c *Collection) Close() {
+func (r *Repository) Close() {
 	CurrentDB().Close()
 }
 
-// GetNoteRelativePath converts a relative path from a note to a relative path from the collection root directory.
-func (c *Collection) GetNoteRelativePath(fileRelativePath string, srcPath string) (string, error) {
-	return filepath.Rel(c.Path, filepath.Join(filepath.Dir(c.GetAbsolutePath(fileRelativePath)), srcPath))
+// GetNoteRelativePath converts a relative path from a note to a relative path from the repository root directory.
+func (r *Repository) GetNoteRelativePath(fileRelativePath string, srcPath string) (string, error) {
+	return filepath.Rel(r.Path, filepath.Join(filepath.Dir(r.GetAbsolutePath(fileRelativePath)), srcPath))
 }
 
-// GetFileRelativePath converts a relative path of a file to a relative path from the collection.
-func (c *Collection) GetFileRelativePath(fileAbsolutePath string) (string, error) {
-	return filepath.Rel(c.Path, fileAbsolutePath)
+// GetFileRelativePath converts a relative path of a file to a relative path from the repository.
+func (r *Repository) GetFileRelativePath(fileAbsolutePath string) (string, error) {
+	return filepath.Rel(r.Path, fileAbsolutePath)
 }
 
-// GetAbsolutePath converts a relative path from the collection to an absolute path on disk.
-func (c *Collection) GetAbsolutePath(path string) string {
-	if strings.HasPrefix(path, c.Path) {
+// GetAbsolutePath converts a relative path from the repository to an absolute path on disk.
+func (r *Repository) GetAbsolutePath(path string) string {
+	if strings.HasPrefix(path, r.Path) {
 		return path
 	}
-	return filepath.Join(c.Path, path)
+	return filepath.Join(r.Path, path)
 }
 
 /* Commands */
@@ -105,7 +105,7 @@ var IndexFilesFirst = func(a, b string) bool {
 	return a < b // os.WalkDir already returns file in lexical order
 }
 
-func (c *Collection) walk(paths []string, fn func(path string, stat fs.FileInfo) error) error {
+func (r *Repository) walk(paths []string, fn func(path string, stat fs.FileInfo) error) error {
 	config := CurrentConfig()
 
 	var matchedFiles []string
@@ -127,7 +127,7 @@ func (c *Collection) walk(paths []string, fn func(path string, stat fs.FileInfo)
 				return fs.SkipDir
 			}
 
-			relpath, err := CurrentCollection().GetFileRelativePath(path)
+			relpath, err := CurrentRepository().GetFileRelativePath(path)
 			if err != nil {
 				// ignore the file
 				return nil
@@ -245,7 +245,7 @@ func (c *Collection) walk(paths []string, fn func(path string, stat fs.FileInfo)
 }
 
 // normalizePaths converts to absolute paths.
-func (c *Collection) normalizePaths(paths ...string) []string {
+func (r *Repository) normalizePaths(paths ...string) []string {
 	if len(paths) == 0 {
 		return []string{CurrentConfig().RootDirectory}
 	}
@@ -255,7 +255,7 @@ func (c *Collection) normalizePaths(paths ...string) []string {
 			// Process all files in the root directory
 			path = CurrentConfig().RootDirectory
 		} else if !filepath.IsAbs(path) {
-			path = c.GetAbsolutePath(path)
+			path = r.GetAbsolutePath(path)
 		}
 		results = append(results, path)
 	}
@@ -263,9 +263,9 @@ func (c *Collection) normalizePaths(paths ...string) []string {
 }
 
 // Add implements the command `nt add`.`
-func (c *Collection) Add(paths ...string) error {
+func (r *Repository) Add(paths ...string) error {
 	// Start with command linter (do not stage invalid file)
-	linterResult, err := c.Lint(nil, paths...)
+	linterResult, err := r.Lint(nil, paths...)
 	if err != nil {
 		return err
 	}
@@ -276,7 +276,7 @@ func (c *Collection) Add(paths ...string) error {
 	// Any object not updated after this date will be considered as deletions
 	buildTime := clock.Now()
 	db := CurrentDB()
-	paths = c.normalizePaths(paths...)
+	paths = r.normalizePaths(paths...)
 
 	// Keep notes of processed objects to avoid duplication of effort
 	// when some objects like medias are referenced by different notes.
@@ -294,17 +294,17 @@ func (c *Collection) Add(paths ...string) error {
 	defer db.RollbackTransaction()
 
 	// Traverse all given path to add files
-	err = c.walk(paths, func(path string, stat fs.FileInfo) error {
+	err = r.walk(paths, func(path string, stat fs.FileInfo) error {
 		CurrentLogger().Debugf("Processing %s...\n", path)
 
 		var parent *File = nil
 		// Try to load the optional parent present in the same directory
 		if filepath.Base(path) != "index.md" {
-			parentRelativePath, err := c.GetFileRelativePath(filepath.Join(filepath.Dir(path), "index.md"))
+			parentRelativePath, err := r.GetFileRelativePath(filepath.Join(filepath.Dir(path), "index.md"))
 			if err != nil {
 				return err
 			}
-			parent, err = c.FindFileByRelativePath(parentRelativePath)
+			parent, err = r.FindFileByRelativePath(parentRelativePath)
 			if err != nil {
 				return err
 			}
@@ -401,11 +401,11 @@ func (c *Collection) Add(paths ...string) error {
 	// Find objects to delete for every path
 	var deletions []StatefulObject
 	for _, path := range paths {
-		relpath, err := c.GetFileRelativePath(path)
+		relpath, err := r.GetFileRelativePath(path)
 		if err != nil {
 			return err
 		}
-		pathDeletions, err := c.findObjectsLastCheckedBefore(buildTime, relpath)
+		pathDeletions, err := r.findObjectsLastCheckedBefore(buildTime, relpath)
 		if err != nil {
 			return err
 		}
@@ -416,7 +416,7 @@ func (c *Collection) Add(paths ...string) error {
 	// For example, when adding a file, it can contains references to medias stored in a directory outside the given path.
 	if slices.Contains(paths, CurrentConfig().RootDirectory) { // ex: nt add .
 		// As we walked the whole hierarchy, all medias must have be checked.
-		mediaDeletions, err := CurrentCollection().FindMediasLastCheckedBefore(buildTime)
+		mediaDeletions, err := CurrentRepository().FindMediasLastCheckedBefore(buildTime)
 		if err != nil {
 			return err
 		}
@@ -441,7 +441,7 @@ func (c *Collection) Add(paths ...string) error {
 
 	var refreshDependencies func(oid string) error
 	refreshDependencies = func(oid string) error {
-		dependencies, err := c.FindRelationsTo(oid)
+		dependencies, err := r.FindRelationsTo(oid)
 		if err != nil {
 			return err
 		}
@@ -478,7 +478,7 @@ func (c *Collection) Add(paths ...string) error {
 			return err
 		}
 		// Save relations only now that we know existing dependencies really exist
-		if err := c.UpdateRelations(note); err != nil {
+		if err := r.UpdateRelations(note); err != nil {
 			return err
 		}
 		if !changed {
@@ -487,7 +487,7 @@ func (c *Collection) Add(paths ...string) error {
 		if err := note.Save(); err != nil {
 			return err
 		}
-		dependencies, err := c.FindRelationsTo(note.UniqueOID())
+		dependencies, err := r.FindRelationsTo(note.UniqueOID())
 		if err != nil {
 			return err
 		}
@@ -510,7 +510,7 @@ func (c *Collection) Add(paths ...string) error {
 				if err := dependentObject.Save(); err != nil {
 					return err
 				}
-				if err := c.UpdateRelations(dependentObject); err != nil {
+				if err := r.UpdateRelations(dependentObject); err != nil {
 					return err
 				}
 				if err := refreshDependencies(relation.SourceOID); err != nil {
@@ -532,40 +532,40 @@ func (c *Collection) Add(paths ...string) error {
 	return nil
 }
 
-func (c *Collection) findObjectsLastCheckedBefore(buildTime time.Time, path string) ([]StatefulObject, error) {
+func (r *Repository) findObjectsLastCheckedBefore(buildTime time.Time, path string) ([]StatefulObject, error) {
 	CurrentLogger().Debugf("Searching for %s", path)
 	// Search for deleted objects...
 	var deletions []StatefulObject
 
-	links, err := CurrentCollection().FindLinksLastCheckedBefore(buildTime, path)
+	links, err := CurrentRepository().FindLinksLastCheckedBefore(buildTime, path)
 	if err != nil {
 		return nil, err
 	}
 	for _, object := range links {
 		deletions = append(deletions, object)
 	}
-	reminders, err := CurrentCollection().FindRemindersLastCheckedBefore(buildTime, path)
+	reminders, err := CurrentRepository().FindRemindersLastCheckedBefore(buildTime, path)
 	if err != nil {
 		return nil, err
 	}
 	for _, object := range reminders {
 		deletions = append(deletions, object)
 	}
-	flashcards, err := CurrentCollection().FindFlashcardsLastCheckedBefore(buildTime, path)
+	flashcards, err := CurrentRepository().FindFlashcardsLastCheckedBefore(buildTime, path)
 	if err != nil {
 		return nil, err
 	}
 	for _, object := range flashcards {
 		deletions = append(deletions, object)
 	}
-	notes, err := CurrentCollection().FindNotesLastCheckedBefore(buildTime, path)
+	notes, err := CurrentRepository().FindNotesLastCheckedBefore(buildTime, path)
 	if err != nil {
 		return nil, err
 	}
 	for _, object := range notes {
 		deletions = append(deletions, object)
 	}
-	files, err := CurrentCollection().FindFilesLastCheckedBefore(buildTime, path)
+	files, err := CurrentRepository().FindFilesLastCheckedBefore(buildTime, path)
 	if err != nil {
 		return nil, err
 	}
@@ -576,7 +576,7 @@ func (c *Collection) findObjectsLastCheckedBefore(buildTime time.Time, path stri
 }
 
 // Status displays current objects in staging area.
-func (c *Collection) Status() (string, error) {
+func (r *Repository) Status() (string, error) {
 	// No side-effect with this command.
 	// We only output results.
 	var sb strings.Builder
@@ -598,8 +598,8 @@ func (c *Collection) Status() (string, error) {
 	uncommittedFiles := make(map[string]ObjectStatus)
 
 	root := CurrentConfig().RootDirectory
-	err := c.walk([]string{root}, func(path string, stat fs.FileInfo) error {
-		relpath, err := CurrentCollection().GetFileRelativePath(path)
+	err := r.walk([]string{root}, func(path string, stat fs.FileInfo) error {
+		relpath, err := CurrentRepository().GetFileRelativePath(path)
 		if err != nil {
 			return err
 		}
@@ -673,7 +673,7 @@ func (c *Collection) Status() (string, error) {
 }
 
 // Lint run linter rules on all files under the given paths.
-func (c *Collection) Lint(ruleNames []string, paths ...string) (*LintResult, error) {
+func (r *Repository) Lint(ruleNames []string, paths ...string) (*LintResult, error) {
 	/*
 	 * Implementation: The linter must only considering local files and
 	 * ignore commits or the staging area completely.
@@ -685,8 +685,8 @@ func (c *Collection) Lint(ruleNames []string, paths ...string) (*LintResult, err
 	 */
 	var result LintResult
 
-	paths = c.normalizePaths(paths...)
-	err := c.walk(paths, func(path string, stat fs.FileInfo) error {
+	paths = r.normalizePaths(paths...)
+	err := r.walk(paths, func(path string, stat fs.FileInfo) error {
 		CurrentLogger().Debugf("Processing %s...\n", path)
 
 		// Work without the database
@@ -721,29 +721,29 @@ func (c *Collection) Lint(ruleNames []string, paths ...string) (*LintResult, err
 }
 
 // CountObjectsByType returns the total number of objects for every type.
-func (c *Collection) CountObjectsByType() (map[string]int, error) {
+func (r *Repository) CountObjectsByType() (map[string]int, error) {
 	// Count object per type
-	countFiles, err := c.CountFiles()
+	countFiles, err := r.CountFiles()
 	if err != nil {
 		return nil, err
 	}
-	countNotes, err := c.CountNotes()
+	countNotes, err := r.CountNotes()
 	if err != nil {
 		return nil, err
 	}
-	countFlashcards, err := c.CountFlashcards()
+	countFlashcards, err := r.CountFlashcards()
 	if err != nil {
 		return nil, err
 	}
-	countMedias, err := c.CountMedias()
+	countMedias, err := r.CountMedias()
 	if err != nil {
 		return nil, err
 	}
-	countLinks, err := c.CountLinks()
+	countLinks, err := r.CountLinks()
 	if err != nil {
 		return nil, err
 	}
-	countReminders, err := c.CountReminders()
+	countReminders, err := r.CountReminders()
 	if err != nil {
 		return nil, err
 	}
@@ -759,7 +759,7 @@ func (c *Collection) CountObjectsByType() (map[string]int, error) {
 }
 
 // Diff show changes between commits and working tree.
-func (c *Collection) Diff(staged bool) (string, error) {
+func (r *Repository) Diff(staged bool) (string, error) {
 	// Enable dry-run mode to not generate blobs
 	CurrentConfig().DryRun = true
 
@@ -786,14 +786,14 @@ func (c *Collection) Diff(staged bool) (string, error) {
 
 	// Traverse all given path to view note changes
 	var updatedNotes []*Note
-	err = c.walk([]string{path}, func(path string, stat fs.FileInfo) error {
+	err = r.walk([]string{path}, func(path string, stat fs.FileInfo) error {
 		CurrentLogger().Debugf("Processing %s...\n", path)
 
-		parentRelativePath, err := c.GetFileRelativePath(filepath.Join(filepath.Dir(path), "index.md"))
+		parentRelativePath, err := r.GetFileRelativePath(filepath.Join(filepath.Dir(path), "index.md"))
 		if err != nil {
 			return err
 		}
-		parent, err := c.FindFileByRelativePath(parentRelativePath)
+		parent, err := r.FindFileByRelativePath(parentRelativePath)
 		if err != nil {
 			return err
 		}
@@ -833,11 +833,11 @@ func (c *Collection) Diff(staged bool) (string, error) {
 	}
 
 	// Find deleted notes for every path
-	relpath, err := c.GetFileRelativePath(path)
+	relpath, err := r.GetFileRelativePath(path)
 	if err != nil {
 		return "", err
 	}
-	deletedNotes, err := c.FindNotesLastCheckedBefore(buildTime, relpath)
+	deletedNotes, err := r.FindNotesLastCheckedBefore(buildTime, relpath)
 	if err != nil {
 		return "", err
 	}
@@ -918,7 +918,7 @@ func NewStatsInDBEmpty() *StatsInDB {
 }
 
 // StatsInDB returns various statistics about the .nt/database.db file.
-func (c *Collection) StatsInDB() (*StatsInDB, error) {
+func (r *Repository) StatsInDB() (*StatsInDB, error) {
 	dbPath := filepath.Join(CurrentConfig().RootDirectory, ".nt/database.db")
 
 	// Ensure the objects directory exists
@@ -928,25 +928,25 @@ func (c *Collection) StatsInDB() (*StatsInDB, error) {
 	}
 
 	// Count objects
-	countObjectsInDB, err := c.CountObjectsByType()
+	countObjectsInDB, err := r.CountObjectsByType()
 	if err != nil {
 		return nil, err
 	}
 
 	// Count notes
-	countNotesInDB, err := c.CountNotesByKind()
+	countNotesInDB, err := r.CountNotesByKind()
 	if err != nil {
 		return nil, err
 	}
 
 	// Count tags
-	countTagsInDB, err := c.CountTags()
+	countTagsInDB, err := r.CountTags()
 	if err != nil {
 		return nil, err
 	}
 
 	// Count attributes
-	countAttributesInDB, err := c.CountAttributes()
+	countAttributesInDB, err := r.CountAttributes()
 	if err != nil {
 		return nil, err
 	}
@@ -969,13 +969,13 @@ type Stats struct {
 }
 
 // Stats returns various statitics about the storage.
-func (c *Collection) Stats() (*Stats, error) {
+func (r *Repository) Stats() (*Stats, error) {
 	statsOnDisk, err := CurrentDB().StatsOnDisk()
 	if err != nil {
 		return nil, err
 	}
 
-	statsInDB, err := c.StatsInDB()
+	statsInDB, err := r.StatsInDB()
 	if err != nil {
 		return nil, err
 	}

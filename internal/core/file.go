@@ -41,7 +41,7 @@ type File struct {
 	ParentFileOID string `yaml:"file_oid,omitempty"`
 	ParentFile    *File  `yaml:"-"` // Lazy-loaded
 
-	// A relative path to the collection directory
+	// A relative path to the repository directory
 	RelativePath string `yaml:"relative_path"`
 	// The full wikilink to this file (without the extension)
 	Wikilink string `yaml:"wikilink"`
@@ -80,11 +80,11 @@ type File struct {
 }
 
 func NewOrExistingFile(parent *File, path string) (*File, error) {
-	relpath, err := CurrentCollection().GetFileRelativePath(path)
+	relpath, err := CurrentRepository().GetFileRelativePath(path)
 	if err != nil {
 		log.Fatal(err)
 	}
-	existingFile, err := CurrentCollection().FindFileByRelativePath(relpath)
+	existingFile, err := CurrentRepository().FindFileByRelativePath(relpath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -284,7 +284,7 @@ func (f File) String() string {
 /* Update */
 
 func (f *File) update(parent *File) error {
-	abspath := CurrentCollection().GetAbsolutePath(f.RelativePath)
+	abspath := CurrentRepository().GetAbsolutePath(f.RelativePath)
 	parsedFile, err := ParseFile(abspath)
 	if err != nil {
 		return err
@@ -800,11 +800,11 @@ type ParsedFile struct {
 func ParseFile(path string) (*ParsedFile, error) {
 	CurrentLogger().Debugf("Parsing file %s...", path)
 
-	relativePath, err := CurrentCollection().GetFileRelativePath(path)
+	relativePath, err := CurrentRepository().GetFileRelativePath(path)
 	if err != nil {
 		return nil, err
 	}
-	absolutePath := CurrentCollection().GetAbsolutePath(relativePath)
+	absolutePath := CurrentRepository().GetAbsolutePath(relativePath)
 
 	lstat, err := os.Lstat(absolutePath)
 	if err != nil {
@@ -983,7 +983,7 @@ func (f *File) SaveOnDisk() error {
 		return errors.New("unable to save file as no path is defined")
 	}
 	rawContent := []byte(sb.String())
-	absolutePath := CurrentCollection().GetAbsolutePath(f.RelativePath)
+	absolutePath := CurrentRepository().GetAbsolutePath(f.RelativePath)
 	os.WriteFile(absolutePath, rawContent, f.Mode)
 
 	// Refresh file-specific attributes
@@ -1177,27 +1177,27 @@ func (f *File) Delete() error {
 	return err
 }
 
-func (c *Collection) LoadFileByOID(oid string) (*File, error) {
+func (r *Repository) LoadFileByOID(oid string) (*File, error) {
 	return QueryFile(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
-func (c *Collection) FindFileByRelativePath(relativePath string) (*File, error) {
+func (r *Repository) FindFileByRelativePath(relativePath string) (*File, error) {
 	return QueryFile(CurrentDB().Client(), `WHERE relative_path = ?`, relativePath)
 }
 
-func (c *Collection) FindFilesByRelativePathPrefix(relativePathPrefix string) ([]*File, error) {
+func (r *Repository) FindFilesByRelativePathPrefix(relativePathPrefix string) ([]*File, error) {
 	return QueryFiles(CurrentDB().Client(), `WHERE relative_path LIKE ?`, relativePathPrefix+"%")
 }
 
-func (c *Collection) FindFileByWikilink(wikilink string) (*File, error) {
+func (r *Repository) FindFileByWikilink(wikilink string) (*File, error) {
 	return QueryFile(CurrentDB().Client(), `WHERE wikilink LIKE ?`, "%"+text.TrimExtension(wikilink))
 }
 
-func (c *Collection) FindFilesByWikilink(wikilink string) ([]*File, error) {
+func (r *Repository) FindFilesByWikilink(wikilink string) ([]*File, error) {
 	return QueryFiles(CurrentDB().Client(), `WHERE wikilink LIKE ?`, "%"+text.TrimExtension(wikilink))
 }
 
-func (c *Collection) FindFilesLastCheckedBefore(point time.Time, path string) ([]*File, error) {
+func (r *Repository) FindFilesLastCheckedBefore(point time.Time, path string) ([]*File, error) {
 	if path == "." {
 		path = ""
 	}
@@ -1205,7 +1205,7 @@ func (c *Collection) FindFilesLastCheckedBefore(point time.Time, path string) ([
 }
 
 // CountFiles returns the total number of files.
-func (c *Collection) CountFiles() (int, error) {
+func (r *Repository) CountFiles() (int, error) {
 	db := CurrentDB().Client()
 
 	var count int

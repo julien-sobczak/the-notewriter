@@ -11,15 +11,15 @@ import (
 )
 
 func TestLite(t *testing.T) {
-	root := core.SetUpCollectionFromGoldenDir(t)
+	root := core.SetUpRepositoryFromGoldenDir(t)
 
 	// Check input file
 	require.FileExists(t, filepath.Join(root, "notes.md"))
 	// Same as
-	require.FileExists(t, filepath.Join(CurrentCollection().Path, "notes.md"))
+	require.FileExists(t, filepath.Join(CurrentRepository().Path, "notes.md"))
 
 	// nt add
-	err := CurrentCollection().Add()
+	err := CurrentRepository().Add()
 	require.NoError(t, err)
 	// Check index
 	index := ReadIndex()
@@ -35,10 +35,10 @@ func TestLite(t *testing.T) {
 	assert.Empty(t, index.StagingArea)
 
 	// Check relational database
-	note1, err := CurrentCollection().FindNoteByTitle("notes.md", "Note: Example 1")
+	note1, err := CurrentRepository().FindNoteByTitle("notes.md", "Note: Example 1")
 	require.NoError(t, err)
 	require.NotNil(t, note1)
-	note2, err := CurrentCollection().FindNoteByTitle("notes.md", "Note: Example 2")
+	note2, err := CurrentRepository().FindNoteByTitle("notes.md", "Note: Example 2")
 	require.NoError(t, err)
 	require.NotNil(t, note2)
 
@@ -46,11 +46,11 @@ func TestLite(t *testing.T) {
 	assert.Equal(t, "A second note.", note2.Content)
 
 	// Check object database
-	require.FileExists(t, filepath.Join(CurrentCollection().Path, ".nt/index"))
-	require.FileExists(t, filepath.Join(CurrentCollection().Path, ".nt/objects", OIDToPath(note1.OID)))
-	require.FileExists(t, filepath.Join(CurrentCollection().Path, ".nt/objects", OIDToPath(note2.OID)))
+	require.FileExists(t, filepath.Join(CurrentRepository().Path, ".nt/index"))
+	require.FileExists(t, filepath.Join(CurrentRepository().Path, ".nt/objects", OIDToPath(note1.OID)))
+	require.FileExists(t, filepath.Join(CurrentRepository().Path, ".nt/objects", OIDToPath(note2.OID)))
 	// Check a single object
-	data, err := os.ReadFile(filepath.Join(CurrentCollection().Path, ".nt/objects", OIDToPath(note1.OID)))
+	data, err := os.ReadFile(filepath.Join(CurrentRepository().Path, ".nt/objects", OIDToPath(note1.OID)))
 	require.NoError(t, err)
 	assert.Contains(t, string(data), "title: 'Note: Example 1")
 }

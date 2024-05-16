@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSetUpCollectionFromGoldenDirNamed(t *testing.T) {
-	dirname := SetUpCollectionFromGoldenDirNamed(t, "example")
+func TestSetUpRepositoryFromGoldenDirNamed(t *testing.T) {
+	dirname := SetUpRepositoryFromGoldenDirNamed(t, "example")
 	require.FileExists(t, filepath.Join(dirname, "thoughts/on-notetaking.md"))
 }
 
@@ -58,23 +58,23 @@ func TestHumanTime(t *testing.T) {
 		expected time.Time
 	}{
 		{
-			name: "A date",
-			value: "1985-09-29",
+			name:     "A date",
+			value:    "1985-09-29",
 			expected: time.Date(1985, time.Month(9), 29, 0, 0, 0, 0, time.UTC),
 		},
 		{
-			name: "A date/hour",
-			value: "1985-09-29 02:15",
+			name:     "A date/hour",
+			value:    "1985-09-29 02:15",
 			expected: time.Date(1985, time.Month(9), 29, 2, 15, 0, 0, time.UTC),
 		},
 		{
-			name: "A date/hour/seconds",
-			value: "1985-09-29 02:15:10",
+			name:     "A date/hour/seconds",
+			value:    "1985-09-29 02:15:10",
 			expected: time.Date(1985, time.Month(9), 29, 2, 15, 10, 0, time.UTC),
 		},
 		{
-			name: "A date/hour/seconds/milliseconds",
-			value: "1985-09-29 02:15:10.555",
+			name:     "A date/hour/seconds/milliseconds",
+			value:    "1985-09-29 02:15:10.555",
 			expected: time.Date(1985, time.Month(9), 29, 2, 15, 10, 555000000, time.UTC),
 		},
 	}

@@ -18,7 +18,7 @@ const Day = 24 * Hour
 func TestFlashcard(t *testing.T) {
 
 	t.Run("YAML", func(t *testing.T) {
-		SetUpCollectionFromTempDir(t)
+		SetUpRepositoryFromTempDir(t)
 
 		// Make tests reproductible
 		UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
@@ -116,7 +116,7 @@ func TestFlashcardWithStudy(t *testing.T) {
 		FreezeAt(t, now)
 
 		// We will work with just a single file containing three basic flashcards
-		root := SetUpCollectionFromTempDir(t)
+		root := SetUpRepositoryFromTempDir(t)
 
 		// Configure origin
 		origin := t.TempDir()
@@ -158,7 +158,7 @@ Translate _Moto_
 		require.NoError(t, err)
 
 		// Commit and push
-		err = CurrentCollection().Add(".")
+		err = CurrentRepository().Add(".")
 		require.NoError(t, err)
 		err = CurrentDB().Commit("initial commit")
 		require.NoError(t, err)

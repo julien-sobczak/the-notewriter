@@ -39,7 +39,7 @@ key2: 2`,
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			SetUpCollectionFromTempDir(t)
+			SetUpRepositoryFromTempDir(t)
 			file := NewFileFromAttributes(nil, "", tt.input)
 			actual, err := file.FrontMatterString()
 			require.NoError(t, err)
@@ -49,7 +49,7 @@ key2: 2`,
 }
 
 func TestNewFile(t *testing.T) {
-	SetUpCollectionFromTempDir(t)
+	SetUpRepositoryFromTempDir(t)
 	f := NewEmptyFile("")
 	f.SetAttribute("tags", []interface{}{"toto"})
 
@@ -156,7 +156,7 @@ The answer
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				filename := SetUpCollectionFromFileContent(t, "test.md", tt.rawContent)
+				filename := SetUpRepositoryFromFileContent(t, "test.md", tt.rawContent)
 				f, err := NewFileFromPath(nil, filename)
 				require.NoError(t, err)
 				assert.Equal(t, strings.TrimSpace(tt.actualBody), strings.TrimSpace(f.Body))
@@ -244,7 +244,7 @@ Flashcard
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				filename := SetUpCollectionFromFileContent(t, "test.md", tt.rawContent)
+				filename := SetUpRepositoryFromFileContent(t, "test.md", tt.rawContent)
 				f, err := NewFileFromPath(nil, filename)
 				require.NoError(t, err)
 				tt.check(t, f)
@@ -255,7 +255,7 @@ Flashcard
 }
 
 func TestEditFileFrontMatter(t *testing.T) {
-	filename := SetUpCollectionFromGoldenFile(t)
+	filename := SetUpRepositoryFromGoldenFile(t)
 
 	// Init the file
 	f, err := NewFileFromPath(nil, filename)
@@ -298,7 +298,7 @@ Blabla`, strings.TrimSpace(string(rawContent)))
 }
 
 func TestPreserveCommentsInFrontMatter(t *testing.T) {
-	filename := SetUpCollectionFromFileContent(t, "sample.md", `---
+	filename := SetUpRepositoryFromFileContent(t, "sample.md", `---
 # Front-Matter
 tags: [favorite, inspiration] # Custom tags
 # published: true
@@ -323,7 +323,7 @@ new: 10
 }
 
 func TestGetNotes(t *testing.T) {
-	filename := SetUpCollectionFromGoldenFile(t)
+	filename := SetUpRepositoryFromGoldenFile(t)
 
 	// Init the file
 	f, err := NewFileFromPath(nil, filename)
@@ -359,7 +359,7 @@ func TestGetNotes(t *testing.T) {
 
 func TestFileInheritance(t *testing.T) {
 	// TOOD Complete using fixture TestInheritance/
-	filename := SetUpCollectionFromGoldenFile(t)
+	filename := SetUpRepositoryFromGoldenFile(t)
 
 	// Init the file
 	f, err := NewFileFromPath(nil, filename)
@@ -374,7 +374,7 @@ func TestFileInheritance(t *testing.T) {
 }
 
 func TestGetFlashcards(t *testing.T) {
-	filename := SetUpCollectionFromGoldenFileNamed(t, "TestGetNotes.md")
+	filename := SetUpRepositoryFromGoldenFileNamed(t, "TestGetNotes.md")
 
 	// Init the file
 	f, err := NewFileFromPath(nil, filename)
@@ -398,7 +398,7 @@ func TestGetFlashcards(t *testing.T) {
 }
 
 func TestGetMedias(t *testing.T) {
-	root := SetUpCollectionFromGoldenDir(t)
+	root := SetUpRepositoryFromGoldenDir(t)
 
 	// Init the file
 	f, err := NewFileFromPath(nil, filepath.Join(root, "medias.md"))
@@ -439,7 +439,7 @@ func TestGetMedias(t *testing.T) {
 }
 
 func TestFileSave(t *testing.T) {
-	root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+	root := SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 	FreezeNow(t)
 	AssertNoFiles(t)
 	AssertNoNotes(t)
@@ -470,7 +470,7 @@ func TestFileSave(t *testing.T) {
 	require.Equal(t, 1, MustCountReminders(t))
 
 	// Check the file
-	actual, err := CurrentCollection().FindFileByRelativePath(f.RelativePath)
+	actual, err := CurrentRepository().FindFileByRelativePath(f.RelativePath)
 	require.NoError(t, err)
 	assert.NotEqual(t, "", actual.OID)
 	assert.Equal(t, "go.md", actual.RelativePath)
@@ -493,7 +493,7 @@ func TestFileSave(t *testing.T) {
 	assert.WithinDuration(t, clock.Now(), actual.LastCheckedAt, 1*time.Second)
 
 	// Check a note
-	note, err := CurrentCollection().FindNoteByTitle("Reference: Golang History")
+	note, err := CurrentRepository().FindNoteByTitle("Reference: Golang History")
 	require.NoError(t, err)
 	assert.NotEqual(t, "", note.OID)
 	assert.Equal(t, actual.OID, note.FileOID)
@@ -522,9 +522,9 @@ func TestFileSave(t *testing.T) {
 	assert.NotEmpty(t, note.LastCheckedAt)
 
 	// Check the flashcard
-	flashcardNote, err := CurrentCollection().FindNoteByTitle("Flashcard: Golang Logo")
+	flashcardNote, err := CurrentRepository().FindNoteByTitle("Flashcard: Golang Logo")
 	require.NoError(t, err)
-	flashcard, err := CurrentCollection().FindFlashcardByShortTitle("Golang Logo")
+	flashcard, err := CurrentRepository().FindFlashcardByShortTitle("Golang Logo")
 	require.NoError(t, err)
 	assert.NotEqual(t, "", flashcard.OID)
 	assert.Equal(t, "Golang Logo", flashcard.ShortTitle)
@@ -548,7 +548,7 @@ func TestFileSave(t *testing.T) {
 	assert.NotEmpty(t, flashcard.LastCheckedAt)
 
 	// Check the media
-	media, err := CurrentCollection().FindMediaByRelativePath("medias/go.svg")
+	media, err := CurrentRepository().FindMediaByRelativePath("medias/go.svg")
 	require.NoError(t, err)
 	assert.NotEqual(t, "", media.OID)
 	assert.Equal(t, "medias/go.svg", media.RelativePath)
@@ -565,11 +565,11 @@ func TestFileSave(t *testing.T) {
 	assert.NotEmpty(t, media.LastCheckedAt)
 
 	// Check the link
-	links, err := CurrentCollection().FindLinksByText("Golang")
+	links, err := CurrentRepository().FindLinksByText("Golang")
 	require.NoError(t, err)
 	require.Len(t, links, 1)
 	link := links[0]
-	linkNote, err := CurrentCollection().FindNoteByTitle("Reference: Golang History")
+	linkNote, err := CurrentRepository().FindNoteByTitle("Reference: Golang History")
 	require.NoError(t, err)
 	assert.NotEqual(t, "", link.OID)
 	assert.Equal(t, linkNote.OID, link.NoteOID)
@@ -583,11 +583,11 @@ func TestFileSave(t *testing.T) {
 	assert.NotEmpty(t, link.LastCheckedAt)
 
 	// Check the reminder
-	reminders, err := CurrentCollection().FindReminders()
+	reminders, err := CurrentRepository().FindReminders()
 	require.NoError(t, err)
 	require.Len(t, reminders, 1)
 	reminder := reminders[0]
-	reminderNote, err := CurrentCollection().FindNoteByTitle("TODO: Conferences")
+	reminderNote, err := CurrentRepository().FindNoteByTitle("TODO: Conferences")
 	require.NoError(t, err)
 	assert.NotEqual(t, "", reminder.OID)
 	assert.Equal(t, reminderNote.OID, reminder.NoteOID)
@@ -608,7 +608,7 @@ func TestFileSave(t *testing.T) {
 func TestFile(t *testing.T) {
 
 	t.Run("New", func(t *testing.T) {
-		SetUpCollectionFromTempDir(t)
+		SetUpRepositoryFromTempDir(t)
 
 		// Preconditions
 		require.False(t, CurrentConfig().LintFile.IsInheritableAttribute("source", "index.md"))
@@ -632,7 +632,7 @@ func TestFile(t *testing.T) {
 		// Make tests reproductible
 		UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
 		FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
-		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+		root := SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
 		fileSrc, err := NewFileFromPath(nil, filepath.Join(root, "go.md"))
 		require.NoError(t, err)
@@ -705,22 +705,22 @@ updated_at: 2023-01-01T01:12:30Z
 }
 
 func TestInheritance(t *testing.T) {
-	SetUpCollectionFromGoldenDir(t)
+	SetUpRepositoryFromGoldenDir(t)
 
-	err := CurrentCollection().Add(".")
+	err := CurrentRepository().Add(".")
 	require.NoError(t, err)
 
 	// Check how attributes are inherited in files
-	fileIndex, err := CurrentCollection().FindFileByRelativePath("index.md")
+	fileIndex, err := CurrentRepository().FindFileByRelativePath("index.md")
 	require.NoError(t, err)
 	require.NotNil(t, fileIndex)
-	fileGoIndex, err := CurrentCollection().FindFileByRelativePath("skills/go/index.md")
+	fileGoIndex, err := CurrentRepository().FindFileByRelativePath("skills/go/index.md")
 	require.NoError(t, err)
 	require.NotNil(t, fileGoIndex)
-	fileGoGeneral, err := CurrentCollection().FindFileByRelativePath("skills/go/general.md")
+	fileGoGeneral, err := CurrentRepository().FindFileByRelativePath("skills/go/general.md")
 	require.NoError(t, err)
 	require.NotNil(t, fileGoGeneral)
-	fileGoGoroutines, err := CurrentCollection().FindFileByRelativePath("skills/go/goroutines.md")
+	fileGoGoroutines, err := CurrentRepository().FindFileByRelativePath("skills/go/goroutines.md")
 	require.NoError(t, err)
 	require.NotNil(t, fileGoGoroutines)
 
@@ -740,10 +740,10 @@ func TestInheritance(t *testing.T) {
 	}, fileGoGoroutines.GetAttributes())
 
 	// Check how attributes and tags are inherited in notes
-	generalNotes, err := CurrentCollection().SearchNotes(`path:"skills/go/general.md"`)
+	generalNotes, err := CurrentRepository().SearchNotes(`path:"skills/go/general.md"`)
 	require.NoError(t, err)
 	require.Len(t, generalNotes, 2)
-	goroutinesNotes, err := CurrentCollection().SearchNotes(`path:"skills/go/goroutines.md"`)
+	goroutinesNotes, err := CurrentRepository().SearchNotes(`path:"skills/go/goroutines.md"`)
 	require.NoError(t, err)
 	require.Len(t, goroutinesNotes, 1)
 
@@ -780,30 +780,30 @@ func TestInheritance(t *testing.T) {
 func TestFeatures(t *testing.T) {
 
 	t.Run("Relations", func(t *testing.T) {
-		SetUpCollectionFromGoldenDirNamed(t, "TestRelations")
+		SetUpRepositoryFromGoldenDirNamed(t, "TestRelations")
 
-		err := CurrentCollection().Add(".")
+		err := CurrentRepository().Add(".")
 		require.NoError(t, err)
 
-		fileA, err := CurrentCollection().FindFileByWikilink("a")
+		fileA, err := CurrentRepository().FindFileByWikilink("a")
 		require.NoError(t, err)
 		assert.NotNil(t, fileA)
-		fileB, err := CurrentCollection().FindFileByWikilink("b")
+		fileB, err := CurrentRepository().FindFileByWikilink("b")
 		require.NoError(t, err)
 		assert.NotNil(t, fileB)
-		fileC, err := CurrentCollection().FindFileByWikilink("c")
+		fileC, err := CurrentRepository().FindFileByWikilink("c")
 		require.NoError(t, err)
 		assert.NotNil(t, fileC)
 
-		notesA, err := CurrentCollection().SearchNotes(`path:"a.md"`)
+		notesA, err := CurrentRepository().SearchNotes(`path:"a.md"`)
 		require.NoError(t, err)
 		require.Len(t, notesA, 1)
 		noteA := notesA[0]
-		notesB, err := CurrentCollection().SearchNotes(`path:"b.md"`)
+		notesB, err := CurrentRepository().SearchNotes(`path:"b.md"`)
 		require.NoError(t, err)
 		require.Len(t, notesB, 1)
 		noteB := notesB[0]
-		notesC, err := CurrentCollection().SearchNotes(`path:"c.md"`)
+		notesC, err := CurrentRepository().SearchNotes(`path:"c.md"`)
 		require.NoError(t, err)
 		require.Len(t, notesC, 1)
 		noteC := notesC[0]
@@ -852,36 +852,36 @@ func TestFeatures(t *testing.T) {
 		assert.Equal(t, expectedC, relationsC)
 
 		// Check at least one relation exists to detect complete failure
-		count, err := CurrentCollection().CountRelations()
+		count, err := CurrentRepository().CountRelations()
 		require.NoError(t, err)
 		require.Greater(t, count, 0)
 
 		// Check relations between objects
-		relationsFromFileA, err := CurrentCollection().FindRelationsFrom(fileA.OID)
+		relationsFromFileA, err := CurrentRepository().FindRelationsFrom(fileA.OID)
 		require.NoError(t, err)
-		relationsToFileA, err := CurrentCollection().FindRelationsTo(fileA.OID)
+		relationsToFileA, err := CurrentRepository().FindRelationsTo(fileA.OID)
 		require.NoError(t, err)
-		relationsFromNoteA, err := CurrentCollection().FindRelationsFrom(noteA.OID)
+		relationsFromNoteA, err := CurrentRepository().FindRelationsFrom(noteA.OID)
 		require.NoError(t, err)
-		relationsToNoteA, err := CurrentCollection().FindRelationsTo(noteA.OID)
-		require.NoError(t, err)
-
-		relationsFromFileB, err := CurrentCollection().FindRelationsFrom(fileB.OID)
-		require.NoError(t, err)
-		relationsToFileB, err := CurrentCollection().FindRelationsTo(fileB.OID)
-		require.NoError(t, err)
-		relationsFromNoteB, err := CurrentCollection().FindRelationsFrom(noteB.OID)
-		require.NoError(t, err)
-		relationsToNoteB, err := CurrentCollection().FindRelationsTo(noteB.OID)
+		relationsToNoteA, err := CurrentRepository().FindRelationsTo(noteA.OID)
 		require.NoError(t, err)
 
-		relationsFromFileC, err := CurrentCollection().FindRelationsFrom(fileC.OID)
+		relationsFromFileB, err := CurrentRepository().FindRelationsFrom(fileB.OID)
 		require.NoError(t, err)
-		relationsToFileC, err := CurrentCollection().FindRelationsTo(fileC.OID)
+		relationsToFileB, err := CurrentRepository().FindRelationsTo(fileB.OID)
 		require.NoError(t, err)
-		relationsFromNoteC, err := CurrentCollection().FindRelationsFrom(noteC.OID)
+		relationsFromNoteB, err := CurrentRepository().FindRelationsFrom(noteB.OID)
 		require.NoError(t, err)
-		relationsToNoteC, err := CurrentCollection().FindRelationsTo(noteC.OID)
+		relationsToNoteB, err := CurrentRepository().FindRelationsTo(noteB.OID)
+		require.NoError(t, err)
+
+		relationsFromFileC, err := CurrentRepository().FindRelationsFrom(fileC.OID)
+		require.NoError(t, err)
+		relationsToFileC, err := CurrentRepository().FindRelationsTo(fileC.OID)
+		require.NoError(t, err)
+		relationsFromNoteC, err := CurrentRepository().FindRelationsFrom(noteC.OID)
+		require.NoError(t, err)
+		relationsToNoteC, err := CurrentRepository().FindRelationsTo(noteC.OID)
 		require.NoError(t, err)
 
 		expectedFromFileA := []*Relation{}
@@ -976,27 +976,27 @@ func TestFeatures(t *testing.T) {
 	})
 
 	t.Run("Ignore", func(t *testing.T) {
-		SetUpCollectionFromGoldenDirNamed(t, "TestIgnore")
+		SetUpRepositoryFromGoldenDirNamed(t, "TestIgnore")
 
-		err := CurrentCollection().Add(".")
+		err := CurrentRepository().Add(".")
 		require.NoError(t, err)
 
-		fileInclude, err := CurrentCollection().FindFileByRelativePath("include.md")
+		fileInclude, err := CurrentRepository().FindFileByRelativePath("include.md")
 		require.NoError(t, err)
 		require.NotNil(t, fileInclude)
-		fileIgnore, err := CurrentCollection().FindFileByRelativePath("ignore.md")
+		fileIgnore, err := CurrentRepository().FindFileByRelativePath("ignore.md")
 		require.NoError(t, err)    // No error as the query succeed
 		require.Nil(t, fileIgnore) // But no file must have been found as the tag ignore is declared on the file
-		fileIncludeIgnore, err := CurrentCollection().FindFileByRelativePath("include-ignore.md")
+		fileIncludeIgnore, err := CurrentRepository().FindFileByRelativePath("include-ignore.md")
 		require.NoError(t, err)
 		require.NotNil(t, fileIncludeIgnore)
 
-		notesInclude, err := CurrentCollection().SearchNotes(`path:"include.md"`)
+		notesInclude, err := CurrentRepository().SearchNotes(`path:"include.md"`)
 		require.NoError(t, err)
 		require.Len(t, notesInclude, 1)
 		assert.Equal(t, "Include", notesInclude[0].ShortTitle)
 
-		notesIncludeIgnore, err := CurrentCollection().SearchNotes(`path:"include-ignore.md"`)
+		notesIncludeIgnore, err := CurrentRepository().SearchNotes(`path:"include-ignore.md"`)
 		require.NoError(t, err)
 		require.Len(t, notesIncludeIgnore, 2) // Only "Include XXX" notes must be found
 		assert.Equal(t, "Include", notesIncludeIgnore[0].ShortTitle)
@@ -1006,14 +1006,14 @@ func TestFeatures(t *testing.T) {
 }
 
 func TestPostProcessing(t *testing.T) {
-	SetUpCollectionFromGoldenDir(t)
+	SetUpRepositoryFromGoldenDir(t)
 	UseSequenceOID(t)
 
-	err := CurrentCollection().Add(".")
+	err := CurrentRepository().Add(".")
 	require.NoError(t, err)
 
 	t.Run("HTML Comments", func(t *testing.T) {
-		notes, err := CurrentCollection().SearchNotes(`path:"quotes/walt-disney.md"`)
+		notes, err := CurrentRepository().SearchNotes(`path:"quotes/walt-disney.md"`)
 		require.NoError(t, err)
 		require.Len(t, notes, 1)
 		note := notes[0]
@@ -1027,7 +1027,7 @@ func TestPostProcessing(t *testing.T) {
 	})
 
 	t.Run("Quotes Formatting", func(t *testing.T) {
-		notes, err := CurrentCollection().SearchNotes(`path:"quotes/walt-disney.md"`)
+		notes, err := CurrentRepository().SearchNotes(`path:"quotes/walt-disney.md"`)
 		require.NoError(t, err)
 		require.Len(t, notes, 1)
 		note := notes[0]
@@ -1042,7 +1042,7 @@ func TestPostProcessing(t *testing.T) {
 
 	t.Run("Attributed Quotes Formatting", func(t *testing.T) {
 		// See https://developer.mozilla.org/en-US/docs/Web/HTML/Element/cite
-		notes, err := CurrentCollection().SearchNotes(`kind:quote @title:"J.R.R. Tolkein on Life"`)
+		notes, err := CurrentRepository().SearchNotes(`kind:quote @title:"J.R.R. Tolkein on Life"`)
 		require.NoError(t, err)
 		note := notes[0]
 		assert.Equal(t, `<h1>J.R.R. Tolkein on Life</h1>`, note.TitleHTML)
@@ -1058,7 +1058,7 @@ func TestPostProcessing(t *testing.T) {
 		// File.GetNotes() <= Dependent Files are not saved inside this method
 		// so if one note depends on another in the same file, the file will not exist in DB...
 		// TODO save relations in Note.Save() to trigger Refresh()
-		notes, err := CurrentCollection().SearchNotes(`@title:"Commonplace book"`)
+		notes, err := CurrentRepository().SearchNotes(`@title:"Commonplace book"`)
 		require.NoError(t, err)
 		note := notes[0]
 		assert.Equal(t, `<h1>Commonplace book</h1>`, note.TitleHTML)
@@ -1068,7 +1068,7 @@ func TestPostProcessing(t *testing.T) {
 	})
 
 	t.Run("Quote Inclusion", func(t *testing.T) {
-		notes, err := CurrentCollection().SearchNotes(`kind:note @title:"On Doing"`)
+		notes, err := CurrentRepository().SearchNotes(`kind:note @title:"On Doing"`)
 		require.NoError(t, err)
 		note := notes[0]
 		assert.Equal(t, `<h1>On Doing</h1>`, note.TitleHTML)
@@ -1083,7 +1083,7 @@ func TestPostProcessing(t *testing.T) {
 	})
 
 	t.Run("Media URL Replacement", func(t *testing.T) {
-		notes, err := CurrentCollection().SearchNotes(`@title:Gopher`)
+		notes, err := CurrentRepository().SearchNotes(`@title:Gopher`)
 		require.NoError(t, err)
 		note := notes[0]
 		assert.Equal(t, `Gophers are rodents of the family **Geomyidae.**
@@ -1096,7 +1096,7 @@ The Golang programming language uses the image of a gopher as logo:
 	})
 
 	t.Run("Comment Formatting", func(t *testing.T) {
-		notes, err := CurrentCollection().SearchNotes(`@title:"Allen Saunders on Life"`)
+		notes, err := CurrentRepository().SearchNotes(`@title:"Allen Saunders on Life"`)
 		require.NoError(t, err)
 		note := notes[0]
 
@@ -1122,7 +1122,7 @@ The Golang programming language uses the image of a gopher as logo:
 	})
 
 	t.Run("Asciidoc Text Replacements", func(t *testing.T) {
-		notes, err := CurrentCollection().SearchNotes(`@title:"Asciidoc Text replacements"`)
+		notes, err := CurrentRepository().SearchNotes(`@title:"Asciidoc Text replacements"`)
 		require.NoError(t, err)
 		note := notes[0]
 		assert.Equal(t, strings.TrimSpace(`
@@ -1296,7 +1296,7 @@ Presentation of idea B
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			SetUpCollectionFromTempDir(t)
+			SetUpRepositoryFromTempDir(t)
 			notes := ParseNotes(tt.input, "")
 			tt.checkFn(t, notes)
 		})
@@ -1304,7 +1304,7 @@ Presentation of idea B
 }
 
 func TestParseFileComplex(t *testing.T) {
-	root := SetUpCollectionFromGoldenDirNamed(t, "TestComplex")
+	root := SetUpRepositoryFromGoldenDirNamed(t, "TestComplex")
 	file, err := ParseFile(filepath.Join(root, "syntax.md"))
 	require.NoError(t, err)
 
@@ -1453,10 +1453,10 @@ func TestParseFileComplex(t *testing.T) {
 }
 
 func TestDetermineFileSlug(t *testing.T) {
-	tests := []struct{
+	tests := []struct {
 		path string // input
 		slug string // output
-	} {
+	}{
 		{
 			path: "go/syntax.md",
 			slug: "go-syntax",

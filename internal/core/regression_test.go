@@ -11,15 +11,15 @@ import (
 )
 
 func TestRegression(t *testing.T) {
-	root := SetUpCollectionFromGoldenDirNamed(t, "TestComplex")
+	root := SetUpRepositoryFromGoldenDirNamed(t, "TestComplex")
 
-	err := CurrentCollection().Add(".")
+	err := CurrentRepository().Add(".")
 	require.NoError(t, err)
 
 	err = CurrentDB().Commit("initial commit")
 	require.NoError(t, err)
 
-	currentStats, err := CurrentCollection().Stats()
+	currentStats, err := CurrentRepository().Stats()
 	require.NoError(t, err)
 
 	editLine := &UpdateLine{
@@ -48,7 +48,7 @@ func TestRegression(t *testing.T) {
 			RunGC:   true,
 			Check: func(t *testing.T, last, current *Stats) {
 				// A new commit file
-				assert.Equal(t, last.OnDisk.Commits + 1, current.OnDisk.Commits)
+				assert.Equal(t, last.OnDisk.Commits+1, current.OnDisk.Commits)
 				// No new OIDs
 				assert.Equal(t, last.OnDisk.IndexObjects, current.OnDisk.IndexObjects)
 				// No new blobs
@@ -71,7 +71,7 @@ func TestRegression(t *testing.T) {
 			change.Apply(t, root)
 		}
 
-		err := CurrentCollection().Add(".")
+		err := CurrentRepository().Add(".")
 		require.NoError(t, err)
 
 		err = CurrentDB().Commit("commit")
@@ -83,7 +83,7 @@ func TestRegression(t *testing.T) {
 		}
 
 		lastStats := currentStats
-		currentStats, err = CurrentCollection().Stats()
+		currentStats, err = CurrentRepository().Stats()
 		require.NoError(t, err)
 		edition.Check(t, lastStats, currentStats)
 	}

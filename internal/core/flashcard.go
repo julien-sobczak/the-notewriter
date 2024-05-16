@@ -119,7 +119,7 @@ func NewOrExistingFlashcard(file *File, note *Note) *Flashcard {
 	}
 
 	// Flashcard may already exists
-	flashcard, err := CurrentCollection().LoadFlashcardByNoteOID(note.OID)
+	flashcard, err := CurrentRepository().LoadFlashcardByNoteOID(note.OID)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -181,11 +181,11 @@ func (f *Flashcard) ModificationTime() time.Time {
 
 func (f *Flashcard) Refresh() (bool, error) {
 	// Regenerate the flashcard content by rereading the associated note
-	file, err := CurrentCollection().LoadFileByOID(f.FileOID)
+	file, err := CurrentRepository().LoadFileByOID(f.FileOID)
 	if err != nil {
 		return false, err
 	}
-	note, err := CurrentCollection().LoadNoteByOID(f.NoteOID)
+	note, err := CurrentRepository().LoadNoteByOID(f.NoteOID)
 	if err != nil {
 		return false, err
 	}
@@ -464,7 +464,7 @@ func SettingsJSON(settings map[string]any) (string, error) {
 }
 
 // CountFlashcards returns the total number of flashcards.
-func (c *Collection) CountFlashcards() (int, error) {
+func (r *Repository) CountFlashcards() (int, error) {
 	db := CurrentDB().Client()
 
 	var count int
@@ -475,23 +475,23 @@ func (c *Collection) CountFlashcards() (int, error) {
 	return count, nil
 }
 
-func (c *Collection) LoadFlashcardByOID(oid string) (*Flashcard, error) {
+func (r *Repository) LoadFlashcardByOID(oid string) (*Flashcard, error) {
 	return QueryFlashcard(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
-func (c *Collection) LoadFlashcardByNoteOID(noteID string) (*Flashcard, error) {
+func (r *Repository) LoadFlashcardByNoteOID(noteID string) (*Flashcard, error) {
 	return QueryFlashcard(CurrentDB().Client(), `WHERE note_oid = ?`, noteID)
 }
 
-func (c *Collection) FindFlashcardByShortTitle(shortTitle string) (*Flashcard, error) {
+func (r *Repository) FindFlashcardByShortTitle(shortTitle string) (*Flashcard, error) {
 	return QueryFlashcard(CurrentDB().Client(), `WHERE short_title = ?`, shortTitle)
 }
 
-func (c *Collection) FindFlashcardByHash(hash string) (*Flashcard, error) {
+func (r *Repository) FindFlashcardByHash(hash string) (*Flashcard, error) {
 	return QueryFlashcard(CurrentDB().Client(), `WHERE hash = ?`, hash)
 }
 
-func (c *Collection) FindFlashcardsLastCheckedBefore(point time.Time, path string) ([]*Flashcard, error) {
+func (r *Repository) FindFlashcardsLastCheckedBefore(point time.Time, path string) ([]*Flashcard, error) {
 	if path == "." {
 		path = ""
 	}
@@ -745,7 +745,7 @@ func (s *Study) Save() error {
 	for _, review := range s.Reviews {
 		CurrentLogger().Debugf("Saving review for flashcard %s...", review.FlashcardOID)
 		// Read the flashcard to determine if the study is more recent that the last study
-		flashcard, err := CurrentCollection().LoadFlashcardByOID(review.FlashcardOID)
+		flashcard, err := CurrentRepository().LoadFlashcardByOID(review.FlashcardOID)
 		if err != nil {
 			return err
 		}
@@ -804,7 +804,7 @@ queue INTEGER NOT NULL DEFAULT 0,
 
 -- Due is used differently for different card types:
 --    new: note oid or random int
---    due: integer day, relative to the collection's creation time
+--    due: integer day, relative to the repository's creation time
 --    learning: integer timestamp in second
 due INTEGER NOT NULL DEFAULT 0,
 

@@ -57,7 +57,7 @@ type Reminder struct {
 func NewOrExistingReminder(note *Note, descriptionRaw, tag string) (*Reminder, error) {
 	descriptionRaw = strings.TrimSpace(descriptionRaw)
 
-	reminders, err := CurrentCollection().FindRemindersMatching(note.OID, descriptionRaw)
+	reminders, err := CurrentRepository().FindRemindersMatching(note.OID, descriptionRaw)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -731,7 +731,7 @@ func (r *Reminder) Delete() error {
 }
 
 // CountReminders returns the total number of reminders.
-func (c *Collection) CountReminders() (int, error) {
+func (r *Repository) CountReminders() (int, error) {
 	var count int
 	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM reminder`).Scan(&count); err != nil {
 		return 0, err
@@ -739,23 +739,23 @@ func (c *Collection) CountReminders() (int, error) {
 	return count, nil
 }
 
-func (c *Collection) FindReminders() ([]*Reminder, error) {
+func (r *Repository) FindReminders() ([]*Reminder, error) {
 	return QueryReminders(CurrentDB().Client(), "")
 }
 
-func (c *Collection) FindRemindersMatching(noteOID string, descriptionRaw string) ([]*Reminder, error) {
+func (r *Repository) FindRemindersMatching(noteOID string, descriptionRaw string) ([]*Reminder, error) {
 	return QueryReminders(CurrentDB().Client(), `WHERE note_oid = ? and description_raw = ?`, noteOID, descriptionRaw)
 }
 
-func (c *Collection) LoadReminderByOID(oid string) (*Reminder, error) {
+func (r *Repository) LoadReminderByOID(oid string) (*Reminder, error) {
 	return QueryReminder(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
-func (c *Collection) FindRemindersByUpcomingDate(deadline time.Time) ([]*Reminder, error) {
+func (r *Repository) FindRemindersByUpcomingDate(deadline time.Time) ([]*Reminder, error) {
 	return QueryReminders(CurrentDB().Client(), `WHERE next_performed_at > ?`, timeToSQL(deadline))
 }
 
-func (c *Collection) FindRemindersLastCheckedBefore(point time.Time, path string) ([]*Reminder, error) {
+func (r *Repository) FindRemindersLastCheckedBefore(point time.Time, path string) ([]*Reminder, error) {
 	if path == "." {
 		path = ""
 	}

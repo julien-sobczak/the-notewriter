@@ -41,7 +41,7 @@ type File struct {
 	// A unique identifier among all files
 	OID string `yaml:"oid"`
 
-	// A relative path to the collection directory
+	// A relative path to the repository root directory
 	RelativePath string `yaml:"relative_path"`
 
 	// Size of the file (can be useful to detect changes)
@@ -146,7 +146,7 @@ The logic to initialize a `ParsedFile` simply uses the standard Go librairies:
 ```go
 // ParseFile contains the main logic to parse a raw note file.
 func ParseFile(relativePath string) (*ParsedFile, error) {
-	absolutePath := filepath.Join(CurrentCollection().Path, relativePath)
+	absolutePath := filepath.Join(CurrentRepository().Path, relativePath)
 
 	lstat, err := os.Lstat(absolutePath)
 	if err != nil {
@@ -275,35 +275,35 @@ SHA1 are only used when storing blobs (aka medias files), not covered in this do
 
 :::
 
-## The Collection
+## The Repository
 
-Now that we know how to parse Markdown files, we need to write the logic to traverse the file system. Most commands will have to process the  complete set of all note files, that are represented by the struct `Collection`:
+Now that we know how to parse Markdown files, we need to write the logic to traverse the file system. Most commands will have to process the complete set of all note files, that are represented by the struct `Repository`:
 
 ```go
-type Collection struct {
+type Repository struct {
 	Path string
 }
 ```
 
-The collection will be useful from many places inside the code to resolve absolute paths (the actual code contains a lot more methods) and is defined as a singleton (preferable compared to a global variable to initialize it lazily).
+The repository will be useful from many places inside the code to resolve absolute paths (the actual code contains a lot more methods) and is defined as a singleton (preferable compared to a global variable to initialize it lazily).
 
 ```go
 var (
-	collectionOnce      sync.Once
-	collectionSingleton *Collection
+	repositoryOnce      sync.Once
+	repositorySingleton *Repository
 )
 
-func CurrentCollection() *Collection {
-	collectionOnce.Do(func() {
+func CurrentRepository() *Repository {
+	repositoryOnce.Do(func() {
         cwd, err := os.Getwd()
         if err != nil {
             log.Fatal(err)
         }
-		collectionSingleton = &Collection{
+		repositorySingleton = &Repository{
 			Path: cwd,
 		}
 	})
-	return collectionSingleton
+	return repositorySingleton
 }
 ```
 
@@ -316,8 +316,8 @@ The same pattern is used for different global objects: to retrieve the database 
 We define a convenient method to locate the note files:
 
 ```go
-func (c *Collection) walk(fn func(path string, stat fs.FileInfo) error) error {
-	filepath.WalkDir(c.Path, func(path string, info fs.DirEntry, err error) error {
+func (r *Repository) walk(fn func(path string, stat fs.FileInfo) error) error {
+	filepath.WalkDir(r.Path, func(path string, info fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -327,7 +327,7 @@ func (c *Collection) walk(fn func(path string, stat fs.FileInfo) error) error {
 			return fs.SkipDir // NB fs.SkipDir skip the parent dir when path is a file
 		}
 
-		relativePath, err := filepath.Rel(c.Path, path)
+		relativePath, err := filepath.Rel(r.Path, path)
 		if err != nil {
 			// ignore the file
 			return nil
@@ -403,7 +403,7 @@ The index is a YAML file located at `.nt/index`. We define a few functions and m
 ```go
 // ReadIndex loads the index file.
 func ReadIndex() *Index {
-	path := filepath.Join(CurrentCollection().Path, ".nt/index")
+	path := filepath.Join(CurrentRepository().Path, ".nt/index")
 	in, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
 		// First use
@@ -422,7 +422,7 @@ func ReadIndex() *Index {
 
 // Save persists the index on disk.
 func (i *Index) Save() error {
-	path := filepath.Join(CurrentCollection().Path, ".nt/index")
+	path := filepath.Join(CurrentRepository().Path, ".nt/index")
 	f, err := os.Create(path)
 	if err != nil {
 		return err
@@ -455,7 +455,7 @@ The other attribute of `DB` is the connection to the SQLite database instance lo
 
 ```go
 func InitClient() *sql.DB {
-	db, err := sql.Open("sqlite3", filepath.Join(CurrentCollection().Path, ".nt/database.db"))
+	db, err := sql.Open("sqlite3", filepath.Join(CurrentRepository().Path, ".nt/database.db"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
 		os.Exit(1)
@@ -810,7 +810,7 @@ The last method `SubObjects()` will be particularly useful when processing the c
 Here is the code for the command `add`:
 
 ```go
-func (c *Collection) Add() error {
+func (r *Repository) Add() error {
 	db := CurrentDB()
 
 	// Run all queries inside the same transaction
@@ -821,7 +821,7 @@ func (c *Collection) Add() error {
 	defer db.RollbackTransaction()
 
 	// Traverse all files
-	err = c.walk(func(relativePath string, stat fs.FileInfo) error {
+	err = r.walk(func(relativePath string, stat fs.FileInfo) error {
 		file, err := NewOrExistingFile(relativePath)
 		if err != nil {
 			return err
@@ -873,7 +873,7 @@ We iterate over files using the `walk()` method. We create a new `File` using th
 
 ```go
 func NewOrExistingFile(relativePath string) (*File, error) {
-	existingFile, err := CurrentCollection().LoadFileByPath(relativePath)
+	existingFile, err := CurrentRepository().LoadFileByPath(relativePath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -891,7 +891,7 @@ func NewOrExistingFile(relativePath string) (*File, error) {
 }
 
 func (f *File) update() error {
-	absolutePath := filepath.Join(CurrentCollection().Path, f.RelativePath)
+	absolutePath := filepath.Join(CurrentRepository().Path, f.RelativePath)
 	parsedFile, err := ParseFile(absolutePath)
 	if err != nil {
 		return err
@@ -1015,7 +1015,7 @@ func (db *DB) Commit() error {
 			}
 			object = &note
 		}
-		objectPath := filepath.Join(CurrentCollection().Path, ".nt/objects", OIDToPath(indexObject.OID))
+		objectPath := filepath.Join(CurrentRepository().Path, ".nt/objects", OIDToPath(indexObject.OID))
 		if err := os.MkdirAll(filepath.Dir(objectPath), os.ModePerm); err != nil {
 			return err
 		}

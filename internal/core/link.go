@@ -42,7 +42,7 @@ type Link struct {
 }
 
 func NewOrExistingLink(note *Note, text, url, title, goName string) *Link {
-	link, err := CurrentCollection().FindLinkByGoName(goName)
+	link, err := CurrentRepository().FindLinkByGoName(goName)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -295,7 +295,7 @@ func (l *Link) Delete() error {
 }
 
 // CountLinks returns the total number of links.
-func (c *Collection) CountLinks() (int, error) {
+func (r *Repository) CountLinks() (int, error) {
 	var count int
 	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM link`).Scan(&count); err != nil {
 		return 0, err
@@ -304,19 +304,19 @@ func (c *Collection) CountLinks() (int, error) {
 	return count, nil
 }
 
-func (c *Collection) LoadLinkByOID(oid string) (*Link, error) {
+func (r *Repository) LoadLinkByOID(oid string) (*Link, error) {
 	return QueryLink(CurrentDB().Client(), "WHERE oid = ?", oid)
 }
 
-func (c *Collection) FindLinkByGoName(goName string) (*Link, error) {
+func (r *Repository) FindLinkByGoName(goName string) (*Link, error) {
 	return QueryLink(CurrentDB().Client(), "WHERE go_name = ?", goName)
 }
 
-func (c *Collection) FindLinksByText(text string) ([]*Link, error) {
+func (r *Repository) FindLinksByText(text string) ([]*Link, error) {
 	return QueryLinks(CurrentDB().Client(), "WHERE text = ?", text)
 }
 
-func (c *Collection) FindLinksLastCheckedBefore(point time.Time, path string) ([]*Link, error) {
+func (r *Repository) FindLinksLastCheckedBefore(point time.Time, path string) ([]*Link, error) {
 	if path == "." {
 		path = ""
 	}

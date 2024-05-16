@@ -58,9 +58,9 @@ func TestMedia(t *testing.T) {
 		// Make tests reproductible
 		UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
 		FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
-		SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
-		// Set up a collection
+		// Set up a repository
 		mediaSrc := NewMedia("medias/go.svg")
 		mediaSrc.MTime = clock.Now()
 		// Force blobs generation to check the whole model

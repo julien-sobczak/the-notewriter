@@ -97,7 +97,7 @@ func CurrentDB() *DB {
 }
 
 func ReadIndex() *Index {
-	index, err := NewIndexFromPath(CurrentCollection().GetAbsolutePath(".nt/index"))
+	index, err := NewIndexFromPath(CurrentRepository().GetAbsolutePath(".nt/index"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to read current .nt/index file: %v", err)
 		os.Exit(1)
@@ -106,7 +106,7 @@ func ReadIndex() *Index {
 }
 
 func ReadCommitGraph() *CommitGraph {
-	cg, err := NewCommitGraphFromPath(CurrentCollection().GetAbsolutePath(".nt/objects/info/commit-graph"))
+	cg, err := NewCommitGraphFromPath(CurrentRepository().GetAbsolutePath(".nt/objects/info/commit-graph"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to read current .nt/objects/info/commit-graph file: %v", err)
 		os.Exit(1)
@@ -116,7 +116,7 @@ func ReadCommitGraph() *CommitGraph {
 
 func ReadRefs() map[string]string {
 	refs := make(map[string]string)
-	refdir := CurrentCollection().GetAbsolutePath(".nt/refs")
+	refdir := CurrentRepository().GetAbsolutePath(".nt/refs")
 	files, err := os.ReadDir(refdir)
 	if os.IsNotExist(err) {
 		// No existing refs (occurs before the first commit)
@@ -216,17 +216,17 @@ func (db *DB) ReadLastStagedOrCommittedObjectFromDB(oid string) (StatefulObject,
 
 	switch kind {
 	case "file":
-		return CurrentCollection().LoadFileByOID(oid)
+		return CurrentRepository().LoadFileByOID(oid)
 	case "note":
-		return CurrentCollection().LoadNoteByOID(oid)
+		return CurrentRepository().LoadNoteByOID(oid)
 	case "flashcard":
-		return CurrentCollection().LoadFlashcardByOID(oid)
+		return CurrentRepository().LoadFlashcardByOID(oid)
 	case "link":
-		return CurrentCollection().LoadLinkByOID(oid)
+		return CurrentRepository().LoadLinkByOID(oid)
 	case "reminder":
-		return CurrentCollection().LoadReminderByOID(oid)
+		return CurrentRepository().LoadReminderByOID(oid)
 	case "media":
-		return CurrentCollection().LoadMediaByOID(oid)
+		return CurrentRepository().LoadMediaByOID(oid)
 	default:
 		return nil, fmt.Errorf("unsupported kind %s when reading object", kind)
 	}

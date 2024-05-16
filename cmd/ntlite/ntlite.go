@@ -15,7 +15,7 @@ func main() {
 	command := os.Args[1]
 	switch command {
 	case "add":
-		CurrentCollection().Add()
+		CurrentRepository().Add()
 	case "commit":
 		CurrentDB().Commit()
 	default:

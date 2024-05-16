@@ -96,50 +96,50 @@ func TestIndexFilesFirst(t *testing.T) {
 	}
 }
 
-func TestCollectionGetRelativePath(t *testing.T) {
+func TestRepositoryGetRelativePath(t *testing.T) {
 	var tests = []struct {
 		name                   string // name
 		referencePath          string // input
 		noteRelativePath       string // input
-		collectionRelativePath string // output
+		repositoryRelativePath string // output
 	}{
 		{
 			name:                   "Same directory",
 			referencePath:          "./projects/the-notewriter/todo.md",
 			noteRelativePath:       "ideas.md",
-			collectionRelativePath: "projects/the-notewriter/ideas.md",
+			repositoryRelativePath: "projects/the-notewriter/ideas.md",
 		},
 		{
 			name:                   "Medias file",
 			referencePath:          "./skills/programming.md",
 			noteRelativePath:       "./medias/go.svg",
-			collectionRelativePath: "skills/medias/go.svg",
+			repositoryRelativePath: "skills/medias/go.svg",
 		},
 		{
 			name:                   "Move to parent directory",
 			referencePath:          "./projects/the-notewriter/todo.md",
 			noteRelativePath:       "../../skills/programming.md",
-			collectionRelativePath: "skills/programming.md",
+			repositoryRelativePath: "skills/programming.md",
 		},
 	}
 
-	root := SetUpCollectionFromGoldenDir(t)
+	root := SetUpRepositoryFromGoldenDir(t)
 	require.Equal(t, root, CurrentConfig().RootDirectory)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			relpath, err := CurrentCollection().GetNoteRelativePath(filepath.Join(root, tt.referencePath), tt.noteRelativePath)
+			relpath, err := CurrentRepository().GetNoteRelativePath(filepath.Join(root, tt.referencePath), tt.noteRelativePath)
 			require.NoError(t, err)
-			assert.Equal(t, tt.collectionRelativePath, relpath)
+			assert.Equal(t, tt.repositoryRelativePath, relpath)
 		})
 	}
 }
 
 func TestStatsInDB(t *testing.T) {
 
-	SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+	SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
-	stats, err := CurrentCollection().StatsInDB()
+	stats, err := CurrentRepository().StatsInDB()
 	require.NoError(t, err)
 	assert.Equal(t, 0, stats.Objects["file"])
 	assert.Equal(t, 0, stats.Objects["note"])
@@ -148,10 +148,10 @@ func TestStatsInDB(t *testing.T) {
 	assert.Equal(t, 0, stats.Objects["link"])
 	assert.Equal(t, 0, stats.Objects["reminder"])
 
-	err = CurrentCollection().Add(".")
+	err = CurrentRepository().Add(".")
 	require.NoError(t, err)
 
-	stats, err = CurrentCollection().StatsInDB()
+	stats, err = CurrentRepository().StatsInDB()
 	require.NoError(t, err)
 	assert.Greater(t, stats.Objects["file"], 0)
 	assert.Greater(t, stats.Objects["note"], 0)

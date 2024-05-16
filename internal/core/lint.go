@@ -470,8 +470,8 @@ var sectionsInventoryOnce resync.Once     // Build the inventory on first occurr
 func buildSectionsInventory() {
 	sectionsInventory = make(map[string][]string)
 	paths := []string{CurrentConfig().RootDirectory}
-	err := CurrentCollection().walk(paths, func(path string, stat fs.FileInfo) error {
-		relativePath, err := CurrentCollection().GetFileRelativePath(path)
+	err := CurrentRepository().walk(paths, func(path string, stat fs.FileInfo) error {
+		relativePath, err := CurrentRepository().GetFileRelativePath(path)
 		if err != nil {
 			return err
 		}

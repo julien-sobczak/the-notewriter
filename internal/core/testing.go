@@ -16,7 +16,7 @@ import (
 
 // Reset forces singletons to be recreated. Useful between unit tests.
 func Reset() {
-	collectionOnce.Reset()
+	repositoryOnce.Reset()
 	configOnce.Reset()
 	dbRemoteOnce.Reset()
 	dbClientOnce.Reset()
@@ -28,41 +28,41 @@ func Reset() {
 
 /* Fixtures */
 
-// SetUpCollectionFromGoldenFile populates a temp directory containing a valid .nt collection and a single file.
-func SetUpCollectionFromGoldenFile(t *testing.T) string {
-	return SetUpCollectionFromGoldenFileNamed(t, t.Name()+".md")
+// SetUpRepositoryFromGoldenFile populates a temp directory containing a valid .nt repository and a single file.
+func SetUpRepositoryFromGoldenFile(t *testing.T) string {
+	return SetUpRepositoryFromGoldenFileNamed(t, t.Name()+".md")
 }
 
-// SetUpCollectionFromGoldenFileNamed populates a temp directory based on the given golden file name.
-func SetUpCollectionFromGoldenFileNamed(t *testing.T, testname string) string {
+// SetUpRepositoryFromGoldenFileNamed populates a temp directory based on the given golden file name.
+func SetUpRepositoryFromGoldenFileNamed(t *testing.T, testname string) string {
 	filename := testutil.SetUpFromGoldenFileNamed(t, testname)
 	dirname := filepath.Dir(filename)
 	configureDir(t, dirname)
 	return filename
 }
 
-// SetUpCollectionFromFileContent populates a temp directory based on the given file content.
-func SetUpCollectionFromFileContent(t *testing.T, name, content string) string {
+// SetUpRepositoryFromFileContent populates a temp directory based on the given file content.
+func SetUpRepositoryFromFileContent(t *testing.T, name, content string) string {
 	filename := testutil.SetUpFromFileContent(t, name, content)
 	dirname := filepath.Dir(filename)
 	configureDir(t, dirname)
 	return filename
 }
 
-// SetUpCollectionFromGoldenDir populates a temp directory containing a valid .nt collection.
-func SetUpCollectionFromGoldenDir(t *testing.T) string {
-	return SetUpCollectionFromGoldenDirNamed(t, t.Name())
+// SetUpRepositoryFromGoldenDir populates a temp directory containing a valid .nt repository.
+func SetUpRepositoryFromGoldenDir(t *testing.T) string {
+	return SetUpRepositoryFromGoldenDirNamed(t, t.Name())
 }
 
-// SetUpCollectionFromGoldenDir populates a temp directory based on the given golden dir name.
-func SetUpCollectionFromGoldenDirNamed(t *testing.T, testname string) string {
+// SetUpRepositoryFromGoldenDir populates a temp directory based on the given golden dir name.
+func SetUpRepositoryFromGoldenDirNamed(t *testing.T, testname string) string {
 	dirname := testutil.SetUpFromGoldenDirNamed(t, testname)
 	configureDir(t, dirname)
 	return dirname
 }
 
-// SetUpCollectionFromTempDir populates a temp directory containing a valid .nt collection.
-func SetUpCollectionFromTempDir(t *testing.T) string {
+// SetUpRepositoryFromTempDir populates a temp directory containing a valid .nt repository.
+func SetUpRepositoryFromTempDir(t *testing.T) string {
 	dirname := t.TempDir()
 	configureDir(t, dirname)
 	t.Logf("Working in configured directory %s", dirname)
@@ -139,73 +139,73 @@ func UseSequenceOID(t *testing.T) {
 /* Test Helpers */
 
 func MustCountFiles(t *testing.T) int {
-	count, err := CurrentCollection().CountFiles()
+	count, err := CurrentRepository().CountFiles()
 	require.NoError(t, err)
 	return count
 }
 
 func MustCountMedias(t *testing.T) int {
-	count, err := CurrentCollection().CountMedias()
+	count, err := CurrentRepository().CountMedias()
 	require.NoError(t, err)
 	return count
 }
 
 func MustCountNotes(t *testing.T) int {
-	count, err := CurrentCollection().CountNotes()
+	count, err := CurrentRepository().CountNotes()
 	require.NoError(t, err)
 	return count
 }
 
 func MustCountLinks(t *testing.T) int {
-	count, err := CurrentCollection().CountLinks()
+	count, err := CurrentRepository().CountLinks()
 	require.NoError(t, err)
 	return count
 }
 
 func MustCountFlashcards(t *testing.T) int {
-	count, err := CurrentCollection().CountFlashcards()
+	count, err := CurrentRepository().CountFlashcards()
 	require.NoError(t, err)
 	return count
 }
 
 func MustCountReminders(t *testing.T) int {
-	count, err := CurrentCollection().CountReminders()
+	count, err := CurrentRepository().CountReminders()
 	require.NoError(t, err)
 	return count
 }
 
 func AssertNoFiles(t *testing.T) {
-	count, err := CurrentCollection().CountFiles()
+	count, err := CurrentRepository().CountFiles()
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 }
 
 func AssertNoNotes(t *testing.T) {
-	count, err := CurrentCollection().CountNotes()
+	count, err := CurrentRepository().CountNotes()
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 }
 
 func AssertNoFlashcards(t *testing.T) {
-	count, err := CurrentCollection().CountFlashcards()
+	count, err := CurrentRepository().CountFlashcards()
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 }
 
 func AssertNoLinks(t *testing.T) {
-	count, err := CurrentCollection().CountLinks()
+	count, err := CurrentRepository().CountLinks()
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 }
 
 func AssertNoReminders(t *testing.T) {
-	count, err := CurrentCollection().CountReminders()
+	count, err := CurrentRepository().CountReminders()
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 }
 
 func AssertNoMedias(t *testing.T) {
-	count, err := CurrentCollection().CountMedias()
+	count, err := CurrentRepository().CountMedias()
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 }
@@ -226,23 +226,22 @@ func AssertTrimEqual(t *testing.T, expected string, actual string) {
 }
 
 func MustFindFlashcardByShortTitle(t *testing.T, shortTitle string) *Flashcard {
-	flashcard, err := CurrentCollection().FindFlashcardByShortTitle(shortTitle)
+	flashcard, err := CurrentRepository().FindFlashcardByShortTitle(shortTitle)
 	require.NoError(t, err)
 	require.NotNil(t, flashcard)
 	return flashcard
 }
 
 func MustFindNoteByPathAndTitle(t *testing.T, relativePath, longTitle string) *Note {
-	note, err := CurrentCollection().FindNoteByPathAndTitle(relativePath, longTitle)
+	note, err := CurrentRepository().FindNoteByPathAndTitle(relativePath, longTitle)
 	require.NoError(t, err)
 	require.NotNil(t, note)
 	return note
 }
 
+/* Test Helpers */
 
-/* Collection Helpers */
-
-// MustWriteFile edits the file in the current collection to force the given content.
+// MustWriteFile edits the file in the current repository to force the given content.
 func MustWriteFile(t *testing.T, path string, content string) {
 	root := CurrentConfig().RootDirectory
 	newFilepath := filepath.Join(root, path)
@@ -261,7 +260,7 @@ func UnescapeTestContent(content string) string {
 	return strings.ReplaceAll(content, "”", "`")
 }
 
-// MustDeleteFile remove a file iin the current collection.
+// MustDeleteFile remove a file iin the current repository.
 func MustDeleteFile(t *testing.T, path string) {
 	root := CurrentConfig().RootDirectory
 	existingFilepath := filepath.Join(root, path)
@@ -269,7 +268,6 @@ func MustDeleteFile(t *testing.T, path string) {
 	err := os.Remove(existingFilepath)
 	require.NoError(t, err)
 }
-
 
 /* Text Helpers */
 

@@ -196,7 +196,7 @@ commits:
 }
 
 func TestObjectData(t *testing.T) {
-	SetUpCollectionFromTempDir(t)
+	SetUpRepositoryFromTempDir(t)
 
 	fileSrc := NewEmptyFile("todo.md")
 	noteParsedSrc := MustParseNote("## TODO: Backlog\n\n* [ ] Test ObjectData", "")
@@ -229,7 +229,7 @@ func TestPackFile(t *testing.T) {
 	FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
 
 	t.Run("New pack file", func(t *testing.T) {
-		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+		root := SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
 		f, err := NewFileFromPath(nil, filepath.Join(root, "go.md"))
 		require.NoError(t, err)
@@ -299,7 +299,7 @@ func TestIndex(t *testing.T) {
 		// Make tests reproductible
 		UseSequenceOID(t)
 		now := FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
-		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+		root := SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
 		idx := NewIndex()
 
@@ -349,7 +349,7 @@ Guido van Rossum
 	t.Run("Large Staging Area", func(t *testing.T) {
 		// Make tests reproductible
 		UseSequenceOID(t)
-		root := SetUpCollectionFromTempDir(t)
+		root := SetUpRepositoryFromTempDir(t)
 
 		// Create a large file containing many notes
 		var newFileContent bytes.Buffer
@@ -382,7 +382,7 @@ Guido van Rossum
 		// Make tests reproductible
 		UseSequenceOID(t)
 
-		root := SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+		root := SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
 		f, err := NewFileFromPath(nil, filepath.Join(root, "go.md"))
 		require.NoError(t, err)

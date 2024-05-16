@@ -63,7 +63,7 @@ func Execute() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigs
-		core.CurrentCollection().Close()
+		core.CurrentRepository().Close()
 	}()
 }
 

@@ -9,12 +9,12 @@ import (
 func TestHooks(t *testing.T) {
 
 	t.Run("Valid", func(t *testing.T) {
-		SetUpCollectionFromGoldenDirNamed(t, "TestHooks")
+		SetUpRepositoryFromGoldenDirNamed(t, "TestHooks")
 
-		err := CurrentCollection().Add(".")
+		err := CurrentRepository().Add(".")
 		require.NoError(t, err)
 
-		notes, err := CurrentCollection().SearchNotes(`@title:dup`)
+		notes, err := CurrentRepository().SearchNotes(`@title:dup`)
 		require.NoError(t, err)
 		require.Len(t, notes, 1)
 		note := notes[0]
@@ -23,12 +23,12 @@ func TestHooks(t *testing.T) {
 	})
 
 	t.Run("Missing", func(t *testing.T) {
-		SetUpCollectionFromGoldenDirNamed(t, "TestHooks")
+		SetUpRepositoryFromGoldenDirNamed(t, "TestHooks")
 
-		err := CurrentCollection().Add(".")
+		err := CurrentRepository().Add(".")
 		require.NoError(t, err)
 
-		notes, err := CurrentCollection().SearchNotes(`@title:missing`)
+		notes, err := CurrentRepository().SearchNotes(`@title:missing`)
 		require.NoError(t, err)
 		require.Len(t, notes, 1)
 		note := notes[0]
@@ -37,12 +37,12 @@ func TestHooks(t *testing.T) {
 	})
 
 	t.Run("Not executable", func(t *testing.T) {
-		SetUpCollectionFromGoldenDirNamed(t, "TestHooks")
+		SetUpRepositoryFromGoldenDirNamed(t, "TestHooks")
 
-		err := CurrentCollection().Add(".")
+		err := CurrentRepository().Add(".")
 		require.NoError(t, err)
 
-		notes, err := CurrentCollection().SearchNotes(`@title:program`)
+		notes, err := CurrentRepository().SearchNotes(`@title:program`)
 		require.NoError(t, err)
 		require.Len(t, notes, 1)
 		note := notes[0]
@@ -51,12 +51,12 @@ func TestHooks(t *testing.T) {
 	})
 
 	t.Run("Multiple executables", func(t *testing.T) {
-		SetUpCollectionFromGoldenDirNamed(t, "TestHooks")
+		SetUpRepositoryFromGoldenDirNamed(t, "TestHooks")
 
-		err := CurrentCollection().Add(".")
+		err := CurrentRepository().Add(".")
 		require.NoError(t, err)
 
-		notes, err := CurrentCollection().SearchNotes(`@title:multiple`)
+		notes, err := CurrentRepository().SearchNotes(`@title:multiple`)
 		require.NoError(t, err)
 		require.Len(t, notes, 1)
 		note := notes[0]
@@ -65,12 +65,12 @@ func TestHooks(t *testing.T) {
 	})
 
 	t.Run("Error", func(t *testing.T) {
-		SetUpCollectionFromGoldenDirNamed(t, "TestHooks")
+		SetUpRepositoryFromGoldenDirNamed(t, "TestHooks")
 
-		err := CurrentCollection().Add(".")
+		err := CurrentRepository().Add(".")
 		require.NoError(t, err)
 
-		notes, err := CurrentCollection().SearchNotes(`@title:error`)
+		notes, err := CurrentRepository().SearchNotes(`@title:error`)
 		require.NoError(t, err)
 		require.Len(t, notes, 1)
 		note := notes[0]

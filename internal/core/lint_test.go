@@ -9,7 +9,7 @@ import (
 )
 
 func TestGetSchemaAttributes(t *testing.T) {
-	root := SetUpCollectionFromGoldenDirNamed(t, "TestLint")
+	root := SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
 
 	file, err := ParseFile(filepath.Join(root, "check-attribute/check-attribute.md"))
 	require.NoError(t, err)
@@ -87,7 +87,7 @@ func TestGetSchemaAttributes(t *testing.T) {
 }
 
 func TestNoDuplicateNoteTitle(t *testing.T) {
-	root := SetUpCollectionFromGoldenDirNamed(t, "TestLint")
+	root := SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
 
 	file, err := ParseFile(filepath.Join(root, "no-duplicate-note-title.md"))
 	require.NoError(t, err)
@@ -105,7 +105,7 @@ func TestNoDuplicateNoteTitle(t *testing.T) {
 }
 
 func TestNoDuplicateSlug(t *testing.T) {
-	root := SetUpCollectionFromGoldenDirNamed(t, "TestLint")
+	root := SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
 
 	// File a.md is valid
 	file, err := ParseFile(filepath.Join(root, "no-duplicate-slug/a.md"))
@@ -165,7 +165,7 @@ func TestNoDuplicateSlug(t *testing.T) {
 }
 
 func TestMinLinesBetweenNotes(t *testing.T) {
-	root := SetUpCollectionFromGoldenDirNamed(t, "TestLint")
+	root := SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
 
 	file, err := ParseFile(filepath.Join(root, "min-lines-between-notes.md"))
 	require.NoError(t, err)
@@ -189,7 +189,7 @@ func TestMinLinesBetweenNotes(t *testing.T) {
 }
 
 func TestMaxLinesBetweenNotes(t *testing.T) {
-	root := SetUpCollectionFromGoldenDirNamed(t, "TestLint")
+	root := SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
 
 	file, err := ParseFile(filepath.Join(root, "max-lines-between-notes.md"))
 	require.NoError(t, err)
@@ -213,7 +213,7 @@ func TestMaxLinesBetweenNotes(t *testing.T) {
 }
 
 func TestNoteTitleMatch(t *testing.T) {
-	root := SetUpCollectionFromGoldenDirNamed(t, "TestLint")
+	root := SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
 
 	file, err := ParseFile(filepath.Join(root, "note-title-match.md"))
 	require.NoError(t, err)
@@ -231,7 +231,7 @@ func TestNoteTitleMatch(t *testing.T) {
 }
 
 func TestRequireQuoteTag(t *testing.T) {
-	root := SetUpCollectionFromGoldenDirNamed(t, "TestLint")
+	root := SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
 
 	file1, err := ParseFile(filepath.Join(root, "require-quote-tag/require-quote-tag-1.md"))
 	require.NoError(t, err)
@@ -276,7 +276,7 @@ func TestRequireQuoteTag(t *testing.T) {
 }
 
 func TestNoFreeNote(t *testing.T) {
-	root := SetUpCollectionFromGoldenDirNamed(t, "TestLint")
+	root := SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
 
 	file, err := ParseFile(filepath.Join(root, "no-free-note.md"))
 	require.NoError(t, err)
@@ -294,7 +294,7 @@ func TestNoFreeNote(t *testing.T) {
 }
 
 func TestNoDanglingMedia(t *testing.T) {
-	root := SetUpCollectionFromGoldenDirNamed(t, "TestLint")
+	root := SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
 
 	file, err := ParseFile(filepath.Join(root, "no-dangling-media.md"))
 	require.NoError(t, err)
@@ -318,7 +318,7 @@ func TestNoDanglingMedia(t *testing.T) {
 }
 
 func TestNoDeadWikilink(t *testing.T) {
-	root := SetUpCollectionFromGoldenDirNamed(t, "TestLint")
+	root := SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
 
 	file, err := ParseFile(filepath.Join(root, "no-dead-wikilink.md"))
 	require.NoError(t, err)
@@ -360,7 +360,7 @@ func TestNoDeadWikilink(t *testing.T) {
 }
 
 func TestNoExtensionWikilink(t *testing.T) {
-	root := SetUpCollectionFromGoldenDirNamed(t, "TestLint")
+	root := SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
 
 	file, err := ParseFile(filepath.Join(root, "no-extension-wikilink.md"))
 	require.NoError(t, err)
@@ -390,7 +390,7 @@ func TestNoExtensionWikilink(t *testing.T) {
 }
 
 func TestNoAmbiguousWikilink(t *testing.T) {
-	root := SetUpCollectionFromGoldenDirNamed(t, "TestLint")
+	root := SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
 
 	file, err := ParseFile(filepath.Join(root, "no-ambiguous-wikilink.md"))
 	require.NoError(t, err)
@@ -414,7 +414,7 @@ func TestNoAmbiguousWikilink(t *testing.T) {
 }
 
 func TestCheckAttribute(t *testing.T) {
-	root := SetUpCollectionFromGoldenDirNamed(t, "TestLint")
+	root := SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
 
 	fileRoot, err := ParseFile(filepath.Join(root, "check-attribute.md"))
 	require.NoError(t, err)

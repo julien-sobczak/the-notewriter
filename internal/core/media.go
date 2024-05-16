@@ -121,7 +121,7 @@ func NewMedia(relpath string) *Media {
 		stale:        true,
 	}
 
-	abspath := CurrentCollection().GetAbsolutePath(relpath)
+	abspath := CurrentRepository().GetAbsolutePath(relpath)
 	stat, err := os.Stat(abspath)
 	if errors.Is(err, os.ErrNotExist) {
 		m.Dangling = true
@@ -138,7 +138,7 @@ func NewMedia(relpath string) *Media {
 }
 
 func (m *Media) update() {
-	abspath := CurrentCollection().GetAbsolutePath(m.RelativePath)
+	abspath := CurrentRepository().GetAbsolutePath(m.RelativePath)
 	stat, err := os.Stat(abspath)
 	dangling := errors.Is(err, os.ErrNotExist)
 
@@ -189,7 +189,7 @@ func (m *Media) UpdateBlobs() {
 		return
 	}
 
-	src := CurrentCollection().GetAbsolutePath(m.RelativePath)
+	src := CurrentRepository().GetAbsolutePath(m.RelativePath)
 
 	tmpDir := CurrentConfig().TempDir()
 	converter := CurrentConfig().Converter()
@@ -407,7 +407,7 @@ func extractMediasFromMarkdown(fileRelativePath string, fileBody string) []*Medi
 type ParsedMedia struct {
 	// The path as specified in the file. (Ex: "../medias/pic.png")
 	RawPath string
-	// The path relative to the root collection directory. (Ex: "references/medias/pic.png")
+	// The path relative to the root repository directory. (Ex: "references/medias/pic.png")
 	RelativePath string
 	// The absolute path. (Ex: "$HOME/notes/references/medias/pic.png")
 	AbsolutePath string
@@ -435,11 +435,11 @@ func ParseMedias(fileRelativePath, fileBody string) []*ParsedMedia {
 		if _, ok := filepaths[rawPath]; ok {
 			continue
 		}
-		relativePath, err := CurrentCollection().GetNoteRelativePath(fileRelativePath, rawPath)
+		relativePath, err := CurrentRepository().GetNoteRelativePath(fileRelativePath, rawPath)
 		if err != nil {
 			log.Fatal(err)
 		}
-		absolutePath := CurrentCollection().GetAbsolutePath(relativePath)
+		absolutePath := CurrentRepository().GetAbsolutePath(relativePath)
 
 		medias = append(medias, &ParsedMedia{
 			RawPath:      rawPath,
@@ -454,7 +454,7 @@ func ParseMedias(fileRelativePath, fileBody string) []*ParsedMedia {
 }
 
 func NewOrExistingMedia(relpath string) *Media {
-	media, err := CurrentCollection().FindMediaByRelativePath(relpath)
+	media, err := CurrentRepository().FindMediaByRelativePath(relpath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -552,7 +552,7 @@ func (m *Media) InsertBlobs() error {
 		// Blobs are immutable and their OID is determined using a hashsum.
 		// Two medias can contains the same content and share the same blobs.
 
-		blob, err := CurrentCollection().FindBlobFromOID(b.OID)
+		blob, err := CurrentRepository().FindBlobFromOID(b.OID)
 		if err != nil {
 			return err
 		}
@@ -653,7 +653,7 @@ func (m *Media) DeleteBlobs() error {
 }
 
 // CountMedias returns the total number of medias.
-func (c *Collection) CountMedias() (int, error) {
+func (r *Repository) CountMedias() (int, error) {
 	var count int
 	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM media`).Scan(&count); err != nil {
 		return 0, err
@@ -662,27 +662,27 @@ func (c *Collection) CountMedias() (int, error) {
 	return count, nil
 }
 
-func (c *Collection) LoadMediaByOID(oid string) (*Media, error) {
+func (r *Repository) LoadMediaByOID(oid string) (*Media, error) {
 	return QueryMedia(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
-func (c *Collection) FindMediaByRelativePath(relativePath string) (*Media, error) {
+func (r *Repository) FindMediaByRelativePath(relativePath string) (*Media, error) {
 	return QueryMedia(CurrentDB().Client(), `WHERE relative_path = ?`, relativePath)
 }
 
-func (c *Collection) FindMediaByHash(hash string) (*Media, error) {
+func (r *Repository) FindMediaByHash(hash string) (*Media, error) {
 	return QueryMedia(CurrentDB().Client(), `WHERE hashsum = ?`, hash)
 }
 
-func (c *Collection) FindMediasLastCheckedBefore(point time.Time) ([]*Media, error) {
+func (r *Repository) FindMediasLastCheckedBefore(point time.Time) ([]*Media, error) {
 	return QueryMedias(CurrentDB().Client(), `WHERE last_checked_at < ?`, timeToSQL(point))
 }
 
-func (c *Collection) FindBlobsFromMedia(mediaOID string) ([]*BlobRef, error) {
+func (r *Repository) FindBlobsFromMedia(mediaOID string) ([]*BlobRef, error) {
 	return QueryBlobs(CurrentDB().Client(), "WHERE media_oid = ?", mediaOID)
 }
 
-func (c *Collection) FindBlobFromOID(oid string) (*BlobRef, error) {
+func (r *Repository) FindBlobFromOID(oid string) (*BlobRef, error) {
 	return QueryBlob(CurrentDB().Client(), "WHERE oid = ?", oid)
 }
 
@@ -738,7 +738,7 @@ func QueryMedia(db SQLClient, whereClause string, args ...any) (*Media, error) {
 	m.MTime = timeFromSQL(mTime)
 
 	// Load blobs
-	blobs, err := CurrentCollection().FindBlobsFromMedia(m.OID)
+	blobs, err := CurrentRepository().FindBlobsFromMedia(m.OID)
 	if err != nil {
 		return nil, err
 	}
@@ -801,7 +801,7 @@ func QueryMedias(db SQLClient, whereClause string, args ...any) ([]*Media, error
 		m.MTime = timeFromSQL(mTime)
 
 		// Load blobs
-		blobs, err := CurrentCollection().FindBlobsFromMedia(m.OID)
+		blobs, err := CurrentRepository().FindBlobsFromMedia(m.OID)
 		if err != nil {
 			return nil, err
 		}

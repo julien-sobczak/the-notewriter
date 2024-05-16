@@ -81,7 +81,7 @@ func TestEvaluateTimeExpression(t *testing.T) {
 func TestReminder(t *testing.T) {
 
 	t.Run("YAML", func(t *testing.T) {
-		SetUpCollectionFromTempDir(t)
+		SetUpRepositoryFromTempDir(t)
 
 		// Make tests reproductible
 		UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")

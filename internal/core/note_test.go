@@ -102,7 +102,7 @@ func TestParsing(t *testing.T) {
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				SetUpCollectionFromTempDir(t)
+				SetUpRepositoryFromTempDir(t)
 
 				// Preconditions
 				schemasTypes := GetSchemaAttributeTypes()
@@ -210,7 +210,7 @@ Wisdom is making the right choice without all the information.
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				SetUpCollectionFromTempDir(t)
+				SetUpRepositoryFromTempDir(t)
 				file := NewEmptyFile("example.md")
 				parsedNote := MustParseNote(UnescapeTestContent(tt.content), "")
 				actual := NewNote(file, nil, parsedNote)
@@ -258,7 +258,7 @@ func TestGetLinks(t *testing.T) {
 		},
 	}
 
-	SetUpCollectionFromTempDir(t)
+	SetUpRepositoryFromTempDir(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			note := NewNote(NewEmptyFile("example.md"), nil, MustParseNote(tt.content, ""))
@@ -300,7 +300,7 @@ func TestGetReminders(t *testing.T) {
 		},
 	}
 
-	SetUpCollectionFromTempDir(t)
+	SetUpRepositoryFromTempDir(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Given
@@ -330,7 +330,7 @@ func TestGetReminders(t *testing.T) {
 }
 
 func TestNoteFormat(t *testing.T) {
-	SetUpCollectionFromTempDir(t)
+	SetUpRepositoryFromTempDir(t)
 	UseFixedOID(t, "16252dafd6355e678bf8ae44b127f657cd3cdd0e")
 	FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
 
@@ -375,7 +375,7 @@ func TestNoteFormat(t *testing.T) {
 }
 
 func TestSearchNotes(t *testing.T) {
-	SetUpCollectionFromGoldenDirNamed(t, "TestNoteFTS")
+	SetUpRepositoryFromGoldenDirNamed(t, "TestNoteFTS")
 
 	CurrentLogger().SetVerboseLevel(VerboseTrace)
 
@@ -391,7 +391,7 @@ func TestSearchNotes(t *testing.T) {
 	require.NoError(t, err)
 
 	// Search the note using a full-text query
-	notes, err := CurrentCollection().SearchNotes("kind:reference fts5")
+	notes, err := CurrentRepository().SearchNotes("kind:reference fts5")
 	require.NoError(t, err)
 	assert.Len(t, notes, 1)
 
@@ -405,7 +405,7 @@ func TestSearchNotes(t *testing.T) {
 	require.NoError(t, err)
 
 	// Search the note using a full-text query
-	notes, err = CurrentCollection().SearchNotes("kind:reference full")
+	notes, err = CurrentRepository().SearchNotes("kind:reference full")
 	require.NoError(t, err)
 	assert.Len(t, notes, 1)
 
@@ -418,7 +418,7 @@ func TestSearchNotes(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check the note is no longer
-	notes, err = CurrentCollection().SearchNotes("kind:reference full")
+	notes, err = CurrentRepository().SearchNotes("kind:reference full")
 	require.NoError(t, err)
 	assert.Len(t, notes, 0)
 }
@@ -426,7 +426,7 @@ func TestSearchNotes(t *testing.T) {
 func TestNote(t *testing.T) {
 
 	t.Run("YAML", func(t *testing.T) {
-		SetUpCollectionFromTempDir(t)
+		SetUpRepositoryFromTempDir(t)
 
 		// Make tests reproductible
 		UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")

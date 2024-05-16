@@ -33,7 +33,7 @@ var catFileCmd = &cobra.Command{
 
 			// OIDs can represent a pack file, an object inside a pack file, or a blob.
 
-			blob, err := core.CurrentCollection().FindBlobFromOID(oid)
+			blob, err := core.CurrentRepository().FindBlobFromOID(oid)
 			if err == nil && blob != nil {
 				dumpObject(blob)
 				return
@@ -65,7 +65,7 @@ var catFileCmd = &cobra.Command{
 
 		if wikilink.Section() != "" {
 			// Search a note
-			notes, err := core.CurrentCollection().FindNotesByWikilink(wikilink.Link)
+			notes, err := core.CurrentRepository().FindNotesByWikilink(wikilink.Link)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -77,7 +77,7 @@ var catFileCmd = &cobra.Command{
 
 			// Try to find a file containing a single note and matching the wikilink
 			if len(notes) == 0 {
-				file, err := core.CurrentCollection().FindFileByWikilink(wikilink.Link)
+				file, err := core.CurrentRepository().FindFileByWikilink(wikilink.Link)
 				if err != nil {
 					fmt.Println(err)
 					os.Exit(1)
@@ -86,7 +86,7 @@ var catFileCmd = &cobra.Command{
 					fmt.Fprintf(os.Stderr, "No file or note matching wikilink %q", wikilink)
 					os.Exit(1)
 				}
-				notes, err = core.CurrentCollection().FindNotesByFileOID(file.OID)
+				notes, err = core.CurrentRepository().FindNotesByFileOID(file.OID)
 				if err != nil {
 					fmt.Println(err)
 					os.Exit(1)
@@ -105,7 +105,7 @@ var catFileCmd = &cobra.Command{
 
 		} else {
 			// Search for a single matching file
-			files, err := core.CurrentCollection().FindFilesByWikilink(wikilink.Link)
+			files, err := core.CurrentRepository().FindFilesByWikilink(wikilink.Link)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)

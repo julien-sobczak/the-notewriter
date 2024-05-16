@@ -10,21 +10,21 @@ import (
 	"sync"
 )
 
-// Lite version of internal/core/collection.go
+// Lite version of internal/core/repository.go
 
 var (
-	collectionOnce      sync.Once
-	collectionSingleton *Collection
+	repositoryOnce      sync.Once
+	repositorySingleton *Repository
 )
 
-type Collection struct {
+type Repository struct {
 	Path string
 }
 
-func CurrentCollection() *Collection {
-	collectionOnce.Do(func() {
+func CurrentRepository() *Repository {
+	repositoryOnce.Do(func() {
 		var root string
-		// Useful in tests when working with collection in tmp directories
+		// Useful in tests when working with repositories in tmp directories
 		if path, ok := os.LookupEnv("NT_HOME"); ok {
 			root = path
 		} else {
@@ -34,15 +34,15 @@ func CurrentCollection() *Collection {
 			}
 			root = cwd
 		}
-		collectionSingleton = &Collection{
+		repositorySingleton = &Repository{
 			Path: root,
 		}
 	})
-	return collectionSingleton
+	return repositorySingleton
 }
 
-func (c *Collection) walk(fn func(path string, stat fs.FileInfo) error) error {
-	filepath.WalkDir(c.Path, func(path string, info fs.DirEntry, err error) error {
+func (r *Repository) walk(fn func(path string, stat fs.FileInfo) error) error {
+	filepath.WalkDir(r.Path, func(path string, info fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -52,7 +52,7 @@ func (c *Collection) walk(fn func(path string, stat fs.FileInfo) error) error {
 			return fs.SkipDir // NB fs.SkipDir skip the parent dir when path is a file
 		}
 
-		relativePath, err := filepath.Rel(c.Path, path)
+		relativePath, err := filepath.Rel(r.Path, path)
 		if err != nil {
 			// ignore the file
 			return nil
@@ -89,7 +89,7 @@ func (c *Collection) walk(fn func(path string, stat fs.FileInfo) error) error {
 }
 
 // Add implements the command `nt add`.`
-func (c *Collection) Add() error {
+func (r *Repository) Add() error {
 	db := CurrentDB()
 
 	// Run all queries inside the same transaction
@@ -100,7 +100,7 @@ func (c *Collection) Add() error {
 	defer db.RollbackTransaction()
 
 	// Traverse all files
-	err = c.walk(func(relativePath string, stat fs.FileInfo) error {
+	err = r.walk(func(relativePath string, stat fs.FileInfo) error {
 		file, err := NewOrExistingFile(relativePath)
 		if err != nil {
 			return err

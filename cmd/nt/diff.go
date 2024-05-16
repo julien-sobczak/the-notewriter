@@ -30,7 +30,7 @@ var diffCmd = &cobra.Command{
 		}
 
 		stagedOrCached := staged || cached
-		diff, err := core.CurrentCollection().Diff(stagedOrCached)
+		diff, err := core.CurrentRepository().Diff(stagedOrCached)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

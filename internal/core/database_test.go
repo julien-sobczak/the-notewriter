@@ -9,7 +9,7 @@ import (
 
 func TestStatsOnDisk(t *testing.T) {
 
-	SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+	SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
 	stats, err := CurrentDB().StatsOnDisk()
 	require.NoError(t, err)
@@ -25,7 +25,7 @@ func TestStatsOnDisk(t *testing.T) {
 	require.Equal(t, int64(0), stats.TotalSizeKB)
 
 	// Add
-	err = CurrentCollection().Add(".")
+	err = CurrentRepository().Add(".")
 	require.NoError(t, err)
 	stats, err = CurrentDB().StatsOnDisk()
 	require.NoError(t, err)

@@ -5,7 +5,7 @@ title: Presentation
 
 _The NoteWriter_ is a CLI to generates notes from files.
 
-Users edit a collection of files using a documented syntax (Markdown with a few extensions). _The NoteWriter_ parses these files to extract objects (note, flashcard, reminder, etc.) from these raw files.
+Users edit files in Markdown (with a few extensions). _The NoteWriter_ parses these files to extract different objects (note, flashcard, reminder, etc.).
 
 
 ## Code Organization
@@ -32,7 +32,7 @@ The repository also contains additional directories not directly related to the 
 ```
 .
 ├── build      # Binary built using the Makefile
-├── example    # A demo collection of notes
+├── example    # A demo repository of notes
 └── website    # The documentation
 ```
 
@@ -43,11 +43,11 @@ The repository also contains additional directories not directly related to the 
 
 Most of the code (and most of the tests) is present in this package.
 
-A `Collection` (`collection.go`) is the parent container. A _collection_ traverses directories to find Markdown `File` (`file.go`). A _file_ can contains `Note` defined using Markdown headings (`note.go`), some of which can be `Flashcard` when using the corresponding kind (`flashcard.go`), `Media` resources referenced using Markdown link (`media.go`), special `Link` when using convention on Markdown link's titles (`link.go`), and `Reminder` when using special tags (`reminder.go`).
+A `Repository` (`repository.go`) is the parent container. A _repository_ traverses directories to find Markdown `File` (`file.go`). A _file_ can contains `Note` defined using Markdown headings (`note.go`), some of which can be `Flashcard` when using the corresponding kind (`flashcard.go`), `Media` resources referenced using Markdown link (`media.go`), special `Link` when using convention on Markdown link's titles (`link.go`), and `Reminder` when using special tags (`reminder.go`).
 
 `File`, `Note`, `Flashcard`, `Media`, `Link`, `Reminder` represents the `Object` (`object.go`) managed by _The NoteWriter_ and stored inside `.nt/objects` indirectly using commits. (Blobs are also stored inside this directory.)
 
-The method `walk` defined on `Collection` makes easy to find files to process (= non-ignorable Markdown files):
+The method `walk` defined on `Repository` makes easy to find files to process (= non-ignorable Markdown files):
 
 ```go
 import (
@@ -55,9 +55,9 @@ import (
     "github.com/julien-sobczak/the-notewriter/internal/core"
 )
 
-c := core.CurrentCollection()
-err := c.walk(paths, func(path string, stat fs.FileInfo) error {
-    relativePath, err := c.GetFileRelativePath(path)
+r := core.CurrentRepository()
+err := r.walk(paths, func(path string, stat fs.FileInfo) error {
+    relativePath, err := r.GetFileRelativePath(path)
     if err != nil {
         return err
     }
@@ -67,7 +67,7 @@ err := c.walk(paths, func(path string, stat fs.FileInfo) error {
 
 :::info
 
-_The NoteWriter_ relies heavily on [singletons](https://en.wikipedia.org/wiki/Singleton_pattern). Most of the most abstractions (`Collection`, `DB`, `Config` can be retrieved using methods `CurrentCollection()`, `CurrentDB()`, `CurrentConfig()` to easily find a note, persist changes in database, or read configuration settings anywhere in the code. (Singletons are only initialized on first use.)
+_The NoteWriter_ relies heavily on [singletons](https://en.wikipedia.org/wiki/Singleton_pattern). Most of the most abstractions (`Repository`, `DB`, `Config` can be retrieved using methods `CurrentRepository()`, `CurrentDB()`, `CurrentConfig()` to easily find a note, persist changes in database, or read configuration settings anywhere in the code. (Singletons are only initialized on first use.)
 
 **This strongly differs from most enterprise applications** where layers and dependency injection are used to have a clean separation of concerns.
 
@@ -112,7 +112,7 @@ Use the [command `nt cat-file <oid>`](../reference/commands/nt-cat-file.md) to f
 
 Each _object_ can be `Read()` from a YAML document and `Write()` to a YAML document using the common Go abstractions `io.Reader` and `io.Writer`.
 
-Each _object_ can contains `SubObjects()`, for example, a _file_ can contains _notes_, or `Blobs()`, which are binary files generated from [medias](#medias), and can references other objects through `Relations()`, for example, a note can use the special attribute `@references` to notify the note is quoted elsewhere. These methods make easy for the _collection_ to process graphs of objects without having the inspect their types.
+Each _object_ can contains `SubObjects()`, for example, a _file_ can contains _notes_, or `Blobs()`, which are binary files generated from [medias](#medias), and can references other objects through `Relations()`, for example, a note can use the special attribute `@references` to notify the note is quoted elsewhere. These methods make easy for the _repository_ to process graphs of objects without having the inspect their types.
 
 These _objects_ must also be stored in a relational database using SQLite. An additional interface must be satisfied for these objects:
 
@@ -168,7 +168,7 @@ The same principle is used for _notes_ (`ParsedNote`) and _medias_ (`ParsedMedia
 
 ### Linter `internal/core/lint.go`
 
-The [command `nt lint`](../reference/commands/nt-lint.md) check for violations. All files are inspected (rules may have changed even if files haven't been modified). The linter reuses the method `walk` to traverse the _collection_. The linter doesn't bother with well-formed objects and reuses the type `ParsedFile`, `ParsedNote`, `ParsedMedia` to find errors.
+The [command `nt lint`](../reference/commands/nt-lint.md) check for violations. All files are inspected (rules may have changed even if files haven't been modified). The linter reuses the method `walk` to traverse the _repository_. The linter doesn't bother with well-formed objects and reuses the type `ParsedFile`, `ParsedNote`, `ParsedMedia` to find errors.
 
 Each rule is defined using the type `LintRule`:
 
@@ -301,13 +301,13 @@ Only external commands like `ffmpeg` are impersonated by the test binary file (p
 
 :::
 
-The package `internal/testutil` exposes various functions to duplicate a directory that are reused by functions inside `internal/core/core_test.go` to provide a complete note collection:
+The package `internal/testutil` exposes various functions to duplicate a directory that are reused by functions inside `internal/core/core_test.go` to provide a complete repository of notes:
 
 1. Copy Markdown files present under `internal/core/testdata` (aka golden files).
-2. Init a valid `.nt` directory and ensure `CurrentCollection()` reads from this repository.
+2. Init a valid `.nt` directory and ensure `CurrentRepository()` reads from this repository.
 3. Return the temporary directory (automatically cleaned after the test completes)
 
-Example (`SetUpCollectionFromGoldenDirNamed`):
+Example (`SetUpRepositoryFromGoldenDirNamed`):
 
 ```go
 package core
@@ -320,19 +320,19 @@ import (
 )
 
 func TestCommandAdd(t *testing.T) {
-    SetUpCollectionFromGoldenDirNamed(t, "TestMinimal")
+    SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
-    err := CurrentCollection().Add("go.md")
+    err := CurrentRepository().Add("go.md")
     require.NoError(t, err)
 }
 ```
 
 Various methods exist:
 
-* `SetUpCollectionFromGoldenFile` initializes a collection containing a single file named after the test (`TestCommandAdd` => `testdata/TestCommandAdd.md`).
-* `SetUpCollectionFromGoldenFileNamed` is identical to previous function but accepts the file name.
-* `SetUpCollectionFromGoldenDir` initializes a collection from a directory named after the test (`TestCommandAdd` => `testdata/TestCommandAdd/`).
-* `SetUpCollectionFromGoldenDirNamed` is identical to previous function but accepts the directory name.
+* `SetUpRepositoryFromGoldenFile` initializes a repository containing a single file named after the test (`TestCommandAdd` => `testdata/TestCommandAdd.md`).
+* `SetUpRepositoryFromGoldenFileNamed` is identical to previous function but accepts the file name.
+* `SetUpRepositoryFromGoldenDir` initializes a repository from a directory named after the test (`TestCommandAdd` => `testdata/TestCommandAdd/`).
+* `SetUpRepositoryFromGoldenDirNamed` is identical to previous function but accepts the directory name.
 
 :::tip
 
@@ -363,7 +363,7 @@ All these test helpers restores the initial configuration using `t.Cleanup()`.
 
 ```go
 func TestHelpers(t *testing.T) {
-    SetUpCollectionFromTempDir(t) // empty collection
+    SetUpRepositoryFromTempDir(t) // empty repository
 
     UseSequenceOID(t) // 0000000000000000000000000000000000000001
                       // 0000000000000000000000000000000000000002
@@ -388,7 +388,7 @@ When the method `CurrentDB().Client()` is first called, the SQL database is read
 Use `CurrentDB().Client()` to retrieve a valid connection to the SQLite database stored in `.nt/database.db`.
 
 ```go title=internal/core/note.go
-func (c *Collection) CountNotes() (int, error) {
+func (r *Repository) CountNotes() (int, error) {
 	var count int
 	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM note`).Scan(&count); err != nil {
 		return 0, err
@@ -400,8 +400,8 @@ func (c *Collection) CountNotes() (int, error) {
 
 Sometimes, you may want to use transactions. For example, when using `nt add`, if an error occurs when reading a corrupted file, we want to rollback changes to left the database intact. The `DB` exposes methods `BeginTransaction()`, `RollbackTransaction()`, and `CommitTransaction()` for this purpose. Other methods continue to use `CurrentDB().Client()` to create the connection; if a transaction is currently in progress, it will be returned.
 
-```go title=internal/core/collection.go
-func (c *Collection) Add(paths ...string) error {
+```go title=internal/core/repository.go
+func (r *Repository) Add(paths ...string) error {
     // Run all queries inside the same transaction
 	err = db.BeginTransaction()
 	if err != nil {
@@ -425,8 +425,8 @@ func (c *Collection) Add(paths ...string) error {
 
 Often, the commands update the relational SQLite database and various files inside `.nt` like `.nt/index`. The implemented approach is to write files just after committing the SQL transaction to minimize the risk:
 
-```go title=internal/core/collection.go
-func (c *Collection) Add(paths ...string) error {
+```go title=internal/core/repository.go
+func (r *Repository) Add(paths ...string) error {
     ...
 
 	if err := db.CommitTransaction(); err != nil {

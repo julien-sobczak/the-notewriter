@@ -28,7 +28,7 @@ var lintCmd = &cobra.Command{
 			// Do not filter
 			rules = []string{}
 		}
-		result, err := core.CurrentCollection().Lint(rules, args...)
+		result, err := core.CurrentRepository().Lint(rules, args...)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

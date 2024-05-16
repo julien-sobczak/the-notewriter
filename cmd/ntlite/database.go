@@ -74,7 +74,7 @@ func (db *DB) Client() SQLClient {
 }
 
 func InitClient() *sql.DB {
-	db, err := sql.Open("sqlite3", filepath.Join(CurrentCollection().Path, ".nt/database.db"))
+	db, err := sql.Open("sqlite3", filepath.Join(CurrentRepository().Path, ".nt/database.db"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
 		os.Exit(1)
@@ -156,7 +156,7 @@ func (db *DB) Commit() error {
 			}
 			object = &note
 		}
-		objectPath := filepath.Join(CurrentCollection().Path, ".nt/objects", OIDToPath(indexObject.OID))
+		objectPath := filepath.Join(CurrentRepository().Path, ".nt/objects", OIDToPath(indexObject.OID))
 		if err := os.MkdirAll(filepath.Dir(objectPath), os.ModePerm); err != nil {
 			return err
 		}

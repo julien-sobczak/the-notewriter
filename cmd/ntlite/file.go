@@ -19,7 +19,7 @@ type File struct {
 	// A unique identifier among all files
 	OID string `yaml:"oid"`
 
-	// A relative path to the collection directory
+	// A relative path to the repository root directory
 	RelativePath string `yaml:"relative_path"`
 
 	// Size of the file (can be useful to detect changes)
@@ -41,7 +41,7 @@ type File struct {
 }
 
 func NewOrExistingFile(relativePath string) (*File, error) {
-	existingFile, err := CurrentCollection().LoadFileByPath(relativePath)
+	existingFile, err := CurrentRepository().LoadFileByPath(relativePath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func NewFileFromParsedFile(parsedFile *ParsedFile) *File {
 }
 
 func (f *File) update() error {
-	absolutePath := filepath.Join(CurrentCollection().Path, f.RelativePath)
+	absolutePath := filepath.Join(CurrentRepository().Path, f.RelativePath)
 	parsedFile, err := ParseFile(absolutePath)
 	if err != nil {
 		return err
@@ -109,7 +109,7 @@ type ParsedFile struct {
 
 // ParseFile contains the main logic to parse a raw note file.
 func ParseFile(relativePath string) (*ParsedFile, error) {
-	absolutePath := filepath.Join(CurrentCollection().Path, relativePath)
+	absolutePath := filepath.Join(CurrentRepository().Path, relativePath)
 
 	lstat, err := os.Lstat(absolutePath)
 	if err != nil {
@@ -305,7 +305,7 @@ func (f *File) Check() error {
 	return nil
 }
 
-func (c *Collection) LoadFileByPath(relativePath string) (*File, error) {
+func (r *Repository) LoadFileByPath(relativePath string) (*File, error) {
 	var f File
 	var createdAt string
 	var updatedAt string

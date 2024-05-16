@@ -11,7 +11,7 @@
 
 ### How to debug a unit test using SQLite?
 
-Define a breakpoint. Inspect the collection root directory. Then:
+Define a breakpoint. Inspect the repository root directory. Then:
 
 ```shell
 # On MacOS if the application is installed

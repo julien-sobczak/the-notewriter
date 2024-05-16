@@ -121,7 +121,7 @@ type Note struct {
 // NewOrExistingNote loads and updates an existing note or creates a new one if new.
 func NewOrExistingNote(f *File, parent *Note, parsedNote *ParsedNote) *Note {
 	// Try to find an existing note (instead of recreating it from scratch after every change)
-	note, _ := CurrentCollection().FindMatchingNote(f.RelativePath, parsedNote)
+	note, _ := CurrentRepository().FindMatchingNote(f.RelativePath, parsedNote)
 	if note != nil {
 		note.update(f, parent, parsedNote)
 		return note
@@ -260,7 +260,7 @@ func (n *Note) Relations() []*Relation {
 		}
 
 		if wikilink.Section() != "" {
-			note, _ := CurrentCollection().FindNoteByWikilink(wikilink.Link)
+			note, _ := CurrentRepository().FindNoteByWikilink(wikilink.Link)
 			if note != nil {
 				relations = append(relations, &Relation{
 					SourceOID:  n.OID,
@@ -271,7 +271,7 @@ func (n *Note) Relations() []*Relation {
 				})
 			}
 		} else {
-			file, _ := CurrentCollection().FindFileByWikilink(wikilink.Link)
+			file, _ := CurrentRepository().FindFileByWikilink(wikilink.Link)
 			if file != nil {
 				relations = append(relations, &Relation{
 					SourceOID:  n.OID,
@@ -501,7 +501,7 @@ func (n *Note) parseContentRaw() (mdTitle, htmlTitle, txtTitle string, mdContent
 				currentBlock.Reset()
 			}
 			wikilink := matches[1]
-			note, _ := CurrentCollection().FindNoteByWikilink(wikilink)
+			note, _ := CurrentRepository().FindNoteByWikilink(wikilink)
 			if note == nil {
 				note = CurrentDB().WIP().FindNoteByWikilink(wikilink)
 			}
@@ -546,7 +546,7 @@ func (n *Note) ReplaceMediasByOIDLinks(md string) string {
 		result.WriteString(md[prevIndex:match[2]])
 
 		link := md[match[2]:match[3]]
-		relativePath, err := CurrentCollection().GetNoteRelativePath(n.GetFile().RelativePath, link)
+		relativePath, err := CurrentRepository().GetNoteRelativePath(n.GetFile().RelativePath, link)
 		if err != nil {
 			// Use a 404 image
 			result.WriteString("oid:" + missingMediaOID)
@@ -554,7 +554,7 @@ func (n *Note) ReplaceMediasByOIDLinks(md string) string {
 			continue
 		}
 
-		media, err := CurrentCollection().FindMediaByRelativePath(relativePath)
+		media, err := CurrentRepository().FindMediaByRelativePath(relativePath)
 		if err != nil || media == nil {
 			// Use a 404 image
 			result.WriteString("oid:" + missingMediaOID)
@@ -714,7 +714,7 @@ func (n *Note) GetFile() *File {
 		return nil
 	}
 	if n.File == nil {
-		file, err := CurrentCollection().LoadFileByOID(n.FileOID)
+		file, err := CurrentRepository().LoadFileByOID(n.FileOID)
 		if err != nil {
 			log.Fatalf("Unable to find file %q: %v", n.FileOID, err)
 		}
@@ -729,7 +729,7 @@ func (n *Note) GetParentNote() *Note {
 		return nil
 	}
 	if n.ParentNote == nil {
-		note, err := CurrentCollection().LoadNoteByOID(n.ParentNoteOID)
+		note, err := CurrentRepository().LoadNoteByOID(n.ParentNoteOID)
 		if err != nil {
 			log.Fatalf("Unable to note file %q: %v", n.ParentNoteOID, err)
 		}
@@ -1092,7 +1092,7 @@ func (n *Note) Delete() error {
 }
 
 // CountNotes returns the total number of notes.
-func (c *Collection) CountNotes() (int, error) {
+func (r *Repository) CountNotes() (int, error) {
 	var count int
 	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM note`).Scan(&count); err != nil {
 		return 0, err
@@ -1102,7 +1102,7 @@ func (c *Collection) CountNotes() (int, error) {
 }
 
 // CountNotesByKind returns the total number of notes for every kind.
-func (c *Collection) CountNotesByKind() (map[NoteKind]int, error) {
+func (r *Repository) CountNotesByKind() (map[NoteKind]int, error) {
 	res := map[NoteKind]int{
 		KindFree:       0,
 		KindReference:  0,
@@ -1152,7 +1152,7 @@ func (c *Collection) CountNotesByKind() (map[NoteKind]int, error) {
 }
 
 // CountTags returns the tags with their associated count.
-func (c *Collection) CountTags() (map[string]int, error) {
+func (r *Repository) CountTags() (map[string]int, error) {
 	result := make(map[string]int)
 
 	// See https://www.vivekkalyan.com/splitting-comma-seperated-fields-sqlite
@@ -1195,7 +1195,7 @@ func (c *Collection) CountTags() (map[string]int, error) {
 }
 
 // CountAttributes returns the attributes with their associated count.
-func (c *Collection) CountAttributes() (map[string]int, error) {
+func (r *Repository) CountAttributes() (map[string]int, error) {
 	result := make(map[string]int)
 
 	// See https://database.guide/sqlite-json_each/
@@ -1232,7 +1232,7 @@ func (c *Collection) CountAttributes() (map[string]int, error) {
 	return result, nil
 }
 
-func (c *Collection) DumpNotes() error {
+func (r *Repository) DumpNotes() error {
 	notes, err := QueryNotes(CurrentDB().Client(), "")
 	if err != nil {
 		return err
@@ -1243,39 +1243,39 @@ func (c *Collection) DumpNotes() error {
 	return nil
 }
 
-func (c *Collection) LoadNoteByOID(oid string) (*Note, error) {
+func (r *Repository) LoadNoteByOID(oid string) (*Note, error) {
 	return QueryNote(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
-func (c *Collection) FindNotesByFileOID(oid string) ([]*Note, error) {
+func (r *Repository) FindNotesByFileOID(oid string) ([]*Note, error) {
 	return QueryNotes(CurrentDB().Client(), `WHERE file_oid = ?`, oid)
 }
 
-func (c *Collection) FindNoteByTitle(title string) (*Note, error) {
+func (r *Repository) FindNoteByTitle(title string) (*Note, error) {
 	return QueryNote(CurrentDB().Client(), `WHERE title = ?`, title)
 }
 
-func (c *Collection) FindNoteBySlug(slug string) (*Note, error) {
+func (r *Repository) FindNoteBySlug(slug string) (*Note, error) {
 	return QueryNote(CurrentDB().Client(), `WHERE slug = ?`, slug)
 }
 
-func (c *Collection) FindNoteByHash(hash string) (*Note, error) {
+func (r *Repository) FindNoteByHash(hash string) (*Note, error) {
 	return QueryNote(CurrentDB().Client(), `WHERE hashsum = ?`, hash)
 }
 
-func (c *Collection) FindNoteByPathAndTitle(relativePath string, title string) (*Note, error) {
+func (r *Repository) FindNoteByPathAndTitle(relativePath string, title string) (*Note, error) {
 	return QueryNote(CurrentDB().Client(), `WHERE relative_path = ? AND title = ?`, relativePath, title)
 }
 
-func (c *Collection) FindMatchingNote(relativePath string, parsedNote *ParsedNote) (*Note, error) {
+func (r *Repository) FindMatchingNote(relativePath string, parsedNote *ParsedNote) (*Note, error) {
 	// Try by slug
-	note, _ := c.FindNoteBySlug(parsedNote.Slug)
+	note, _ := r.FindNoteBySlug(parsedNote.Slug)
 	if note != nil {
 		return note, nil
 	}
 
 	// Try by wikilink
-	note, _ = c.FindNoteByWikilink(relativePath + "#" + parsedNote.Title)
+	note, _ = r.FindNoteByWikilink(relativePath + "#" + parsedNote.Title)
 	if note != nil {
 		return note, nil
 	}
@@ -1284,15 +1284,15 @@ func (c *Collection) FindMatchingNote(relativePath string, parsedNote *ParsedNot
 	return QueryNote(CurrentDB().Client(), `WHERE relative_path = ? AND (title = ? OR hashsum = ?)`, relativePath, parsedNote.Title, parsedNote.Hash())
 }
 
-func (c *Collection) FindNoteByWikilink(wikilink string) (*Note, error) {
+func (r *Repository) FindNoteByWikilink(wikilink string) (*Note, error) {
 	return QueryNote(CurrentDB().Client(), `WHERE wikilink LIKE ?`, "%"+wikilink)
 }
 
-func (c *Collection) FindNotesByWikilink(wikilink string) ([]*Note, error) {
+func (r *Repository) FindNotesByWikilink(wikilink string) ([]*Note, error) {
 	return QueryNotes(CurrentDB().Client(), `WHERE wikilink LIKE ?`, "%"+wikilink)
 }
 
-func (c *Collection) FindNotesLastCheckedBefore(point time.Time, path string) ([]*Note, error) {
+func (r *Repository) FindNotesLastCheckedBefore(point time.Time, path string) ([]*Note, error) {
 	if path == "." {
 		path = ""
 	}
@@ -1304,7 +1304,7 @@ func (c *Collection) FindNotesLastCheckedBefore(point time.Time, path string) ([
 // Examples:
 //
 //	tag:favorite kind:reference kind:note path:projects/
-func (c *Collection) SearchNotes(q string) ([]*Note, error) {
+func (r *Repository) SearchNotes(q string) ([]*Note, error) {
 	query, err := ParseQuery(q)
 	if err != nil {
 		return nil, err

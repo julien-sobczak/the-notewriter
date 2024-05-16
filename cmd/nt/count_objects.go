@@ -19,7 +19,7 @@ var countObjectsCmd = &cobra.Command{
 	Long:  `Show various counter about internal database.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		CheckConfig()
-		stats, err := core.CurrentCollection().StatsInDB()
+		stats, err := core.CurrentRepository().StatsInDB()
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

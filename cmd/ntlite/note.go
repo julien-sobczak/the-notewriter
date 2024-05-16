@@ -80,7 +80,7 @@ type Note struct {
 
 // NewOrExistingNote loads and updates an existing note or creates a new one if new.
 func NewOrExistingNote(f *File, parsedNote *ParsedNote) *Note {
-	note, _ := CurrentCollection().FindNoteByTitle(f.RelativePath, parsedNote.Title)
+	note, _ := CurrentRepository().FindNoteByTitle(f.RelativePath, parsedNote.Title)
 	if note != nil {
 		note.update(f, parsedNote)
 		return note
@@ -265,7 +265,7 @@ func (n *Note) Check() error {
 	return nil
 }
 
-func (c *Collection) FindNoteByTitle(relativePath, title string) (*Note, error) {
+func (r *Repository) FindNoteByTitle(relativePath, title string) (*Note, error) {
 	var n Note
 	var createdAt string
 	var updatedAt string

@@ -36,7 +36,7 @@ var runHookCmd = &cobra.Command{
 		}
 
 		// Try to find a note matching this wikilink
-		notes, err := core.CurrentCollection().FindNotesByWikilink(wikilink)
+		notes, err := core.CurrentRepository().FindNotesByWikilink(wikilink)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -57,7 +57,7 @@ var runHookCmd = &cobra.Command{
 		}
 
 		// Try to find a file matching the wikilink
-		file, err := core.CurrentCollection().FindFileByWikilink(wikilink)
+		file, err := core.CurrentRepository().FindFileByWikilink(wikilink)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -67,7 +67,7 @@ var runHookCmd = &cobra.Command{
 			os.Exit(1)
 		}
 		// Run the hook on all notes inside this file
-		notes, err = core.CurrentCollection().FindNotesByFileOID(file.OID)
+		notes, err = core.CurrentRepository().FindNotesByFileOID(file.OID)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
