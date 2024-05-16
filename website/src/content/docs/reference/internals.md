@@ -2,7 +2,7 @@
 title: Internals
 ---
 
-:::info
+:::note
 
 Examples are sometimes edited to keep them concise. For example, most OIDs will be presented in a short form instead of their 40-character format.
 
@@ -391,7 +391,7 @@ The main motivation behind pack files is to limit the number of files on disk (a
 
 #### `.nt/objects/info/commit-graph`
 
-The `commit-graph` file lists in a sequential order all commits that was processed in this repository. The list is useful when retrieving new objects from a [remote](../guides/remote.md) to quickly determine the missing commits and pack files to replay.
+The `commit-graph` file lists in a sequential order all commits that were processed in this repository. The list is useful when retrieving new objects from a [remote](../guides/remote.md) to quickly determine the missing commits and pack files to replay.
 
 Ex:
 

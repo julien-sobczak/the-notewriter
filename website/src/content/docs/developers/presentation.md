@@ -3,7 +3,7 @@ title: Presentation
 ---
 
 
-_The NoteWriter_ is a CLI to generates notes from files.
+_The NoteWriter_ is a CLI to generate notes from files.
 
 Users edit files in Markdown (with a few extensions). _The NoteWriter_ parses these files to extract different objects (note, flashcard, reminder, etc.).
 
@@ -65,7 +65,7 @@ err := r.walk(paths, func(path string, stat fs.FileInfo) error {
 }
 ```
 
-:::info
+:::note
 
 _The NoteWriter_ relies heavily on [singletons](https://en.wikipedia.org/wiki/Singleton_pattern). Most of the most abstractions (`Repository`, `DB`, `Config` can be retrieved using methods `CurrentRepository()`, `CurrentDB()`, `CurrentConfig()` to easily find a note, persist changes in database, or read configuration settings anywhere in the code. (Singletons are only initialized on first use.)
 
@@ -112,7 +112,7 @@ Use the [command `nt cat-file <oid>`](../reference/commands/nt-cat-file.md) to f
 
 Each _object_ can be `Read()` from a YAML document and `Write()` to a YAML document using the common Go abstractions `io.Reader` and `io.Writer`.
 
-Each _object_ can contains `SubObjects()`, for example, a _file_ can contains _notes_, or `Blobs()`, which are binary files generated from [medias](#medias), and can references other objects through `Relations()`, for example, a note can use the special attribute `@references` to notify the note is quoted elsewhere. These methods make easy for the _repository_ to process graphs of objects without having the inspect their types.
+Each _object_ can contains `SubObjects()`, for example, a _file_ can contains _notes_, or `Blobs()`, which are binary files generated from [medias](#medias), and can references other objects through `Relations()`, for example, a note can use the special attribute `@references` to mention that the note is referenced elsewhere. These methods make easy for the _repository_ to process a whole graph of objects without having the inspect their types.
 
 These _objects_ must also be stored in a relational database using SQLite. An additional interface must be satisfied for these objects:
 
@@ -143,7 +143,7 @@ type StatefulObject interface {
 }
 ```
 
-These _stateful objects_ must implement the method `Save()` (which will commnly use the singleton `CurrentDB()` to retrieve a connection to the database). This method will check the `State()` to determine if the object must be saved using a query `INSERT`, `UPDATE`, or `DELETE`. If no changes have been done, the method `Save` must still update the value of the field `LastCheckedAt` (= useful to detect dead rows in database, that is the rows that represents objects that are no longer present in files).
+These _stateful objects_ must implement the method `Save()` (which will commnly use the singleton `CurrentDB()` to retrieve a connection to the database). This method will check the `State()` to determine if the object must be saved using a query `INSERT`, `UPDATE`, or `DELETE`. If no changes have been done, the method `Save` must still update the value of the field `LastCheckedAt` (= useful to detect dead rows in database, which are objects that are no longer present in files).
 
 The method `Refresh()` requires an object to determine if its content is still up-to-date. For example, notes can include other notes using the syntax `![[wikilink#note]]`. When a included note is edited, all notes including it must be refreshed to update their content too.
 
@@ -168,7 +168,7 @@ The same principle is used for _notes_ (`ParsedNote`) and _medias_ (`ParsedMedia
 
 ### Linter `internal/core/lint.go`
 
-The [command `nt lint`](../reference/commands/nt-lint.md) check for violations. All files are inspected (rules may have changed even if files haven't been modified). The linter reuses the method `walk` to traverse the _repository_. The linter doesn't bother with well-formed objects and reuses the type `ParsedFile`, `ParsedNote`, `ParsedMedia` to find errors.
+The [command `nt lint`](../reference/commands/nt-lint.md) check for violations. All files are inspected (rules may have changed even if files haven't been modified). The linter reuses the method `walk` to traverse the _repository_. The linter doesn't bother with stateful objects and reuses the type `ParsedFile`, `ParsedNote`, `ParsedMedia` to find errors.
 
 Each rule is defined using the type `LintRule`:
 
@@ -207,7 +207,7 @@ var LintRules = map[string]LintRuleDefinition{
 ```
 
 
-### Media (`internal/medias`) {#medias}
+### Media (`internal/medias`)
 
 Medias are static files included in notes using the image syntax:
 
@@ -219,7 +219,7 @@ Medias are static files included in notes using the image syntax:
 
 When processing these _medias_, _The NoteWriter_ will create blobs inside the directory `.nt/objects/`. The OID is the SHA1 determined from the file content.
 
-Images, videos, sounds are processed and are not duplicated. Indeed, _The NoteWriter_ will optimise these medias like this:
+Images, videos, sounds are processed. Indeed, _The NoteWriter_ will optimize these medias like this:
 
 * Images are converted to AVIF in different sizes (preview = mobile and grid view, large = full-size view, original = original size).
 * Audios are converted to MP3.
@@ -336,7 +336,7 @@ Various methods exist:
 
 :::tip
 
-Most tests reuse a common fixture like `internal/core/testdata/TestMinimal/` (= minimal number of files to demonstrate the maximum of features). Indeed, setting up Markdown files for evert test would represent many lines of Markdown fixtures to maintain. The recommendation is to reuse `TestMinimal` as much as possible when the logic is independant but create a custom test fixture when testing special cases.
+Most tests reuse a common fixture like `internal/core/testdata/TestMinimal/` (= minimal number of files to demonstrate the maximum of features). Indeed, writing new Markdown files for every test would represent many lines of Markdown fixtures to maintain. The recommendation is to reuse `TestMinimal` as much as possible when the logic is independant but create a custom test fixture when testing special cases.
 
 Here are the common fixtures:
 
@@ -356,10 +356,10 @@ Here are some specific fixtures: (⚠️ be careful when reusing them)
 
 In addition, several utilities are sometimes required to make tests reproductible:
 
-* `FreezeNow()` and `FreezeAt(time.Time)` ensures successive calls to `clock.Now()` returns a precise timestamp.
-* `SetNextOIDs(...string)`, `UseFixedOID(string)`, and `UseSequenceOID()` ensures generated OIDs are deterministic (using respectively a predefined sequence of OIDs, the same OIDs, or OIDs incremented by 1).
+* `FreezeNow()` and `FreezeAt(time.Time)` ensure successive calls to `clock.Now()` returns a precise timestamp.
+* `SetNextOIDs(...string)`, `UseFixedOID(string)`, and `UseSequenceOID()` ensure generated OIDs are deterministic (using respectively a predefined sequence of OIDs, the same OIDs, or OIDs incremented by 1).
 
-All these test helpers restores the initial configuration using `t.Cleanup()`.
+Test helpers `SetUpXXX` restore the initial configuration using `t.Cleanup()`.
 
 ```go
 func TestHelpers(t *testing.T) {
@@ -402,24 +402,24 @@ Sometimes, you may want to use transactions. For example, when using `nt add`, i
 
 ```go title=internal/core/repository.go
 func (r *Repository) Add(paths ...string) error {
-    // Run all queries inside the same transaction
+	// Run all queries inside the same transaction
 	err = db.BeginTransaction()
 	if err != nil {
 		return err
 	}
 	defer db.RollbackTransaction()
 
-    // Traverse all given path to add files
+	// Traverse all given path to add files
 	c.walk(paths, func(path string, stat fs.FileInfo) error {
-        // Do changes in database
-    }
+		// Do changes in database
+	}
 
-    // Don't forget to commit
+	// Don't forget to commit
 	if err := db.CommitTransaction(); err != nil {
 		return err
 	}
 
-    return nil
+	return nil
 }
 ```
 

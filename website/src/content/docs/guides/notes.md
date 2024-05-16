@@ -57,7 +57,7 @@ The subsection "Subsecton 1" is included in the note `A Structured Note`.
 
 ## Kinds
 
-### `Note` to clear your mind
+### `Note` … to clear your mind
 
 Use `Note` for anything you don't want to forget.
 
@@ -65,7 +65,7 @@ Use `Note` for anything you don't want to forget.
 
     The dark mode will allow users to switch the application in dark mode.
 
-### `Flashcard` to remember
+### `Flashcard` … to remember
 
 Use `Flashcard` for knowledge you want to remember.
 
@@ -79,7 +79,7 @@ Use `Flashcard` for knowledge you want to remember.
 
 Check the guide ["Flashcards"](./flashcards.md) to learn more about the syntax and the algorithm.
 
-### `Cheatsheet` to repeat faster
+### `Cheatsheet` … to redo faster
 
 Use `Cheatsheet` for actions you don't want to relearn from scratch every time.
 
@@ -106,7 +106,7 @@ Use `Cheatsheet` for actions you don't want to relearn from scratch every time.
     }
     ```
 
-### `Quote` to get inspired
+### `Quote` … to get inspired
 
 Use `Quote` for inspiring quotes that resonate with you.
 
@@ -114,7 +114,7 @@ Use `Quote` for inspiring quotes that resonate with you.
 
     If a cluttered desk is a sign of a cluttered mind, of what, then is an empty desk a sign?
 
-### `Reference` to use later
+### `Reference` … to use later
 
 Use `Reference` for information you may need in the future.
 
@@ -123,7 +123,7 @@ Use `Reference` for information you may need in the future.
     * _How to Take Smart Notes_, by Sönke Ahrens
     * _Sönke Ahrens_, by Tiago Forte
 
-### `TODO` to plan tasks
+### `TODO` … to plan tasks
 
 Use `TODO` for tasks you need to perform.
 
@@ -133,7 +133,7 @@ Use `TODO` for tasks you need to perform.
     * [ ] _Stumbling on Happiness_, by Daniel Gilbert
     * [ ] _Bittersweet_, by Susan Cain
 
-### `Journal` to track your day
+### `Journal` … to track your day
 
 Use `Journal` for tasks you need to perform.
 
@@ -143,7 +143,7 @@ Use `Journal` for tasks you need to perform.
       * [x] Add doc about the different kinds of note
       * [ ] Add doc about attributes and tags
 
-### `Artwork` to get inspired
+### `Artwork` … to get delighted
 
 Use `Artwork` for artworks that resonate with you.
 
@@ -151,7 +151,7 @@ Use `Artwork` for artworks that resonate with you.
 
 
 
-### Free notes
+### Free notes … for everything else
 
 Notes can omit the kind prefix. Their are called "free" notes and are processed like any other notes (they are searchable).
 

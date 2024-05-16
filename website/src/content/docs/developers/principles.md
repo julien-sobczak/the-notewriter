@@ -2,11 +2,11 @@
 title: Principles
 ---
 
-_The NoteWriter_ is a side project. Decisions are important when time is limited. Here are a few self-imposed constraints:
+_The NoteWriter_ is a side project. Constraints are important when time is limited. Here are a few self-imposed constraints:
 
 ## Minimal Dependencies
 
-All dependencies have a cost. The dependency needs to be updated, and eventually replaced when obsolete.
+All dependencies have a cost. A dependency needs to be updated, and eventually replaced when obsolete.
 
 > The dependencies between components in a design should be in the direction of stability of the components. A package should only depend upon packages that are more stable than it is.
 >

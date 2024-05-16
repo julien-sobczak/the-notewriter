@@ -12,7 +12,7 @@ The syntax must follow `#reminder-{expr}`. Recurring reminders must use the addi
 
 ## Examples
 
-:::info
+:::note
 
 Timestamps are always relative. For this documentation, we consider today is 2023, January 1.
 
@@ -31,6 +31,6 @@ Timestamps are always relative. For this documentation, we consider today is 202
 
 :::tip
 
-Use reminders for notes only actionable in the future: places to visit with your kid, conference ticket registration, ...
+Use reminders for notes only actionable in the future: places to visit with your kids, conference to attend, travel ticket registration, ...
 
 :::

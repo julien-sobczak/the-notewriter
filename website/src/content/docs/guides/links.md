@@ -110,7 +110,7 @@ $ nt go go
 $ nt go go/playground
 ```
 
-You can also use Go links (more conveniently) since _The NoteWriter Desktop_ (no need to have a terminal open inside your notes repository).
+You can also use Go links (more conveniently) from _The NoteWriter Desktop_ (no need to have a terminal open inside your notes repository).
 
 
 :::tip

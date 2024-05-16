@@ -532,9 +532,9 @@ tags: life # Same as tags: [life]
 
 # A Note
 
-`@tag: life-changing`
+`@tags: life-changing` `#favorite`
 
-This note will have the tags `#life` and `#life-changing`.
+This note will have the tags `#life`, `#life-changing`, and `#favorite`.
 ```
 
 :::caution

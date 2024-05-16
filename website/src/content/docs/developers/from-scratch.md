@@ -5,7 +5,7 @@ title: From Scratch
 
 The goal of this document is to write a basic version of _The NoteWriter_ to emphasize the core abstractions and the main logic.
 
-:::info
+:::note
 
 We will implement a basic version supporting only the commands `nt add` and `nt commit`, and only the objects `File` and `Note` (no flashcards, medias, etc.). We ignore configuration too.
 
@@ -63,7 +63,7 @@ type File struct {
 }
 ```
 
-:::info
+:::note
 
 The complete model `File` contains additional fields like a reference to a parent file, a title extracted from the text, etc.
 
@@ -107,7 +107,7 @@ type Note struct {
 }
 ```
 
-:::info
+:::note
 
 The complete model `Note` contains a lot more fields. Notes represent the core abstraction. They can have a list of attributes, tags, a parent note (when notes are nested to inherit from parent's attributes), and their content is converted into different representations (Markdown/HTML/Text) to render them easily in various contexts.
 
@@ -169,7 +169,7 @@ func ParseFile(relativePath string) (*ParsedFile, error) {
 }
 ```
 
-:::info
+:::note
 
 _The NoteWriter_ supports attributes and tags using a YAML Front Matter and a special syntax. The actual parser extracts these metadata used to enrich notes and make them easily searchable.
 
@@ -216,7 +216,7 @@ func ParseNotes(fileBody string) []*ParsedNote {
 }
 ```
 
-:::info
+:::note
 
 _The NoteWriter_ supports nested notes (you can define notes at any level in your Markdown documents) which makes the actual parsing logic more obscure. In addition, the actual logic must also ignore code blocks where `#` is a common character that must not be considered as valid Markdown heading.
 
@@ -269,7 +269,7 @@ func NewOID() string {
 }
 ```
 
-:::info
+:::note
 
 SHA1 are only used when storing blobs (aka medias files), not covered in this document.
 
@@ -632,7 +632,7 @@ func (f *File) Check() error {
 
 That's a lot of code as we are using a low-level library. We have a method for every operation `Insert()`, `Update()`, `Delete()`, and an additional method `Check()` to only update the `LastCheckedAt` timestamp. The method `Save()` determines which method to call based on the attributes `new` and `stale`.
 
-:::info
+:::note
 
 The method `Save()` for the model `Note` is very similar and omitted for brievity.
 
@@ -1060,7 +1060,7 @@ Objects are migrated from the staging area to the list of all known objects. The
 We are ready for the next batch of files to add. That's all for now.
 
 
-:::info
+:::note
 
 **This minimalist version uses the same logic as the complete version**. Here are a few notable differences:
 

@@ -29,6 +29,7 @@ $ nt init
 $ cat .nt/config
 # ...
 
+# Add some Markdown files
 $ nt add . && nt commit
 ```
 

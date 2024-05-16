@@ -49,21 +49,21 @@ export default defineConfig({
 				{
 					label: 'Reference',
 					items: [
-						{ label: 'Internals', link: '/references/internals' },
+						{ label: 'Internals', link: '/reference/internals' },
 						{
 							label: "Commands",
 							items: [
-								{ label: "nt init", link: '/references/commands/nt-init' },
-								{ label: "nt add", link: '/references/commands/nt-add' },
-								{ label: "nt status", link: '/references/commands/nt-status' },
-								{ label: "nt diff", link: '/references/commands/nt-diff' },
-								{ label: "nt reset", link: '/references/commands/nt-reset' },
-								{ label: "nt commit", link: '/references/commands/nt-commit' },
-								{ label: "nt push", link: '/references/commands/nt-push' },
-								{ label: "nt pull", link: '/references/commands/nt-pull' },
-								{ label: "nt gc", link: '/references/commands/nt-gc' },
-								{ label: "nt lint", link: '/references/commands/nt-lint' },
-								{ label: "nt cat-file", link: '/references/commands/nt-cat-file' },
+								{ label: "nt init", link: '/reference/commands/nt-init' },
+								{ label: "nt add", link: '/reference/commands/nt-add' },
+								{ label: "nt status", link: '/reference/commands/nt-status' },
+								{ label: "nt diff", link: '/reference/commands/nt-diff' },
+								{ label: "nt reset", link: '/reference/commands/nt-reset' },
+								{ label: "nt commit", link: '/reference/commands/nt-commit' },
+								{ label: "nt push", link: '/reference/commands/nt-push' },
+								{ label: "nt pull", link: '/reference/commands/nt-pull' },
+								{ label: "nt gc", link: '/reference/commands/nt-gc' },
+								{ label: "nt lint", link: '/reference/commands/nt-lint' },
+								{ label: "nt cat-file", link: '/reference/commands/nt-cat-file' },
 							],
 						}
 					]

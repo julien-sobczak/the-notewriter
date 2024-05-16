@@ -4,7 +4,7 @@ title: "nt gc"
 
 ## Name
 
-```the-notewriter gc` - Cleanup unnecessary files and optimize the local repository.
+`the-notewriter gc` - Cleanup unnecessary files and optimize the local repository.
 
 ## Synopsis
 
