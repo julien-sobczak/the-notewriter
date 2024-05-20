@@ -985,7 +985,7 @@ func (db *DB) GC() error {
 	//   The GC searches for all these orphan blobs at once.
 	// * Notes can be edited over times and be committed again and again. We don't want to store all revisions in pack files
 	//   (Git is recommended to version your notes).
-	//   The GC traverses the commit graph to analyze packfiles and remove old revisions
+	//   The GC traverses the commit graph to analyze pack files and remove old revisions
 	//   that are no longer relevant. Pack files will be rewritten to remove old data.
 	//   In addition, we also want to limit the number of files on disk (preferable
 	//   when using an object storage as remotes). The GC merges packfiles present

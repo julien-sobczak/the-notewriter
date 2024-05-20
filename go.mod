@@ -1,6 +1,6 @@
 module github.com/julien-sobczak/the-notewriter
 
-go 1.18
+go 1.22
 
 require (
 	github.com/charmbracelet/bubbles v0.16.1
@@ -28,8 +28,8 @@ require (
 	golang.org/x/text v0.12.0
 	gopkg.in/yaml.v3 v3.0.1
 	gotest.tools v2.2.0+incompatible
-	storj.io/storj v1.94.1
 	storj.io/common v0.0.0-20231130134106-1fa84867e323
+	storj.io/storj v1.94.1
 	storj.io/uplink v1.12.3-0.20231130143633-4a092fa01b98
 )
 

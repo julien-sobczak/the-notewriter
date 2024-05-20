@@ -74,6 +74,7 @@ export default defineConfig({
 						{ label: 'Presentation', link: '/developers/presentation' },
 						{ label: 'Principles', link: '/developers/principles' },
 						{ label: 'From Scratch', link: '/developers/from-scratch' },
+						{ label: 'Guide', link: '/developers/guide' },
 						{ label: 'Contributing', link: '/developers/contributing' },
 					]
 				}

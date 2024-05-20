@@ -4,3 +4,4 @@ database.db
 
 # Docs
 .astro
+.nt/database.db-journal

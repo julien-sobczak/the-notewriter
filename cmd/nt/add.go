@@ -23,7 +23,6 @@ var addCmd = &cobra.Command{
 
 		CheckConfig()
 
-
 		err := core.CurrentRepository().Add(args...)
 		if err != nil {
 			fmt.Println(err)

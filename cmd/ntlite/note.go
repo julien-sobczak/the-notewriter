@@ -65,7 +65,6 @@ type Note struct {
 	// The filepath of the file containing the note (denormalized field)
 	RelativePath string `yaml:"relative_path"`
 
-	// Content in various formats (best for editing, rendering, writing, etc.)
 	Content string `yaml:"content_raw"`
 	Hash    string `yaml:"content_hash"`
 
