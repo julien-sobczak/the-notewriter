@@ -74,7 +74,7 @@ func AlignHeadings(text string) string {
 }
 
 // IsHeading returns if a givne line is a Markdown heading and its level.
-func IsHeading(line string) (bool, string, int) {
+func IsHeading(line string) (bool, string, int) { // FIXME move to core/markdown.go?
 	if !strings.HasPrefix(line, "#") {
 		return false, "", 0
 	}

@@ -16,7 +16,7 @@ func SetUpFromGoldenFile(t *testing.T) string {
 	return SetUpFromGoldenFileNamed(t, t.Name()+".md")
 }
 
-// SetUpFromGoldenFileNamed createa a temp file based on the given golden file name.
+// SetUpFromGoldenFileNamed creates a temp file based on the given golden file name.
 func SetUpFromGoldenFileNamed(t *testing.T, filename string) string {
 	dir := t.TempDir()
 
@@ -32,6 +32,12 @@ func SetUpFromGoldenFileNamed(t *testing.T, filename string) string {
 	}
 
 	fileOut := filepath.Join(dir, filename)
+
+	// Ensure all intermediary directories exist
+	if err := os.MkdirAll(filepath.Dir(fileOut), 0755); err != nil {
+		t.Fatal(err)
+	}
+
 	err = os.WriteFile(fileOut, in, stat.Mode())
 	if err != nil {
 		t.Fatal(err)
@@ -40,7 +46,7 @@ func SetUpFromGoldenFileNamed(t *testing.T, filename string) string {
 	return fileOut
 }
 
-// SetUpFromFileContent createa a temp file based on the given file content.
+// SetUpFromFileContent creates a temp file based on the given file content.
 func SetUpFromFileContent(t *testing.T, filename string, content string) string {
 	dir := t.TempDir()
 
