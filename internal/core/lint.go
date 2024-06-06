@@ -67,7 +67,7 @@ type LintRuleDefinition struct {
 }
 
 // LintRule describes the interface that rules must conform.
-type LintRule func(*ParsedFile, []string) ([]*Violation, error)
+type LintRule func(*ParsedFileOld, []string) ([]*Violation, error)
 
 var LintRules = map[string]LintRuleDefinition{
 	// Enforce no duplicate between note titles
@@ -230,7 +230,7 @@ func GetSchemaAttributes(relativePath string, kind NoteKind) []*ConfigLintSchema
 /* Rules */
 
 // NoDuplicateNoteTitle implements the rule "no-duplicate-note-title".
-func NoDuplicateNoteTitle(file *ParsedFile, args []string) ([]*Violation, error) {
+func NoDuplicateNoteTitle(file *ParsedFileOld, args []string) ([]*Violation, error) {
 	var violations []*Violation
 
 	uniqueNoteTitles := make(map[string]bool)
@@ -256,7 +256,7 @@ var slugInventory map[string]bool // slug => true
 var slugInventoryOnce resync.Once // Build the inventory on first occurrence only.
 
 // NoDuplicateSlug implements the rule "no-duplicate-slug".
-func NoDuplicateSlug(file *ParsedFile, args []string) ([]*Violation, error) {
+func NoDuplicateSlug(file *ParsedFileOld, args []string) ([]*Violation, error) {
 	slugInventoryOnce.Do(func() {
 		slugInventory = make(map[string]bool)
 	})
@@ -304,7 +304,7 @@ func NoDuplicateSlug(file *ParsedFile, args []string) ([]*Violation, error) {
 }
 
 // MinLinesBetweenNotes implements the rule "min-lines-between-notes".
-func MinLinesBetweenNotes(file *ParsedFile, args []string) ([]*Violation, error) {
+func MinLinesBetweenNotes(file *ParsedFileOld, args []string) ([]*Violation, error) {
 	var violations []*Violation
 
 	if len(args) != 1 {
@@ -343,7 +343,7 @@ func MinLinesBetweenNotes(file *ParsedFile, args []string) ([]*Violation, error)
 }
 
 // MaxLinesBetweenNotes implements the rule "min-lines-between-notes".
-func MaxLinesBetweenNotes(file *ParsedFile, args []string) ([]*Violation, error) {
+func MaxLinesBetweenNotes(file *ParsedFileOld, args []string) ([]*Violation, error) {
 	var violations []*Violation
 
 	if len(args) != 1 {
@@ -392,7 +392,7 @@ func MaxLinesBetweenNotes(file *ParsedFile, args []string) ([]*Violation, error)
 }
 
 // NoteTitleMatch implements the rule "note-title-match".
-func NoteTitleMatch(file *ParsedFile, args []string) ([]*Violation, error) {
+func NoteTitleMatch(file *ParsedFileOld, args []string) ([]*Violation, error) {
 	var violations []*Violation
 
 	if len(args) != 1 {
@@ -425,7 +425,7 @@ func NoteTitleMatch(file *ParsedFile, args []string) ([]*Violation, error) {
 }
 
 // NoFreeNote implements the rule "no-free-note".
-func NoFreeNote(file *ParsedFile, args []string) ([]*Violation, error) {
+func NoFreeNote(file *ParsedFileOld, args []string) ([]*Violation, error) {
 	var violations []*Violation
 
 	notes := ParseNotes(file.Body, file.Slug)
@@ -444,7 +444,7 @@ func NoFreeNote(file *ParsedFile, args []string) ([]*Violation, error) {
 }
 
 // NoDanglingMedia implements the rule "no-dangling-media".
-func NoDanglingMedia(file *ParsedFile, args []string) ([]*Violation, error) {
+func NoDanglingMedia(file *ParsedFileOld, args []string) ([]*Violation, error) {
 	var violations []*Violation
 
 	medias := ParseMedias(file.RelativePath, file.Body)
@@ -501,7 +501,7 @@ func buildSectionsInventory() {
 }
 
 // NoDeadWikilink implements the rule "no-dead-wikilink".
-func NoDeadWikilink(file *ParsedFile, args []string) ([]*Violation, error) {
+func NoDeadWikilink(file *ParsedFileOld, args []string) ([]*Violation, error) {
 	sectionsInventoryOnce.Do(buildSectionsInventory)
 
 	var violations []*Violation
@@ -545,7 +545,7 @@ func NoDeadWikilink(file *ParsedFile, args []string) ([]*Violation, error) {
 }
 
 // NoExtensionWikilink implements the rule "no-extension-wikilink".
-func NoExtensionWikilink(file *ParsedFile, args []string) ([]*Violation, error) {
+func NoExtensionWikilink(file *ParsedFileOld, args []string) ([]*Violation, error) {
 	var violations []*Violation
 
 	wikilinks := ParseWikilinks(file.Body)
@@ -564,7 +564,7 @@ func NoExtensionWikilink(file *ParsedFile, args []string) ([]*Violation, error) 
 }
 
 // NoAmbiguousWikilink implements the rule "no-ambiguous-wikilink"
-func NoAmbiguousWikilink(file *ParsedFile, args []string) ([]*Violation, error) {
+func NoAmbiguousWikilink(file *ParsedFileOld, args []string) ([]*Violation, error) {
 	sectionsInventoryOnce.Do(buildSectionsInventory)
 
 	var violations []*Violation
@@ -600,7 +600,7 @@ func NoAmbiguousWikilink(file *ParsedFile, args []string) ([]*Violation, error) 
 }
 
 // RequireQuoteTag implements the rule "require-quote-tag"
-func RequireQuoteTag(file *ParsedFile, args []string) ([]*Violation, error) {
+func RequireQuoteTag(file *ParsedFileOld, args []string) ([]*Violation, error) {
 	var violations []*Violation
 
 	if len(args) > 1 {
@@ -657,7 +657,7 @@ func RequireQuoteTag(file *ParsedFile, args []string) ([]*Violation, error) {
 }
 
 // CheckAttribute implements the rule "check-attribute"
-func CheckAttribute(file *ParsedFile, args []string) ([]*Violation, error) {
+func CheckAttribute(file *ParsedFileOld, args []string) ([]*Violation, error) {
 	var violations []*Violation
 
 	notes := ParseNotes(file.Body, file.Slug)
@@ -831,9 +831,9 @@ func CheckAttribute(file *ParsedFile, args []string) ([]*Violation, error) {
 	return violations, nil
 }
 
-/* ParsedFile */
+/* ParsedFileOld */
 
-func (f *ParsedFile) Lint(ruleNames []string) ([]*Violation, error) {
+func (f *ParsedFileOld) Lint(ruleNames []string) ([]*Violation, error) {
 	var violations []*Violation
 
 	rules := CurrentConfig().LintFile.Rules

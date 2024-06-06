@@ -404,7 +404,7 @@ func extractMediasFromMarkdown(fileRelativePath string, fileBody string) []*Medi
 	return medias
 }
 
-type ParsedMedia struct {
+type ParsedMediaOld struct {
 	// The path as specified in the file. (Ex: "../medias/pic.png")
 	RawPath string
 	// The path relative to the root repository directory. (Ex: "references/medias/pic.png")
@@ -416,8 +416,8 @@ type ParsedMedia struct {
 }
 
 // ParseMedias extracts raw paths from a file or note body content.
-func ParseMedias(fileRelativePath, fileBody string) []*ParsedMedia {
-	var medias []*ParsedMedia
+func ParseMedias(fileRelativePath, fileBody string) []*ParsedMediaOld {
+	var medias []*ParsedMediaOld
 
 	// Avoid returning duplicates if a media is included twice
 	filepaths := make(map[string]bool)
@@ -441,7 +441,7 @@ func ParseMedias(fileRelativePath, fileBody string) []*ParsedMedia {
 		}
 		absolutePath := CurrentRepository().GetAbsolutePath(relativePath)
 
-		medias = append(medias, &ParsedMedia{
+		medias = append(medias, &ParsedMediaOld{
 			RawPath:      rawPath,
 			RelativePath: relativePath,
 			AbsolutePath: absolutePath,

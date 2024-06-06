@@ -136,7 +136,7 @@ func NewOrExistingFlashcard(file *File, note *Note) *Flashcard {
 // NewFlashcard initializes a new flashcard.
 func NewFlashcard(file *File, note *Note) *Flashcard {
 
-	frontMarkdown, backMarkdown := splitFrontBack(note.ContentMarkdown)
+	frontMarkdown, backMarkdown, _ := splitFrontBack(note.ContentMarkdown)
 	// FIXME if front => invalid flashcard (lint)
 
 	f := &Flashcard{
@@ -285,7 +285,7 @@ func (f *Flashcard) update(file *File, note *Note) {
 		f.stale = true
 	}
 
-	frontMarkdown, backMarkdown := splitFrontBack(note.ContentMarkdown)
+	frontMarkdown, backMarkdown, _ := splitFrontBack(note.ContentMarkdown)
 	if f.FrontMarkdown != frontMarkdown || f.BackMarkdown != backMarkdown {
 		f.updateContent(frontMarkdown, backMarkdown)
 		f.stale = true
@@ -304,7 +304,7 @@ func (f *Flashcard) Updated() bool {
 
 /* Parsing */
 
-func splitFrontBack(content string) (string, string) {
+func splitFrontBack(content string) (string, string, bool) {
 	front := true
 	var frontContent bytes.Buffer
 	var backContent bytes.Buffer
@@ -322,7 +322,7 @@ func splitFrontBack(content string) (string, string) {
 			backContent.WriteString("\n")
 		}
 	}
-	return strings.TrimSpace(frontContent.String()), strings.TrimSpace(backContent.String())
+	return strings.TrimSpace(frontContent.String()), strings.TrimSpace(backContent.String()), !front
 }
 
 func (f *Flashcard) Check() error {

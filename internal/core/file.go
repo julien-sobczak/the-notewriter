@@ -124,7 +124,7 @@ func NewFileFromAttributes(parent *File, name string, attributes []Attribute) *F
 	return file
 }
 
-func NewFileFromParsedFile(parent *File, parsedFile *ParsedFile) *File {
+func NewFileFromParsedFile(parent *File, parsedFile *ParsedFileOld) *File {
 	file := &File{
 		OID:          NewOID(),
 		Slug:         parsedFile.Slug,
@@ -482,7 +482,7 @@ func (f *File) GetNotes() []*Note {
 	// we must return the included note first for it to be saved first in database,
 	// so that when we will build the final note content for the other note,
 	// the dependency will be found in database.
-	var sortedParsedNotes []*ParsedNote
+	var sortedParsedNotes []*ParsedNoteOld
 	addedNoteIndices := make(map[int]bool)
 	addedSections := make(map[string]bool)
 	changedDuringIteration := false
@@ -557,7 +557,7 @@ func (f *File) GetNotes() []*Note {
 }
 
 // ParsedNote represents a single raw note inside a file.
-type ParsedNote struct {
+type ParsedNoteOld struct {
 	Level          int
 	Kind           NoteKind
 	Slug           string
@@ -570,7 +570,7 @@ type ParsedNote struct {
 }
 
 // MustParseNote is pratical in unit test to setup a new note.
-func MustParseNote(noteContent string, fileSlug string) *ParsedNote {
+func MustParseNote(noteContent string, fileSlug string) *ParsedNoteOld {
 	notes := ParseNotes(noteContent, fileSlug)
 	if len(notes) != 1 {
 		log.Fatalf("Must only contain a single note. Found %d note(s)", len(notes))
@@ -579,7 +579,7 @@ func MustParseNote(noteContent string, fileSlug string) *ParsedNote {
 }
 
 // ParseNotes extracts the notes from a file body.
-func ParseNotes(fileBody string, fileSlug string) []*ParsedNote {
+func ParseNotes(fileBody string, fileSlug string) []*ParsedNoteOld {
 	type Section struct {
 		level      int
 		kind       NoteKind
@@ -670,7 +670,7 @@ func ParseNotes(fileBody string, fileSlug string) []*ParsedNote {
 	}
 
 	// All notes collected until now
-	var notes []*ParsedNote
+	var notes []*ParsedNoteOld
 	for i, section := range sections {
 		var nextSection *Section
 		if i < len(sections)-1 {
@@ -699,7 +699,7 @@ func ParseNotes(fileBody string, fileSlug string) []*ParsedNote {
 			}
 		}
 
-		parsedNote := &ParsedNote{
+		parsedNote := &ParsedNoteOld{
 			Level:          section.level,
 			Kind:           section.kind,
 			Slug:           slug,
@@ -717,14 +717,14 @@ func ParseNotes(fileBody string, fileSlug string) []*ParsedNote {
 }
 
 // Hash returns the current hash to use when searching for an existing note in database to avoid recreating it.
-func (n *ParsedNote) Hash() string {
+func (n *ParsedNoteOld) Hash() string {
 	raw := strings.TrimSpace(n.Body)
 	hash := helpers.Hash([]byte(raw))
 	return hash
 }
 
 // Wikilinks returns the wikilinks present in the note.
-func (n *ParsedNote) Wikilinks() []*Wikilink {
+func (n *ParsedNoteOld) Wikilinks() []*Wikilink {
 	return ParseWikilinks(n.Body)
 }
 
@@ -769,7 +769,7 @@ func (f *File) GetMedias() []*Media {
 
 /* Parsing */
 
-type ParsedFile struct {
+type ParsedFileOld struct {
 	// The paths to the file
 	AbsolutePath string
 	RelativePath string
@@ -797,7 +797,7 @@ type ParsedFile struct {
 }
 
 // ParseFile contains the main logic to parse a raw note file.
-func ParseFile(path string) (*ParsedFile, error) {
+func ParseFile(path string) (*ParsedFileOld, error) {
 	CurrentLogger().Debugf("Parsing file %s...", path)
 
 	relativePath, err := CurrentRepository().GetFileRelativePath(path)
@@ -887,7 +887,7 @@ func ParseFile(path string) (*ParsedFile, error) {
 		}
 	}
 
-	return &ParsedFile{
+	return &ParsedFileOld{
 		AbsolutePath:   absolutePath,
 		RelativePath:   relativePath,
 		Stat:           stat,
@@ -922,7 +922,7 @@ func DetermineFileSlug(path string) string {
 }
 
 // GetTags returns all defined tags on file.
-func (f *ParsedFile) GetTags() []string {
+func (f *ParsedFileOld) GetTags() []string {
 	value, ok := f.FileAttributes["tags"]
 	if !ok {
 		return nil
@@ -946,22 +946,22 @@ func (f *ParsedFile) GetTags() []string {
 }
 
 // HasTag returns if the file has specifically a given tag.
-func (f *ParsedFile) HasTag(tagName string) bool {
+func (f *ParsedFileOld) HasTag(tagName string) bool {
 	return slices.Contains(f.GetTags(), tagName)
 }
 
 // Content returns the raw file content.
-func (f *ParsedFile) Content() string {
+func (f *ParsedFileOld) Content() string {
 	return string(f.Bytes)
 }
 
 // Wikilinks returns the wikilinks present inside a file.
-func (f *ParsedFile) Wikilinks() []*Wikilink {
+func (f *ParsedFileOld) Wikilinks() []*Wikilink {
 	return ParseWikilinks(f.Content())
 }
 
 // AbsoluteBodyLine returns the line number in the file by taking into consideration the front matter.
-func (f *ParsedFile) AbsoluteBodyLine(bodyLine int) int {
+func (f *ParsedFileOld) AbsoluteBodyLine(bodyLine int) int {
 	return f.BodyLine + bodyLine - 1
 }
 

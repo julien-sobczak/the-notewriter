@@ -14,24 +14,24 @@ import (
 )
 
 type MarkdownFile struct {
-	absolutePath   string
-	content        []byte
-	lstat          fs.FileInfo
-	stat           fs.FileInfo
-	frontMatter    string
-	body           string
-	bodyLineNumber int
+	AbsolutePath string
+	Content      []byte
+	LStat        fs.FileInfo
+	Stat         fs.FileInfo
+	FrontMatter  string
+	Body         string
+	BodyLine     int
 }
 
 type MarkdownSection struct {
-	Parent              *MarkdownSection
-	HeadingText         string
-	HeadingLevel        int
-	ContentText         string
-	FileLineNumberStart int // 1-based index based on Markdown file
-	FileLineNumberEnd   int
-	BodyLineNumberStart int // 1-based index based on body (ignored the Front Matter)
-	BodyLineNumberEnd   int
+	Parent        *MarkdownSection
+	HeadingText   string
+	HeadingLevel  int
+	ContentText   string
+	FileLineStart int // 1-based index based on Markdown file
+	FileLineEnd   int
+	BodyLineStart int // 1-based index based on body (ignored the Front Matter)
+	BodyLineEnd   int
 }
 
 func (m MarkdownSection) String() string {
@@ -56,7 +56,7 @@ func ParseMarkdownFile(path string) (*MarkdownFile, error) {
 		return nil, err
 	}
 
-	contentBytes, err := os.ReadFile(path)
+	contentAsBytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -66,8 +66,8 @@ func ParseMarkdownFile(path string) (*MarkdownFile, error) {
 	frontMatterStarted := false
 	frontMatterEnded := false
 	bodyStarted := false
-	bodyLineNumber := 0
-	for i, line := range strings.Split(strings.TrimSuffix(string(contentBytes), "\n"), "\n") {
+	bodyLine := 0
+	for i, line := range strings.Split(strings.TrimSuffix(string(contentAsBytes), "\n"), "\n") {
 		if strings.HasPrefix(line, "---") {
 			if bodyStarted {
 				// Flashcard Front/Back line separator
@@ -87,7 +87,7 @@ func ParseMarkdownFile(path string) (*MarkdownFile, error) {
 		} else {
 			if !text.IsBlank(line) && !bodyStarted {
 				bodyStarted = true
-				bodyLineNumber = i + 1
+				bodyLine = i + 1
 			}
 			if bodyStarted {
 				rawBody.WriteString(line)
@@ -97,23 +97,19 @@ func ParseMarkdownFile(path string) (*MarkdownFile, error) {
 	}
 
 	return &MarkdownFile{
-		absolutePath:   absolutePath,
-		content:        contentBytes,
-		lstat:          lstat,
-		stat:           stat,
-		frontMatter:    rawFrontMatter.String(),
-		body:           rawBody.String(),
-		bodyLineNumber: bodyLineNumber,
+		AbsolutePath: absolutePath,
+		Content:      contentAsBytes,
+		LStat:        lstat,
+		Stat:         stat,
+		FrontMatter:  rawFrontMatter.String(),
+		Body:         rawBody.String(),
+		BodyLine:     bodyLine,
 	}, nil
-}
-
-func (f *MarkdownFile) AbsolutePath() string {
-	return f.absolutePath
 }
 
 func (f *MarkdownFile) FrontMatterAsNode() (*yaml.Node, error) {
 	var frontMatter = new(yaml.Node)
-	if err := yaml.Unmarshal([]byte(f.frontMatter), frontMatter); err != nil {
+	if err := yaml.Unmarshal([]byte(f.FrontMatter), frontMatter); err != nil {
 		return nil, err
 	}
 	if frontMatter.Kind > 0 { // Happen when no Front Matter is present
@@ -124,26 +120,14 @@ func (f *MarkdownFile) FrontMatterAsNode() (*yaml.Node, error) {
 
 func (f *MarkdownFile) FrontMatterAsMap() (map[string]interface{}, error) {
 	var attributes = make(map[string]interface{})
-	if err := yaml.Unmarshal([]byte(f.frontMatter), attributes); err != nil {
+	if err := yaml.Unmarshal([]byte(f.FrontMatter), attributes); err != nil {
 		return nil, err
 	}
 	return attributes, nil
 }
 
-func (m *MarkdownFile) FrontMatter() string {
-	return m.frontMatter
-}
-
-func (m *MarkdownFile) Body() string {
-	return m.body
-}
-
-func (m *MarkdownFile) BodyLineNumber() int {
-	return m.bodyLineNumber
-}
-
 func (m *MarkdownFile) LastUpdateDate() time.Time {
-	return m.lstat.ModTime()
+	return m.LStat.ModTime()
 }
 
 func (m *MarkdownFile) WalkSections(walkFn func(parent *MarkdownSection, current *MarkdownSection, children []*MarkdownSection) error) error {
@@ -169,7 +153,7 @@ func (m *MarkdownFile) GetSections() ([]*MarkdownSection, error) {
 	var sections []*MarkdownSection
 	var lastSectionAtLevel [10]*MarkdownSection
 
-	lines := strings.Split(m.body, "\n")
+	lines := strings.Split(m.Body, "\n")
 
 	// Current line number during the parsing
 	var lineNumber int
@@ -198,20 +182,20 @@ func (m *MarkdownFile) GetSections() ([]*MarkdownSection, error) {
 			if lastLevel >= headingLevel {
 				// Close previous section(s)
 				for _, section := range sections {
-					if section.HeadingLevel >= headingLevel && section.BodyLineNumberEnd == 0 {
-						section.FileLineNumberEnd = m.bodyLineNumber - 1 + lineNumber - 1
-						section.BodyLineNumberEnd = lineNumber - 1
-						section.ContentText = text.ExtractLines(m.body, section.BodyLineNumberStart, lineNumber-1)
+					if section.HeadingLevel >= headingLevel && section.BodyLineEnd == 0 {
+						section.FileLineEnd = m.BodyLine - 1 + lineNumber - 1
+						section.BodyLineEnd = lineNumber - 1
+						section.ContentText = text.ExtractLines(m.Body, section.BodyLineStart, lineNumber-1)
 					}
 				}
 			}
 
 			// Start new section
 			newSection := &MarkdownSection{
-				HeadingText:         headingText,
-				HeadingLevel:        headingLevel,
-				FileLineNumberStart: m.bodyLineNumber - 1 + lineNumber,
-				BodyLineNumberStart: lineNumber,
+				HeadingText:   headingText,
+				HeadingLevel:  headingLevel,
+				FileLineStart: m.BodyLine - 1 + lineNumber,
+				BodyLineStart: lineNumber,
 			}
 			lastSectionAtLevel[headingLevel] = newSection
 
@@ -232,10 +216,10 @@ func (m *MarkdownFile) GetSections() ([]*MarkdownSection, error) {
 
 	// Complete unfinished section(s)
 	for _, section := range sections {
-		if section.BodyLineNumberEnd == 0 {
-			section.FileLineNumberEnd = m.bodyLineNumber - 1 + lineNumber
-			section.BodyLineNumberEnd = lineNumber
-			section.ContentText = text.ExtractLines(m.body, section.BodyLineNumberStart, lineNumber)
+		if section.BodyLineEnd == 0 {
+			section.FileLineEnd = m.BodyLine - 1 + lineNumber
+			section.BodyLineEnd = lineNumber
+			section.ContentText = text.ExtractLines(m.Body, section.BodyLineStart, lineNumber)
 		}
 	}
 
@@ -245,8 +229,8 @@ func (m *MarkdownFile) GetSections() ([]*MarkdownSection, error) {
 		for {
 			if strings.HasSuffix(section.ContentText, "\n") {
 				section.ContentText = strings.TrimSuffix(section.ContentText, "\n")
-				section.FileLineNumberEnd -= 1
-				section.BodyLineNumberEnd -= 1
+				section.FileLineEnd -= 1
+				section.BodyLineEnd -= 1
 			} else {
 				break
 			}
@@ -257,6 +241,21 @@ func (m *MarkdownFile) GetSections() ([]*MarkdownSection, error) {
 	}
 
 	return sections, nil
+}
+
+func (m *MarkdownFile) GetTopSection() (*MarkdownSection, error) {
+	sections, err := m.GetSections()
+	if err != nil {
+		return nil, err
+	}
+	if len(sections) == 0 {
+		return nil, nil
+	}
+	return sections[0], nil
+}
+
+func (m *MarkdownFile) ToParsedFile() (*ParsedFileNew, error) {
+	return ParseFileFromMarkdownFile(m)
 }
 
 // TODO create parser.go with
@@ -282,10 +281,14 @@ Go Links are present in a note but are independant.
 NewParsedFileFromMarkdownFile(mdFile) *ParsedFile
 
 
-MarkdownFile ------> ParsedFile ---------> File -------------> PackFile
+    MarkdownFile ------> ParsedFile ---------> File -------------> PackFile
 
-I understand        I extract              Core logic          I bundle
-Markdown syntax     _NoteWriter_ objects                       _NoteWriter_ objects
+    I understand        I extract              Core logic          I bundle
+    Markdown syntax     _NoteWriter_ objects                       _NoteWriter_ objects
+
+    <---- Stateless ----------------> <------- Stateful ------------------->
+
+	<----- Env agnostic ------------> <----- Env specific (config, ...) --->
 
 
 Option 1: Parsed when needed (ex: `GetLinks` on `Note`)

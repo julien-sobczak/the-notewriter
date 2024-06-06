@@ -119,7 +119,7 @@ type Note struct {
 }
 
 // NewOrExistingNote loads and updates an existing note or creates a new one if new.
-func NewOrExistingNote(f *File, parent *Note, parsedNote *ParsedNote) *Note {
+func NewOrExistingNote(f *File, parent *Note, parsedNote *ParsedNoteOld) *Note {
 	// Try to find an existing note (instead of recreating it from scratch after every change)
 	note, _ := CurrentRepository().FindMatchingNote(f.RelativePath, parsedNote)
 	if note != nil {
@@ -131,7 +131,7 @@ func NewOrExistingNote(f *File, parent *Note, parsedNote *ParsedNote) *Note {
 }
 
 // NewNote creates a new note from given attributes.
-func NewNote(f *File, parent *Note, parsedNote *ParsedNote) *Note {
+func NewNote(f *File, parent *Note, parsedNote *ParsedNoteOld) *Note {
 	// Set basic properties
 	n := &Note{
 		OID:          NewOID(),
@@ -333,7 +333,7 @@ func (n Note) String() string {
 
 /* Update */
 
-func (n *Note) update(f *File, parent *Note, parsedNote *ParsedNote) {
+func (n *Note) update(f *File, parent *Note, parsedNote *ParsedNoteOld) {
 	// Set basic properties
 	if n.FileOID != f.OID {
 		n.FileOID = f.OID
@@ -1267,7 +1267,7 @@ func (r *Repository) FindNoteByPathAndTitle(relativePath string, title string) (
 	return QueryNote(CurrentDB().Client(), `WHERE relative_path = ? AND title = ?`, relativePath, title)
 }
 
-func (r *Repository) FindMatchingNote(relativePath string, parsedNote *ParsedNote) (*Note, error) {
+func (r *Repository) FindMatchingNote(relativePath string, parsedNote *ParsedNoteOld) (*Note, error) {
 	// Try by slug
 	note, _ := r.FindNoteBySlug(parsedNote.Slug)
 	if note != nil {

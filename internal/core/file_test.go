@@ -1149,8 +1149,8 @@ i--
 func TestParseNotes(t *testing.T) {
 	tests := []struct {
 		name    string
-		input   string                          // input
-		checkFn func(*testing.T, []*ParsedNote) // output
+		input   string                             // input
+		checkFn func(*testing.T, []*ParsedNoteOld) // output
 	}{
 
 		{
@@ -1173,7 +1173,7 @@ key: value
 
 This note contains nothing interesting.
 `,
-			checkFn: func(t *testing.T, notes []*ParsedNote) {
+			checkFn: func(t *testing.T, notes []*ParsedNoteOld) {
 				require.Len(t, notes, 2) // The comment inside the block code must not be considered like a free note
 				assert.Equal(t, "First", notes[0].ShortTitle)
 				assert.Equal(t, "Second", notes[1].ShortTitle)
@@ -1188,7 +1188,7 @@ This note contains nothing interesting.
 
 * [ ] Add licence GNU GPL
 `,
-			checkFn: func(t *testing.T, notes []*ParsedNote) {
+			checkFn: func(t *testing.T, notes []*ParsedNoteOld) {
 				require.Len(t, notes, 1) // No typed notes present inside the doc
 				assert.Equal(t, "My Project", notes[0].ShortTitle)
 				assert.Equal(t, KindFree, notes[0].Kind)
@@ -1215,7 +1215,7 @@ This is a subsection of the free note.
 
 This is a subsection of the reference note.
 `,
-			checkFn: func(t *testing.T, notes []*ParsedNote) {
+			checkFn: func(t *testing.T, notes []*ParsedNoteOld) {
 				require.Len(t, notes, 3)
 				assert.Equal(t, "A TODO Note", notes[0].ShortTitle)
 				assert.Equal(t, "A Free Note", notes[1].ShortTitle)
@@ -1242,7 +1242,7 @@ Presentation of idea A
 
 Presentation of idea B
 `,
-			checkFn: func(t *testing.T, notes []*ParsedNote) {
+			checkFn: func(t *testing.T, notes []*ParsedNoteOld) {
 				require.Len(t, notes, 3)
 				assert.Equal(t, "Backlog", notes[0].ShortTitle)
 				assert.Equal(t, "Idea A", notes[1].ShortTitle)
@@ -1263,7 +1263,7 @@ Presentation of idea B
 				"# List all buckets\n" +
 				"$ mc ls minio\n" +
 				"```\n",
-			checkFn: func(t *testing.T, notes []*ParsedNote) {
+			checkFn: func(t *testing.T, notes []*ParsedNoteOld) {
 				require.Len(t, notes, 1)
 			},
 		},
@@ -1288,7 +1288,7 @@ Presentation of idea B
 				"---\n" +
 				"The second letter of the alphabet\n" +
 				"```\n",
-			checkFn: func(t *testing.T, notes []*ParsedNote) {
+			checkFn: func(t *testing.T, notes []*ParsedNoteOld) {
 				require.Len(t, notes, 1)
 				assert.Equal(t, "Templates", notes[0].ShortTitle)
 			},
@@ -1311,10 +1311,10 @@ func TestParseFileComplex(t *testing.T) {
 	notes := ParseNotes(file.Body, "markdown-language")
 
 	// Check note by note
-	var note *ParsedNote
+	var note *ParsedNoteOld
 
 	note = notes[0]
-	assert.Equal(t, &ParsedNote{
+	assert.Equal(t, &ParsedNoteOld{
 		Kind:       "note",
 		Level:      2,
 		Slug:       "markdown-language-note-markdown-in-markdown",
@@ -1328,7 +1328,7 @@ func TestParseFileComplex(t *testing.T) {
 	}, ignoreNoteBody(note))
 
 	note = notes[1]
-	assert.Equal(t, &ParsedNote{
+	assert.Equal(t, &ParsedNoteOld{
 		Kind:       "cheatsheet",
 		Level:      2,
 		Slug:       "markdown-language-cheatsheet-how-to-include-html-in-markdown",
@@ -1342,7 +1342,7 @@ func TestParseFileComplex(t *testing.T) {
 	}, ignoreNoteBody(note))
 
 	note = notes[2]
-	assert.Equal(t, &ParsedNote{
+	assert.Equal(t, &ParsedNoteOld{
 		Kind:       "note",
 		Level:      2,
 		Slug:       "markdown-language-note-a",
@@ -1357,7 +1357,7 @@ func TestParseFileComplex(t *testing.T) {
 	}, ignoreNoteBody(note))
 
 	note = notes[3]
-	assert.Equal(t, &ParsedNote{
+	assert.Equal(t, &ParsedNoteOld{
 		Kind:       "note",
 		Level:      3,
 		Slug:       "markdown-language-note-b",
@@ -1371,7 +1371,7 @@ func TestParseFileComplex(t *testing.T) {
 	}, ignoreNoteBody(note))
 
 	note = notes[4]
-	assert.Equal(t, &ParsedNote{
+	assert.Equal(t, &ParsedNoteOld{
 		Kind:       "note",
 		Level:      4,
 		Slug:       "markdown-language-note-c",
@@ -1385,7 +1385,7 @@ func TestParseFileComplex(t *testing.T) {
 	}, ignoreNoteBody(note))
 
 	note = notes[5]
-	assert.Equal(t, &ParsedNote{
+	assert.Equal(t, &ParsedNoteOld{
 		Kind:       "note",
 		Level:      5,
 		Slug:       "markdown-language-note-d",
@@ -1399,7 +1399,7 @@ func TestParseFileComplex(t *testing.T) {
 	}, ignoreNoteBody(note))
 
 	note = notes[6]
-	assert.Equal(t, &ParsedNote{
+	assert.Equal(t, &ParsedNoteOld{
 		Kind:           "note",
 		Level:          6,
 		Slug:           "markdown-language-note-e",
@@ -1411,7 +1411,7 @@ func TestParseFileComplex(t *testing.T) {
 	}, ignoreNoteBody(note))
 
 	note = notes[7]
-	assert.Equal(t, &ParsedNote{
+	assert.Equal(t, &ParsedNoteOld{
 		Kind:           "todo",
 		Level:          2,
 		Slug:           "markdown-language-todo-list",
@@ -1423,7 +1423,7 @@ func TestParseFileComplex(t *testing.T) {
 	}, ignoreNoteBody(note))
 
 	note = notes[8]
-	assert.Equal(t, &ParsedNote{
+	assert.Equal(t, &ParsedNoteOld{
 		Kind:           "note",
 		Level:          2,
 		Slug:           "markdown-language-note-comments",
@@ -1435,7 +1435,7 @@ func TestParseFileComplex(t *testing.T) {
 	}, ignoreNoteBody(note))
 
 	note = notes[9]
-	assert.Equal(t, &ParsedNote{
+	assert.Equal(t, &ParsedNoteOld{
 		Kind:       "quote",
 		Level:      2,
 		Slug:       "markdown-language-quote-richly-annotated-quote",
@@ -1482,8 +1482,8 @@ func TestDetermineFileSlug(t *testing.T) {
 
 /* Test Helpers */
 
-func ignoreNoteBody(note *ParsedNote) *ParsedNote {
-	var res ParsedNote
+func ignoreNoteBody(note *ParsedNoteOld) *ParsedNoteOld {
+	var res ParsedNoteOld
 	copier.Copy(&res, note)
 	res.Body = ""
 	return &res

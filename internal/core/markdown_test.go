@@ -23,7 +23,7 @@ func TestParseMarkdown(t *testing.T) {
 			golden: "basic",
 			test: func(t *testing.T, md *core.MarkdownFile) {
 				// No front matter is defined
-				assert.Empty(t, md.FrontMatter())
+				assert.Empty(t, md.FrontMatter)
 				fmMap, err := md.FrontMatterAsMap()
 				require.NoError(t, err)
 				assert.Empty(t, fmMap)
@@ -32,14 +32,14 @@ func TestParseMarkdown(t *testing.T) {
 				assert.Empty(t, fmNode)
 
 				// Body contains the original file content
-				content, err := os.ReadFile(md.AbsolutePath())
+				content, err := os.ReadFile(md.AbsolutePath)
 				require.NoError(t, err)
-				assert.Equal(t, string(content), md.Body())
+				assert.Equal(t, string(content), md.Body)
 
 				// Check last update date
 				updatedAt := md.LastUpdateDate()
-				os.WriteFile(md.AbsolutePath(), []byte("# Updated"), 0644)
-				updatedMD, err := core.ParseMarkdownFile(md.AbsolutePath())
+				os.WriteFile(md.AbsolutePath, []byte("# Updated"), 0644)
+				updatedMD, err := core.ParseMarkdownFile(md.AbsolutePath)
 				require.NoError(t, err)
 				assert.True(t, updatedAt.Before(updatedMD.LastUpdateDate()))
 
@@ -53,10 +53,10 @@ func TestParseMarkdown(t *testing.T) {
 					HeadingText:         "Title",
 					HeadingLevel:        1,
 					ContentText:         "# Title\n\n## Subtitle\n\n### Section A\n\nText from section A\n\n#### Section A.1\n\nText from section A1\n\n### Section B\n\nText from section B\n\n#### Section B.1\n\nText from section B1\n\n#### Section B.2\n\nText from section B2",
-					FileLineNumberStart: 1,
-					FileLineNumberEnd:   23,
-					BodyLineNumberStart: 1,
-					BodyLineNumberEnd:   23,
+					FileLineStart: 1,
+					FileLineEnd:   23,
+					BodyLineStart: 1,
+					BodyLineEnd:   23,
 				}, sectionTitle)
 
 				sectionSubtitle := sections[1]
@@ -65,10 +65,10 @@ func TestParseMarkdown(t *testing.T) {
 					HeadingText:         "Subtitle",
 					HeadingLevel:        2,
 					ContentText:         "## Subtitle\n\n### Section A\n\nText from section A\n\n#### Section A.1\n\nText from section A1\n\n### Section B\n\nText from section B\n\n#### Section B.1\n\nText from section B1\n\n#### Section B.2\n\nText from section B2",
-					FileLineNumberStart: 3,
-					FileLineNumberEnd:   23,
-					BodyLineNumberStart: 3,
-					BodyLineNumberEnd:   23,
+					FileLineStart: 3,
+					FileLineEnd:   23,
+					BodyLineStart: 3,
+					BodyLineEnd:   23,
 				}, sectionSubtitle)
 
 				sectionA := sections[2]
@@ -77,10 +77,10 @@ func TestParseMarkdown(t *testing.T) {
 					HeadingText:         "Section A",
 					HeadingLevel:        3,
 					ContentText:         "### Section A\n\nText from section A\n\n#### Section A.1\n\nText from section A1",
-					FileLineNumberStart: 5,
-					FileLineNumberEnd:   11,
-					BodyLineNumberStart: 5,
-					BodyLineNumberEnd:   11,
+					FileLineStart: 5,
+					FileLineEnd:   11,
+					BodyLineStart: 5,
+					BodyLineEnd:   11,
 				}, sectionA)
 
 				sectionA1 := sections[3]
@@ -89,10 +89,10 @@ func TestParseMarkdown(t *testing.T) {
 					HeadingText:         "Section A.1",
 					HeadingLevel:        4,
 					ContentText:         "#### Section A.1\n\nText from section A1",
-					FileLineNumberStart: 9,
-					FileLineNumberEnd:   11,
-					BodyLineNumberStart: 9,
-					BodyLineNumberEnd:   11,
+					FileLineStart: 9,
+					FileLineEnd:   11,
+					BodyLineStart: 9,
+					BodyLineEnd:   11,
 				}, sectionA1)
 
 				sectionB := sections[4]
@@ -101,10 +101,10 @@ func TestParseMarkdown(t *testing.T) {
 					HeadingText:         "Section B",
 					HeadingLevel:        3,
 					ContentText:         "### Section B\n\nText from section B\n\n#### Section B.1\n\nText from section B1\n\n#### Section B.2\n\nText from section B2",
-					FileLineNumberStart: 13,
-					FileLineNumberEnd:   23,
-					BodyLineNumberStart: 13,
-					BodyLineNumberEnd:   23,
+					FileLineStart: 13,
+					FileLineEnd:   23,
+					BodyLineStart: 13,
+					BodyLineEnd:   23,
 				}, sectionB)
 
 				sectionB1 := sections[5]
@@ -113,10 +113,10 @@ func TestParseMarkdown(t *testing.T) {
 					HeadingText:         "Section B.1",
 					HeadingLevel:        4,
 					ContentText:         "#### Section B.1\n\nText from section B1",
-					FileLineNumberStart: 17,
-					FileLineNumberEnd:   19,
-					BodyLineNumberStart: 17,
-					BodyLineNumberEnd:   19,
+					FileLineStart: 17,
+					FileLineEnd:   19,
+					BodyLineStart: 17,
+					BodyLineEnd:   19,
 				}, sectionB1)
 
 				sectionB2 := sections[6]
@@ -125,10 +125,10 @@ func TestParseMarkdown(t *testing.T) {
 					HeadingText:         "Section B.2",
 					HeadingLevel:        4,
 					ContentText:         "#### Section B.2\n\nText from section B2",
-					FileLineNumberStart: 21,
-					FileLineNumberEnd:   23,
-					BodyLineNumberStart: 21,
-					BodyLineNumberEnd:   23,
+					FileLineStart: 21,
+					FileLineEnd:   23,
+					BodyLineStart: 21,
+					BodyLineEnd:   23,
 				}, sectionB2)
 
 				// Now check walking the sections
@@ -179,7 +179,7 @@ func TestParseMarkdown(t *testing.T) {
 			name:   "Front Matter",
 			golden: "front-matter",
 			test: func(t *testing.T, md *core.MarkdownFile) {
-				assert.Equal(t, "# A comment\ntitle: Title\ntags: [tag1, tag2]\nrating: 3\nlinks:\n- https://github.com\n", md.FrontMatter())
+				assert.Equal(t, "# A comment\ntitle: Title\ntags: [tag1, tag2]\nrating: 3\nlinks:\n- https://github.com\n", md.FrontMatter)
 				fmMap, err := md.FrontMatterAsMap()
 				require.NoError(t, err)
 				assert.Equal(t, map[string]any{
@@ -283,16 +283,16 @@ func TestParseMarkdown(t *testing.T) {
 
 				// Body and File line numbers differ when a Front Matter is defined
 				// 1. Check body on file
-				assert.Equal(t, 10, md.BodyLineNumber())
-				assert.True(t, strings.HasPrefix(md.Body(), "# Title")) // Must start with the first non-empty line
+				assert.Equal(t, 10, md.BodyLine)
+				assert.True(t, strings.HasPrefix(md.Body, "# Title")) // Must start with the first non-empty line
 				// 2. Check sections
 				sections, err := md.GetSections()
 				require.NoError(t, err)
 				sectionTitle := sections[0]
-				assert.Equal(t, 10, sectionTitle.FileLineNumberStart)
-				assert.Equal(t, 16, sectionTitle.FileLineNumberEnd)
-				assert.Equal(t, 1, sectionTitle.BodyLineNumberStart)
-				assert.Equal(t, 7, sectionTitle.BodyLineNumberEnd)
+				assert.Equal(t, 10, sectionTitle.FileLineStart)
+				assert.Equal(t, 16, sectionTitle.FileLineEnd)
+				assert.Equal(t, 1, sectionTitle.BodyLineStart)
+				assert.Equal(t, 7, sectionTitle.BodyLineEnd)
 			},
 		},
 
@@ -312,10 +312,10 @@ func TestParseMarkdown(t *testing.T) {
 					HeadingText:         "Fenced Code Block",
 					HeadingLevel:        2,
 					ContentText:         "## Fenced Code Block\n\n```md\n# Heading inside a block code\n\nSome text\n```",
-					FileLineNumberStart: 3,
-					FileLineNumberEnd:   9,
-					BodyLineNumberStart: 3,
-					BodyLineNumberEnd:   9,
+					FileLineStart: 3,
+					FileLineEnd:   9,
+					BodyLineStart: 3,
+					BodyLineEnd:   9,
 				}, sectionFenced)
 
 				sectionIndent := sections[2]
@@ -324,10 +324,10 @@ func TestParseMarkdown(t *testing.T) {
 					HeadingText:         "Indented Code Block",
 					HeadingLevel:        2,
 					ContentText:         "## Indented Code Block\n\n    # Heading inside a block code\n\n    Some text",
-					FileLineNumberStart: 11,
-					FileLineNumberEnd:   15,
-					BodyLineNumberStart: 11,
-					BodyLineNumberEnd:   15,
+					FileLineStart: 11,
+					FileLineEnd:   15,
+					BodyLineStart: 11,
+					BodyLineEnd:   15,
 				}, sectionIndent)
 			},
 		},
