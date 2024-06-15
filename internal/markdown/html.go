@@ -10,7 +10,11 @@ import (
 	mdhtml "github.com/gomarkdown/markdown/html"
 )
 
-func ToHTML(md string) string {
+// FIXME this file must probably be removed
+// TODO move ToHTML to stateful `Note` object instead
+
+func (m Document) ToHTML() string {
+	md := string(m)
 	renderer := newCustomizedRender()
 	html := markdown.ToHTML([]byte(md), nil, renderer)
 	result := strings.TrimSpace(string(html))
@@ -19,8 +23,8 @@ func ToHTML(md string) string {
 	return result
 }
 
-func ToInlineHTML(md string) string {
-	html := strings.TrimSpace(ToHTML(md))
+func (m Document) ToInlineHTML(md string) string {
+	html := strings.TrimSpace(m.ToHTML())
 	if strings.HasPrefix(html, "<p>") && strings.HasSuffix(html, "</p>") {
 		html = strings.TrimPrefix(html, "<p>")
 		html = strings.TrimSuffix(html, "</p>")

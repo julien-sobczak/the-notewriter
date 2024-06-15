@@ -2,6 +2,7 @@ package markdown
 
 import (
 	"bytes"
+	"fmt"
 	"regexp"
 	"strings"
 	"unicode/utf8"
@@ -9,15 +10,20 @@ import (
 	"github.com/gosimple/slug"
 )
 
+// FIXME this file must probably be removed
+// TODO move ToText to stateful `Note` object instead
+
 // How many spaces to indent headings per level
 const indentHeading = 2
 
 // How many spaces to indent code blocks
 const indentCode = 4
 
-func ToText(md string) string {
+func (m Document) ToText() string {
 	// Headings
 	var res bytes.Buffer
+
+	md := string(m)
 	for _, line := range strings.Split(md, "\n") {
 		ok, headingTitle, level := IsHeading(line)
 		if ok {
@@ -52,11 +58,11 @@ func ToText(md string) string {
 	txt := res.String()
 
 	// Emphasis
-	txt = StripEmphasis(txt)
+	tempDocument := Document(txt).MustTransform(StripEmphasis())
 
 	// Quotes
 	res.Reset()
-	lines := strings.Split(txt, "\n")
+	lines := strings.Split(string(tempDocument), "\n")
 	insideQuote := false
 	for i, line := range lines {
 		if strings.HasPrefix(line, ">") {
@@ -110,29 +116,20 @@ func ToText(md string) string {
 	return strings.TrimSpace(txt)
 }
 
-// StripEmphasis remove Markdown emphasis characters.
-func StripEmphasis(text string) string {
-	reBoldAsterisks := regexp.MustCompile(`\*\*(.*?)\*\*`)
-	reBoldUnderscores := regexp.MustCompile(`__(.*?)__`)
-	reItalicAsterisks := regexp.MustCompile(`\*(.*?)\*`)
-	reItalicUnderscores := regexp.MustCompile(`_(.*?)_`)
-	reCode := regexp.MustCompile("`([^`].*?)`") // Important: do not match ```
-
-	text = reBoldAsterisks.ReplaceAllString(text, "$1")
-	text = reBoldUnderscores.ReplaceAllString(text, "$1")
-	text = reItalicAsterisks.ReplaceAllString(text, "$1")
-	text = reItalicUnderscores.ReplaceAllString(text, "$1")
-	text = reCode.ReplaceAllString(text, "$1")
-
-	return text
-}
-
 // Slug returns a slug from a list of raw Markdown input values that will be processed.
-func Slug(values ...string) string {
+func Slug(values ...any) string {
 	var parts []string
 	for _, value := range values {
-		value = StripEmphasis(value)
-		parts = append(parts, value)
+		switch v := value.(type) {
+		case string:
+			parts = append(parts, v)
+		case Document:
+			part := v.MustTransform(StripEmphasis())
+			parts = append(parts, string(part))
+		default:
+			part := fmt.Sprintf("%s", v)
+			parts = append(parts, part)
+		}
 	}
 	return slug.Make(strings.Join(parts, " "))
 }

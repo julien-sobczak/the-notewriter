@@ -16,8 +16,8 @@ import (
 	"time"
 
 	"github.com/julien-sobczak/the-notewriter/internal/helpers"
+	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
-	"github.com/julien-sobczak/the-notewriter/pkg/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
@@ -26,7 +26,7 @@ import (
 // Default indentation in front matter
 const Indent int = 2
 
-type Attribute struct {
+type Attribute struct { // TODO remove
 	Key   string
 	Value interface{}
 }
@@ -905,7 +905,7 @@ func ParseFile(path string) (*ParsedFileOld, error) {
 
 // DetermineFileSlug generates a slug from a file path.
 func DetermineFileSlug(path string) string {
-	slugsParts := []string{}
+	var slugsParts []any
 
 	// Include the dirname
 	dirname := filepath.Base(filepath.Dir(path))
@@ -1416,9 +1416,9 @@ func (f *File) FormatToJSON() string {
 		RelativePath:       f.RelativePath,
 		Wikilink:           f.Wikilink,
 		ShortTitleRaw:      f.ShortTitle,
-		ShortTitleMarkdown: markdown.ToMarkdown(f.ShortTitle),
-		ShortTitleHTML:     markdown.ToHTML(f.ShortTitle),
-		ShortTitleText:     markdown.ToText(f.ShortTitle),
+		ShortTitleMarkdown: string(f.ShortTitle.ToCleanMarkdown()),
+		ShortTitleHTML:     f.ShortTitle.ToHTML(),
+		ShortTitleText:     f.ShortTitle.ToText(),
 		Attributes:         f.GetAttributes(),
 		Body:               f.Body,
 		CreatedAt:          f.CreatedAt,

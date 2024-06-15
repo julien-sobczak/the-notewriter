@@ -17,6 +17,7 @@ import (
 // ExtractLines extract the given lines (1-based indices).
 func ExtractLines(text string, start, end int) string {
 	lines := strings.Split(text, "\n")
+
 	start = start - 1
 	if start < 0 {
 		start = 0
@@ -24,7 +25,10 @@ func ExtractLines(text string, start, end int) string {
 	if end == -1 || end > len(lines) {
 		end = len(lines)
 	}
-	return strings.Join(lines[start:end], "\n")
+
+	result := strings.Join(lines[start:end], "\n")
+
+	return result
 }
 
 // SquashBlankLines replaces successive blank lines by a single empty one.
@@ -47,7 +51,12 @@ func SquashBlankLines(text string) string {
 		result.WriteRune('\n')
 	}
 
-	return result.String()
+	// Do not return a trailing \n if not present in the original text.
+	resultText := result.String()
+	if !strings.HasSuffix(text, "\n") {
+		resultText = strings.TrimSuffix(resultText, "\n")
+	}
+	return resultText
 }
 
 // PrefixLines add a prefix to every line. All lines ends with \n in the result.

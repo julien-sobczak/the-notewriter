@@ -1,25 +1,35 @@
 package core
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
-	"github.com/julien-sobczak/the-notewriter/pkg/markdown"
+	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
 
+type Slug string // TODO see if useful in practice (mainly to build, validate or concatenate)
+
+type Tag string // TODO see if useful in practice (mainly when working with reminder tags)
+
+type GoName string // TODO see if useful in practice (=> no method = useless)
+
 type ParsedFileNew struct {
-	Markdown *MarkdownFile
+	Markdown *markdown.File
 
 	// Main Heading
 	Slug       string
-	Title      string
-	ShortTitle string
+	Title      markdown.Document
+	ShortTitle markdown.Document
 
 	// File attributes extracted from the Front Matter
 	FileAttributes map[string]interface{}
@@ -36,11 +46,12 @@ type ParsedNoteNew struct {
 
 	// Heading
 	Slug       string
-	Title      string
-	ShortTitle string
+	Title      markdown.Document
+	ShortTitle markdown.Document
 
 	Line           int
-	Body           string
+	Content        markdown.Document
+	Body           markdown.Document
 	NoteAttributes map[string]interface{}
 	NoteTags       []string
 
@@ -52,16 +63,16 @@ type ParsedNoteNew struct {
 
 type ParsedFlashcardNew struct {
 	// Short title of the note
-	ShortTitle string
+	ShortTitle markdown.Document
 
 	// Fields in Markdown
-	Front string
-	Back  string
+	Front markdown.Document
+	Back  markdown.Document
 }
 
 type ParsedLinkNew struct {
 	// The link text
-	Text string
+	Text markdown.Document
 
 	// The link destination
 	URL string
@@ -70,12 +81,12 @@ type ParsedLinkNew struct {
 	Title string
 
 	// The optional GO name
-	GoName string
+	GoName GoName
 }
 
 type ParsedReminderNew struct {
 	// Description in Markdown of the reminder (ex: the line)
-	Description string
+	Description markdown.Document
 
 	// Tag value containig the formula to determine the next occurence
 	Tag string `yaml:"tag"`
@@ -95,34 +106,65 @@ type ParsedMediaNew struct {
 	// Media exists on disk
 	Dangling bool
 	// Content last modification date
-	MTime time.Time
+	mtime time.Time
 	// Size of the file
-	Size int64
+	size int64
 	// Permission of the file
-	Mode fs.FileMode
+	mode fs.FileMode
 
 	// Line number where the link present.
 	Line int
 }
 
-func ParseFileFromMarkdownFile(md *MarkdownFile) (*ParsedFileNew, error) {
+func (p *ParsedNoteNew) GetAttributeAsString(name string) string {
+	if v, ok := p.NoteAttributes[name]; ok {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	// Conversion errors are ignored (we consider the requested attribute doesn't exist)
+	return ""
+}
+
+func (p *ParsedMediaNew) MTime() time.Time {
+	return p.mtime
+}
+func (p *ParsedMediaNew) Size() int64 {
+	return p.size
+}
+func (p *ParsedMediaNew) Mode() fs.FileMode {
+	return p.mode
+}
+
+func ParseFileFromMarkdownFile(md *markdown.File) (*ParsedFileNew, error) {
 	// Extract file attributes
-	frontMatter, err := md.FrontMatterAsMap()
+	frontMatter, err := md.FrontMatter.AsMap()
 	if err != nil {
 		return nil, err
 	}
-	fileAttributes := CastAttributes(frontMatter, GetSchemaAttributeTypes())
+	// fileAttributes := CastAttributes(frontMatter, GetSchemaAttributeTypes()) // FIXME move in file
+	fileAttributes := frontMatter
+
+	// Check if file must be ignored
+	if value, ok := fileAttributes["tags"]; ok {
+		if v, ok := value.(string); ok && v == "ignore" {
+			return nil, nil
+		}
+		if v, ok := value.([]string); ok && slices.Contains[[]string](v, "ignore") {
+			return nil, nil
+		}
+	}
 
 	// Extract titles
 	topSection, err := md.GetTopSection()
 	if err != nil {
 		return nil, err
 	}
-	title := ""
+	title := markdown.Document("")
 	if topSection != nil {
 		title = topSection.HeadingText
 	}
-	_, _, shortTitle := isSupportedNote(title)
+	_, _, shortTitle := isSupportedNote(string(title)) // TODO change signature to avoid casts
 
 	// Extract/Generate slug
 	slug := DetermineFileSlug(md.AbsolutePath)
@@ -139,7 +181,7 @@ func ParseFileFromMarkdownFile(md *MarkdownFile) (*ParsedFileNew, error) {
 		// Main Heading
 		Slug:       slug,
 		Title:      title,
-		ShortTitle: shortTitle,
+		ShortTitle: markdown.Document(shortTitle),
 
 		// File attributes extracted from the Front Matter
 		FileAttributes: fileAttributes,
@@ -158,7 +200,7 @@ func ParseFileFromMarkdownFile(md *MarkdownFile) (*ParsedFileNew, error) {
 	result.Notes = notes
 	result.Medias = medias
 
-	return nil, nil
+	return result, nil
 }
 
 func (p *ParsedFileNew) extractNotes() ([]*ParsedNoteNew, error) {
@@ -172,19 +214,25 @@ func (p *ParsedFileNew) extractNotes() ([]*ParsedNoteNew, error) {
 
 	for _, section := range sections {
 
-		noteContent := text.ExtractLines(section.ContentText, 1, -1)
+		noteContent := section.ContentText
+		noteBody := noteContent.ExtractLines(2, -1) // Trim heading
 
-		if text.IsBlank(noteContent) {
+		if noteBody.IsBlank() {
 			// skip sections without text (= category to organize notes, not really free notes)
 			continue
 		}
 
 		// Determine the attributes
-		tags, attributes := ExtractBlockTagsAndAttributes(noteContent)
+		tags, attributes := ExtractBlockTagsAndAttributes(string(noteBody)) // TODO change signature
 
 		// Determine the titles
 		title := section.HeadingText
-		_, kind, shortTitle := isSupportedNote(title)
+		supported, kind, shortTitle := isSupportedNote(string(title))
+
+		if !supported {
+			// Ex: top-level heading, subsections inside a "Note:" already included in the containing note, ...
+			continue
+		}
 
 		// Determine slug from attribute or define a default one otherwise
 		slug := markdown.Slug(p.Slug, string(kind), shortTitle)
@@ -194,18 +242,47 @@ func (p *ParsedFileNew) extractNotes() ([]*ParsedNoteNew, error) {
 			}
 		}
 
-		parsedNote := &ParsedNoteNew{
-			Level:          section.HeadingLevel,
-			Kind:           kind,
-			Slug:           slug,
-			Title:          title,
-			ShortTitle:     shortTitle,
-			Line:           section.FileLineStart,
-			NoteAttributes: CastAttributes(attributes, GetSchemaAttributeTypes()),
-			NoteTags:       tags,
-			Body:           noteContent,
+		// Apply post-processing on note body
+		postProcessNoteBody, err := noteBody.Transform(
+			markdown.StripHTMLComments(),
+			markdown.StripMarkdownUnofficialComments(),
+			// TODO inject <Media> tags? => wait in File to be able to replace link with custom format "blob:<oid>" instead
+			markdown.ReplaceCharacters(markdown.AsciidocCharacterSubstitutions))
+		if err != nil {
+			return nil, err
 		}
-		notes = append(notes, parsedNote)
+
+		parsedNote := &ParsedNoteNew{
+			Level:      section.HeadingLevel,
+			Kind:       kind,
+			Slug:       slug,
+			Title:      title,
+			ShortTitle: markdown.Document(shortTitle),
+			Line:       section.FileLineStart,
+			// NoteAttributes: CastAttributes(attributes, GetSchemaAttributeTypes()), FIXME
+			NoteAttributes: attributes,
+			NoteTags:       tags,
+			Content:        noteContent,
+			Body:           postProcessNoteBody.TrimSpace(),
+		}
+
+		if parsedNote.Kind == KindGenerator {
+			// Generator notes are not saved in database
+			// They are parsed, evaluated and the results is injected as if
+			// the generated notes had been edited manually.
+			generatedNotes, generatedMedias, err := p.GenerateNotes(parsedNote)
+			if err != nil {
+				return nil, err
+			}
+			if len(generatedNotes) > 0 {
+				notes = append(notes, generatedNotes...)
+			}
+			if len(generatedMedias) > 0 {
+				p.Medias = append(p.Medias, generatedMedias...)
+			}
+		} else {
+			notes = append(notes, parsedNote)
+		}
 	}
 
 	// Extract objects
@@ -227,6 +304,117 @@ func (p *ParsedFileNew) extractNotes() ([]*ParsedNoteNew, error) {
 	return notes, nil
 }
 
+func (p *ParsedFileNew) GenerateNotes(generator *ParsedNoteNew) ([]*ParsedNoteNew, []*ParsedMediaNew, error) {
+	// Inline or external?
+	filename := generator.GetAttributeAsString("file")
+	interpreter := generator.GetAttributeAsString("interpreter")
+
+	var cmdArgs []string
+
+	if interpreter != "" {
+		// Check binary exists...
+		interpreterStat, err := os.Stat(interpreter)
+		if os.IsNotExist(err) {
+			return nil, nil, fmt.Errorf("interpreter %q doesn't exist in generator %q", interpreter, generator.ShortTitle)
+		}
+		// ... and is executable
+		if !IsExec(interpreterStat.Mode()) {
+			return nil, nil, fmt.Errorf("interpreter %q is not executable in generator %q", interpreter, generator.ShortTitle)
+		}
+
+		cmdArgs = append(cmdArgs, interpreter)
+	}
+
+	if filename != "" { // External
+		scriptPath := filepath.Join(filepath.Dir(p.Markdown.AbsolutePath), interpreter)
+
+		// Check file exists
+		scriptStat, err := os.Stat(scriptPath)
+		if os.IsNotExist(err) {
+			return nil, nil, fmt.Errorf("script %q doesn't exist in generator %q", filename, generator.ShortTitle)
+		}
+
+		// check file is executable
+		if interpreter == "" && !IsExec(scriptStat.Mode()) {
+			return nil, nil, fmt.Errorf("script %q is not executable in generator %q", filename, generator.ShortTitle)
+		}
+
+		cmdArgs = append(cmdArgs, scriptPath)
+	} else { // Internal
+
+		// Search for the first code block in note
+		codeBlocks := generator.Body.ExtractCodeBlocks()
+		if len(codeBlocks) == 0 {
+			return nil, nil, fmt.Errorf("missing 'file' attribute or code block inside generator %q", p.ShortTitle)
+		}
+
+		script := codeBlocks[0]
+
+		scriptLanguage := script.Language
+		scriptContent := script.Source
+
+		if scriptLanguage == "" {
+			return nil, nil, fmt.Errorf("missing language in code block inside generator %q", p.ShortTitle)
+		}
+
+		// Expect the Markdown language
+		cmdArgs = append(cmdArgs, scriptLanguage)
+
+		scriptPath, err := os.CreateTemp("nt", "script")
+		if err != nil {
+			return nil, nil, fmt.Errorf("unable to create temporary script for generator %q: %w", p.ShortTitle, err)
+		}
+		defer os.Remove(scriptPath.Name())
+		os.WriteFile(scriptPath.Name(), []byte(scriptContent), 0755)
+
+		cmdArgs = append(cmdArgs, scriptPath.Name())
+	}
+
+	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s\n", stderr.Bytes())
+		return nil, nil, fmt.Errorf("failed to run generator command %q: %w", strings.Join(cmdArgs, " "), err)
+	}
+
+	mdPath, err := os.CreateTemp("nt", "md")
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to create temporary Markdown file for generator %q: %w", p.ShortTitle, err)
+	}
+	defer os.Remove(mdPath.Name())
+	if err := os.WriteFile(mdPath.Name(), stdout.Bytes(), 0644); err != nil {
+		return nil, nil, fmt.Errorf("unable to write temporary Markdown file for generator %q: %w", p.ShortTitle, err)
+	}
+
+	mdFile, err := markdown.ParseFile(mdPath.Name())
+	if err != nil {
+		return nil, nil, err
+	}
+	generatedFile, err := ParseFileFromMarkdownFile(mdFile)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var resultsNotes []*ParsedNoteNew
+	var resultsMedias []*ParsedMediaNew
+	// Use original line number to make easy to jump to the generator note
+	for _, generatedNote := range generatedFile.Notes {
+		generatedNote.Line = generator.Line
+	}
+	for _, generatedMedia := range generatedFile.Medias {
+		generatedMedia.Line = generator.Line
+	}
+
+	return resultsNotes, resultsMedias, nil
+}
+
+func (p *ParsedFileNew) FileLineNumber(bodyLineNumber int) int {
+	return p.Markdown.BodyLine + bodyLineNumber - 1
+}
+
 func (p *ParsedFileNew) extractMedias() ([]*ParsedMediaNew, error) {
 	// All medias collected until now
 	var medias []*ParsedMediaNew
@@ -235,13 +423,13 @@ func (p *ParsedFileNew) extractMedias() ([]*ParsedMediaNew, error) {
 	filepaths := make(map[string]bool)
 
 	// Ignore medias inside code blocks (ex: a sample Markdown code block)
-	fileBody := markdown.CleanCodeBlocks(p.Markdown.Body)
+	fileBody := p.Markdown.Body.MustTransform(markdown.StripCodeBlocks())
 
 	regexMedia := regexp.MustCompile(`!\[(.*?)\]\((\S*?)(?:\s+"(.*?)")?\)`)
-	matches := regexMedia.FindAllStringSubmatch(fileBody, -1)
+	matches := regexMedia.FindAllStringSubmatch(string(fileBody), -1)
 	for _, match := range matches {
 		txt := match[0]
-		line := text.LineNumber(fileBody, txt)
+		line := text.LineNumber(string(fileBody), txt)
 
 		rawPath := match[2]
 
@@ -251,7 +439,7 @@ func (p *ParsedFileNew) extractMedias() ([]*ParsedMediaNew, error) {
 		}
 
 		// Ex: /some/path/to/markdown.md + ../index.md => /some/path/to/../markdown.md
-		absolutePath, err := filepath.Abs(filepath.Join(filepath.Base(p.Markdown.AbsolutePath), rawPath))
+		absolutePath, err := filepath.Abs(filepath.Join(filepath.Dir(p.Markdown.AbsolutePath), rawPath))
 		if err != nil {
 			return nil, err
 		}
@@ -259,7 +447,7 @@ func (p *ParsedFileNew) extractMedias() ([]*ParsedMediaNew, error) {
 		medias = append(medias, &ParsedMediaNew{
 			RawPath:      rawPath,
 			AbsolutePath: absolutePath,
-			Line:         line,
+			Line:         p.FileLineNumber(line),
 			MediaKind:    DetectMediaKind(rawPath),
 			Extension:    filepath.Ext(rawPath),
 		})
@@ -269,13 +457,14 @@ func (p *ParsedFileNew) extractMedias() ([]*ParsedMediaNew, error) {
 	// Read files on disk after having caught "easy" errors
 	for _, media := range medias {
 		stat, err := os.Stat(media.AbsolutePath)
+		fmt.Println("Testing TOTO", media.AbsolutePath)
 		if errors.Is(err, os.ErrNotExist) {
 			media.Dangling = true
 		} else {
 			media.Dangling = false
-			media.Size = stat.Size()
-			media.MTime = stat.ModTime()
-			media.Mode = stat.Mode()
+			media.size = stat.Size()
+			media.mtime = stat.ModTime()
+			media.mode = stat.Mode()
 		}
 	}
 
@@ -288,10 +477,15 @@ func (p *ParsedNoteNew) extractFlashcard() (*ParsedFlashcardNew, error) {
 	}
 
 	// Only front/back to parse
-	front, back, ok := splitFrontBack(p.Body)
-	if !ok {
+	parts := p.Body.SplitByHorizontalRules()
+	if len(parts) < 2 {
 		return nil, errors.New("missing flashcard separator")
 	}
+	if len(parts) > 2 {
+		return nil, errors.New("too many flashcard separator")
+	}
+	front := parts[0]
+	back := parts[1]
 
 	return &ParsedFlashcardNew{
 		ShortTitle: p.ShortTitle,
@@ -307,7 +501,7 @@ func (p *ParsedNoteNew) extractLinks() ([]*ParsedLinkNew, error) {
 	// Note: Markdown images uses the same syntax as links but precedes the link by !
 	reTitle := regexp.MustCompile(`(?:(.*)\s+)?#go\/(\S+).*`)
 
-	matches := reLink.FindAllStringSubmatch(p.Body, -1)
+	matches := reLink.FindAllStringSubmatch(string(p.Body), -1)
 	for _, match := range matches {
 		text := match[1]
 		url := match[2]
@@ -320,10 +514,10 @@ func (p *ParsedNoteNew) extractLinks() ([]*ParsedLinkNew, error) {
 		goName := submatch[2]
 
 		link := &ParsedLinkNew{
-			Text:   text,
+			Text:   markdown.Document(text),
 			URL:    url,
 			Title:  shortTitle,
-			GoName: goName,
+			GoName: GoName(goName),
 		}
 		links = append(links, link)
 	}
@@ -337,18 +531,24 @@ func (p *ParsedNoteNew) extractReminders() ([]*ParsedReminderNew, error) {
 	reReminders := regexp.MustCompile("`(#reminder-(\\S+))`")
 	reList := regexp.MustCompile(`^\s*(?:[-+*]|\d+[.])\s+(?:\[.\]\s+)?(.*)\s*$`)
 
-	for _, line := range strings.Split(p.Body, "\n") {
+	lines := p.Body.Lines()
+	for _, line := range lines {
 		matches := reReminders.FindAllStringSubmatch(line, -1)
 		for _, match := range matches {
 			tag := match[1]
 			_ = match[2] // expression
 
-			description := strings.TrimSpace(p.ShortTitle)
+			description := p.ShortTitle.TrimSpace()
 
 			submatch := reList.FindStringSubmatch(line)
 			if submatch != nil {
 				// Reminder for a list element
-				description = RemoveTagsAndAttributes(submatch[1]) // Remove tags
+				descriptionText := markdown.Document(submatch[1])
+				descriptionCleaned, err := descriptionText.Transform(StripTagsAndAttributes())
+				if err != nil {
+					return nil, err
+				}
+				description = descriptionCleaned
 			}
 
 			reminder := &ParsedReminderNew{
@@ -362,7 +562,44 @@ func (p *ParsedNoteNew) extractReminders() ([]*ParsedReminderNew, error) {
 	return reminders, nil
 }
 
+// FindMediaByFilename searches for a media based on the filename.
+// The code uses `strings.HasSuffix` and therefore, (partial) paths can be passed too.
+func (f *ParsedFileNew) FindMediaByFilename(filename string) (*ParsedMediaNew, bool) {
+	for _, media := range f.Medias {
+		if strings.HasSuffix(media.AbsolutePath, filename) {
+			return media, true
+		}
+	}
+	return nil, false
+}
+
+// FindNoteByShortTitle searches for a note based on its short title.
+// The code does a strict comparison and the exact short title must be passed.
+func (f *ParsedFileNew) FindNoteByShortTitle(shortTitle string) (*ParsedNoteNew, bool) {
+	for _, note := range f.Notes {
+		if note.ShortTitle == markdown.Document(shortTitle) {
+			return note, true
+		}
+	}
+	return nil, false
+}
+
 // TODO uncomment after refactoring
 // func (p *ParsedFileNew) ToFile() (*File, error) {
 // 	return NewFileFromParsedFile(p)
 // }
+
+// StripTagsAndAttributes removes all tags and attributes from a NoteWriter note.
+func StripTagsAndAttributes() markdown.Transformer {
+	return func(doc markdown.Document) (markdown.Document, error) {
+		var res bytes.Buffer
+		for _, line := range doc.Lines() {
+			newLine := regexTags.ReplaceAllLiteralString(line, "")
+			newLine = regexAttributes.ReplaceAllLiteralString(newLine, "")
+			if !text.IsBlank(newLine) {
+				res.WriteString(newLine + "\n")
+			}
+		}
+		return markdown.Document(text.SquashBlankLines(res.String())).TrimSpace(), nil
+	}
+}

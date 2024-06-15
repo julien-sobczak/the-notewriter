@@ -8,8 +8,8 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/gosimple/slug"
 	"github.com/itchyny/gojq"
-	"github.com/julien-sobczak/the-notewriter/pkg/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"gopkg.in/yaml.v3"
 )
@@ -59,7 +59,7 @@ func ParseTemplate(templateText string) (*template.Template, error) {
 		},
 		"slug": func(data any) string {
 			txt := fmt.Sprintf("%s", data)
-			return markdown.Slug(txt)
+			return slug.Make(txt)
 		},
 		"jq": func(expr string, data any) (any, error) {
 			query, err := gojq.Parse(expr)

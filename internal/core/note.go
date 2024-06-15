@@ -39,6 +39,7 @@ const (
 	KindTodo       NoteKind = "todo"
 	KindArtwork    NoteKind = "artwork"
 	KindSnippet    NoteKind = "snippet"
+	KindGenerator  NoteKind = "generator"
 	// Edit website/docs/guides/notes.md when adding new kinds
 )
 
