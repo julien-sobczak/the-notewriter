@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/julien-sobczak/the-notewriter/internal/helpers"
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
@@ -26,6 +28,11 @@ type GoName string // TODO see if useful in practice (=> no method = useless)
 type ParsedFileNew struct {
 	Markdown *markdown.File
 
+	RepositoryPath string
+	AbsolutePath   string
+	// The relative path inside the repository
+	RelativePath string
+
 	// Main Heading
 	Slug       string
 	Title      markdown.Document
@@ -35,14 +42,20 @@ type ParsedFileNew struct {
 	FileAttributes map[string]interface{}
 
 	// Extracted objects
-	Notes  []*ParsedNoteNew
-	Medias []*ParsedMediaNew
+	Notes     []*ParsedNoteNew
+	Medias    []*ParsedMediaNew
+	Wikilinks []*markdown.Wikilink
 }
 
 // ParsedNote represents a single raw note inside a file.
 type ParsedNoteNew struct {
 	Level int
 	Kind  NoteKind
+
+	// The absolute path of the file
+	AbsolutePath string
+	// The relative path inside the repository
+	RelativePath string
 
 	// Heading
 	Slug       string
@@ -52,6 +65,7 @@ type ParsedNoteNew struct {
 	Line           int
 	Content        markdown.Document
 	Body           markdown.Document
+	Comment        markdown.Document
 	NoteAttributes map[string]interface{}
 	NoteTags       []string
 
@@ -64,6 +78,9 @@ type ParsedNoteNew struct {
 type ParsedFlashcardNew struct {
 	// Short title of the note
 	ShortTitle markdown.Document
+
+	// Slug of the note
+	Slug string
 
 	// Fields in Markdown
 	Front markdown.Document
@@ -97,6 +114,8 @@ type ParsedMediaNew struct {
 	RawPath string
 	// The absolute path
 	AbsolutePath string
+	// The relative path inside the repository
+	RelativePath string
 	// The file extension
 	Extension string
 
@@ -114,6 +133,11 @@ type ParsedMediaNew struct {
 
 	// Line number where the link present.
 	Line int
+}
+
+// Hash returns a hash based on the Markdown content.
+func (p *ParsedNoteNew) Hash() string {
+	return p.Content.Hash()
 }
 
 func (p *ParsedNoteNew) GetAttributeAsString(name string) string {
@@ -136,7 +160,16 @@ func (p *ParsedMediaNew) Mode() fs.FileMode {
 	return p.mode
 }
 
-func ParseFileFromMarkdownFile(md *markdown.File) (*ParsedFileNew, error) {
+func ParseFileFromRelativePath(repositoryAbsolutePath, fileRelativePath string) (*ParsedFileNew, error) {
+	fileAbsolutePath := filepath.Join(repositoryAbsolutePath, "check-attribute/check-attribute.md")
+	markdownFile, err := markdown.ParseFile(fileAbsolutePath)
+	if err != nil {
+		return nil, err
+	}
+	return ParseFile(repositoryAbsolutePath, markdownFile)
+}
+
+func ParseFile(repositoryAbsolutePath string, md *markdown.File) (*ParsedFileNew, error) {
 	// Extract file attributes
 	frontMatter, err := md.FrontMatter.AsMap()
 	if err != nil {
@@ -178,6 +211,10 @@ func ParseFileFromMarkdownFile(md *markdown.File) (*ParsedFileNew, error) {
 	result := &ParsedFileNew{
 		Markdown: md,
 
+		RepositoryPath: repositoryAbsolutePath,
+		AbsolutePath:   md.AbsolutePath,
+		RelativePath:   RelativePath(repositoryAbsolutePath, md.AbsolutePath),
+
 		// Main Heading
 		Slug:       slug,
 		Title:      title,
@@ -196,9 +233,11 @@ func ParseFileFromMarkdownFile(md *markdown.File) (*ParsedFileNew, error) {
 	if err != nil {
 		return nil, err
 	}
+	wikilinks := result.extractWikilinks()
 
 	result.Notes = notes
 	result.Medias = medias
+	result.Wikilinks = wikilinks
 
 	return result, nil
 }
@@ -234,6 +273,11 @@ func (p *ParsedFileNew) extractNotes() ([]*ParsedNoteNew, error) {
 			continue
 		}
 
+		// Ignore ignorabled notes
+		if slices.Contains(tags, "ignore") {
+			continue
+		}
+
 		// Determine slug from attribute or define a default one otherwise
 		slug := markdown.Slug(p.Slug, string(kind), shortTitle)
 		if value, ok := attributes["slug"]; ok {
@@ -243,7 +287,7 @@ func (p *ParsedFileNew) extractNotes() ([]*ParsedNoteNew, error) {
 		}
 
 		// Apply post-processing on note body
-		postProcessNoteBody, err := noteBody.Transform(
+		postProcessedNoteBody, err := noteBody.Transform(
 			markdown.StripHTMLComments(),
 			markdown.StripMarkdownUnofficialComments(),
 			// TODO inject <Media> tags? => wait in File to be able to replace link with custom format "blob:<oid>" instead
@@ -251,19 +295,24 @@ func (p *ParsedFileNew) extractNotes() ([]*ParsedNoteNew, error) {
 		if err != nil {
 			return nil, err
 		}
+		// TODO convert quotes
+		// FIXME extract Comm
 
 		parsedNote := &ParsedNoteNew{
-			Level:      section.HeadingLevel,
-			Kind:       kind,
-			Slug:       slug,
-			Title:      title,
-			ShortTitle: markdown.Document(shortTitle),
-			Line:       section.FileLineStart,
+			Level:        section.HeadingLevel,
+			Kind:         kind,
+			AbsolutePath: p.AbsolutePath,
+			RelativePath: p.RelativePath,
+			Slug:         slug,
+			Title:        title,
+			ShortTitle:   markdown.Document(shortTitle),
+			Line:         section.FileLineStart,
 			// NoteAttributes: CastAttributes(attributes, GetSchemaAttributeTypes()), FIXME
 			NoteAttributes: attributes,
 			NoteTags:       tags,
 			Content:        noteContent,
-			Body:           postProcessNoteBody.TrimSpace(),
+			Body:           postProcessedNoteBody.TrimSpace(),
+			Comment:        "",
 		}
 
 		if parsedNote.Kind == KindGenerator {
@@ -393,7 +442,7 @@ func (p *ParsedFileNew) GenerateNotes(generator *ParsedNoteNew) ([]*ParsedNoteNe
 	if err != nil {
 		return nil, nil, err
 	}
-	generatedFile, err := ParseFileFromMarkdownFile(mdFile)
+	generatedFile, err := ParseFile(p.RepositoryPath, mdFile)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -409,6 +458,30 @@ func (p *ParsedFileNew) GenerateNotes(generator *ParsedNoteNew) ([]*ParsedNoteNe
 	}
 
 	return resultsNotes, resultsMedias, nil
+}
+
+func (p *ParsedFileNew) extractWikilinks() []*markdown.Wikilink {
+	return p.Markdown.Body.Wikilinks()
+}
+
+// Hash returns a hash based on the full file content.
+func (p *ParsedFileNew) Hash() string {
+	return helpers.Hash([]byte(p.Markdown.Content))
+}
+
+// Filename returns the filename of the Markdown file.
+func (p *ParsedFileNew) Filename() string {
+	return filepath.Base(p.AbsolutePath)
+}
+
+// AbsoluteDir returns the dirname of the Markdown file.
+func (p *ParsedFileNew) AbsoluteDir() string {
+	return filepath.Dir(p.AbsolutePath)
+}
+
+// RelativeDir returns the dirname of the Markdown file.
+func (p *ParsedFileNew) RelativeDir() string {
+	return filepath.Dir(p.RelativePath)
 }
 
 func (p *ParsedFileNew) FileLineNumber(bodyLineNumber int) int {
@@ -439,7 +512,7 @@ func (p *ParsedFileNew) extractMedias() ([]*ParsedMediaNew, error) {
 		}
 
 		// Ex: /some/path/to/markdown.md + ../index.md => /some/path/to/../markdown.md
-		absolutePath, err := filepath.Abs(filepath.Join(filepath.Dir(p.Markdown.AbsolutePath), rawPath))
+		absolutePath, err := filepath.Abs(filepath.Join(filepath.Dir(p.AbsolutePath), rawPath))
 		if err != nil {
 			return nil, err
 		}
@@ -447,6 +520,7 @@ func (p *ParsedFileNew) extractMedias() ([]*ParsedMediaNew, error) {
 		medias = append(medias, &ParsedMediaNew{
 			RawPath:      rawPath,
 			AbsolutePath: absolutePath,
+			RelativePath: RelativePath(p.RepositoryPath, absolutePath),
 			Line:         p.FileLineNumber(line),
 			MediaKind:    DetectMediaKind(rawPath),
 			Extension:    filepath.Ext(rawPath),
@@ -457,7 +531,6 @@ func (p *ParsedFileNew) extractMedias() ([]*ParsedMediaNew, error) {
 	// Read files on disk after having caught "easy" errors
 	for _, media := range medias {
 		stat, err := os.Stat(media.AbsolutePath)
-		fmt.Println("Testing TOTO", media.AbsolutePath)
 		if errors.Is(err, os.ErrNotExist) {
 			media.Dangling = true
 		} else {
@@ -489,6 +562,7 @@ func (p *ParsedNoteNew) extractFlashcard() (*ParsedFlashcardNew, error) {
 
 	return &ParsedFlashcardNew{
 		ShortTitle: p.ShortTitle,
+		Slug:       p.Slug,
 		Front:      front,
 		Back:       back,
 	}, nil
@@ -602,4 +676,37 @@ func StripTagsAndAttributes() markdown.Transformer {
 		}
 		return markdown.Document(text.SquashBlankLines(res.String())).TrimSpace(), nil
 	}
+}
+
+// DetermineFileSlug generates a slug from a file path.
+func DetermineFileSlug(path string) string {
+	var slugsParts []any
+
+	// Include the dirname
+	dirname := filepath.Base(filepath.Dir(path))
+	slugsParts = append(slugsParts, dirname)
+
+	// Include the filename (without the extension) except for index.md (as no additional meaning)
+	// and except when the file is named after the directory.
+	filenameWithoutExtension := text.TrimExtension(filepath.Base(path))
+	if filenameWithoutExtension != "index" && filenameWithoutExtension != dirname {
+		slugsParts = append(slugsParts, filenameWithoutExtension)
+	}
+
+	return markdown.Slug(slugsParts...)
+}
+
+// RelativePath returns the relative from a given file.
+// Ex:
+//
+//	absolutePath = /home/julien/repository/dir/note.md
+//	rootPath     = /home/julien/repository/
+//	relativePath =                         dir/note.md
+func RelativePath(rootPath, absolutePath string) string {
+	relativePath, err := filepath.Rel(rootPath, absolutePath)
+	if err != nil {
+		// Must not happen (fail abruptly)
+		log.Fatalf("Unable to determine relative path for %q from root %q: %v", absolutePath, rootPath, err)
+	}
+	return relativePath
 }

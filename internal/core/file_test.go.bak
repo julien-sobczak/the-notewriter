@@ -2,7 +2,6 @@ package core
 
 import (
 	"bytes"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -13,56 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestFrontMatterString(t *testing.T) {
-	var tests = []struct {
-		name     string      // name
-		input    []Attribute // input
-		expected string      // expected result
-	}{
-		{
-			"Scalar values",
-			[]Attribute{
-				{
-					Key:   "key1",
-					Value: "value1",
-				},
-				{
-					Key:   "key2",
-					Value: 2,
-				},
-			},
-			`
-key1: value1
-key2: 2`,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			SetUpRepositoryFromTempDir(t)
-			file := NewFileFromAttributes(nil, "", tt.input)
-			actual, err := file.FrontMatterString()
-			require.NoError(t, err)
-			assert.Equal(t, strings.TrimSpace(tt.expected), strings.TrimSpace(actual))
-		})
-	}
-}
-
-func TestNewFile(t *testing.T) {
-	SetUpRepositoryFromTempDir(t)
-	f := NewEmptyFile("")
-	f.SetAttribute("tags", []interface{}{"toto"})
-
-	assert.Equal(t, []interface{}{"toto"}, f.GetAttribute("tags"))
-	assert.Equal(t, []string{"toto"}, f.GetTags())
-
-	actual, err := f.FrontMatterString()
-	require.NoError(t, err)
-	expected := `
-tags:
-- toto`
-	assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
-}
 
 func TestNewFileFromPath(t *testing.T) {
 
@@ -252,74 +201,6 @@ Flashcard
 		}
 	})
 
-}
-
-func TestEditFileFrontMatter(t *testing.T) {
-	filename := SetUpRepositoryFromGoldenFile(t)
-
-	// Init the file
-	f, err := NewFileFromPath(nil, filename)
-	require.NoError(t, err)
-	assert.Equal(t, int64(46), f.Size)
-	assert.Equal(t, "7bd2eeb34151be89fad00c85274dd1a42c6e87b0", f.Hash)
-
-	// Check initial content
-	AssertFrontMatterEqual(t, `tags: [favorite, inspiration]`, f)
-	AssertContentEqual(t, `Blabla`, f)
-
-	// Override an attribute
-	f.SetAttribute("tags", []string{"ancient"})
-	AssertFrontMatterEqual(t, `tags: [ancient]`, f)
-
-	// Add an attribute
-	f.SetAttribute("extras", map[string]string{"key1": "value1", "key2": "value2"})
-	AssertFrontMatterEqual(t, `
-tags: [ancient]
-extras:
-  key1: value1
-  key2: value2
-`, f)
-
-	// Save the file
-	f.SaveOnDisk()
-	rawContent, err := os.ReadFile(filename)
-	require.NoError(t, err)
-	require.Equal(t, `---
-tags: [ancient]
-extras:
-  key1: value1
-  key2: value2
----
-Blabla`, strings.TrimSpace(string(rawContent)))
-
-	// Check file-specific attributes has changed
-	assert.Equal(t, int64(68), f.Size)
-	assert.Equal(t, "3acf3dd5f831dc123fb79034580ae08cf44c5667", f.Hash)
-}
-
-func TestPreserveCommentsInFrontMatter(t *testing.T) {
-	filename := SetUpRepositoryFromFileContent(t, "sample.md", `---
-# Front-Matter
-tags: [favorite, inspiration] # Custom tags
-# published: true
----
-`)
-
-	// Init the file
-	f, err := NewFileFromPath(nil, filename)
-	require.NoError(t, err)
-
-	// Change attributes
-	f.SetAttribute("tags", []string{"ancient"})
-	f.SetAttribute("new", 10)
-	AssertFrontMatterEqual(t, `
-# Front-Matter
-tags: [ancient] # Custom tags
-# published: true
-
-new: 10
-`, f)
-	// FIXME debug why an additional newline
 }
 
 func TestGetNotes(t *testing.T) {
@@ -1450,34 +1331,6 @@ func TestParseFileComplex(t *testing.T) {
 			"tags":        []interface{}{"life", "doing", "life-changing", "courage"},
 		},
 	}, ignoreNoteBody(note))
-}
-
-func TestDetermineFileSlug(t *testing.T) {
-	tests := []struct {
-		path string // input
-		slug string // output
-	}{
-		{
-			path: "go/syntax.md",
-			slug: "go-syntax",
-		},
-		{
-			path: "go/index.md",
-			slug: "go",
-		},
-		{
-			path: "go/go/syntax.md",
-			slug: "go-syntax",
-		},
-		{
-			path: "go/go.md",
-			slug: "go",
-		},
-	}
-	for _, tt := range tests {
-		actual := DetermineFileSlug(tt.path)
-		assert.Equal(t, tt.slug, actual)
-	}
 }
 
 /* Test Helpers */

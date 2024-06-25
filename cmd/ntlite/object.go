@@ -1,4 +1,5 @@
 package main
+
 // Lite version of internal/core/object.go
 
 import (
@@ -34,9 +35,6 @@ type Object interface {
 	UniqueOID() string
 	// ModificationTime returns the last modification time.
 	ModificationTime() time.Time
-
-	// SubObjects returns the objects directly contained by this object.
-	SubObjects() []StatefulObject
 
 	// Read rereads the object from YAML.
 	Read(r io.Reader) error

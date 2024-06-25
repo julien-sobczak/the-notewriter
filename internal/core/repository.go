@@ -3,12 +3,14 @@ package core
 import (
 	"fmt"
 	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/filesystem"
 	"github.com/julien-sobczak/the-notewriter/pkg/resync"
@@ -66,8 +68,13 @@ func (r *Repository) GetNoteRelativePath(fileRelativePath string, srcPath string
 }
 
 // GetFileRelativePath converts a relative path of a file to a relative path from the repository.
-func (r *Repository) GetFileRelativePath(fileAbsolutePath string) (string, error) {
-	return filepath.Rel(r.Path, fileAbsolutePath)
+func (r *Repository) GetFileRelativePath(fileAbsolutePath string) string {
+	relativePath, err := filepath.Rel(r.Path, fileAbsolutePath)
+	if err != nil {
+		// Must not happen (fail abruptly)
+		log.Fatalf("Unable to determine relative path for %q from root %q: %v", fileAbsolutePath, r.Path, err)
+	}
+	return relativePath
 }
 
 // GetAbsolutePath converts a relative path from the repository to an absolute path on disk.
@@ -105,6 +112,81 @@ var IndexFilesFirst = func(a, b string) bool {
 	return a < b // os.WalkDir already returns file in lexical order
 }
 
+func (r *Repository) walkNew(paths []string, fn func(md *markdown.File) error) error {
+	config := CurrentConfig()
+
+	var matchedFiles []string
+	var fileInfos = make(map[string]*fs.FileInfo)
+	var filePaths = make(map[string]string)
+
+	for _, path := range paths {
+		CurrentLogger().Infof("Reading %s...\n", path)
+		filepath.WalkDir(path, func(path string, info fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+
+			dirname := filepath.Base(path)
+			if dirname == ".nt" {
+				return fs.SkipDir // NB fs.SkipDir skip the parent dir when path is a file
+			}
+			if dirname == ".git" {
+				return fs.SkipDir
+			}
+
+			relativePath := CurrentRepository().GetFileRelativePath(path)
+
+			if config.IgnoreFile.MustExcludeFile(relativePath, info.IsDir()) {
+				return nil
+			}
+
+			// We look for only specific extension
+			if !info.IsDir() && !config.ConfigFile.SupportExtension(relativePath) {
+				// Nothing to do
+				return nil
+			}
+
+			// Ignore certain file modes like symlinks
+			fileInfo, err := os.Lstat(path) // NB: os.Stat follows symlinks
+			if err != nil {
+				// Ignore the file
+				return nil
+			}
+			if !fileInfo.Mode().IsRegular() {
+				// Exclude any file with a mode bit set (device, socket, named pipe, ...)
+				// See https://pkg.go.dev/io/fs#FileMode
+				return nil
+			}
+
+			// A file found to process!
+			fileInfos[relativePath] = &fileInfo
+			filePaths[relativePath] = path
+			matchedFiles = append(matchedFiles, relativePath)
+
+			return nil
+		})
+	}
+
+	// Process the file in a given order:
+
+	// Constraint 1: index.md must be processed before other notes under this directory
+	slices.SortFunc(matchedFiles, IndexFilesFirst)
+
+	// Execute callbacks
+	for _, relativePath := range matchedFiles {
+		md, err := markdown.ParseFile(filePaths[relativePath])
+		if err != nil {
+			return err
+		}
+		// FIX check tag ignore
+		if err := fn(md); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (r *Repository) walk(paths []string, fn func(path string, stat fs.FileInfo) error) error {
 	config := CurrentConfig()
 
@@ -127,11 +209,7 @@ func (r *Repository) walk(paths []string, fn func(path string, stat fs.FileInfo)
 				return fs.SkipDir
 			}
 
-			relpath, err := CurrentRepository().GetFileRelativePath(path)
-			if err != nil {
-				// ignore the file
-				return nil
-			}
+			relpath := CurrentRepository().GetFileRelativePath(path)
 
 			if config.IgnoreFile.MustExcludeFile(relpath, info.IsDir()) {
 				return nil
@@ -169,72 +247,8 @@ func (r *Repository) walk(paths []string, fn func(path string, stat fs.FileInfo)
 	// Constraint 1: index.md must be processed before other notes under this directory
 	slices.SortFunc(matchedFiles, IndexFilesFirst)
 
-	// Constraint 2: Embedded notes must be processed before the file that referenced them
-	var sortedFiles []string
-	addedFileIndices := make(map[int]bool)
-	changedDuringIteration := false
-	for len(addedFileIndices) < len(matchedFiles) { // until all files are added or no more files can be added due to a cyclic dependency
-
-		for i, relpath := range matchedFiles {
-			if addedFileIndices[i] {
-				// Already added
-				continue
-			}
-
-			// A file can be added iff:
-			// - no external link OR referenced files have been added first if present in the same batch
-
-			b, err := os.ReadFile(filePaths[relpath])
-			if err != nil {
-				return err
-			}
-			wikilinks := ParseWikilinks(string(b))
-			var externalLinks []*Wikilink
-			for _, wikilink := range wikilinks {
-				if wikilink.External() {
-					externalLinks = append(externalLinks, wikilink)
-				}
-			}
-
-			externalLinksSatisfied := true
-			for _, wikilink := range externalLinks {
-				wikipath := text.TrimExtension(wikilink.Path())
-				for j, otherRelpath := range matchedFiles {
-					if addedFileIndices[j] {
-						// Already satisfied
-						continue
-					}
-					if strings.HasSuffix(text.TrimExtension(otherRelpath), wikipath) && !addedFileIndices[j] {
-						externalLinksSatisfied = false
-					}
-				}
-			}
-
-			if externalLinksSatisfied {
-				addedFileIndices[i] = true
-				sortedFiles = append(sortedFiles, relpath)
-				changedDuringIteration = true
-			}
-		}
-
-		if !changedDuringIteration {
-			// cyclic dependency found
-			CurrentLogger().Info("Cyclic dependency between files detected. Incomplete note(s) can result.")
-			// Add remaining notes without taking care of dependencies...
-			for i, relpath := range matchedFiles {
-				if addedFileIndices[i] {
-					// Already added
-					continue
-				}
-				sortedFiles = append(sortedFiles, relpath)
-			}
-			break
-		}
-		changedDuringIteration = false
-	}
-
 	// Execute callbacks
-	for _, relpath := range sortedFiles {
+	for _, relpath := range matchedFiles {
 		err := fn(filePaths[relpath], *fileInfos[relpath])
 		if err != nil {
 			return err
@@ -262,16 +276,204 @@ func (r *Repository) normalizePaths(paths ...string) []string {
 	return results
 }
 
-// Add implements the command `nt add`.`
-func (r *Repository) Add(paths ...string) error {
-	// Start with command linter (do not stage invalid file)
-	linterResult, err := r.Lint(nil, paths...)
+// AddNew implements the command `nt add`
+func (r *Repository) AddNew(paths ...string) error {
+	r.MustLint(paths...)
+
+	// Any object not updated after this date will be considered as deletions
+	buildTime := clock.Now()
+	db := CurrentDB()
+	paths = r.normalizePaths(paths...)
+
+	// Keep notes of processed objects to avoid duplication of effort
+	// when some objects like medias are referenced by different notes.
+	traversedObjects := make(map[string]bool)
+	var traversedNotes []*Note
+
+	// Keep notes of unprocessed medias to generate blob using goroutines to speed up the execution
+	var unprocessedMedias []*Media
+
+	var updatedParsedFiles []*ParsedFileNew
+	var updatedFiles []*File
+	var updatedMedias []*Media
+
+	// Traverse all given paths to detected updated medias/files
+	err := r.walkNew(paths, func(mdFile *markdown.File) error {
+		CurrentLogger().Debugf("Processing %s...\n", mdFile.AbsolutePath)
+
+		parsedFile, err := ParseFile(CurrentConfig().RootDirectory, mdFile)
+		if parsedFile != nil {
+			return err
+		}
+
+		// Check for stale file(s)
+		file, err := NewOrExistingFile(parsedFile)
+		if err != nil {
+			return err
+		}
+		if file.Stale() {
+			updatedParsedFiles = append(updatedParsedFiles, parsedFile)
+			updatedFiles = append(updatedFiles, file)
+		}
+
+		// Check for stale media(s)
+		for _, parsedMedia := range parsedFile.Medias {
+			media, err := NewOrExistingMedia(parsedMedia)
+			if err != nil {
+				return err
+			}
+			if media.Stale() {
+				updatedMedias = append(updatedMedias, media)
+			}
+		}
+
+		return nil
+	})
 	if err != nil {
 		return err
 	}
-	if len(linterResult.Errors) > 0 {
-		return fmt.Errorf("%d linter errors detected:\n%s", len(linterResult.Errors), linterResult)
+
+	// Process blobs first outside the SQL transaction (takes a long time and resuming if the command is interrupted is not dangerous, just some CPU cycles lost)
+	CurrentLogger().Infof("Processing %d medias", len(updatedMedias))
+	for _, newMedia := range updatedMedias {
+		newMedia.WriteBlobs()
 	}
+
+	// Run all queries inside the same transaction
+	err = db.BeginTransaction()
+	if err != nil {
+		return err
+	}
+	defer db.RollbackTransaction()
+
+	// Save the medias
+	for _, media := range updatedMedias {
+		if err := media.Save(); err != nil {
+			return err
+		}
+	}
+
+	for i, parsedFile := range updatedParsedFiles {
+		file := updatedFiles[i]
+
+		if err := file.Save(); err != nil {
+			return err
+		}
+
+		// Process notes
+		for _, parsedNote := range parsedFile.Notes {
+
+			note, err := NewOrExistingNote(file, nil, parsedNote) // FIXME set the parent!!!!
+			if err != nil {
+				return err
+			}
+			if err := note.Save(); err != nil {
+				return err
+			}
+
+			// Process links
+			for _, link := range parsedNote.Links {
+				link, err := NewOrExistingLink(note, link)
+				if err != nil {
+					return err
+				}
+				if err := link.Save(); err != nil {
+					return err
+				}
+			}
+
+			// Process flashcards
+			if parsedNote.Flashcard != nil {
+				parsedFlashcard := parsedNote.Flashcard
+				flashcard, err := NewOrExistingFlashcard(file, note, parsedFlashcard)
+				if err != nil {
+					return err
+				}
+				if err := flashcard.Save(); err != nil {
+					return err
+				}
+			}
+
+			// Process reminders
+			for _, reminder := range parsedNote.Reminders {
+				reminder, err := NewOrExistingReminder(note, reminder)
+				if err != nil {
+					return err
+				}
+				if err := reminder.Save(); err != nil {
+					return err
+				}
+			}
+		}
+
+	}
+
+	// FIXME Make a second-pass on notes to manage cross-references (ex: note embedding)
+
+	// Find objects to delete for every path
+	var deletions []StatefulObject
+	for _, path := range paths {
+		relpath := r.GetFileRelativePath(path)
+		pathDeletions, err := r.findObjectsLastCheckedBefore(buildTime, relpath)
+		if err != nil {
+			return err
+		}
+		deletions = append(deletions, pathDeletions...)
+	}
+
+	// Check for dead medias only when adding the root directory.
+	// For example, when adding a file, it can contains references to medias stored in a directory outside the given path.
+	if slices.Contains(paths, CurrentConfig().RootDirectory) { // ex: nt add .
+		// As we walked the whole hierarchy, all medias must have be checked.
+		mediaDeletions, err := CurrentRepository().FindMediasLastCheckedBefore(buildTime)
+		if err != nil {
+			return err
+		}
+		for _, mediaDeletion := range mediaDeletions {
+			deletions = append(deletions, mediaDeletion)
+		}
+	}
+
+	for _, deletion := range deletions {
+		deletion.ForceState(Deleted)
+		if err := deletion.Save(); err != nil {
+			return err
+		}
+		if err := db.StageObject(deletion); err != nil {
+			return fmt.Errorf("unable to stage deleted object %s: %v", deletion, err)
+		}
+	}
+
+	// Don't forget to commit
+	if err := db.CommitTransaction(); err != nil {
+		return err
+	}
+
+	packFile := file.ToPackFile()
+	db.index.StagePackFile(packFile)
+
+	// And to persist the index
+	if err := db.index.Save(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *Repository) MustLint(paths ...string) {
+	// Start with command linter (do not stage invalid file)
+	linterResult, err := r.Lint(nil, paths...)
+	if err != nil {
+		log.Fatalf("Unable to run linter: %v", err)
+	}
+	if len(linterResult.Errors) > 0 {
+		log.Fatalf("%d linter errors detected:\n%s", len(linterResult.Errors), linterResult)
+	}
+}
+
+// Add implements the command `nt add`.`
+func (r *Repository) Add(paths ...string) error {
+	r.MustLint(paths...)
 
 	// Any object not updated after this date will be considered as deletions
 	buildTime := clock.Now()
@@ -287,30 +489,22 @@ func (r *Repository) Add(paths ...string) error {
 	var unprocessedMedias []*Media
 
 	// Run all queries inside the same transaction
-	err = db.BeginTransaction()
+	err := db.BeginTransaction()
 	if err != nil {
 		return err
 	}
 	defer db.RollbackTransaction()
 
 	// Traverse all given path to add files
-	err = r.walk(paths, func(path string, stat fs.FileInfo) error {
-		CurrentLogger().Debugf("Processing %s...\n", path)
+	err = r.walkNew(paths, func(mdFile *markdown.File) error {
+		CurrentLogger().Debugf("Processing %s...\n", mdFile.AbsolutePath)
 
-		var parent *File = nil
-		// Try to load the optional parent present in the same directory
-		if filepath.Base(path) != "index.md" {
-			parentRelativePath, err := r.GetFileRelativePath(filepath.Join(filepath.Dir(path), "index.md"))
-			if err != nil {
-				return err
-			}
-			parent, err = r.FindFileByRelativePath(parentRelativePath)
-			if err != nil {
-				return err
-			}
+		parsedFile, err := ParseFile(CurrentConfig().RootDirectory, mdFile)
+		if parsedFile != nil {
+			return err
 		}
 
-		file, err := NewOrExistingFile(parent, path)
+		file, err := NewOrExistingFile(parsedFile)
 		if err != nil {
 			return err
 		}
@@ -789,10 +983,7 @@ func (r *Repository) Diff(staged bool) (string, error) {
 	err = r.walk([]string{path}, func(path string, stat fs.FileInfo) error {
 		CurrentLogger().Debugf("Processing %s...\n", path)
 
-		parentRelativePath, err := r.GetFileRelativePath(filepath.Join(filepath.Dir(path), "index.md"))
-		if err != nil {
-			return err
-		}
+		parentRelativePath := r.GetFileRelativePath(filepath.Join(filepath.Dir(path), "index.md"))
 		parent, err := r.FindFileByRelativePath(parentRelativePath)
 		if err != nil {
 			return err
@@ -833,10 +1024,7 @@ func (r *Repository) Diff(staged bool) (string, error) {
 	}
 
 	// Find deleted notes for every path
-	relpath, err := r.GetFileRelativePath(path)
-	if err != nil {
-		return "", err
-	}
+	relpath := r.GetFileRelativePath(path)
 	deletedNotes, err := r.FindNotesLastCheckedBefore(buildTime, relpath)
 	if err != nil {
 		return "", err

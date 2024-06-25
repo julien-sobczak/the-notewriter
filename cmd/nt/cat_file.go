@@ -1,19 +1,18 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 
 	"github.com/julien-sobczak/the-notewriter/internal/core"
+	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
 
 var outputFormat string
 
 func init() {
-	catFileCmd.Flags().StringVarP(&outputFormat, "format", "o", "yaml", "format of output. Allowed: json, md, html, or text")
+	catFileCmd.Flags().StringVarP(&outputFormat, "format", "o", "yaml", "format of output. Allowed: json, md, yaml")
 	rootCmd.AddCommand(catFileCmd)
 }
 
@@ -57,7 +56,7 @@ var catFileCmd = &cobra.Command{
 
 		// Try wikilinks now
 		wikilinkText := args[0]
-		wikilink, err := core.NewWikilink("[[" + wikilinkText + "]]")
+		wikilink, err := markdown.NewWikilink("[[" + wikilinkText + "]]")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Argument %q doesn't match an OID and isn't a valid wikilink", wikilink)
 			os.Exit(1)
@@ -101,7 +100,7 @@ var catFileCmd = &cobra.Command{
 				}
 			}
 			note := notes[0]
-			dumpNote(note)
+			dumpObject(note)
 
 		} else {
 			// Search for a single matching file
@@ -119,84 +118,22 @@ var catFileCmd = &cobra.Command{
 				os.Exit(1)
 			}
 			file := files[0]
-			dumpFile(file)
+			dumpObject(file)
 		}
 
 	},
 }
 
-func dumpYAML(v interface{}) {
-	data, err := yaml.Marshal(v)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to write YAML: %v", err)
-		os.Exit(1)
-	}
-	fmt.Printf("%s\n", data)
-}
-
-func dumpJSON(v interface{}) {
-	data, err := json.Marshal(v)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to write JSON: %v", err)
-		os.Exit(1)
-	}
-	fmt.Printf("%s\n", data)
-}
-
-func dumpObject(v interface{}) {
+func dumpObject(object core.Object) {
 	switch outputFormat {
 	case "yaml":
-		dumpYAML(v)
+		fmt.Println(object.ToYAML())
 	case "json":
-		dumpJSON(v)
+		fmt.Println(object.ToJSON())
 	case "md":
 		fallthrough
 	case "markdown":
-		fallthrough
-	case "html":
-		fallthrough
-	case "text":
-		fallthrough
-	default:
-		fmt.Fprintf(os.Stderr, "Unsupported output format %q", outputFormat)
-		os.Exit(1)
-	}
-}
-
-func dumpFile(file *core.File) {
-	switch outputFormat {
-	case "yaml":
-		fmt.Println(file.FormatToYAML())
-	case "json":
-		fmt.Println(file.FormatToJSON())
-	case "md":
-		fallthrough
-	case "markdown":
-		fmt.Println(file.FormatToMarkdown())
-	case "html":
-		fmt.Println(file.FormatToHTML())
-	case "text":
-		fmt.Println(file.FormatToText())
-	default:
-		fmt.Fprintf(os.Stderr, "Unsupported output format %q", outputFormat)
-		os.Exit(1)
-	}
-}
-
-func dumpNote(note *core.Note) {
-	switch outputFormat {
-	case "yaml":
-		fmt.Println(note.FormatToYAML())
-	case "json":
-		fmt.Println(note.FormatToJSON())
-	case "md":
-		fallthrough
-	case "markdown":
-		fmt.Println(note.FormatToMarkdown())
-	case "html":
-		fmt.Println(note.FormatToHTML())
-	case "text":
-		fmt.Println(note.FormatToText())
+		fmt.Println(object.ToMarkdown())
 	default:
 		fmt.Fprintf(os.Stderr, "Unsupported output format %q", outputFormat)
 		os.Exit(1)

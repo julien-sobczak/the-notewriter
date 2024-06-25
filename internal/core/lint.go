@@ -3,14 +3,13 @@ package core
 import (
 	"errors"
 	"fmt"
-	"io/fs"
 	"log"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
 
-	"github.com/julien-sobczak/the-notewriter/pkg/markdown"
+	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/resync"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"golang.org/x/exp/slices"
@@ -67,7 +66,7 @@ type LintRuleDefinition struct {
 }
 
 // LintRule describes the interface that rules must conform.
-type LintRule func(*ParsedFileOld, []string) ([]*Violation, error)
+type LintRule func(*ParsedFileNew, []string) ([]*Violation, error)
 
 var LintRules = map[string]LintRuleDefinition{
 	// Enforce no duplicate between note titles
@@ -230,21 +229,21 @@ func GetSchemaAttributes(relativePath string, kind NoteKind) []*ConfigLintSchema
 /* Rules */
 
 // NoDuplicateNoteTitle implements the rule "no-duplicate-note-title".
-func NoDuplicateNoteTitle(file *ParsedFileOld, args []string) ([]*Violation, error) {
+func NoDuplicateNoteTitle(file *ParsedFileNew, args []string) ([]*Violation, error) {
 	var violations []*Violation
 
 	uniqueNoteTitles := make(map[string]bool)
-	notes := ParseNotes(file.Body, "")
-	for _, note := range notes {
-		if _, ok := uniqueNoteTitles[note.Title]; ok {
+	for _, note := range file.Notes {
+		cleanTitle := note.Title.MustTransform(markdown.StripEmphasis()).String()
+		if _, ok := uniqueNoteTitles[cleanTitle]; ok {
 			violations = append(violations, &Violation{
 				Name:         "no-duplicate-note-title",
 				Message:      fmt.Sprintf("duplicated note with title %q", note.ShortTitle),
 				RelativePath: file.RelativePath,
-				Line:         file.AbsoluteBodyLine(note.Line),
+				Line:         file.FileLineNumber(note.Line),
 			})
 		} else {
-			uniqueNoteTitles[note.Title] = true
+			uniqueNoteTitles[cleanTitle] = true
 		}
 	}
 
@@ -256,15 +255,14 @@ var slugInventory map[string]bool // slug => true
 var slugInventoryOnce resync.Once // Build the inventory on first occurrence only.
 
 // NoDuplicateSlug implements the rule "no-duplicate-slug".
-func NoDuplicateSlug(file *ParsedFileOld, args []string) ([]*Violation, error) {
+func NoDuplicateSlug(file *ParsedFileNew, args []string) ([]*Violation, error) {
 	slugInventoryOnce.Do(func() {
 		slugInventory = make(map[string]bool)
 	})
 
 	var violations []*Violation
 
-	notes := ParseNotes(file.Body, "")
-	for _, note := range notes {
+	for _, note := range file.Notes {
 		// Collect relevant attributes
 		fileSlug := file.Slug
 		attributeSlug := ""
@@ -275,7 +273,7 @@ func NoDuplicateSlug(file *ParsedFileOld, args []string) ([]*Violation, error) {
 		}
 
 		// Determine the note
-		slug := DetermineNoteSlug(fileSlug, attributeSlug, note.Kind, note.ShortTitle)
+		slug := DetermineNoteSlug(fileSlug, attributeSlug, note.Kind, string(note.ShortTitle))
 
 		// Check if not already in use
 		if _, ok := slugInventory[slug]; ok {
@@ -283,7 +281,7 @@ func NoDuplicateSlug(file *ParsedFileOld, args []string) ([]*Violation, error) {
 				Name:         "no-duplicate-slug",
 				Message:      fmt.Sprintf("duplicated slug %q", slug),
 				RelativePath: file.RelativePath,
-				Line:         file.AbsoluteBodyLine(note.Line),
+				Line:         file.FileLineNumber(note.Line),
 			})
 		} else {
 			if markdown.Slug(slug) != slug {
@@ -293,7 +291,7 @@ func NoDuplicateSlug(file *ParsedFileOld, args []string) ([]*Violation, error) {
 					Name:         "no-duplicate-slug",
 					Message:      fmt.Sprintf("invalid slug format %q", slug),
 					RelativePath: file.RelativePath,
-					Line:         file.AbsoluteBodyLine(note.Line),
+					Line:         file.FileLineNumber(note.Line),
 				})
 			}
 			slugInventory[slug] = true
@@ -304,7 +302,7 @@ func NoDuplicateSlug(file *ParsedFileOld, args []string) ([]*Violation, error) {
 }
 
 // MinLinesBetweenNotes implements the rule "min-lines-between-notes".
-func MinLinesBetweenNotes(file *ParsedFileOld, args []string) ([]*Violation, error) {
+func MinLinesBetweenNotes(file *ParsedFileNew, args []string) ([]*Violation, error) {
 	var violations []*Violation
 
 	if len(args) != 1 {
@@ -315,11 +313,9 @@ func MinLinesBetweenNotes(file *ParsedFileOld, args []string) ([]*Violation, err
 		return nil, fmt.Errorf("argument %s must be an integer", args[0])
 	}
 
-	body := file.Body
-	lines := strings.Split(body, "\n")
+	lines := file.Markdown.Body.Lines()
 
-	notes := ParseNotes(body, file.Slug)
-	for i, note := range notes {
+	for i, note := range file.Notes {
 		if i == 0 {
 			// No need to check space before the first note. Only between successive notes
 			continue
@@ -333,7 +329,7 @@ func MinLinesBetweenNotes(file *ParsedFileOld, args []string) ([]*Violation, err
 					Name:         "min-lines-between-notes",
 					RelativePath: file.RelativePath,
 					Message:      fmt.Sprintf("missing blank lines before note %q", note.Title),
-					Line:         file.AbsoluteBodyLine(note.Line),
+					Line:         file.FileLineNumber(note.Line),
 				})
 			}
 		}
@@ -343,7 +339,7 @@ func MinLinesBetweenNotes(file *ParsedFileOld, args []string) ([]*Violation, err
 }
 
 // MaxLinesBetweenNotes implements the rule "min-lines-between-notes".
-func MaxLinesBetweenNotes(file *ParsedFileOld, args []string) ([]*Violation, error) {
+func MaxLinesBetweenNotes(file *ParsedFileNew, args []string) ([]*Violation, error) {
 	var violations []*Violation
 
 	if len(args) != 1 {
@@ -354,12 +350,9 @@ func MaxLinesBetweenNotes(file *ParsedFileOld, args []string) ([]*Violation, err
 		return nil, fmt.Errorf("argument %s must be an integer", args[0])
 	}
 
-	body := file.Body
-	lines := strings.Split(body, "\n")
+	lines := file.Markdown.Body.Lines()
 
-	notes := ParseNotes(body, file.Slug)
-	for _, note := range notes {
-
+	for _, note := range file.Notes {
 		countBlankLinesBefore := 0
 
 		j := 1
@@ -383,7 +376,7 @@ func MaxLinesBetweenNotes(file *ParsedFileOld, args []string) ([]*Violation, err
 				Name:         "max-lines-between-notes",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("too many blank lines before note %q", note.Title),
-				Line:         file.AbsoluteBodyLine(note.Line),
+				Line:         file.FileLineNumber(note.Line),
 			})
 		}
 	}
@@ -392,7 +385,7 @@ func MaxLinesBetweenNotes(file *ParsedFileOld, args []string) ([]*Violation, err
 }
 
 // NoteTitleMatch implements the rule "note-title-match".
-func NoteTitleMatch(file *ParsedFileOld, args []string) ([]*Violation, error) {
+func NoteTitleMatch(file *ParsedFileNew, args []string) ([]*Violation, error) {
 	var violations []*Violation
 
 	if len(args) != 1 {
@@ -403,20 +396,17 @@ func NoteTitleMatch(file *ParsedFileOld, args []string) ([]*Violation, error) {
 		return nil, fmt.Errorf("argument %s must be a valid regular expression", args[0])
 	}
 
-	body := file.Body
-
-	notes := ParseNotes(body, file.Slug)
-	for _, note := range notes {
+	for _, note := range file.Notes {
 		if note.Kind == KindFree {
 			// Free notes can used any syntax
 			continue
 		}
-		if !re.MatchString(note.Title) {
+		if !re.MatchString(string(note.Title)) {
 			violations = append(violations, &Violation{
 				Name:         "note-title-match",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("note title %q does not match regex %q", note.Title, args[0]),
-				Line:         file.AbsoluteBodyLine(note.Line),
+				Line:         file.FileLineNumber(note.Line),
 			})
 		}
 	}
@@ -425,17 +415,16 @@ func NoteTitleMatch(file *ParsedFileOld, args []string) ([]*Violation, error) {
 }
 
 // NoFreeNote implements the rule "no-free-note".
-func NoFreeNote(file *ParsedFileOld, args []string) ([]*Violation, error) {
+func NoFreeNote(file *ParsedFileNew, args []string) ([]*Violation, error) {
 	var violations []*Violation
 
-	notes := ParseNotes(file.Body, file.Slug)
-	for _, note := range notes {
+	for _, note := range file.Notes {
 		if note.Kind == KindFree {
 			violations = append(violations, &Violation{
 				Name:         "no-free-note",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("free note %q not allowed", note.Title),
-				Line:         file.AbsoluteBodyLine(note.Line),
+				Line:         file.FileLineNumber(note.Line),
 			})
 		}
 	}
@@ -444,18 +433,17 @@ func NoFreeNote(file *ParsedFileOld, args []string) ([]*Violation, error) {
 }
 
 // NoDanglingMedia implements the rule "no-dangling-media".
-func NoDanglingMedia(file *ParsedFileOld, args []string) ([]*Violation, error) {
+func NoDanglingMedia(file *ParsedFileNew, args []string) ([]*Violation, error) {
 	var violations []*Violation
 
-	medias := ParseMedias(file.RelativePath, file.Body)
-	for _, media := range medias {
+	for _, media := range file.Medias {
 		_, err := os.Stat(media.AbsolutePath)
 		if errors.Is(err, os.ErrNotExist) {
 			violations = append(violations, &Violation{
 				Name:         "no-dangling-media",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("dangling media %s detected in %s", media.RawPath, file.RelativePath),
-				Line:         file.AbsoluteBodyLine(media.Line),
+				Line:         file.FileLineNumber(media.Line),
 			})
 		}
 	}
@@ -470,25 +458,15 @@ var sectionsInventoryOnce resync.Once     // Build the inventory on first occurr
 func buildSectionsInventory() {
 	sectionsInventory = make(map[string][]string)
 	paths := []string{CurrentConfig().RootDirectory}
-	err := CurrentRepository().walk(paths, func(path string, stat fs.FileInfo) error {
-		relativePath, err := CurrentRepository().GetFileRelativePath(path)
-		if err != nil {
-			return err
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
+	err := CurrentRepository().walkNew(paths, func(md *markdown.File) error {
+		relativePath := CurrentRepository().GetFileRelativePath(md.AbsolutePath)
 
 		// Extract all sections
 		var sections []string
-		lines := strings.Split(string(data), "\n")
-		for _, line := range lines {
-			if ok, longTitle, _ := markdown.IsHeading(line); ok {
-				sections = append(sections, longTitle)
-			}
-		}
-
+		md.WalkSections(func(parent, current *markdown.Section, children []*markdown.Section) error {
+			sections = append(sections, string(current.HeadingText))
+			return nil
+		})
 		// Use a leading / to only match full filename
 		// Ex: "productivity#Note: XXX" is not ambiguous if files productivity.md and on-productivity.md exist
 		sectionsInventory["/"+text.TrimExtension(relativePath)] = sections
@@ -501,13 +479,12 @@ func buildSectionsInventory() {
 }
 
 // NoDeadWikilink implements the rule "no-dead-wikilink".
-func NoDeadWikilink(file *ParsedFileOld, args []string) ([]*Violation, error) {
+func NoDeadWikilink(file *ParsedFileNew, args []string) ([]*Violation, error) {
 	sectionsInventoryOnce.Do(buildSectionsInventory)
 
 	var violations []*Violation
 
-	wikilinks := ParseWikilinks(file.Body)
-	for _, wikilink := range wikilinks {
+	for _, wikilink := range file.Wikilinks {
 		foundPath := false
 
 		searchedPath := text.TrimExtension(wikilink.Path())
@@ -525,7 +502,7 @@ func NoDeadWikilink(file *ParsedFileOld, args []string) ([]*Violation, error) {
 						Name:         "no-dead-wikilink",
 						RelativePath: file.RelativePath,
 						Message:      fmt.Sprintf("section not found for wikilink %s", wikilink),
-						Line:         file.AbsoluteBodyLine(wikilink.Line),
+						Line:         file.FileLineNumber(wikilink.Line),
 					})
 				}
 			}
@@ -535,7 +512,7 @@ func NoDeadWikilink(file *ParsedFileOld, args []string) ([]*Violation, error) {
 				Name:         "no-dead-wikilink",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("file not found for wikilink %s", wikilink),
-				Line:         file.AbsoluteBodyLine(wikilink.Line),
+				Line:         file.FileLineNumber(wikilink.Line),
 			})
 
 		}
@@ -545,17 +522,16 @@ func NoDeadWikilink(file *ParsedFileOld, args []string) ([]*Violation, error) {
 }
 
 // NoExtensionWikilink implements the rule "no-extension-wikilink".
-func NoExtensionWikilink(file *ParsedFileOld, args []string) ([]*Violation, error) {
+func NoExtensionWikilink(file *ParsedFileNew, args []string) ([]*Violation, error) {
 	var violations []*Violation
 
-	wikilinks := ParseWikilinks(file.Body)
-	for _, wikilink := range wikilinks {
+	for _, wikilink := range file.Wikilinks {
 		if wikilink.ContainsExtension() {
 			violations = append(violations, &Violation{
 				Name:         "no-extension-wikilink",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("extension found in wikilink %s", wikilink),
-				Line:         file.AbsoluteBodyLine(wikilink.Line),
+				Line:         file.FileLineNumber(wikilink.Line),
 			})
 		}
 	}
@@ -564,13 +540,12 @@ func NoExtensionWikilink(file *ParsedFileOld, args []string) ([]*Violation, erro
 }
 
 // NoAmbiguousWikilink implements the rule "no-ambiguous-wikilink"
-func NoAmbiguousWikilink(file *ParsedFileOld, args []string) ([]*Violation, error) {
+func NoAmbiguousWikilink(file *ParsedFileNew, args []string) ([]*Violation, error) {
 	sectionsInventoryOnce.Do(buildSectionsInventory)
 
 	var violations []*Violation
 
-	wikilinks := ParseWikilinks(file.Body)
-	for _, wikilink := range wikilinks {
+	for _, wikilink := range file.Wikilinks {
 		foundMatchingPaths := 0
 
 		searchedPath := text.TrimExtension(wikilink.Path())
@@ -590,7 +565,7 @@ func NoAmbiguousWikilink(file *ParsedFileOld, args []string) ([]*Violation, erro
 				Name:         "no-ambiguous-wikilink",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("ambiguous reference for wikilink %s", wikilink),
-				Line:         file.AbsoluteBodyLine(wikilink.Line),
+				Line:         file.FileLineNumber(wikilink.Line),
 			})
 
 		}
@@ -600,7 +575,7 @@ func NoAmbiguousWikilink(file *ParsedFileOld, args []string) ([]*Violation, erro
 }
 
 // RequireQuoteTag implements the rule "require-quote-tag"
-func RequireQuoteTag(file *ParsedFileOld, args []string) ([]*Violation, error) {
+func RequireQuoteTag(file *ParsedFileNew, args []string) ([]*Violation, error) {
 	var violations []*Violation
 
 	if len(args) > 1 {
@@ -615,10 +590,7 @@ func RequireQuoteTag(file *ParsedFileOld, args []string) ([]*Violation, error) {
 		regexPattern = regexArgument
 	}
 
-	body := file.Body
-
-	notes := ParseNotes(body, file.Slug)
-	for _, note := range notes {
+	for _, note := range file.Notes {
 		if note.Kind != KindQuote {
 			continue
 		}
@@ -648,7 +620,7 @@ func RequireQuoteTag(file *ParsedFileOld, args []string) ([]*Violation, error) {
 				Name:         "require-quote-tag",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("quote %q does not have tags", note.Title),
-				Line:         file.AbsoluteBodyLine(note.Line),
+				Line:         file.FileLineNumber(note.Line),
 			})
 		}
 	}
@@ -657,11 +629,10 @@ func RequireQuoteTag(file *ParsedFileOld, args []string) ([]*Violation, error) {
 }
 
 // CheckAttribute implements the rule "check-attribute"
-func CheckAttribute(file *ParsedFileOld, args []string) ([]*Violation, error) {
+func CheckAttribute(file *ParsedFileNew, args []string) ([]*Violation, error) {
 	var violations []*Violation
 
-	notes := ParseNotes(file.Body, file.Slug)
-	for _, note := range notes {
+	for _, note := range file.Notes {
 
 		definitions := GetSchemaAttributes(file.RelativePath, note.Kind)
 		for _, definition := range definitions {
@@ -680,7 +651,7 @@ func CheckAttribute(file *ParsedFileOld, args []string) ([]*Violation, error) {
 				if presentOnFile {
 					found = true
 
-					line := text.LineNumber(file.Content(), name+":")
+					line := text.LineNumber(string(file.Markdown.Content), name+":")
 					switch definition.Type {
 					case "array":
 						if !IsArray(fileValue) && !IsPrimitive(fileValue) {
@@ -746,7 +717,7 @@ func CheckAttribute(file *ParsedFileOld, args []string) ([]*Violation, error) {
 				}
 				if presentOnNote {
 					found = true
-					line := file.BodyLine + note.Line - 1 + text.LineNumber(note.Body, "@"+name)
+					line := file.Markdown.BodyLine + note.Line - 1 + text.LineNumber(note.Body.String(), "@"+name)
 					switch definition.Type {
 					case "array":
 						if !IsArray(noteValue) && !IsPrimitive(noteValue) {
@@ -819,7 +790,7 @@ func CheckAttribute(file *ParsedFileOld, args []string) ([]*Violation, error) {
 					Name:         "check-attribute",
 					RelativePath: file.RelativePath,
 					Message:      fmt.Sprintf("attribute %q missing on note %q in file %q", definition.Name, note.Title, file.RelativePath),
-					Line:         file.AbsoluteBodyLine(note.Line),
+					Line:         file.FileLineNumber(note.Line),
 				})
 			}
 
@@ -831,9 +802,9 @@ func CheckAttribute(file *ParsedFileOld, args []string) ([]*Violation, error) {
 	return violations, nil
 }
 
-/* ParsedFileOld */
+/* ParsedFileNew */
 
-func (f *ParsedFileOld) Lint(ruleNames []string) ([]*Violation, error) {
+func (f *ParsedFileNew) Lint(ruleNames []string) ([]*Violation, error) {
 	var violations []*Violation
 
 	rules := CurrentConfig().LintFile.Rules

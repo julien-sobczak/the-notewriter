@@ -4,6 +4,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/julien-sobczak/the-notewriter/internal/helpers"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
 
@@ -22,10 +23,16 @@ func (m Document) IsBlank() bool {
 	return text.IsBlank(string(m))
 }
 
-// TODO move functions from package markdown
+func (m Document) Hash() string {
+	return helpers.Hash([]byte(m))
+}
 
 func (m Document) Iterator() *text.LineIterator {
 	return text.NewLineIteratorFromText(string(m))
+}
+
+func (m Document) String() string {
+	return string(m)
 }
 
 // TrimBlankLines removes blank lines at the beginning and end of the document and returns the number of lines removed.
@@ -48,6 +55,32 @@ func (m Document) TrimBlankLines() (result Document, countLinesAtStartTrimmed in
 // TrimSpace removes spaces at the start and end of a markdown document.
 func (m Document) TrimSpace() Document {
 	return Document(strings.TrimSpace(string(m)))
+}
+
+// Wikilinks searches for wikilinks inside a Markdown document
+func (m Document) Wikilinks() []*Wikilink {
+	var results []*Wikilink
+
+	// Ignore medias inside code blocks (ex: a sample Markdown code block)
+	text := m.MustTransform(StripCodeBlocks()).String()
+
+	matches := regexWikilink.FindAllStringSubmatchIndex(text, -1)
+	for _, match := range matches {
+		link := text[match[2]:match[3]]
+		title := ""
+		if match[4] != -1 {
+			title = text[match[4]:match[5]]
+		}
+		line := len(strings.Split(text[:match[0]], "\n"))
+
+		results = append(results, &Wikilink{
+			Link: link,
+			Text: title,
+			Line: line,
+		})
+	}
+
+	return results
 }
 
 /*

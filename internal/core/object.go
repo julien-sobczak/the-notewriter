@@ -1,10 +1,14 @@
 package core
 
 import (
+	"bytes"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // OIDToPath converts an oid to a file path.
@@ -33,10 +37,6 @@ type Object interface {
 	// ModificationTime returns the last modification time.
 	ModificationTime() time.Time
 
-	// SubObjects returns the objects directly contained by this object.
-	SubObjects() []StatefulObject
-	// Blobs returns the optional blobs associated with this object.
-	Blobs() []*BlobRef
 	// Relations returns the relations where the current object is the source.
 	Relations() []*Relation
 
@@ -48,6 +48,10 @@ type Object interface {
 	// String returns a one-line description
 	String() string
 
+	ToYAML() string
+	ToJSON() string
+	ToMarkdown() string
+
 	// Update website/guides/devolopers/presentation.md
 }
 
@@ -57,6 +61,8 @@ type StatefulObject interface {
 
 	Refresh() (bool, error)
 
+	// Object must be saved
+	Stale() bool
 	// State returns the current state.
 	State() State
 	// ForceState marks the object in the given state
@@ -113,3 +119,17 @@ func (c *BlobFile) Save() error {
 	return c.Write(f)
 }
 
+/* Utility */
+
+func ToBeautifulYAML(obj any) string {
+	var buf bytes.Buffer
+	bufEncoder := yaml.NewEncoder(&buf)
+	bufEncoder.SetIndent(2)
+	_ = bufEncoder.Encode(obj)
+	return buf.String()
+}
+
+func ToBeautifulJSON(obj any) string {
+	output, _ := json.MarshalIndent(obj, "", " ")
+	return string(output)
+}

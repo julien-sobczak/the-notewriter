@@ -1,15 +1,10 @@
 package core
 
 import (
-	"bytes"
 	"database/sql"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
-	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -23,9 +18,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Default indentation in front matter
-const Indent int = 2
-
 type Attribute struct { // TODO remove
 	Key   string
 	Value interface{}
@@ -33,73 +25,220 @@ type Attribute struct { // TODO remove
 
 type File struct {
 	// A unique identifier among all files
-	OID string `yaml:"oid"`
+	OID string `yaml:"oid" json:"oid"`
 	// A unique human-friendly slug
-	Slug string `yaml:"slug"`
+	Slug string `yaml:"slug" json:"slug"`
 
 	// Optional parent file (= index.md)
-	ParentFileOID string `yaml:"file_oid,omitempty"`
-	ParentFile    *File  `yaml:"-"` // Lazy-loaded
+	ParentFileOID string `yaml:"file_oid,omitempty" json:"file_oid,omitempty"`
+	ParentFile    *File  `yaml:"-" json:"-"` // Lazy-loaded
 
 	// A relative path to the repository directory
-	RelativePath string `yaml:"relative_path"`
+	RelativePath string `yaml:"relative_path" json:"relative_path"`
 	// The full wikilink to this file (without the extension)
-	Wikilink string `yaml:"wikilink"`
+	Wikilink string `yaml:"wikilink" json:"wikilink"`
 
 	// The FrontMatter for the note file
-	FrontMatter *yaml.Node `yaml:"front_matter"`
+	FrontMatter markdown.FrontMatter `yaml:"front_matter" json:"front_matter"`
 
 	// Merged attributes
-	Attributes map[string]interface{} `yaml:"attributes,omitempty"`
+	Attributes map[string]any `yaml:"attributes,omitempty" json:"attributes,omitempty"`
 
 	// Original title of the main heading without leading # characters
-	Title string `yaml:"title,omitempty"`
+	Title markdown.Document `yaml:"title,omitempty" json:"title,omitempty"`
 	// Short title of the main heading without the kind prefix if present
-	ShortTitle string `yaml:"short_title,omitempty"`
+	ShortTitle markdown.Document `yaml:"short_title,omitempty" json:"short_title,omitempty"`
 
-	Body     string  `yaml:"body"`
-	BodyLine int     `yaml:"body_line"`
-	notes    []*Note `yaml:"-"`
+	Body     markdown.Document `yaml:"body" json:"body"`
+	BodyLine int               `yaml:"body_line" json:"body_line"`
+
+	// Subobjects (lazy-loaded)
+	notes      []*Note      `yaml:"-" json:"-"`
+	flashcards []*Flashcard `yaml:"-" json:"-"`
 
 	// Permission of the file (required to save back)
-	Mode fs.FileMode `yaml:"mode"`
+	Mode fs.FileMode `yaml:"mode" json:"mode"`
 	// Size of the file (can be useful to detect changes)
-	Size int64 `yaml:"size"`
+	Size int64 `yaml:"size" json:"size"`
 	// Hash of the content (can be useful to detect changes too)
-	Hash string `yaml:"hash"`
+	Hash string `yaml:"hash" json:"hash"`
 	// Content last modification date
-	MTime time.Time `yaml:"mtime"`
+	MTime time.Time `yaml:"mtime" json:"mtime"`
 
-	CreatedAt     time.Time `yaml:"created_at"`
-	UpdatedAt     time.Time `yaml:"updated_at"`
-	DeletedAt     time.Time `yaml:"deleted_at,omitempty"`
-	LastCheckedAt time.Time `yaml:"-"`
+	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
+	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
+	DeletedAt     time.Time `yaml:"deleted_at,omitempty" json:"deleted_at,omitempty"`
+	LastCheckedAt time.Time `yaml:"-" json:"-"`
 
 	new   bool
 	stale bool
 }
 
-func NewOrExistingFile(parent *File, path string) (*File, error) {
-	relpath, err := CurrentRepository().GetFileRelativePath(path)
-	if err != nil {
-		log.Fatal(err)
-	}
-	existingFile, err := CurrentRepository().FindFileByRelativePath(relpath)
-	if err != nil {
-		log.Fatal(err)
-	}
+// NewXFromParsedX
+// -> do not check the database
+// NewXOrExistingFromParsedX
+// -> check the database and then call update() or NewXFromParsedX()
 
-	if existingFile != nil {
-		existingFile.update(parent)
-		return existingFile, nil
-	}
+/*
+A file can be new but contains notes/flashcards that was moved => recreating would mean relearning the flashcard...
+A file can be new and contains GoLink that were moved => could be deleted/recreated without consequences
+A file can be new and references existing medias => must not recreate blobs if they already exists!
 
-	return NewFileFromPath(parent, path)
+The minimum building block that can be added is a Markdown file.
+When adding a file:
+- Create/Update the file
+- Create/Update the notes
+- Create/Update the medias
+- Create/Update the reminders
+- Create/Update the links
+
+CurrentRepository().FindParentFileFromParsedFile(ParsedFile) // Useful to make NewOrExisting clearer
+CurrentRepository().FindFileFromParsedFile(ParsedFile)
+CurrentRepository().FindNoteFromParsedNote(ParsedNote)
+...
+
+IDEA rename CurrentX() by X() => make less obvious the singleton pattern but make the code shorter 🤷‍♂️
+Repository().
+Database().
+Logger
+
+
+func NewOrExistingFile(parsedFile *ParsedFile) (*File, error) {
+	parent, _ := CurrentRepository().FindParentFileFromParsedFile(parsedFile)
+	existing, _ := CurrentRepository().FindFileFromParsedFile(parsedFile)
+	if existing != nil {
+		err := existing.Update(parent, parsedFile)
+		return existing, err
+	} else {
+	 	return NewFile(parent, parsedFile)
+	}
 }
+
+func NewFile(parent *File, parsedFile *Parsed) (*File, error) {
+	return &File{
+		// use parsedFile to copy values
+	}
+}
+
+func (f *file) Update(parent, parsedFile) error {
+	// Update parsedFile to copy values
+}
+
+The problem is where to create SubObjects()?
+
+1. In NewOrExistingFile() + NewFile() + Update()
+  * Duplication
+2. In Add() command:
+
+```go
+repository.Walk(func(md *MarkdownFile) error {
+	// Parse all objects inside the Markdown document
+	parsedFile := NewParseFile(md) // NewFile // NewPackFile
+
+	// Process new medias (they are independant of the file)
+	var newMedias []Media
+	for _, media := range parsedFile.Medias {
+		media := NewOrExistingParsedMedia(parsedMedia)
+		if media.Stale() {
+			newMedias = append(newMedias, media)
+		}
+	}
+
+	// Process blobs first outside the SQL transaction (takes a long time and resuming if the command is interrupted is not dangerous, just some CPU cycles lost)
+	CurrentLogger().Printf("Processing %d medias", len(newMedias))
+	for _, newMedia := range newMedias {
+		newMedia.WriteBlobs()
+	}
+
+	CurrentDB().BeginTransaction()
+	defer CurrentDB().RollbackTransaction()
+
+	// Same the medias
+	for _, newMedia := range newMedias {
+		newMedia.Save()
+	}
+
+	// Process links (they are independant of the file)
+	...
+
+	// Process the file
+	file := NewOrExistingParsedFile(parsedFile)
+	if file.Stale() {
+		file.Save()
+	}
+
+	// Process the note
+	for _, parsedNote := range parsedFile.Notes {
+		note := NewOrExistingNote(parsedNote)
+		if note.Stale() {
+			note.Save()
+		}
+	}
+	// Note can reference and embed each other.
+	// Do a second pass (on first pass, a embedded note may not have been found because it was processed later)
+	for _, parsedNote := range parsedFile.Notes {
+		note := NewOrExistingNote(parsedNote)
+		if note.Stale() {
+			note.Save()
+		}
+		if parsedNote.Flashcard != nil {
+			flashcard := NewOrExistingFlashcard(parsedNote.Flashcard)
+			if flashcard.Stale() {
+				flashcard.Save()
+			}
+		}
+		for _, parsedReminder := range parsedNote.Reminders {
+			reminder := NewOrExistingReminder(parsedReminder)
+			if reminder.Stale() {
+				reminder.Save()
+			}
+		}
+	}
+
+	CurrentDB().CommitTransaction()
+
+	packFile := file.ToPackFile()
+	CurrentIndex().StagePackFile(packFile)
+	// create the file on disk
+	// update the index file to note the packfile OID in the staging area
+})
+
+func (r *Repository) Reset() {
+	In short, we must revert changes done on files.
+
+	// Read the staging area to find staged packfiles
+	// Read the index to find the latest packfile for every staged packfile
+
+	DeleteObject in staged packFile => What about flashcard attributes?????
+	SaveObject in indexed packFile
+
+	OR
+
+	re-SaveObject() in indexed packFile
+	DeleteObject() not present in indexed packFile
+	DeletePackFile()
+
+	use .pack and .blob as extension to make easy to clean up? (yes, but medias are pack files too)
+}
+```
+
+
+NewOrExistingFile(*ParsedFile)
+
+NewFile(parent *File, *ParsedFile)
+-> Do not
+
+
+
+
+*/
+
+// NewFileFromParsedFile must iterate over subobjects (ex: notes) to call NewNoteFromParsedNote()
+// If
 
 /* Creation */
 
-func NewEmptyFile(name string) *File {
+func NewEmptyFile(name string) *File { // TODO still useful?
 	return &File{
 		OID:          NewOID(),
 		Slug:         "",
@@ -111,33 +250,47 @@ func NewEmptyFile(name string) *File {
 	}
 }
 
-func NewFileFromAttributes(parent *File, name string, attributes []Attribute) *File {
-	file := NewEmptyFile(name)
-	if parent != nil {
-		file.ParentFile = parent
-		file.ParentFileOID = parent.OID
-		file.Attributes = parent.GetAttributes()
+func NewOrExistingFile(parsedFile *ParsedFileNew) (*File, error) {
+	var existingParent *File
+	var existingFile *File
+
+	// Look for the parent file
+	if parsedFile.Filename() != "index.md" {
+		file, err := CurrentRepository().FindMatchingParentFile(parsedFile)
+		if err != nil {
+			return nil, err
+		}
+		existingParent = file
 	}
-	for _, attribute := range attributes {
-		file.SetAttribute(attribute.Key, attribute.Value)
+
+	file, err := CurrentRepository().FindMatchingFile(parsedFile)
+	if err != nil {
+		return nil, err
 	}
-	return file
+	existingFile = file
+
+	if existingFile != nil {
+		err := existingFile.update(existingParent, parsedFile)
+		return existingFile, err
+	} else {
+		return NewFile(existingParent, parsedFile)
+	}
 }
 
-func NewFileFromParsedFile(parent *File, parsedFile *ParsedFileOld) *File {
+func NewFile(parent *File, parsedFile *ParsedFileNew) (*File, error) {
 	file := &File{
 		OID:          NewOID(),
 		Slug:         parsedFile.Slug,
 		RelativePath: parsedFile.RelativePath,
 		Wikilink:     text.TrimExtension(parsedFile.RelativePath),
-		Mode:         parsedFile.LStat.Mode(),
-		Size:         parsedFile.LStat.Size(),
-		Hash:         helpers.Hash(parsedFile.Bytes),
-		MTime:        parsedFile.LStat.ModTime(),
-		Attributes:   make(map[string]interface{}),
-		FrontMatter:  parsedFile.FrontMatter,
-		Body:         parsedFile.Body,
-		BodyLine:     parsedFile.BodyLine,
+		Mode:         parsedFile.Markdown.LStat.Mode(),
+		Size:         parsedFile.Markdown.LStat.Size(),
+		Hash:         helpers.Hash(parsedFile.Markdown.Content),
+		MTime:        parsedFile.Markdown.LStat.ModTime(),
+		Attributes:   make(map[string]any),
+		FrontMatter:  parsedFile.Markdown.FrontMatter,
+		Body:         parsedFile.Markdown.Body,
+		BodyLine:     parsedFile.Markdown.BodyLine,
 		CreatedAt:    clock.Now(),
 		UpdatedAt:    clock.Now(),
 		stale:        true,
@@ -149,19 +302,12 @@ func NewFileFromParsedFile(parent *File, parsedFile *ParsedFileOld) *File {
 	}
 	newAttributes := parsedFile.FileAttributes
 	if parent != nil {
+		// TODO now cast attributes
 		newAttributes = file.mergeAttributes(parent.GetAttributes(), newAttributes)
 	}
 	file.Attributes = newAttributes
 
-	return file
-}
-
-func NewFileFromPath(parent *File, filepath string) (*File, error) {
-	parsedFile, err := ParseFile(filepath)
-	if err != nil {
-		return nil, err
-	}
-	return NewFileFromParsedFile(parent, parsedFile), nil
+	return file, nil
 }
 
 func (f *File) mergeAttributes(attributes ...map[string]interface{}) map[string]interface{} {
@@ -198,6 +344,10 @@ func (f *File) UniqueOID() string {
 func (f *File) Refresh() (bool, error) {
 	// No dependencies = no need to refresh
 	return false, nil
+}
+
+func (f *File) Stale() bool {
+	return f.stale
 }
 
 func (f *File) State() State {
@@ -249,29 +399,6 @@ func (f *File) Write(w io.Writer) error {
 	return err
 }
 
-func (f *File) SubObjects() []StatefulObject {
-	var objs []StatefulObject
-	for _, object := range f.GetNotes() {
-		objs = append(objs, object)
-		objs = append(objs, object.SubObjects()...)
-	}
-	for _, object := range f.GetFlashcards() {
-		objs = append(objs, object)
-		objs = append(objs, object.SubObjects()...)
-	}
-	// Medias are already saved through files
-	// for _, object := range f.GetMedias() {
-	// 	objs = append(objs, object)
-	// 	objs = append(objs, object.SubObjects()...)
-	// }
-	return objs
-}
-
-func (f *File) Blobs() []*BlobRef {
-	// Use Media.Blobs() instead
-	return nil
-}
-
 func (f *File) Relations() []*Relation {
 	// We consider only relations related to notes
 	return nil
@@ -283,13 +410,7 @@ func (f File) String() string {
 
 /* Update */
 
-func (f *File) update(parent *File) error {
-	abspath := CurrentRepository().GetAbsolutePath(f.RelativePath)
-	parsedFile, err := ParseFile(abspath)
-	if err != nil {
-		return err
-	}
-
+func (f *File) update(parent *File, parsedFile *ParsedFileNew) error {
 	newAttributes := parsedFile.FileAttributes
 	if parent != nil {
 		newAttributes = f.mergeAttributes(parent.GetAttributes(), newAttributes)
@@ -301,26 +422,24 @@ func (f *File) update(parent *File) error {
 		f.Attributes = newAttributes
 	}
 
+	md := parsedFile.Markdown
+
 	// Check if local file has changed
-	if f.MTime != parsedFile.LStat.ModTime() || f.Size != parsedFile.LStat.Size() {
+	if f.MTime != md.LStat.ModTime() || f.Size != md.LStat.Size() {
 		// file change
 		f.stale = true
 
-		f.Mode = parsedFile.LStat.Mode()
-		f.Size = parsedFile.LStat.Size()
-		f.Hash = helpers.Hash(parsedFile.Bytes)
-		if parsedFile.FrontMatter.Kind > 0 {
-			f.FrontMatter = parsedFile.FrontMatter
-		} else {
-			f.FrontMatter = nil
-		}
+		f.Mode = md.LStat.Mode()
+		f.Size = md.LStat.Size()
+		f.Hash = helpers.Hash(md.Content)
+		f.FrontMatter = md.FrontMatter
 		f.Attributes = parsedFile.FileAttributes
 		if parent != nil {
 			f.Attributes = f.mergeAttributes(parent.GetAttributes(), f.Attributes)
 		}
-		f.MTime = parsedFile.LStat.ModTime()
-		f.Body = parsedFile.Body
-		f.BodyLine = parsedFile.BodyLine
+		f.MTime = md.LStat.ModTime()
+		f.Body = md.Body
+		f.BodyLine = md.BodyLine
 	}
 
 	return nil
@@ -343,18 +462,6 @@ func (f *File) AbsoluteBodyLine(bodyLine int) int {
 	return f.BodyLine + bodyLine - 1
 }
 
-// FrontMatterString formats the current attributes to the YAML front matter format.
-func (f *File) FrontMatterString() (string, error) {
-	var buf bytes.Buffer
-	bufEncoder := yaml.NewEncoder(&buf)
-	bufEncoder.SetIndent(Indent)
-	err := bufEncoder.Encode(f.FrontMatter)
-	if err != nil {
-		return "", err
-	}
-	return CompactYAML(buf.String()), nil
-}
-
 // GetAttributes returns all file-specific and inherited attributes.
 func (f *File) GetAttributes() map[string]interface{} {
 	return f.Attributes
@@ -367,59 +474,6 @@ func (f *File) GetAttribute(key string) interface{} {
 		return nil
 	}
 	return value
-}
-
-// SetAttribute overrides or defines a single attribute.
-func (f *File) SetAttribute(key string, value interface{}) {
-	if f.FrontMatter == nil {
-		var frontMatterContent []*yaml.Node
-		f.FrontMatter = &yaml.Node{
-			Kind:    yaml.MappingNode,
-			Content: frontMatterContent,
-		}
-	}
-
-	found := false
-	for i := 0; i < len(f.FrontMatter.Content)/2; i++ {
-		keyNode := f.FrontMatter.Content[i*2]
-		valueNode := f.FrontMatter.Content[i*2+1]
-		if keyNode.Value != key {
-			continue
-		}
-
-		found = true
-
-		newValueNode := ToSafeYAMLNode(value)
-		if newValueNode.Kind == yaml.ScalarNode {
-			valueNode.Value = newValueNode.Value
-		} else if newValueNode.Kind == yaml.DocumentNode {
-			valueNode.Content = newValueNode.Content[0].Content
-		} else {
-			valueNode.Content = newValueNode.Content
-		}
-	}
-
-	if !found {
-		f.FrontMatter.Content = append(f.FrontMatter.Content, &yaml.Node{
-			Kind:  yaml.ScalarNode,
-			Value: key,
-		})
-		newValueNode := ToSafeYAMLNode(value)
-		switch newValueNode.Kind {
-		case yaml.DocumentNode:
-			f.FrontMatter.Content = append(f.FrontMatter.Content, newValueNode.Content[0])
-		case yaml.ScalarNode:
-			f.FrontMatter.Content = append(f.FrontMatter.Content, newValueNode)
-		default:
-			fmt.Printf("Unexpected type %v\n", newValueNode.Kind)
-			os.Exit(1)
-		}
-	}
-
-	// Don't forget to append in parsed attributes too
-	newAttributes := map[string]interface{}{key: value}
-	newAttributes = CastAttributes(newAttributes, GetSchemaAttributeTypes())
-	f.Attributes = MergeAttributes(f.Attributes, newAttributes)
 }
 
 // GetTags returns all defined tags.
@@ -455,283 +509,23 @@ func (f *File) GetNotes() []*Note {
 		return f.notes
 	}
 
-	parsedNotes := ParseNotes(f.Body, f.Slug)
-
-	if len(parsedNotes) == 0 {
-		return nil
-	}
-
-	// Collect parent indices
-	parentNoteIndices := make(map[int]int)
-	for i, currentNote := range parsedNotes {
-		found := false
-		for j, prevNote := range parsedNotes[0:i] {
-			if prevNote.Level == currentNote.Level-1 {
-				found = true
-				parentNoteIndices[i] = j
-			}
-		}
-		if !found {
-			parentNoteIndices[i] = -1
-		}
-	}
-
-	// We sort notes to process them according their dependencies.
-	// For example, if a note includes another note in the same file
-	// (NB: external dependencies are addressed elsewhere when processing files),
-	// we must return the included note first for it to be saved first in database,
-	// so that when we will build the final note content for the other note,
-	// the dependency will be found in database.
-	var sortedParsedNotes []*ParsedNoteOld
-	addedNoteIndices := make(map[int]bool)
-	addedSections := make(map[string]bool)
-	changedDuringIteration := false
-	for len(addedNoteIndices) < len(parsedNotes) { // until all notes are added or no more notes can be added due to transitive dependency
-		for i, note := range parsedNotes {
-			if addedNoteIndices[i] {
-				// Already added
-				continue
-			}
-
-			var internalWikilinks []*Wikilink
-			for _, wikilink := range note.Wikilinks() {
-				if wikilink.Internal() {
-					internalWikilinks = append(internalWikilinks, wikilink)
-				}
-			}
-
-			// A note can be added iff:
-			// - no parent OR the parent note has already been added
-			// - no internal link OR all notes referenced by internal links has been added first
-			parentSatisfied := parentNoteIndices[i] == -1 || addedNoteIndices[parentNoteIndices[i]]
-			internalLinksSatisfied := true
-			for _, wikilink := range internalWikilinks {
-				if _, ok := addedSections[wikilink.Section()]; !ok {
-					internalLinksSatisfied = false
-				}
-			}
-
-			if parentSatisfied && internalLinksSatisfied {
-				addedNoteIndices[i] = true
-				addedSections[note.Title] = true
-				sortedParsedNotes = append(sortedParsedNotes, note)
-				changedDuringIteration = true
-			}
-		}
-		if !changedDuringIteration {
-			// cyclic dependency found
-			CurrentLogger().Info("Cyclic dependency between notes detected. Incomplete note(s) can result.")
-			// Add remaining notes without taking care of dependencies...
-			for i, note := range parsedNotes {
-				if addedNoteIndices[i] {
-					// Already added
-					continue
-				}
-				sortedParsedNotes = append(sortedParsedNotes, note)
-			}
-			break
-		}
-		changedDuringIteration = false
-	}
-
-	// All notes collected until now
-	var notes []*Note
-
-	for i, currentNote := range sortedParsedNotes {
-		var parent *Note
-		if parentNoteIndices[i] != -1 {
-			parent = notes[parentNoteIndices[i]]
-		}
-		note := NewOrExistingNote(f, parent, currentNote)
-		if note.HasTag("ignore") {
-			// Do not add notes marked as ignorable
-			continue
-		}
-		notes = append(notes, note)
-	}
-
-	if len(notes) > 0 {
-		f.notes = notes
-	}
-	return f.notes
+	// TODO CurrentRepository().FindNotes()
+	return nil
 }
 
-// ParsedNote represents a single raw note inside a file.
-type ParsedNoteOld struct {
-	Level          int
-	Kind           NoteKind
-	Slug           string
-	Title          string
-	ShortTitle     string
-	Line           int
-	Body           string
-	NoteAttributes map[string]interface{}
-	NoteTags       []string
-}
-
-// MustParseNote is pratical in unit test to setup a new note.
-func MustParseNote(noteContent string, fileSlug string) *ParsedNoteOld {
-	notes := ParseNotes(noteContent, fileSlug)
-	if len(notes) != 1 {
-		log.Fatalf("Must only contain a single note. Found %d note(s)", len(notes))
-	}
-	return notes[0]
-}
-
-// ParseNotes extracts the notes from a file body.
-func ParseNotes(fileBody string, fileSlug string) []*ParsedNoteOld {
-	type Section struct {
-		level      int
-		kind       NoteKind
-		title      string
-		shortTitle string
-		lineNumber int
-	}
-	var sections []*Section
-
-	// Extract all sections
-	lines := strings.Split(fileBody, "\n")
-
-	// Check if the file contains typed notes.
-	// If so, it means the top heading (= the title of file) does not represent a free note.
-	// Otherwise, we will add this top heading as a standalone note.
-	ignoreTopHeading := false
-	insideCodeBlock := false
-	for _, line := range lines {
-		if strings.HasPrefix(line, "```") {
-			insideCodeBlock = !insideCodeBlock
-		}
-		if insideCodeBlock {
-			// Ignore possible Markdown heading in code blocks
-			continue
-		}
-		if ok, longTitle, level := markdown.IsHeading(line); ok {
-			if ok, kind, _ := isSupportedNote(longTitle); ok {
-				if level != 1 && kind != KindFree {
-					ignoreTopHeading = true
-					break
-				}
-			}
-		}
+func (f *File) GetFlashcards() []*Flashcard {
+	if f.flashcards != nil {
+		return f.flashcards
 	}
 
-	// Current line number during the parsing
-	var lineNumber int
-	insideNote := false
-	insideCodeBlock = false
-	for _, line := range lines {
-		lineNumber++
-		if strings.HasPrefix(line, "```") {
-			insideCodeBlock = !insideCodeBlock
-		}
-		if insideCodeBlock {
-			// Ignore possible Markdown heading in code blocks
-			continue
-		}
-		if ok, title, level := markdown.IsHeading(line); ok {
-			if level == 1 && ignoreTopHeading {
-				continue
-			}
-			lastLevel := 0
-			if len(sections) > 0 {
-				lastLevel = sections[len(sections)-1].level
-			}
-			if level <= lastLevel {
-				insideNote = false
-			}
-			ok, kind, shortTitle := isSupportedNote(title)
-			if ok {
-				sections = append(sections, &Section{
-					level:      level,
-					kind:       kind,
-					title:      title,
-					shortTitle: shortTitle,
-					lineNumber: lineNumber,
-				})
-				insideNote = true
-			} else { // block inside a note or a free note?
-				if !insideNote { // new free note
-					sections = append(sections, &Section{
-						level:      level,
-						kind:       KindFree,
-						title:      title,
-						shortTitle: shortTitle,
-						lineNumber: lineNumber,
-					})
-					insideNote = true
-				}
-			}
-		}
-	}
-
-	// Iterate over sections and use line numbers to split the raw content into notes
-	if len(sections) == 0 {
-		return nil
-	}
-
-	// All notes collected until now
-	var notes []*ParsedNoteOld
-	for i, section := range sections {
-		var nextSection *Section
-		if i < len(sections)-1 {
-			nextSection = sections[i+1]
-		}
-
-		lineStart := section.lineNumber + 1
-		lineEnd := -1 // EOF
-		if nextSection != nil {
-			lineEnd = nextSection.lineNumber - 1
-		}
-
-		noteContent := text.ExtractLines(fileBody, lineStart, lineEnd)
-		if text.IsBlank(noteContent) {
-			// skip sections without text (= category to organize notes, not really free notes)
-			continue
-		}
-
-		tags, attributes := ExtractBlockTagsAndAttributes(noteContent)
-
-		// Determine slug from attribute or define a default one otherwise
-		slug := markdown.Slug(fileSlug, string(section.kind), section.shortTitle)
-		if value, ok := attributes["slug"]; ok {
-			if v, ok := value.(string); ok {
-				slug = v
-			}
-		}
-
-		parsedNote := &ParsedNoteOld{
-			Level:          section.level,
-			Kind:           section.kind,
-			Slug:           slug,
-			Title:          section.title,
-			ShortTitle:     section.shortTitle,
-			Line:           section.lineNumber,
-			NoteAttributes: CastAttributes(attributes, GetSchemaAttributeTypes()),
-			NoteTags:       tags,
-			Body:           noteContent,
-		}
-		notes = append(notes, parsedNote)
-	}
-
-	return notes
-}
-
-// Hash returns the current hash to use when searching for an existing note in database to avoid recreating it.
-func (n *ParsedNoteOld) Hash() string {
-	raw := strings.TrimSpace(n.Body)
-	hash := helpers.Hash([]byte(raw))
-	return hash
-}
-
-// Wikilinks returns the wikilinks present in the note.
-func (n *ParsedNoteOld) Wikilinks() []*Wikilink {
-	return ParseWikilinks(n.Body)
+	// TODO CurrentRepository().FindFlashcards()
+	return nil
 }
 
 // FindNoteByKindAndShortTitle searches for a given note based on its kind and title.
 func (f *File) FindNoteByKindAndShortTitle(kind NoteKind, shortTitle string) *Note {
 	for _, note := range f.GetNotes() {
-		if note.NoteKind == kind && note.ShortTitle == shortTitle {
+		if note.NoteKind == kind && note.ShortTitle == markdown.Document(shortTitle) {
 			return note
 		}
 	}
@@ -741,262 +535,14 @@ func (f *File) FindNoteByKindAndShortTitle(kind NoteKind, shortTitle string) *No
 // FindFlashcardByTitle searches for a given flashcard based on its title.
 func (f *File) FindFlashcardByTitle(shortTitle string) *Flashcard {
 	for _, flashcard := range f.GetFlashcards() {
-		if flashcard.ShortTitle == shortTitle {
+		if flashcard.ShortTitle == markdown.Document(shortTitle) {
 			return flashcard
 		}
 	}
 	return nil
 }
 
-// GetFlashcards extracts flashcards from the file.
-func (f *File) GetFlashcards() []*Flashcard {
-	var flashcards []*Flashcard
-	for _, note := range f.GetNotes() {
-		if note.NoteKind != KindFlashcard {
-			continue
-		}
-
-		flashcard := NewOrExistingFlashcard(f, note)
-		flashcards = append(flashcards, flashcard)
-	}
-	return flashcards
-}
-
-// GetMedias extracts medias from the file.
-func (f *File) GetMedias() []*Media {
-	return extractMediasFromMarkdown(f.RelativePath, f.Body)
-}
-
-/* Parsing */
-
-type ParsedFileOld struct {
-	// The paths to the file
-	AbsolutePath string
-	RelativePath string
-
-	// Stat
-	Stat  fs.FileInfo
-	LStat fs.FileInfo
-
-	// The raw file bytes
-	Bytes []byte
-
-	// Main Heading
-	Slug       string
-	Title      string
-	ShortTitle string
-
-	// The YAML Front Matter
-	FrontMatter *yaml.Node
-	// File attributes extracted from the Front Matter
-	FileAttributes map[string]interface{}
-
-	// The body (= content minus the front matter)
-	Body     string
-	BodyLine int
-}
-
-// ParseFile contains the main logic to parse a raw note file.
-func ParseFile(path string) (*ParsedFileOld, error) {
-	CurrentLogger().Debugf("Parsing file %s...", path)
-
-	relativePath, err := CurrentRepository().GetFileRelativePath(path)
-	if err != nil {
-		return nil, err
-	}
-	absolutePath := CurrentRepository().GetAbsolutePath(relativePath)
-
-	lstat, err := os.Lstat(absolutePath)
-	if err != nil {
-		return nil, err
-	}
-
-	stat, err := os.Stat(absolutePath)
-	if err != nil {
-		return nil, err
-	}
-
-	contentBytes, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	var rawFrontMatter bytes.Buffer
-	var rawContent bytes.Buffer
-	frontMatterStarted := false
-	frontMatterEnded := false
-	bodyStarted := false
-	bodyStartLineNumber := 0
-	for i, line := range strings.Split(strings.TrimSuffix(string(contentBytes), "\n"), "\n") {
-		if strings.HasPrefix(line, "---") {
-			if bodyStarted {
-				// Flashcard Front/Back line separator
-				rawContent.WriteString(line)
-				rawContent.WriteString("\n")
-			} else if !frontMatterStarted {
-				frontMatterStarted = true
-			} else if !frontMatterEnded {
-				frontMatterEnded = true
-			}
-			continue
-		}
-
-		if frontMatterStarted && !frontMatterEnded {
-			rawFrontMatter.WriteString(line)
-			rawFrontMatter.WriteString("\n")
-		} else {
-			if !text.IsBlank(line) && !bodyStarted {
-				bodyStarted = true
-				bodyStartLineNumber = i + 1
-			}
-			rawContent.WriteString(line)
-			rawContent.WriteString("\n")
-		}
-	}
-
-	var frontMatter = new(yaml.Node)
-	err = yaml.Unmarshal(rawFrontMatter.Bytes(), frontMatter)
-	if err != nil {
-		return nil, err
-	}
-	if frontMatter.Kind > 0 { // Happen when no Front Matter is present
-		frontMatter = frontMatter.Content[0]
-	}
-
-	var attributes = make(map[string]interface{})
-	err = yaml.Unmarshal(rawFrontMatter.Bytes(), attributes)
-	if err != nil {
-		return nil, err
-	}
-
-	body := strings.TrimSpace(rawContent.String())
-	// Extract title
-	title := ""
-	for _, line := range strings.Split(body, "\n") {
-		if ok, longTitle, _ := markdown.IsHeading(line); ok {
-			title = longTitle
-		}
-	}
-	_, _, shortTitle := isSupportedNote(title)
-
-	// Extract/Generate slug
-	slug := DetermineFileSlug(relativePath)
-	if value, ok := attributes["slug"]; ok {
-		if v, ok := value.(string); ok {
-			slug = v
-		}
-	}
-
-	return &ParsedFileOld{
-		AbsolutePath:   absolutePath,
-		RelativePath:   relativePath,
-		Stat:           stat,
-		LStat:          lstat,
-		Slug:           slug,
-		Title:          title,
-		ShortTitle:     shortTitle,
-		Bytes:          contentBytes,
-		FrontMatter:    frontMatter,
-		FileAttributes: CastAttributes(attributes, GetSchemaAttributeTypes()),
-		Body:           body,
-		BodyLine:       bodyStartLineNumber,
-	}, nil
-}
-
-// DetermineFileSlug generates a slug from a file path.
-func DetermineFileSlug(path string) string {
-	var slugsParts []any
-
-	// Include the dirname
-	dirname := filepath.Base(filepath.Dir(path))
-	slugsParts = append(slugsParts, dirname)
-
-	// Include the filename (without the extension) except for index.md (as no additional meaning)
-	// and except when the file is named after the directory.
-	filenameWithoutExtension := text.TrimExtension(filepath.Base(path))
-	if filenameWithoutExtension != "index" && filenameWithoutExtension != dirname {
-		slugsParts = append(slugsParts, filenameWithoutExtension)
-	}
-
-	return markdown.Slug(slugsParts...)
-}
-
-// GetTags returns all defined tags on file.
-func (f *ParsedFileOld) GetTags() []string {
-	value, ok := f.FileAttributes["tags"]
-	if !ok {
-		return nil
-	}
-	if tag, ok := value.(string); ok {
-		return []string{tag}
-	}
-	if tags, ok := value.([]string); ok {
-		return tags
-	}
-	if rawTags, ok := value.([]interface{}); ok {
-		var tags []string
-		for _, rawTag := range rawTags {
-			if tag, ok := rawTag.(string); ok {
-				tags = append(tags, tag)
-			}
-		}
-		return tags
-	}
-	return nil
-}
-
-// HasTag returns if the file has specifically a given tag.
-func (f *ParsedFileOld) HasTag(tagName string) bool {
-	return slices.Contains(f.GetTags(), tagName)
-}
-
-// Content returns the raw file content.
-func (f *ParsedFileOld) Content() string {
-	return string(f.Bytes)
-}
-
-// Wikilinks returns the wikilinks present inside a file.
-func (f *ParsedFileOld) Wikilinks() []*Wikilink {
-	return ParseWikilinks(f.Content())
-}
-
-// AbsoluteBodyLine returns the line number in the file by taking into consideration the front matter.
-func (f *ParsedFileOld) AbsoluteBodyLine(bodyLine int) int {
-	return f.BodyLine + bodyLine - 1
-}
-
 /* Data Management */
-
-func (f *File) SaveOnDisk() error {
-	// Persist to disk
-	frontMatter, err := f.FrontMatterString()
-	if err != nil {
-		return err
-	}
-	var sb strings.Builder
-	sb.WriteString("---\n")
-	sb.WriteString(frontMatter)
-	sb.WriteString("---\n")
-	sb.WriteString(f.Body)
-
-	if f.RelativePath == "" {
-		return errors.New("unable to save file as no path is defined")
-	}
-	rawContent := []byte(sb.String())
-	absolutePath := CurrentRepository().GetAbsolutePath(f.RelativePath)
-	os.WriteFile(absolutePath, rawContent, f.Mode)
-
-	// Refresh file-specific attributes
-	stat, err := os.Lstat(absolutePath)
-	if err != nil {
-		return err
-	}
-	f.Size = stat.Size()
-	f.Mode = stat.Mode()
-	f.Hash = helpers.Hash(rawContent)
-
-	return nil
-}
 
 func (f *File) Check() error {
 	client := CurrentDB().Client()
@@ -1081,7 +627,7 @@ func (f *File) Insert() error {
 		)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
-	frontMatter, err := f.FrontMatterString()
+	frontMatter, err := f.FrontMatter.AsBeautifulYAML()
 	if err != nil {
 		return err
 	}
@@ -1140,7 +686,7 @@ func (f *File) Update() error {
 			mode = ?
 		WHERE oid = ?;
 	`
-	frontMatter, err := f.FrontMatterString()
+	frontMatter, err := f.FrontMatter.AsBeautifulYAML()
 	if err != nil {
 		return err
 	}
@@ -1185,6 +731,18 @@ func (r *Repository) FindFileByRelativePath(relativePath string) (*File, error) 
 	return QueryFile(CurrentDB().Client(), `WHERE relative_path = ?`, relativePath)
 }
 
+func (r *Repository) FindMatchingFile(parsedFile *ParsedFileNew) (*File, error) {
+	return QueryFile(CurrentDB().Client(), `WHERE relative_path = ?`, parsedFile.RelativePath)
+}
+
+func (r *Repository) FindMatchingParentFile(parsedFile *ParsedFileNew) (*File, error) {
+	if parsedFile.Filename() == "index.md" {
+		return nil, nil
+	}
+	parentRelativePath := filepath.Join(parsedFile.RelativeDir(), "index.md")
+	return r.FindFileByRelativePath(parentRelativePath)
+}
+
 func (r *Repository) FindFilesByRelativePathPrefix(relativePathPrefix string) ([]*File, error) {
 	return QueryFiles(CurrentDB().Client(), `WHERE relative_path LIKE ?`, relativePathPrefix+"%")
 }
@@ -1220,7 +778,6 @@ func (r *Repository) CountFiles() (int, error) {
 
 func QueryFile(db SQLClient, whereClause string, args ...any) (*File, error) {
 	var f File
-	var rawFrontMatter string
 	var createdAt string
 	var updatedAt string
 	var lastCheckedAt string
@@ -1256,7 +813,7 @@ func QueryFile(db SQLClient, whereClause string, args ...any) (*File, error) {
 			&f.Slug,
 			&f.RelativePath,
 			&f.Wikilink,
-			&rawFrontMatter,
+			&f.FrontMatter,
 			&attributesRaw,
 			&f.Title,
 			&f.ShortTitle,
@@ -1274,15 +831,6 @@ func QueryFile(db SQLClient, whereClause string, args ...any) (*File, error) {
 			return nil, nil
 		}
 		return nil, err
-	}
-
-	var frontMatter yaml.Node
-	err := yaml.Unmarshal([]byte(rawFrontMatter), &frontMatter)
-	if err != nil {
-		return nil, err
-	}
-	if frontMatter.Kind > 0 { // Happen when no Front Matter is present
-		f.FrontMatter = frontMatter.Content[0]
 	}
 
 	attributes, err := UnmarshalAttributes(attributesRaw)
@@ -1330,7 +878,6 @@ func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) 
 	defer rows.Close()
 	for rows.Next() {
 		var f File
-		var rawFrontMatter string
 		var createdAt string
 		var updatedAt string
 		var lastCheckedAt string
@@ -1343,7 +890,7 @@ func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) 
 			&f.Slug,
 			&f.RelativePath,
 			&f.Wikilink,
-			&rawFrontMatter,
+			&f.FrontMatter,
 			&attributesRaw,
 			&f.Title,
 			&f.ShortTitle,
@@ -1359,15 +906,6 @@ func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) 
 		)
 		if err != nil {
 			return nil, err
-		}
-
-		var frontMatter yaml.Node
-		err := yaml.Unmarshal([]byte(rawFrontMatter), &frontMatter)
-		if err != nil {
-			return nil, err
-		}
-		if frontMatter.Kind > 0 { // Happen when no Front Matter is present
-			f.FrontMatter = frontMatter.Content[0]
 		}
 
 		attributes, err := UnmarshalAttributes(attributesRaw)
@@ -1394,69 +932,22 @@ func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) 
 
 /* Format */
 
-func (f *File) FormatToJSON() string {
-	type FileRepresentation struct {
-		OID                string                 `json:"oid"`
-		Slug               string                 `json:"slug"`
-		RelativePath       string                 `json:"relativePath"`
-		Wikilink           string                 `json:"wikilink"`
-		Attributes         map[string]interface{} `json:"attributes"`
-		ShortTitleRaw      string                 `json:"shortTitleRaw"`
-		ShortTitleMarkdown string                 `json:"shortTitleMarkdown"`
-		ShortTitleHTML     string                 `json:"shortTitleHTML"`
-		ShortTitleText     string                 `json:"shortTitleText"`
-		Body               string                 `json:"body"`
-		CreatedAt          time.Time              `json:"createdAt"`
-		UpdatedAt          time.Time              `json:"updatedAt"`
-		DeletedAt          *time.Time             `json:"deletedAt"`
-	}
-	repr := FileRepresentation{
-		OID:                f.OID,
-		Slug:               f.Slug,
-		RelativePath:       f.RelativePath,
-		Wikilink:           f.Wikilink,
-		ShortTitleRaw:      f.ShortTitle,
-		ShortTitleMarkdown: string(f.ShortTitle.ToCleanMarkdown()),
-		ShortTitleHTML:     f.ShortTitle.ToHTML(),
-		ShortTitleText:     f.ShortTitle.ToText(),
-		Attributes:         f.GetAttributes(),
-		Body:               f.Body,
-		CreatedAt:          f.CreatedAt,
-		UpdatedAt:          f.UpdatedAt,
-	}
-	if !f.DeletedAt.IsZero() {
-		repr.DeletedAt = &f.DeletedAt
-	}
-	output, _ := json.MarshalIndent(repr, "", " ")
-	return string(output)
+func (f *File) ToYAML() string {
+	return ToBeautifulYAML(f)
 }
 
-func (f *File) FormatToYAML() string {
-	b := new(strings.Builder)
-	f.Write(b)
-	return b.String()
+func (f *File) ToJSON() string {
+	return ToBeautifulJSON(f)
 }
 
-func (f *File) FormatToMarkdown() string {
+func (f *File) ToMarkdown() string {
 	var sb strings.Builder
-	frontMatter, err := f.FrontMatterString()
+	frontMatter, err := f.FrontMatter.AsBeautifulYAML()
 	if err != nil {
 		sb.WriteString(frontMatter)
 	}
 	sb.WriteRune('\n')
 	sb.WriteRune('\n')
-	sb.WriteString(f.Body)
-	return sb.String()
-}
-
-func (f *File) FormatToHTML() string {
-	var sb strings.Builder
-	sb.WriteString(markdown.ToHTML(f.Body))
-	return sb.String()
-}
-
-func (f *File) FormatToText() string {
-	var sb strings.Builder
-	sb.WriteString(markdown.ToText(f.Body))
+	sb.WriteString(string(f.Body))
 	return sb.String()
 }

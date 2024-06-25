@@ -2,7 +2,6 @@ package core
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -13,7 +12,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/julien-sobczak/the-notewriter/internal/helpers"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
@@ -58,93 +56,75 @@ var (
 	regexJournal    = regexp.MustCompile(`^(?i)Journal:\s*(.*)$`)    // Ex: `# Journal: 2023-01-01`
 )
 
+// FIXME add json field tag + sql field tag
 type Note struct {
 	// A unique identifier among all files
-	OID string `yaml:"oid"`
+	OID string `yaml:"oid" json:"oid"`
 	// A unique human-friendly slug
-	Slug string `yaml:"slug"`
+	Slug string `yaml:"slug" json:"slug"`
 
 	// File containing the note
-	FileOID string `yaml:"file_oid"`
-	File    *File  `yaml:"-"` // Lazy-loaded
+	FileOID string `yaml:"file_oid" json:"file_oid"`
+	File    *File  `yaml:"-" json:"-"` // Lazy-loaded
 
 	// Parent Note surrounding the note
-	ParentNoteOID string `yaml:"parent_note_oid"`
-	ParentNote    *Note  `yaml:"-"` // Lazy-loaded
+	ParentNoteOID string `yaml:"parent_note_oid" json:"parent_note_oid"`
+	ParentNote    *Note  `yaml:"-" json:"-"` // Lazy-loaded
 
 	// Type of note
-	NoteKind NoteKind `yaml:"kind"`
+	NoteKind NoteKind `yaml:"kind" json:"kind"`
 
 	// Original title of the note without leading # characters
-	Title string `yaml:"title"`
+	Title markdown.Document `yaml:"title" json:"title"`
 	// Long title of the note without the kind prefix but prefixed by parent note's short titles
-	LongTitle string `yaml:"long_title"`
+	LongTitle markdown.Document `yaml:"long_title" json:"long_title"`
 	// Short title of the note without the kind prefix
-	ShortTitle string `yaml:"short_title"`
+	ShortTitle markdown.Document `yaml:"short_title" json:"short_title"`
 
 	// The filepath of the file containing the note (denormalized field)
-	RelativePath string `yaml:"relative_path"`
+	RelativePath string `yaml:"relative_path" json:"relative_path"`
 	// The full wikilink to this note (without the extension)
-	Wikilink string `yaml:"wikilink"`
+	Wikilink string `yaml:"wikilink" json:"wikilink"`
 
 	// Merged attributes
-	Attributes map[string]interface{} `yaml:"attributes,omitempty"`
+	Attributes map[string]any `yaml:"attributes,omitempty" json:"attributes,omitempty"`
 
 	// Merged tags
-	Tags []string `yaml:"tags,omitempty"`
+	Tags []string `yaml:"tags,omitempty" json:"tags,omitempty"`
 
 	// Line number (1-based index) of the note section title
-	Line int `yaml:"line"`
+	Line int `yaml:"line" json:"line"`
 
 	// Content in various formats (best for editing, rendering, writing, etc.)
-	ContentRaw      string `yaml:"content_raw"`
-	Hash            string `yaml:"content_hash"`
-	TitleMarkdown   string `yaml:"title_markdown"`
-	TitleHTML       string `yaml:"title_html"`
-	TitleText       string `yaml:"title_text"`
-	ContentMarkdown string `yaml:"content_markdown"`
-	ContentHTML     string `yaml:"content_html"`
-	ContentText     string `yaml:"content_text"`
-	CommentMarkdown string `yaml:"comment_markdown,omitempty"`
-	CommentHTML     string `yaml:"comment_html,omitempty"`
-	CommentText     string `yaml:"comment_text,omitempty"`
+	ContentRaw markdown.Document `yaml:"content_raw" json:"content_raw"`
+	Hash       string            `yaml:"content_hash" json:"content_hash"`
+	Body       markdown.Document `yaml:"body" json:"body"`
+	Comment    markdown.Document `yaml:"comment,omitempty" json:"comment,omitempty"`
 
 	// Timestamps to track changes
-	CreatedAt     time.Time `yaml:"created_at"`
-	UpdatedAt     time.Time `yaml:"updated_at"`
-	DeletedAt     time.Time `yaml:"deleted_at,omitempty"`
-	LastCheckedAt time.Time `yaml:"-"`
+	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
+	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
+	DeletedAt     time.Time `yaml:"deleted_at,omitempty" json:"deleted_at,omitempty"`
+	LastCheckedAt time.Time `yaml:"-" json:"-"`
 
 	new   bool
 	stale bool
 }
 
-// NewOrExistingNote loads and updates an existing note or creates a new one if new.
-func NewOrExistingNote(f *File, parent *Note, parsedNote *ParsedNoteOld) *Note {
-	// Try to find an existing note (instead of recreating it from scratch after every change)
-	note, _ := CurrentRepository().FindMatchingNote(f.RelativePath, parsedNote)
-	if note != nil {
-		note.update(f, parent, parsedNote)
-		return note
-	}
-
-	return NewNote(f, parent, parsedNote)
-}
-
-// NewNote creates a new note from given attributes.
-func NewNote(f *File, parent *Note, parsedNote *ParsedNoteOld) *Note {
+// NewNote creates a new note.
+func NewNote(file *File, parent *Note, parsedNote *ParsedNoteNew) (*Note, error) {
 	// Set basic properties
 	n := &Note{
 		OID:          NewOID(),
-		FileOID:      f.OID,
-		File:         f,
+		FileOID:      file.OID,
+		File:         file,
 		Title:        parsedNote.Title,
 		ShortTitle:   parsedNote.ShortTitle,
 		NoteKind:     parsedNote.Kind,
-		RelativePath: f.RelativePath,
+		RelativePath: file.RelativePath,
 		Attributes:   make(map[string]interface{}),
-		Wikilink:     f.Wikilink + "#" + strings.TrimSpace(parsedNote.Title),
-		Line:         f.AbsoluteBodyLine(parsedNote.Line),
+		Wikilink:     file.Wikilink + "#" + string(parsedNote.Title.TrimSpace()),
+		Line:         file.AbsoluteBodyLine(parsedNote.Line),
 		CreatedAt:    clock.Now(),
 		UpdatedAt:    clock.Now(),
 		new:          true,
@@ -158,13 +138,29 @@ func NewNote(f *File, parent *Note, parsedNote *ParsedNoteOld) *Note {
 	}
 
 	// Set dynamic properties
-	n.updateLongTitle()              // Require the file and optional parent
-	n.updateContent(parsedNote.Body) // Require the file
-	n.updateSlug()                   // Require the file and note attributes
+	n.updateLongTitle()         // Require the file and optional parent
+	n.updateContent(parsedNote) // Require the file
+	n.updateSlug()              // Require the file and note attributes
 
-	CurrentDB().WIP().Register(n)
+	CurrentDB().WIP().Register(n) // FIXME useless with 2-pass algorithm?
 
-	return n
+	return n, nil
+}
+
+// NewOrExistingNote loads and updates an existing note or creates a new one if new.
+func NewOrExistingNote(f *File, parent *Note, parsedNote *ParsedNoteNew) (*Note, error) {
+	// Try to find an existing note (instead of recreating it from scratch after every change)
+	existingNote, err := CurrentRepository().FindMatchingNote(parsedNote)
+	if err != nil {
+		return nil, err
+	}
+
+	if existingNote != nil {
+		existingNote.update(f, parent, parsedNote)
+		return existingNote, nil
+	}
+
+	return NewNote(f, parent, parsedNote)
 }
 
 /* Object */
@@ -185,6 +181,10 @@ func (n *Note) Refresh() (bool, error) {
 	// Simply force the content to be reevaluated to force included notes to be reread
 	n.updateContent(n.ContentRaw)
 	return n.stale, nil
+}
+
+func (n *Note) Stale() bool {
+	return n.stale
 }
 
 func (n *Note) State() State {
@@ -227,34 +227,12 @@ func (n *Note) Write(w io.Writer) error {
 	return err
 }
 
-func (n *Note) SubObjects() []StatefulObject {
-	var objs []StatefulObject
-	for _, object := range n.GetLinks() {
-		objs = append(objs, object)
-		objs = append(objs, object.SubObjects()...)
-	}
-	for _, object := range n.GetMedias() {
-		objs = append(objs, object)
-		objs = append(objs, object.SubObjects()...)
-	}
-	for _, object := range n.GetReminders() {
-		objs = append(objs, object)
-		objs = append(objs, object.SubObjects()...)
-	}
-	return objs
-}
-
-func (n *Note) Blobs() []*BlobRef {
-	// Use Media.Blobs() instead
-	return nil
-}
-
 func (n *Note) Relations() []*Relation {
 	var relations []*Relation
 
 	// Utility function to append wikilink to the returned relations
 	addWikilink := func(wikilinkTxt string, relationType string) {
-		wikilink, err := NewWikilink(wikilinkTxt)
+		wikilink, err := markdown.NewWikilink(wikilinkTxt)
 		if err != nil {
 			// Ignore malformed links
 			return
@@ -296,7 +274,7 @@ func (n *Note) Relations() []*Relation {
 	// Check attribute "source"
 	if n.HasAttribute("source") {
 		source := n.GetAttribute("source").(string) // Enforced by linter
-		if MatchWikilink(source) {
+		if markdown.MatchWikilink(source) {
 			addWikilink(source, "references")
 		}
 	}
@@ -306,7 +284,7 @@ func (n *Note) Relations() []*Relation {
 		references := n.GetAttribute("references").([]interface{}) // Enforced by linter
 		for _, referenceRaw := range references {
 			if reference, ok := referenceRaw.(string); ok {
-				if MatchWikilink(reference) {
+				if markdown.MatchWikilink(reference) {
 					addWikilink(reference, "referenced_by")
 				}
 			}
@@ -318,7 +296,7 @@ func (n *Note) Relations() []*Relation {
 		inspirations := n.GetAttribute("inspirations").([]interface{}) // Enforced by linter
 		for _, inspirationRaw := range inspirations {
 			if inspiration, ok := inspirationRaw.(string); ok {
-				if MatchWikilink(inspiration) {
+				if markdown.MatchWikilink(inspiration) {
 					addWikilink(inspiration, "inspired_by")
 				}
 			}
@@ -334,7 +312,7 @@ func (n Note) String() string {
 
 /* Update */
 
-func (n *Note) update(f *File, parent *Note, parsedNote *ParsedNoteOld) {
+func (n *Note) update(f *File, parent *Note, parsedNote *ParsedNoteNew) {
 	// Set basic properties
 	if n.FileOID != f.OID {
 		n.FileOID = f.OID
@@ -362,7 +340,7 @@ func (n *Note) update(f *File, parent *Note, parsedNote *ParsedNoteOld) {
 		n.stale = true
 	}
 
-	newWikilink := f.Wikilink + "#" + strings.TrimSpace(parsedNote.Title)
+	newWikilink := f.Wikilink + "#" + string(parsedNote.Title.TrimSpace())
 	if n.Wikilink != newWikilink {
 		n.Wikilink = newWikilink
 		n.stale = true
@@ -375,9 +353,9 @@ func (n *Note) update(f *File, parent *Note, parsedNote *ParsedNoteOld) {
 	}
 
 	// Set dynamic properties
-	n.updateLongTitle()              // Require the file and optional parent
-	n.updateContent(parsedNote.Body) // Require the file
-	n.updateSlug()                   // Require the file and note attributes
+	n.updateLongTitle()         // Require the file and optional parent
+	n.updateContent(parsedNote) // Require the file
+	n.updateSlug()              // Require the file and note attributes
 
 	if n.stale {
 		n.UpdatedAt = clock.Now()
@@ -392,148 +370,6 @@ func (n *Note) New() bool {
 
 func (n *Note) Updated() bool {
 	return n.stale
-}
-
-/* Parsing */
-
-func (n *Note) parseContentRaw() (mdTitle, htmlTitle, txtTitle string, mdContent, htmlContent, txtContent string, mdComment, htmlComment, txtComment string) {
-	// Always remove block tags and attributes in all formats
-	content := StripBlockTagsAndAttributes(n.ContentRaw)
-
-	// Always remove HTML comments
-	content = text.StripHTMLComments(content)
-
-	// Always replace Asciidoc special characters
-	content = markdown.ReplaceAsciidocCharacterSubstitutions(content)
-	// Extract optional personal comment
-	content, comment := markdown.StripComment(content)
-
-	// Replace local-specific links by generic OID links
-	content = n.ReplaceMediasByOIDLinks(content)
-
-	if comment != "" {
-		mdComment = strings.TrimSpace(comment)
-		txtComment = strings.TrimSpace(comment)
-		htmlComment = markdown.ToInlineHTML(strings.ReplaceAll(comment, "\n", " "))
-	}
-
-	mdTitle = "# " + n.LongTitle
-	htmlTitle = "<h1>" + markdown.ToInlineHTML(n.LongTitle) + "</h1>"
-	txtTitle = markdown.ToText(n.LongTitle) + "\n" + text.Repeat("=", len(n.LongTitle))
-
-	// Quotes are processed differently
-	if n.NoteKind == KindQuote {
-		quote, attribution := markdown.ExtractQuote(content)
-
-		// Turn every text line into a quote
-		// Add the attribute name or author in suffix
-		// Ex:
-		//   `@name: Walt Disney`
-		//
-		//   The way to get started is to quit
-		//   talking and begin doing.
-		//
-		// Becomes:
-		//
-		//   > The way to get started is to quit
-		//   > talking and begin doing.
-		//   > — Walt Disney
-
-		if attribution == "" {
-			attribution = n.GetAttributeString("name", n.GetAttributeString("author", ""))
-		}
-		source := n.GetAttributeString("source", "")
-		if strings.Contains(source, "[[") {
-			// Ignore source containing wikilink.
-			// Ideally, we would retrieve the correspond note to retrieve its title.
-			source = ""
-		}
-
-		// Markdown
-		mdContent += text.PrefixLines(quote, "> ")
-		txtContent += text.PrefixLines(quote, "> ")
-		if attribution != "" {
-			mdContent += "> — " + attribution + "\n"
-			txtContent += "> — " + attribution + "\n"
-		}
-		// HTML
-		if attribution == "" {
-			htmlContent += fmt.Sprintf(`<figure>
-	<blockquote>
-		%s
-	</blockquote>
-</figure>`, markdown.ToHTML(quote))
-		} else if source == "" {
-			htmlContent += fmt.Sprintf(`<figure>
-	<blockquote>
-		%s
-	</blockquote>
-	<figcaption>— %s</figcaption>
-</figure>`, markdown.ToHTML(quote), markdown.ToInlineHTML(attribution))
-		} else {
-			htmlContent += fmt.Sprintf(`<figure>
-	<blockquote>
-		%s
-	</blockquote>
-	<figcaption>— %s <cite>%s</cite></figcaption>
-</figure>`, markdown.ToHTML(quote), markdown.ToInlineHTML(attribution), markdown.ToInlineHTML(source))
-		}
-
-		mdContent = strings.TrimSpace(mdContent)
-		htmlContent = strings.TrimSpace(htmlContent)
-		txtContent = strings.TrimSpace(txtContent)
-
-		return
-	}
-
-	// Manage embedded notes
-	// We process as usual the other lines but inject the embedded note content.
-	lines := strings.Split(content, "\n")
-	reEmbeddedNote := regexp.MustCompile(`^!\[\[(.*)(?:\|.*)?\]\]\s*`)
-	var currentBlock strings.Builder
-	for _, line := range lines {
-		matches := reEmbeddedNote.FindStringSubmatch(line)
-		if matches != nil {
-			if currentBlock.Len() > 0 {
-				blockContent := currentBlock.String()
-				mdContent += markdown.ToMarkdown(blockContent) + "\n\n"
-				htmlContent += markdown.ToHTML(blockContent) + "\n\n"
-				txtContent += markdown.ToText(blockContent) + "\n\n"
-				currentBlock.Reset()
-			}
-			wikilink := matches[1]
-			note, _ := CurrentRepository().FindNoteByWikilink(wikilink)
-			if note == nil {
-				note = CurrentDB().WIP().FindNoteByWikilink(wikilink)
-			}
-			// Ignore missing notes, this one will be reprocessed later
-			if note != nil {
-				mdContent += note.ContentMarkdown + "\n\n"
-				htmlContent += note.ContentHTML + "\n\n"
-				txtContent += note.ContentText + "\n\n"
-			} else {
-				// Print the missing link, otherwise the note content may be weird
-				mdContent += line + "\n\n"
-				htmlContent += "<del>" + wikilink + "</del>\n\n"
-				txtContent += markdown.ToText(line) + "\n\n"
-			}
-		} else {
-			currentBlock.WriteString(line)
-			currentBlock.WriteRune('\n')
-		}
-	}
-	if currentBlock.Len() > 0 {
-		blockContent := currentBlock.String()
-		mdContent += markdown.ToMarkdown(blockContent)
-		htmlContent += markdown.ToHTML(blockContent)
-		txtContent += markdown.ToText(blockContent)
-	}
-
-	mdContent = strings.TrimSpace(mdContent)
-	htmlContent = strings.TrimSpace(htmlContent)
-	txtContent = strings.TrimSpace(txtContent)
-
-	return
 }
 
 // ReplaceMediasByOIDLinks replaces all non-dangling links by a OID fake link.
@@ -580,7 +416,7 @@ func (n *Note) ReplaceMediasByOIDLinks(md string) string {
 }
 
 func (n *Note) updateLongTitle() {
-	var titles []string
+	var titles []markdown.Document
 	if n.GetFile() != nil && n.GetFile().ShortTitle != "" {
 		titles = append(titles, n.GetFile().ShortTitle)
 	}
@@ -641,12 +477,12 @@ func DetermineNoteSlug(fileSlug string, attributeSlug string, kind NoteKind, sho
 	return markdown.Slug(fileSlug, string(kind), shortTitle)
 }
 
-func (n *Note) updateContent(rawContent string) {
-	prevContentMarkdown := n.ContentMarkdown
+func (n *Note) updateContent(parsedNote *ParsedNoteNew) {
+	prevContentRaw := n.ContentRaw
 	prevAttributes := n.Attributes
 
-	n.ContentRaw = strings.TrimSpace(rawContent)
-	n.Hash = helpers.Hash([]byte(n.ContentRaw))
+	n.ContentRaw = parsedNote.Content.TrimSpace()
+	n.Hash = n.ContentRaw.Hash()
 
 	tags, attributes := ExtractBlockTagsAndAttributes(n.ContentRaw)
 
@@ -672,19 +508,93 @@ func (n *Note) updateContent(rawContent string) {
 		n.SetAttribute("title", n.ShortTitle)
 	}
 
-	// Reread content as tags and attributes previously defined on the note can influence the output.
-	mdTitle, htmlTitle, txtTitle, mdContent, htmlContent, txtContent, mdComment, htmlComment, txtComment := n.parseContentRaw()
-	n.TitleMarkdown = mdTitle
-	n.TitleHTML = htmlTitle
-	n.TitleText = txtTitle
-	n.ContentMarkdown = mdContent
-	n.ContentHTML = htmlContent
-	n.ContentText = txtContent
-	n.CommentMarkdown = mdComment
-	n.CommentHTML = htmlComment
-	n.CommentText = txtComment
+	// Replace local-specific links by generic OID links
+	// FIXME remove oid
+	// content = n.ReplaceMediasByOIDLinks(content)
 
-	if prevContentMarkdown != n.ContentMarkdown || !reflect.DeepEqual(prevAttributes, n.Attributes) {
+	/*
+		// Quotes are processed differently
+		if n.NoteKind == KindQuote {
+			quote, attribution := markdown.ExtractQuote(content)
+
+			// Turn every text line into a quote
+			// Add the attribute name or author in suffix
+			// Ex:
+			//   `@name: Walt Disney`
+			//
+			//   The way to get started is to quit
+			//   talking and begin doing.
+			//
+			// Becomes:
+			//
+			//   > The way to get started is to quit
+			//   > talking and begin doing.
+			//   > — Walt Disney
+
+			if attribution == "" {
+				attribution = n.GetAttributeString("name", n.GetAttributeString("author", ""))
+			}
+			source := n.GetAttributeString("source", "")
+			if strings.Contains(source, "[[") {
+				// Ignore source containing wikilink.
+				// Ideally, we would retrieve the correspond note to retrieve its title.
+				source = ""
+			}
+
+			// Markdown
+			mdContent += text.PrefixLines(quote, "> ")
+			mdContent = strings.TrimSpace(mdContent)
+
+			return
+		}
+
+		// Manage embedded notes
+		// We process as usual the other lines but inject the embedded note content.
+		lines := strings.Split(content, "\n")
+		reEmbeddedNote := regexp.MustCompile(`^!\[\[(.*)(?:\|.*)?\]\]\s*`)
+		var currentBlock strings.Builder
+		for _, line := range lines {
+			matches := reEmbeddedNote.FindStringSubmatch(line)
+			if matches != nil {
+				if currentBlock.Len() > 0 {
+					blockContent := currentBlock.String()
+					mdContent += markdown.ToMarkdown(blockContent) + "\n\n"
+					htmlContent += markdown.ToHTML(blockContent) + "\n\n"
+					txtContent += markdown.ToText(blockContent) + "\n\n"
+					currentBlock.Reset()
+				}
+				wikilink := matches[1]
+				note, _ := CurrentRepository().FindNoteByWikilink(wikilink)
+				if note == nil {
+					note = CurrentDB().WIP().FindNoteByWikilink(wikilink)
+				}
+				// Ignore missing notes, this one will be reprocessed later
+				if note != nil {
+					mdContent += note.ContentMarkdown + "\n\n"
+					htmlContent += note.ContentHTML + "\n\n"
+					txtContent += note.ContentText + "\n\n"
+				} else {
+					// Print the missing link, otherwise the note content may be weird
+					mdContent += line + "\n\n"
+					htmlContent += "<del>" + wikilink + "</del>\n\n"
+					txtContent += markdown.ToText(line) + "\n\n"
+				}
+			} else {
+				currentBlock.WriteString(line)
+				currentBlock.WriteRune('\n')
+			}
+		}
+		if currentBlock.Len() > 0 {
+			blockContent := currentBlock.String()
+			mdContent += markdown.ToMarkdown(blockContent)
+		}
+	*/
+
+	n.Title = parsedNote.Title
+	n.Body = parsedNote.Body
+	n.Comment = parsedNote.Comment
+
+	if prevContentRaw != n.ContentRaw || !reflect.DeepEqual(prevAttributes, n.Attributes) {
 		n.stale = true
 	}
 }
@@ -815,72 +725,6 @@ func isSupportedNote(text string) (bool, NoteKind, string) {
 	return false, KindFree, text
 }
 
-/* Sub Objects */
-
-// GetMedias extracts medias from the note.
-func (n *Note) GetMedias() []*Media {
-	return extractMediasFromMarkdown(n.GetFile().RelativePath, n.ContentRaw)
-}
-
-// GetLinks extracts special links from a note.
-func (n *Note) GetLinks() []*Link {
-	var links []*Link
-
-	reLink := regexp.MustCompile(`(?:^|[^!])\[(.*?)\]\("?(http[^\s"]*)"?(?:\s+["'](.*?)["'])?\)`)
-	// Note: Markdown images uses the same syntax as links but precedes the link by !
-	reTitle := regexp.MustCompile(`(?:(.*)\s+)?#go\/(\S+).*`)
-
-	matches := reLink.FindAllStringSubmatch(n.ContentRaw, -1)
-	for _, match := range matches {
-		text := match[1]
-		url := match[2]
-		title := match[3]
-		submatch := reTitle.FindStringSubmatch(title)
-		if submatch == nil {
-			continue
-		}
-		shortTitle := submatch[1]
-		goName := submatch[2]
-
-		link := NewOrExistingLink(n, text, url, shortTitle, goName)
-		links = append(links, link)
-	}
-
-	return links
-}
-
-// GetReminders extracts reminders from the note.
-func (n *Note) GetReminders() []*Reminder {
-	var reminders []*Reminder
-
-	reReminders := regexp.MustCompile("`(#reminder-(\\S+))`")
-	reList := regexp.MustCompile(`^\s*(?:[-+*]|\d+[.])\s+(?:\[.\]\s+)?(.*)\s*$`)
-
-	for _, line := range strings.Split(n.ContentRaw, "\n") {
-		matches := reReminders.FindAllStringSubmatch(line, -1)
-		for _, match := range matches {
-			tag := match[1]
-			_ = match[2] // expression
-
-			description := n.ShortTitle
-
-			submatch := reList.FindStringSubmatch(line)
-			if submatch != nil {
-				// Reminder for a list element
-				description = RemoveTagsAndAttributes(submatch[1]) // Remove tags
-			}
-
-			reminder, err := NewOrExistingReminder(n, description, tag)
-			if err != nil {
-				log.Fatal(err)
-			}
-			reminders = append(reminders, reminder)
-		}
-	}
-
-	return reminders
-}
-
 /* State Management */
 
 func (n *Note) Check() error {
@@ -959,19 +803,12 @@ func (n *Note) Insert() error {
 			"line",
 			content_raw,
 			hashsum,
-			title_markdown,
-			title_html,
-			title_text,
-			content_markdown,
-			content_html,
-			content_text,
-			comment_markdown,
-			comment_html,
-			comment_text,
+			body,
+			comment,
 			created_at,
 			updated_at,
 			last_checked_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 
 	attributesJSON, err := AttributesJSON(n.Attributes)
@@ -995,15 +832,8 @@ func (n *Note) Insert() error {
 		n.Line,
 		n.ContentRaw,
 		n.Hash,
-		n.TitleMarkdown,
-		n.TitleHTML,
-		n.TitleText,
-		n.ContentMarkdown,
-		n.ContentHTML,
-		n.ContentText,
-		n.CommentMarkdown,
-		n.CommentHTML,
-		n.CommentText,
+		n.Body,
+		n.Comment,
 		timeToSQL(n.CreatedAt),
 		timeToSQL(n.UpdatedAt),
 		timeToSQL(n.LastCheckedAt),
@@ -1034,15 +864,8 @@ func (n *Note) Update() error {
 			"line" = ?,
 			content_raw = ?,
 			hashsum = ?,
-			title_markdown = ?,
-			title_html = ?,
-			title_text = ?,
-			content_markdown = ?,
-			content_html = ?,
-			content_text = ?,
-			comment_markdown = ?,
-			comment_html = ?,
-			comment_text = ?,
+			body = ?,
+			comment = ?,
 			updated_at = ?,
 			last_checked_at = ?
 		WHERE oid = ?;
@@ -1068,15 +891,8 @@ func (n *Note) Update() error {
 		n.Line,
 		n.ContentRaw,
 		n.Hash,
-		n.TitleMarkdown,
-		n.TitleHTML,
-		n.TitleText,
-		n.ContentMarkdown,
-		n.ContentHTML,
-		n.ContentText,
-		n.CommentMarkdown,
-		n.CommentHTML,
-		n.CommentText,
+		n.Body,
+		n.Comment,
 		timeToSQL(n.UpdatedAt),
 		timeToSQL(n.LastCheckedAt),
 		n.OID,
@@ -1268,7 +1084,7 @@ func (r *Repository) FindNoteByPathAndTitle(relativePath string, title string) (
 	return QueryNote(CurrentDB().Client(), `WHERE relative_path = ? AND title = ?`, relativePath, title)
 }
 
-func (r *Repository) FindMatchingNote(relativePath string, parsedNote *ParsedNoteOld) (*Note, error) {
+func (r *Repository) FindMatchingNote(parsedNote *ParsedNoteNew) (*Note, error) {
 	// Try by slug
 	note, _ := r.FindNoteBySlug(parsedNote.Slug)
 	if note != nil {
@@ -1276,13 +1092,13 @@ func (r *Repository) FindMatchingNote(relativePath string, parsedNote *ParsedNot
 	}
 
 	// Try by wikilink
-	note, _ = r.FindNoteByWikilink(relativePath + "#" + parsedNote.Title)
+	note, _ = r.FindNoteByWikilink(parsedNote.RelativePath + "#" + string(parsedNote.Title)) // FIXME trim extension?
 	if note != nil {
 		return note, nil
 	}
 
 	// Last by same title or same content in the same file
-	return QueryNote(CurrentDB().Client(), `WHERE relative_path = ? AND (title = ? OR hashsum = ?)`, relativePath, parsedNote.Title, parsedNote.Hash())
+	return QueryNote(CurrentDB().Client(), `WHERE relative_path = ? AND (title = ? OR hashsum = ?)`, parsedNote.RelativePath, parsedNote.Title, parsedNote.Hash())
 }
 
 func (r *Repository) FindNoteByWikilink(wikilink string) (*Note, error) {
@@ -1397,15 +1213,8 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 			"line",
 			content_raw,
 			hashsum,
-			title_markdown,
-			title_html,
-			title_text,
-			content_markdown,
-			content_html,
-			content_text,
-			comment_markdown,
-			comment_html,
-			comment_text,
+			body,
+			comment,
 			created_at,
 			updated_at,
 			last_checked_at
@@ -1427,15 +1236,8 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 			&n.Line,
 			&n.ContentRaw,
 			&n.Hash,
-			&n.TitleMarkdown,
-			&n.TitleHTML,
-			&n.TitleText,
-			&n.ContentMarkdown,
-			&n.ContentHTML,
-			&n.ContentText,
-			&n.CommentMarkdown,
-			&n.CommentHTML,
-			&n.CommentText,
+			&n.Body,
+			&n.Comment,
 			&createdAt,
 			&updatedAt,
 			&lastCheckedAt,
@@ -1480,15 +1282,8 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			"line",
 			content_raw,
 			hashsum,
-			title_markdown,
-			title_html,
-			title_text,
-			content_markdown,
-			content_html,
-			content_text,
-			comment_markdown,
-			comment_html,
-			comment_text,
+			body,
+			comment,
 			created_at,
 			updated_at,
 			last_checked_at
@@ -1522,15 +1317,8 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			&n.Line,
 			&n.ContentRaw,
 			&n.Hash,
-			&n.TitleMarkdown,
-			&n.TitleHTML,
-			&n.TitleText,
-			&n.ContentMarkdown,
-			&n.ContentHTML,
-			&n.ContentText,
-			&n.CommentMarkdown,
-			&n.CommentHTML,
-			&n.CommentText,
+			&n.Body,
+			&n.Comment,
 			&createdAt,
 			&updatedAt,
 			&lastCheckedAt,
@@ -1562,83 +1350,24 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 
 /* Format */
 
-func (n *Note) FormatToJSON() string {
-	type NoteRepresentation struct {
-		OID                string                 `json:"oid"`
-		Slug               string                 `json:"slug"`
-		RelativePath       string                 `json:"relativePath"`
-		Wikilink           string                 `json:"wikilink"`
-		Attributes         map[string]interface{} `json:"attributes"`
-		Tags               []string               `json:"tags"`
-		ShortTitleRaw      string                 `json:"shortTitleRaw"`
-		ShortTitleMarkdown string                 `json:"shortTitleMarkdown"`
-		ShortTitleHTML     string                 `json:"shortTitleHTML"`
-		ShortTitleText     string                 `json:"shortTitleText"`
-		ContentRaw         string                 `json:"contentRaw"`
-		ContentMarkdown    string                 `json:"contentMarkdown"`
-		ContentHTML        string                 `json:"contentHTML"`
-		ContentText        string                 `json:"contentText"`
-		CreatedAt          time.Time              `json:"createdAt"`
-		UpdatedAt          time.Time              `json:"updatedAt"`
-		DeletedAt          *time.Time             `json:"deletedAt"`
-	}
-	repr := NoteRepresentation{
-		OID:                n.OID,
-		Slug:               n.Slug,
-		RelativePath:       n.RelativePath,
-		Wikilink:           n.Wikilink,
-		ShortTitleRaw:      n.ShortTitle,
-		ShortTitleMarkdown: markdown.ToMarkdown(n.ShortTitle),
-		ShortTitleHTML:     markdown.ToHTML(n.ShortTitle),
-		ShortTitleText:     markdown.ToText(n.ShortTitle),
-		Attributes:         n.GetAttributes(),
-		Tags:               n.GetTags(),
-		ContentRaw:         n.ContentRaw,
-		ContentMarkdown:    n.ContentMarkdown,
-		ContentHTML:        n.ContentHTML,
-		ContentText:        n.ContentText,
-		CreatedAt:          n.CreatedAt,
-		UpdatedAt:          n.UpdatedAt,
-	}
-	if !n.DeletedAt.IsZero() {
-		repr.DeletedAt = &n.DeletedAt
-	}
-	output, _ := json.MarshalIndent(repr, "", " ")
-	return string(output)
+func (n *Note) ToYAML() string {
+	return ToBeautifulYAML(n)
 }
 
-func (n *Note) FormatToYAML() string {
-	b := new(strings.Builder)
-	n.Write(b)
-	return b.String()
+func (n *Note) ToJSON() string {
+	return ToBeautifulJSON(n)
 }
 
-func (n *Note) FormatToMarkdown() string {
+func (n *Note) ToMarkdown() string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("# %s\n", n.Title))
 	sb.WriteRune('\n')
-	sb.WriteString(n.ContentMarkdown)
-	return sb.String()
-}
-
-func (n *Note) FormatToHTML() string {
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("<h1>%s</h1>\n", markdown.ToHTML(n.Title)))
-	sb.WriteRune('\n')
-	sb.WriteString(n.ContentHTML)
-	return sb.String()
-}
-
-func (n *Note) FormatToText() string {
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("%s\n", markdown.ToText(n.Title)))
-	sb.WriteRune('\n')
-	sb.WriteString(n.ContentText)
+	sb.WriteString(string(n.ContentRaw))
 	return sb.String()
 }
 
 // FormatLongTitle formats the long title of a note.
-func FormatLongTitle(titles ...string) string {
+func FormatLongTitle(titles ...markdown.Document) string {
 	// Implementation: We concatenate the titles but we must avoid duplication.
 	//
 	// Ex:

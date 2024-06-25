@@ -7,7 +7,6 @@ import (
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
 
-
 // ExtractLines extracts a Markdown document
 func (m Document) ExtractLines(start, end int) Document {
 	return Document(text.ExtractLines(string(m), start, end))

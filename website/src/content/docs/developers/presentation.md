@@ -86,10 +86,6 @@ type Object interface {
 	// ModificationTime returns the last modification time.
 	ModificationTime() time.Time
 
-	// SubObjects returns the objects directly contained by this object.
-	SubObjects() []StatefulObject
-	// Blobs returns the optional blobs associated with this object.
-	Blobs() []*BlobRef
 	// Relations returns the relations where the current object is the source.
 	Relations() []*Relation
 

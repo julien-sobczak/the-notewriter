@@ -4,64 +4,65 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
-	"log"
+	"strings"
 	"time"
 
+	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"gopkg.in/yaml.v3"
 )
 
 type Link struct {
-	OID string `yaml:"oid"`
+	OID string `yaml:"oid" json:"oid"`
 
-	NoteOID string `yaml:"note_oid"`
+	NoteOID string `yaml:"note_oid" json:"note_oid"`
 
 	// The filepath of the file containing the note (denormalized field)
-	RelativePath string `yaml:"relative_path"`
+	RelativePath string `yaml:"relative_path" json:"relative_path"`
 
 	// The link text
-	Text string `yaml:"text"`
+	Text markdown.Document `yaml:"text" json:"text"`
 
 	// The link destination
-	URL string `yaml:"url"`
+	URL string `yaml:"url" json:"url"`
 
 	// The optional link title
-	Title string `yaml:"title"`
+	Title string `yaml:"title" json:"title"`
 
 	// The optional GO name
-	GoName string `yaml:"go_name"`
+	GoName GoName `yaml:"go_name" json:"go_name"`
 
 	// Timestamps to track changes
-	CreatedAt     time.Time `yaml:"created_at"`
-	UpdatedAt     time.Time `yaml:"updated_at"`
-	DeletedAt     time.Time `yaml:"deleted_at,omitempty"`
-	LastCheckedAt time.Time `yaml:"-"`
+	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
+	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
+	DeletedAt     time.Time `yaml:"deleted_at,omitempty" json:"deleted_at,omitempty"`
+	LastCheckedAt time.Time `yaml:"-" json:"-"`
 
 	new   bool
 	stale bool
 }
 
-func NewOrExistingLink(note *Note, text, url, title, goName string) *Link {
-	link, err := CurrentRepository().FindLinkByGoName(goName)
+func NewOrExistingLink(note *Note, parsedLink *ParsedLinkNew) (*Link, error) {
+	existingLink, err := CurrentRepository().FindLinkByGoName(string(parsedLink.GoName))
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	if link != nil {
-		link.update(note, text, url, title, goName)
-		return link
+	if existingLink != nil {
+		existingLink.update(note, parsedLink)
+		return existingLink, nil
 	}
-	return NewLink(note, text, url, title, goName)
+	return NewLink(note, parsedLink), nil
 }
 
-func NewLink(note *Note, text, url, title, goName string) *Link {
+func NewLink(note *Note, parsedLink *ParsedLinkNew) *Link {
 	return &Link{
 		OID:          NewOID(),
 		NoteOID:      note.OID,
 		RelativePath: note.RelativePath,
-		Text:         text,
-		URL:          url,
-		Title:        title,
-		GoName:       goName,
+		Text:         parsedLink.Text,
+		URL:          parsedLink.URL,
+		Title:        parsedLink.Title,
+		GoName:       parsedLink.GoName,
 
 		CreatedAt: clock.Now(),
 		UpdatedAt: clock.Now(),
@@ -88,6 +89,10 @@ func (l *Link) ModificationTime() time.Time {
 func (l *Link) Refresh() (bool, error) {
 	// No dependencies = no need to refresh
 	return false, nil
+}
+
+func (l *Link) Stale() bool {
+	return l.stale
 }
 
 func (l *Link) State() State {
@@ -130,14 +135,6 @@ func (l *Link) Write(w io.Writer) error {
 	return err
 }
 
-func (l *Link) SubObjects() []StatefulObject {
-	return nil
-}
-
-func (l *Link) Blobs() []*BlobRef {
-	return nil
-}
-
 func (l *Link) Relations() []*Relation {
 	return nil
 }
@@ -146,27 +143,47 @@ func (l Link) String() string {
 	return fmt.Sprintf("link %q [%s]", l.URL, l.OID)
 }
 
+/* Format */
+
+func (l *Link) ToYAML() string {
+	return ToBeautifulYAML(l)
+}
+
+func (l *Link) ToJSON() string {
+	return ToBeautifulJSON(l)
+}
+
+func (l *Link) ToMarkdown() string {
+	var sb strings.Builder
+	sb.WriteString("[")
+	sb.WriteString(string(l.Text))
+	sb.WriteString("](")
+	sb.WriteString(string(l.URL))
+	sb.WriteString(")")
+	return sb.String()
+}
+
 /* Update */
 
-func (l *Link) update(note *Note, text, url, title, goName string) {
+func (l *Link) update(note *Note, parsedLink *ParsedLinkNew) {
 	if l.NoteOID != note.OID {
 		l.NoteOID = note.OID
 		l.stale = true
 	}
-	if l.Text != text {
-		l.Text = text
+	if l.Text != parsedLink.Text {
+		l.Text = parsedLink.Text
 		l.stale = true
 	}
-	if l.URL != url {
-		l.URL = url
+	if l.URL != parsedLink.URL {
+		l.URL = parsedLink.URL
 		l.stale = true
 	}
-	if l.Title != title {
-		l.Title = title
+	if l.Title != parsedLink.Title {
+		l.Title = parsedLink.Title
 		l.stale = true
 	}
-	if l.GoName != goName {
-		l.GoName = goName
+	if l.GoName != parsedLink.GoName {
+		l.GoName = parsedLink.GoName
 		l.stale = true
 	}
 }

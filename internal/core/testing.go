@@ -211,14 +211,14 @@ func AssertNoMedias(t *testing.T) {
 }
 
 func AssertFrontMatterEqual(t *testing.T, expected string, file *File) {
-	actual, err := file.FrontMatterString()
+	actual, err := file.FrontMatter.AsBeautifulYAML()
 	require.NoError(t, err)
 	AssertTrimEqual(t, expected, actual)
 }
 
 func AssertContentEqual(t *testing.T, expected string, file *File) {
 	actual := file.Body
-	AssertTrimEqual(t, expected, actual)
+	AssertTrimEqual(t, expected, string(actual))
 }
 
 func AssertTrimEqual(t *testing.T, expected string, actual string) {

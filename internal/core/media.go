@@ -1,24 +1,19 @@
 package core
 
 import (
-	"bytes"
 	"database/sql"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/julien-sobczak/the-notewriter/internal/helpers"
 	"github.com/julien-sobczak/the-notewriter/internal/medias"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
-	"github.com/julien-sobczak/the-notewriter/pkg/markdown"
-	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"gopkg.in/yaml.v3"
 )
 
@@ -48,40 +43,40 @@ const PreviewMaxWidthOrHeight = 600
 const LargeMaxWidthOrHeight = 1980
 
 type Media struct {
-	OID string `yaml:"oid"`
+	OID string `yaml:"oid" json:"oid"`
 
 	// Relative path
-	RelativePath string `yaml:"relative_path"`
+	RelativePath string `yaml:"relative_path" json:"relative_path"`
 
 	// Type of media
-	MediaKind MediaKind `yaml:"kind"`
+	MediaKind MediaKind `yaml:"kind" json:"kind"`
 
 	// Media exists on disk
-	Dangling bool `yaml:"dangling"`
+	Dangling bool `yaml:"dangling" json:"dangling"`
 
 	// File extension in lowercase
-	Extension string `yaml:"extension"`
+	Extension string `yaml:"extension" json:"extension"`
 
 	// Content last modification date
-	MTime time.Time `yaml:"mtime"`
+	MTime time.Time `yaml:"mtime" json:"mtime"`
 
 	// MD5 Checksum
-	Hash string `yaml:"hash"`
+	Hash string `yaml:"hash" json:"hash"`
 
 	// 	Size of the file
-	Size int64 `yaml:"size"`
+	Size int64 `yaml:"size" json:"size"`
 
 	// Permission of the file
-	Mode fs.FileMode `yaml:"mode"`
+	Mode fs.FileMode `yaml:"mode" json:"mode"`
 
 	// Eager-loaded list of blobs
-	BlobRefs []*BlobRef `yaml:"blobs"`
+	BlobRefs []*BlobRef `yaml:"blobs" json:"blobs"`
 
 	// Timestamps to track changes
-	CreatedAt     time.Time `yaml:"created_at"`
-	UpdatedAt     time.Time `yaml:"updated_at"`
-	DeletedAt     time.Time `yaml:"deleted_at,omitempty"`
-	LastCheckedAt time.Time `yaml:"-"`
+	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
+	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
+	DeletedAt     time.Time `yaml:"deleted_at,omitempty" json:"deleted_at,omitempty"`
+	LastCheckedAt time.Time `yaml:"-" json:"-"`
 
 	new   bool
 	stale bool
@@ -109,77 +104,83 @@ func DetectMediaKind(filename string) MediaKind {
 }
 
 // NewMedia initializes a new media.
-func NewMedia(relpath string) *Media {
-	m := &Media{
+func NewMedia(parsedMedia *ParsedMediaNew) (*Media, error) {
+	hash := ""
+	if !parsedMedia.Dangling {
+		contentHash, err := helpers.HashFromFile(parsedMedia.AbsolutePath)
+		if err != nil {
+			return nil, err
+		}
+		hash = contentHash
+	}
+
+	return &Media{
 		OID:          NewOID(),
-		RelativePath: relpath,
-		MediaKind:    DetectMediaKind(relpath),
-		Extension:    filepath.Ext(relpath),
+		RelativePath: parsedMedia.RelativePath,
+		MediaKind:    parsedMedia.MediaKind,
+		Extension:    parsedMedia.Extension,
+		Dangling:     parsedMedia.Dangling,
+		Size:         parsedMedia.Size(),
+		MTime:        parsedMedia.MTime(),
+		Mode:         parsedMedia.Mode(),
+		Hash:         hash,
 		CreatedAt:    clock.Now(),
 		UpdatedAt:    clock.Now(),
 		new:          true,
 		stale:        true,
-	}
-
-	abspath := CurrentRepository().GetAbsolutePath(relpath)
-	stat, err := os.Stat(abspath)
-	if errors.Is(err, os.ErrNotExist) {
-		m.Dangling = true
-		return m
-	}
-
-	m.Dangling = false
-	m.Size = stat.Size()
-	m.Hash, _ = helpers.HashFromFile(abspath)
-	m.MTime = stat.ModTime()
-	m.Mode = stat.Mode()
-
-	return m
+	}, nil
 }
 
-func (m *Media) update() {
-	abspath := CurrentRepository().GetAbsolutePath(m.RelativePath)
-	stat, err := os.Stat(abspath)
-	dangling := errors.Is(err, os.ErrNotExist)
+func NewOrExistingMedia(parsedMedia *ParsedMediaNew) (*Media, error) {
+	existingMedia, err := CurrentRepository().FindMatchingMedia(parsedMedia)
+	if err != nil {
+		return nil, err
+	}
 
+	if existingMedia != nil {
+		existingMedia.update(parsedMedia)
+		return existingMedia, nil
+	}
+
+	return NewMedia(parsedMedia)
+}
+
+func (m *Media) update(parsedMedia *ParsedMediaNew) {
 	// Special case when file didn't exist or no longer exist
-	if m.Dangling != dangling {
-		m.Dangling = dangling
+	if m.Dangling != parsedMedia.Dangling {
+		m.Dangling = parsedMedia.Dangling
 		m.stale = true
 
-		if dangling {
+		if parsedMedia.Dangling {
 			m.Size = 0
 			m.Hash = ""
 			m.MTime = time.Time{}
 			m.Mode = 0
 		} else {
-			m.Size = stat.Size()
-			m.Hash, _ = helpers.HashFromFile(abspath)
-			m.MTime = stat.ModTime()
-			m.Mode = stat.Mode()
+			m.Size = parsedMedia.Size()
+			m.MTime = parsedMedia.MTime()
+			m.Mode = parsedMedia.Mode()
+			m.Hash, _ = helpers.HashFromFile(parsedMedia.AbsolutePath)
 		}
 		return
 	}
 
 	// Check if file on disk has changed
-	size := stat.Size()
-	if m.Size != size {
-		m.Size = size
+	if m.Size != parsedMedia.Size() {
+		m.Size = parsedMedia.Size()
 		m.stale = true
 	}
-	hash, _ := helpers.HashFromFile(abspath)
+	if m.MTime != parsedMedia.MTime() {
+		m.MTime = parsedMedia.MTime()
+		m.stale = true
+	}
+	if m.Mode != parsedMedia.Mode() {
+		m.Mode = parsedMedia.Mode()
+		m.stale = true
+	}
+	hash, _ := helpers.HashFromFile(parsedMedia.AbsolutePath)
 	if m.Hash != hash {
 		m.Hash = hash
-		m.stale = true
-	}
-	mTime := stat.ModTime()
-	if m.MTime != mTime {
-		m.MTime = mTime
-		m.stale = true
-	}
-	mode := stat.Mode()
-	if m.Mode != mode {
-		m.Mode = mode
 		m.stale = true
 	}
 }
@@ -324,6 +325,10 @@ func (m *Media) Refresh() (bool, error) {
 	return false, nil
 }
 
+func (m *Media) Stale() bool {
+	return m.stale
+}
+
 func (m *Media) State() State {
 	if !m.DeletedAt.IsZero() {
 		return Deleted
@@ -363,10 +368,6 @@ func (m *Media) Write(w io.Writer) error {
 	return err
 }
 
-func (m *Media) SubObjects() []StatefulObject {
-	return nil
-}
-
 func (m *Media) Blobs() []*BlobRef {
 	return m.BlobRefs
 }
@@ -380,6 +381,24 @@ func (m Media) String() string {
 	return fmt.Sprintf("media %s [%s]", m.RelativePath, m.OID)
 }
 
+/* Format */
+
+func (m *Media) ToYAML() string {
+	return ToBeautifulYAML(m)
+}
+
+func (m *Media) ToJSON() string {
+	return ToBeautifulJSON(m)
+}
+
+func (m *Media) ToMarkdown() string {
+	var sb strings.Builder
+	sb.WriteString("![](")
+	sb.WriteString(string(m.RelativePath))
+	sb.WriteString("(")
+	return sb.String()
+}
+
 /* State Management */
 
 func (m *Media) New() bool {
@@ -388,83 +407,6 @@ func (m *Media) New() bool {
 
 func (m *Media) Updated() bool {
 	return m.stale
-}
-
-/* Parsing */
-
-// extractMediasFromMarkdown search for medias from a markdown document (can be a file, a note, a flashcard, etc.).
-func extractMediasFromMarkdown(fileRelativePath string, fileBody string) []*Media {
-	var medias []*Media
-
-	parsedMedias := ParseMedias(fileRelativePath, fileBody)
-	for _, parsedMedia := range parsedMedias {
-		media := NewOrExistingMedia(parsedMedia.RelativePath)
-		medias = append(medias, media)
-	}
-	return medias
-}
-
-type ParsedMediaOld struct {
-	// The path as specified in the file. (Ex: "../medias/pic.png")
-	RawPath string
-	// The path relative to the root repository directory. (Ex: "references/medias/pic.png")
-	RelativePath string
-	// The absolute path. (Ex: "$HOME/notes/references/medias/pic.png")
-	AbsolutePath string
-	// Line number where the link present.
-	Line int
-}
-
-// ParseMedias extracts raw paths from a file or note body content.
-func ParseMedias(fileRelativePath, fileBody string) []*ParsedMediaOld {
-	var medias []*ParsedMediaOld
-
-	// Avoid returning duplicates if a media is included twice
-	filepaths := make(map[string]bool)
-
-	// Ignore medias inside code blocks (ex: a sample Markdown code block)
-	fileBody = markdown.CleanCodeBlocks(fileBody)
-
-	regexMedia := regexp.MustCompile(`!\[(.*?)\]\((\S*?)(?:\s+"(.*?)")?\)`)
-	matches := regexMedia.FindAllStringSubmatch(fileBody, -1)
-	for _, match := range matches {
-		txt := match[0]
-		line := text.LineNumber(fileBody, txt)
-
-		rawPath := match[2]
-		if _, ok := filepaths[rawPath]; ok {
-			continue
-		}
-		relativePath, err := CurrentRepository().GetNoteRelativePath(fileRelativePath, rawPath)
-		if err != nil {
-			log.Fatal(err)
-		}
-		absolutePath := CurrentRepository().GetAbsolutePath(relativePath)
-
-		medias = append(medias, &ParsedMediaOld{
-			RawPath:      rawPath,
-			RelativePath: relativePath,
-			AbsolutePath: absolutePath,
-			Line:         line,
-		})
-		filepaths[rawPath] = true
-	}
-
-	return medias
-}
-
-func NewOrExistingMedia(relpath string) *Media {
-	media, err := CurrentRepository().FindMediaByRelativePath(relpath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if media != nil {
-		media.update()
-		return media
-	}
-
-	media = NewMedia(relpath)
-	return media
 }
 
 func (m *Media) Check() error {
@@ -563,7 +505,7 @@ func (m *Media) InsertBlobs() error {
 		}
 
 		CurrentLogger().Debugf("Inserting blob %s...", b.OID)
-		attributes, err := AttributesString(b.Attributes)
+		attributes, err := AttributesYAML(b.Attributes)
 		if err != nil {
 			return err
 		}
@@ -664,6 +606,12 @@ func (r *Repository) CountMedias() (int, error) {
 
 func (r *Repository) LoadMediaByOID(oid string) (*Media, error) {
 	return QueryMedia(CurrentDB().Client(), `WHERE oid = ?`, oid)
+}
+
+func (r *Repository) FindMatchingMedia(parsedMedia *ParsedMediaNew) (*Media, error) {
+	// Find by relative path
+	relativePath := r.GetFileRelativePath(parsedMedia.AbsolutePath)
+	return r.FindMediaByRelativePath(relativePath)
 }
 
 func (r *Repository) FindMediaByRelativePath(relativePath string) (*Media, error) {
@@ -901,18 +849,4 @@ func QueryBlobs(db SQLClient, whereClause string, args ...any) ([]*BlobRef, erro
 	}
 
 	return blobs, err
-}
-
-/* Helpers */
-
-// AttributesString formats the current attributes to the YAML front matter format.
-func AttributesString(attributes map[string]interface{}) (string, error) {
-	var buf bytes.Buffer
-	bufEncoder := yaml.NewEncoder(&buf)
-	bufEncoder.SetIndent(Indent)
-	err := bufEncoder.Encode(attributes)
-	if err != nil {
-		return "", err
-	}
-	return CompactYAML(buf.String()), nil
 }

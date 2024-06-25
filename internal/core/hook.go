@@ -96,7 +96,7 @@ func (n *Note) RunHooks(hookNames []string) error {
 // executeHook executes the given executable file path.
 func (n *Note) executeHook(exe string) error {
 	// We will write the JSON representation of the note to stding
-	noteJson := n.FormatToJSON()
+	noteJson := n.ToJSON()
 
 	// See https://stackoverflow.com/a/23167416
 	subProcess := exec.Command(exe)

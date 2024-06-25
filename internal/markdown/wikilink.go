@@ -1,11 +1,10 @@
-package core
+package markdown
 
 import (
 	"fmt"
 	"regexp"
 	"strings"
 
-	"github.com/julien-sobczak/the-notewriter/pkg/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
 
@@ -83,30 +82,4 @@ func (w Wikilink) String() string {
 		return fmt.Sprintf("[[%s|%s]]", w.Link, w.Text)
 	}
 	return fmt.Sprintf("[[%s]]", w.Link)
-}
-
-// ParseWikilinks extracts wikilinks from a text.
-func ParseWikilinks(text string) []*Wikilink {
-	var wikilinks []*Wikilink
-
-	// Ignore medias inside code blocks (ex: a sample Markdown code block)
-	text = markdown.CleanCodeBlocks(text)
-
-	matches := regexWikilink.FindAllStringSubmatchIndex(text, -1)
-	for _, match := range matches {
-		link := text[match[2]:match[3]]
-		title := ""
-		if match[4] != -1 {
-			title = text[match[4]:match[5]]
-		}
-		line := len(strings.Split(text[:match[0]], "\n"))
-
-		wikilinks = append(wikilinks, &Wikilink{
-			Link: link,
-			Text: title,
-			Line: line,
-		})
-	}
-
-	return wikilinks
 }

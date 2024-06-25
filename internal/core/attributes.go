@@ -51,7 +51,7 @@ func AttributesJSON(attributes map[string]interface{}) (string, error) {
 func AttributesYAML(attributes map[string]interface{}) (string, error) {
 	var buf bytes.Buffer
 	bufEncoder := yaml.NewEncoder(&buf)
-	bufEncoder.SetIndent(Indent)
+	bufEncoder.SetIndent(2)
 	err := bufEncoder.Encode(attributes)
 	if err != nil {
 		return "", err

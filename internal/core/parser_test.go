@@ -17,7 +17,7 @@ func TestParseFile(t *testing.T) {
 	testcases := []struct {
 		name   string
 		golden string
-		test   func(*testing.T, *core.ParsedFileNew)
+		test   func(t *testing.T, file *core.ParsedFileNew)
 	}{
 		{
 			name:   "Basic",
@@ -29,6 +29,11 @@ func TestParseFile(t *testing.T) {
 				// so that following tests can focus on specificities
 
 				// Check file
+				assert.NotEmpty(t, file.RepositoryPath)
+				assert.NotEmpty(t, file.AbsolutePath)
+				assert.NotEmpty(t, file.RelativePath)
+				assert.True(t, strings.HasPrefix(file.AbsolutePath, file.RepositoryPath))
+				assert.True(t, strings.HasSuffix(file.AbsolutePath, file.RelativePath))
 				assert.Equal(t, "basic-notetaking", file.Slug)
 				assert.Equal(t, "Basic Note-Taking", file.Title)
 				assert.Equal(t, "Basic Note-Taking", file.ShortTitle)
@@ -185,9 +190,37 @@ func TestParseFile(t *testing.T) {
 			dirname := testutil.SetUpFromGoldenDirNamed(t, "TestParser")
 			md, err := markdown.ParseFile(filepath.Join(dirname, testcase.golden+".md"))
 			require.NoError(t, err)
-			file, err := ParseFileFromMarkdownFile(md)
+			file, err := core.ParseFile(dirname, md)
 			require.NoError(t, err)
 			testcase.test(t, file)
 		})
+	}
+}
+
+func TestDetermineFileSlug(t *testing.T) {
+	tests := []struct {
+		path string // input
+		slug string // output
+	}{
+		{
+			path: "go/syntax.md",
+			slug: "go-syntax",
+		},
+		{
+			path: "go/index.md",
+			slug: "go",
+		},
+		{
+			path: "go/go/syntax.md",
+			slug: "go-syntax",
+		},
+		{
+			path: "go/go.md",
+			slug: "go",
+		},
+	}
+	for _, tt := range tests {
+		actual := core.DetermineFileSlug(tt.path)
+		assert.Equal(t, tt.slug, actual)
 	}
 }

@@ -18,74 +18,68 @@ import (
 )
 
 type Reminder struct {
-	OID string `yaml:"oid"`
+	OID string `yaml:"oid" json:"oid"`
 
 	// File
-	FileOID string `yaml:"file_oid"`
-	File    *File  `yaml:"-"` // Lazy-loaded
+	FileOID string `yaml:"file_oid" json:"file_oid"`
+	File    *File  `yaml:"-" json:"-"` // Lazy-loaded
 
 	// Note representing the flashcard
-	NoteOID string `yaml:"note_oid"`
-	Note    *Note  `yaml:"-"` // Lazy-loaded
+	NoteOID string `yaml:"note_oid" json:"note_oid"`
+	Note    *Note  `yaml:"-" json:"-"` // Lazy-loaded
 
 	// The filepath of the file containing the note (denormalized field)
-	RelativePath string `yaml:"relative_path"`
+	RelativePath string `yaml:"relative_path" json:"relative_path"`
 
 	// Description
-	DescriptionRaw      string `yaml:"description_raw"`
-	DescriptionMarkdown string `yaml:"description_markdown"`
-	DescriptionHTML     string `yaml:"description_html"`
-	DescriptionText     string `yaml:"description_text"`
+	Description markdown.Document `yaml:"description" json:"description"`
 
 	// Tag value containig the formula to determine the next occurence
-	Tag string `yaml:"tag"`
+	Tag string `yaml:"tag" json:"tag"`
 
 	// Timestamps to track progress
-	LastPerformedAt time.Time `yaml:"last_performed_at"`
-	NextPerformedAt time.Time `yaml:"next_performed_at"`
+	LastPerformedAt time.Time `yaml:"last_performed_at" json:"last_performed_at"`
+	NextPerformedAt time.Time `yaml:"next_performed_at" json:"next_performed_at"`
 
 	// Timestamps to track changes
-	CreatedAt     time.Time `yaml:"created_at"`
-	UpdatedAt     time.Time `yaml:"updated_at"`
-	DeletedAt     time.Time `yaml:"deleted_at,omitempty"`
-	LastCheckedAt time.Time `yaml:"-"`
+	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
+	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
+	DeletedAt     time.Time `yaml:"deleted_at,omitempty" json:"deleted_at,omitempty"`
+	LastCheckedAt time.Time `yaml:"-" json:"-"`
 
 	new   bool
 	stale bool
 }
 
-func NewOrExistingReminder(note *Note, descriptionRaw, tag string) (*Reminder, error) {
-	descriptionRaw = strings.TrimSpace(descriptionRaw)
-
-	reminders, err := CurrentRepository().FindRemindersMatching(note.OID, descriptionRaw)
+func NewOrExistingReminder(note *Note, parsedReminder *ParsedReminderNew) (*Reminder, error) {
+	// Try to find an existing note (instead of recreating it from scratch after every change)
+	existingReminder, err := CurrentRepository().FindMatchingReminder(note, parsedReminder)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	if len(reminders) == 1 {
-		reminder := reminders[0]
-		err = reminder.update(note, descriptionRaw, tag)
-		return reminder, err
+
+	if existingReminder != nil {
+		existingReminder.update(note, parsedReminder)
+		return existingReminder, nil
 	}
-	return NewReminder(note, descriptionRaw, tag)
+
+	return NewReminder(note, parsedReminder)
 }
 
 // NewReminder instantiates a new reminder.
-func NewReminder(note *Note, descriptionRaw, tag string) (*Reminder, error) {
-	descriptionRaw = strings.TrimSpace(descriptionRaw)
-
+func NewReminder(note *Note, parsedReminder *ParsedReminderNew) (*Reminder, error) {
 	r := &Reminder{
 		OID:          NewOID(),
 		FileOID:      note.FileOID,
 		NoteOID:      note.OID,
 		RelativePath: note.RelativePath,
-		Tag:          tag,
+		Tag:          parsedReminder.Tag,
+		Description:  parsedReminder.Description,
 		CreatedAt:    clock.Now(),
 		UpdatedAt:    clock.Now(),
 		stale:        true,
 		new:          true,
 	}
-
-	r.updateContent(descriptionRaw)
 
 	err := r.Next()
 	if err != nil {
@@ -112,6 +106,10 @@ func (r *Reminder) ModificationTime() time.Time {
 func (r *Reminder) Refresh() (bool, error) {
 	// No dependencies = no need to refresh
 	return false, nil
+}
+
+func (r *Reminder) Stale() bool {
+	return r.stale
 }
 
 func (r *Reminder) State() State {
@@ -154,14 +152,6 @@ func (r *Reminder) Write(w io.Writer) error {
 	return err
 }
 
-func (r *Reminder) SubObjects() []StatefulObject {
-	return nil
-}
-
-func (r *Reminder) Blobs() []*BlobRef {
-	return nil
-}
-
 func (r *Reminder) Relations() []*Relation {
 	return nil
 }
@@ -172,14 +162,7 @@ func (r Reminder) String() string {
 
 /* Update */
 
-func (r *Reminder) updateContent(descriptionRaw string) {
-	r.DescriptionRaw = descriptionRaw
-	r.DescriptionMarkdown = markdown.ToMarkdown(r.DescriptionRaw)
-	r.DescriptionHTML = markdown.ToHTML(r.DescriptionMarkdown)
-	r.DescriptionText = markdown.ToText(r.DescriptionMarkdown)
-}
-
-func (r *Reminder) update(note *Note, descriptionRaw, tag string) error {
+func (r *Reminder) update(note *Note, parsedReminder *ParsedReminderNew) error {
 	if r.FileOID != note.FileOID {
 		r.FileOID = note.FileOID
 		r.File = note.File
@@ -190,12 +173,12 @@ func (r *Reminder) update(note *Note, descriptionRaw, tag string) error {
 		r.Note = note
 		r.stale = true
 	}
-	if r.DescriptionRaw != descriptionRaw {
-		r.updateContent(descriptionRaw)
+	if r.Description != parsedReminder.Description {
+		r.Description = parsedReminder.Description
 		r.stale = true
 	}
-	if r.Tag != tag {
-		r.Tag = tag
+	if r.Tag != parsedReminder.Tag {
+		r.Tag = parsedReminder.Tag
 		r.stale = true
 		err := r.Next()
 		if err != nil {
@@ -231,6 +214,24 @@ func (r *Reminder) Next() error {
 	r.LastPerformedAt = lastPerformedAt
 	r.NextPerformedAt = nextPerformedAt
 	return nil
+}
+
+/* Format */
+
+func (r *Reminder) ToYAML() string {
+	return ToBeautifulYAML(r)
+}
+
+func (r *Reminder) ToJSON() string {
+	return ToBeautifulJSON(r)
+}
+
+func (r *Reminder) ToMarkdown() string {
+	var sb strings.Builder
+	sb.WriteString(string(r.Description))
+	sb.WriteRune('\n')
+	sb.WriteString(r.Tag)
+	return sb.String()
 }
 
 /* Parsing */
@@ -605,7 +606,7 @@ func generateDates(yearExpr, monthExpr, dayExpr string) []time.Time {
 /* Database Management */
 
 func (r *Reminder) Check() error {
-	CurrentLogger().Debugf("Checking reminder %s...", r.DescriptionRaw)
+	CurrentLogger().Debugf("Checking reminder %s...", r.Description)
 	r.LastCheckedAt = clock.Now()
 	query := `
 		UPDATE reminder
@@ -642,17 +643,14 @@ func (r *Reminder) Save() error {
 }
 
 func (r *Reminder) Insert() error {
-	CurrentLogger().Debugf("Inserting reminder %s...", r.DescriptionRaw)
+	CurrentLogger().Debugf("Inserting reminder %s...", r.Description)
 	query := `
 		INSERT INTO reminder(
 			oid,
 			file_oid,
 			note_oid,
 			relative_path,
-			description_raw,
-			description_markdown,
-			description_html,
-			description_text,
+			description,
 			tag,
 			last_performed_at,
 			next_performed_at,
@@ -660,17 +658,14 @@ func (r *Reminder) Insert() error {
 			updated_at,
 			last_checked_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 	_, err := CurrentDB().Client().Exec(query,
 		r.OID,
 		r.FileOID,
 		r.NoteOID,
 		r.RelativePath,
-		r.DescriptionRaw,
-		r.DescriptionMarkdown,
-		r.DescriptionHTML,
-		r.DescriptionText,
+		r.Description,
 		r.Tag,
 		timeToSQL(r.LastPerformedAt),
 		timeToSQL(r.NextPerformedAt),
@@ -686,17 +681,14 @@ func (r *Reminder) Insert() error {
 }
 
 func (r *Reminder) Update() error {
-	CurrentLogger().Debugf("Updating reminder %s...", r.DescriptionRaw)
+	CurrentLogger().Debugf("Updating reminder %s...", r.Description)
 	query := `
 		UPDATE reminder
 		SET
 			file_oid = ?,
 			note_oid = ?,
 			relative_path = ?,
-			description_raw = ?,
-			description_markdown = ?,
-			description_html = ?,
-			description_text = ?,
+			description = ?,
 			tag = ?,
 			last_performed_at = ?,
 			next_performed_at = ?,
@@ -708,10 +700,7 @@ func (r *Reminder) Update() error {
 		r.FileOID,
 		r.NoteOID,
 		r.RelativePath,
-		r.DescriptionRaw,
-		r.DescriptionMarkdown,
-		r.DescriptionHTML,
-		r.DescriptionText,
+		r.Description,
 		r.Tag,
 		timeToSQL(r.LastPerformedAt),
 		timeToSQL(r.NextPerformedAt),
@@ -724,7 +713,7 @@ func (r *Reminder) Update() error {
 }
 
 func (r *Reminder) Delete() error {
-	CurrentLogger().Debugf("Deleting reminder %s...", r.DescriptionRaw)
+	CurrentLogger().Debugf("Deleting reminder %s...", r.Description)
 	query := `DELETE FROM reminder WHERE oid = ?;`
 	_, err := CurrentDB().Client().Exec(query, r.OID)
 	return err
@@ -743,8 +732,12 @@ func (r *Repository) FindReminders() ([]*Reminder, error) {
 	return QueryReminders(CurrentDB().Client(), "")
 }
 
-func (r *Repository) FindRemindersMatching(noteOID string, descriptionRaw string) ([]*Reminder, error) {
-	return QueryReminders(CurrentDB().Client(), `WHERE note_oid = ? and description_raw = ?`, noteOID, descriptionRaw)
+func (r *Repository) FindMatchingReminder(note *Note, parsedReminder *ParsedReminderNew) (*Reminder, error) {
+	return QueryReminder(CurrentDB().Client(), `WHERE note_oid = ? and description = ? and tag = ?`, note.OID, parsedReminder.Description, parsedReminder.Tag)
+}
+
+func (r *Repository) FindMatchingReminders(noteOID string, descriptionRaw string) ([]*Reminder, error) {
+	return QueryReminders(CurrentDB().Client(), `WHERE note_oid = ? and description = ?`, noteOID, descriptionRaw)
 }
 
 func (r *Repository) LoadReminderByOID(oid string) (*Reminder, error) {
@@ -779,10 +772,7 @@ func QueryReminder(db SQLClient, whereClause string, args ...any) (*Reminder, er
 			file_oid,
 			note_oid,
 			relative_path,
-			description_raw,
-			description_markdown,
-			description_html,
-			description_text,
+			description,
 			tag,
 			last_performed_at,
 			next_performed_at,
@@ -796,10 +786,7 @@ func QueryReminder(db SQLClient, whereClause string, args ...any) (*Reminder, er
 			&r.FileOID,
 			&r.NoteOID,
 			&r.RelativePath,
-			&r.DescriptionRaw,
-			&r.DescriptionMarkdown,
-			&r.DescriptionHTML,
-			&r.DescriptionText,
+			&r.Description,
 			&r.Tag,
 			&lastPerformedAt,
 			&nextPerformedAt,
@@ -831,10 +818,7 @@ func QueryReminders(db SQLClient, whereClause string, args ...any) ([]*Reminder,
 			file_oid,
 			note_oid,
 			relative_path,
-			description_raw,
-			description_markdown,
-			description_html,
-			description_text,
+			description,
 			tag,
 			last_performed_at,
 			next_performed_at,
@@ -860,10 +844,7 @@ func QueryReminders(db SQLClient, whereClause string, args ...any) ([]*Reminder,
 			&r.FileOID,
 			&r.NoteOID,
 			&r.RelativePath,
-			&r.DescriptionRaw,
-			&r.DescriptionMarkdown,
-			&r.DescriptionHTML,
-			&r.DescriptionText,
+			&r.Description,
 			&r.Tag,
 			&lastPerformedAt,
 			&nextPerformedAt,

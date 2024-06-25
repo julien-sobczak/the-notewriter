@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
-	"github.com/julien-sobczak/the-notewriter/pkg/markdown"
 	"gopkg.in/yaml.v3"
 )
 
@@ -40,55 +40,75 @@ const (
 )
 
 type Flashcard struct {
-	OID string `yaml:"oid"`
-
-	// Short title of the note (denormalized field)
-	ShortTitle string `yaml:"short_title"`
+	OID string `yaml:"oid" json:"oid"`
 
 	// File
-	FileOID string `yaml:"file_oid"`
-	File    *File  `yaml:"-"` // Lazy-loaded
+	FileOID string `yaml:"file_oid" json:"file_oid"`
+	File    *File  `yaml:"-" json:"-"` // Lazy-loaded
 
 	// Note representing the flashcard
-	NoteOID string `yaml:"note_oid"`
-	Note    *Note  `yaml:"-"` // Lazy-loaded
+	NoteOID string `yaml:"note_oid" json:"note_oid"`
+	Note    *Note  `yaml:"-" json:"-"` // Lazy-loaded
 
 	// The filepath of the file containing the note (denormalized field)
-	RelativePath string `yaml:"relative_path"`
+	RelativePath string `yaml:"relative_path" json:"relative_path"`
+
+	// The slug of the note (denornalized field)
+	Slug string `yaml:"slug" json:"slug"`
+
+	// Short title of the note (denormalized field)
+	ShortTitle markdown.Document `yaml:"short_title" json:"short_title"`
 
 	// List of tags
-	Tags []string `yaml:"tags,omitempty"`
+	Tags []string `yaml:"tags,omitempty" json:"tags,omitempty"`
 
 	// Fields in Markdown (best for editing)
-	FrontMarkdown string `yaml:"front_markdown"`
-	BackMarkdown  string `yaml:"back_markdown"`
-	// Fields in HTML (best for rendering)
-	FrontHTML string `yaml:"front_html"`
-	BackHTML  string `yaml:"back_html"`
-	// Fields in raw text (best for indexing)
-	FrontText string `yaml:"front_text"`
-	BackText  string `yaml:"back_text"`
+	Front markdown.Document `yaml:"front" json:"front"`
+	Back  markdown.Document `yaml:"back" json:"back"`
 
 	// Timestamps to track changes
-	CreatedAt     time.Time `yaml:"created_at"`
-	UpdatedAt     time.Time `yaml:"updated_at"`
-	DeletedAt     time.Time `yaml:"deleted_at,omitempty"`
-	LastCheckedAt time.Time `yaml:"-"`
+	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
+	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
+	DeletedAt     time.Time `yaml:"deleted_at,omitempty" json:"deleted_at,omitempty"`
+	LastCheckedAt time.Time `yaml:"-" json:"-"`
 
 	// SRS
-	DueAt     time.Time      `yaml:"due_at,omitempty"`
-	StudiedAt time.Time      `yaml:"studied_at,omitempty"`
-	Settings  map[string]any `yaml:"settings,omitempty"`
+	DueAt     time.Time      `yaml:"due_at,omitempty" json:"due_at,omitempty"`
+	StudiedAt time.Time      `yaml:"studied_at,omitempty" json:"studied_at,omitempty"`
+	Settings  map[string]any `yaml:"settings,omitempty" json:"settings,omitempty"`
 
 	new   bool
 	stale bool
 }
 
 type Study struct {
-	OID       string    `yaml:"oid"`        // Not persisted in database but can be useful to deduplicate, etc.
-	StartedAt time.Time `yaml:"started_at"` // Timestamp when the first card was revealed
-	EndedAt   time.Time `yaml:"ended_at"`   // Timestamp when the last card was completed
-	Reviews   []*Review `yaml:"reviews"`
+	OID       string    `yaml:"oid" json:"oid"`               // Not persisted in database but can be useful to deduplicate, etc.
+	StartedAt time.Time `yaml:"started_at" json:"started_at"` // Timestamp when the first card was revealed
+	EndedAt   time.Time `yaml:"ended_at" json:"ended_at"`     // Timestamp when the last card was completed
+	Reviews   []*Review `yaml:"reviews" json:"reviews"`
+
+	new   bool // FIXME useful?
+	stale bool // FIXME useful?
+}
+
+/* Format */
+
+func (s *Study) ToYAML() string {
+	return ToBeautifulYAML(s)
+}
+
+func (s *Study) ToJSON() string {
+	return ToBeautifulJSON(s)
+}
+
+func (s *Study) ToMarkdown() string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("%d reviews:", len(s.Reviews)))
+	for _, review := range s.Reviews {
+		sb.WriteString(fmt.Sprintf("- Flashcard %s: %s", review.FlashcardOID, review.Feedback))
+		sb.WriteRune('\n')
+	}
+	return sb.String()
 }
 
 type Feedback string
@@ -105,51 +125,52 @@ const (
 )
 
 type Review struct {
-	FlashcardOID string         `yaml:"flashcard_oid"`
-	Feedback     Feedback       `yaml:"feedback"`
-	DurationInMs int            `yaml:"duration_ms"`
-	CompletedAt  time.Time      `yaml:"completed_at"`
-	DueAt        time.Time      `yaml:"due_at"`
-	Settings     map[string]any `yaml:"settings"` // Include algorithm-specific attributes (like the e-factor in SM-2)
+	FlashcardOID string         `yaml:"flashcard_oid" json:"flashcard_oid"`
+	Feedback     Feedback       `yaml:"feedback" json:"feedback"`
+	DurationInMs int            `yaml:"duration_ms" json:"duration_ms"`
+	CompletedAt  time.Time      `yaml:"completed_at" json:"completed_at"`
+	DueAt        time.Time      `yaml:"due_at" json:"due_at"`
+	Settings     map[string]any `yaml:"settings" json:"settings"` // Include algorithm-specific attributes (like the e-factor in SM-2)
 }
 
-func NewOrExistingFlashcard(file *File, note *Note) *Flashcard {
-	if note.new {
-		return NewFlashcard(file, note)
+func NewOrExistingFlashcard(file *File, note *Note, parsedFlashcard *ParsedFlashcardNew) (*Flashcard, error) {
+
+	// Try to find an existing note (instead of recreating it from scratch after every change)
+	existingFlashcard, err := CurrentRepository().FindMatchingFlashcard(note, parsedFlashcard)
+	if err != nil {
+		return nil, err
 	}
 
-	// Flashcard may already exists
-	flashcard, err := CurrentRepository().LoadFlashcardByNoteOID(note.OID)
-	if err != nil {
-		log.Fatal(err)
+	if existingFlashcard != nil {
+		existingFlashcard.update(file, note, parsedFlashcard)
+		return existingFlashcard, nil
 	}
-	// or not if the note just have been saved now
-	if flashcard == nil {
-		return NewFlashcard(file, note)
-	}
-	if note.stale {
-		flashcard.update(file, note)
-	}
-	return flashcard
+
+	return NewFlashcard(file, note, parsedFlashcard)
 }
 
 // NewFlashcard initializes a new flashcard.
-func NewFlashcard(file *File, note *Note) *Flashcard {
-
-	frontMarkdown, backMarkdown, _ := splitFrontBack(note.ContentMarkdown)
-	// FIXME if front => invalid flashcard (lint)
-
+func NewFlashcard(file *File, note *Note, parsedFlashcard *ParsedFlashcardNew) (*Flashcard, error) {
 	f := &Flashcard{
-		OID:          NewOID(),
-		ShortTitle:   note.ShortTitle,
+		OID: NewOID(),
+
+		// File-specific attributes
 		FileOID:      file.OID,
 		File:         file,
-		NoteOID:      note.OID,
-		Note:         note,
 		RelativePath: note.RelativePath,
-		Tags:         note.GetTags(),
 
-		// SRS
+		// Note-specific attributes
+		NoteOID:    note.OID,
+		Note:       note,
+		Slug:       note.Slug,
+		ShortTitle: note.ShortTitle,
+		Tags:       note.GetTags(),
+
+		// Flashcard-specific attributes
+		Front: parsedFlashcard.Front,
+		Back:  parsedFlashcard.Front,
+
+		// SRS-specific attributes
 		// Wait for first study to initialize SRS fields
 
 		// Timestamps
@@ -160,9 +181,7 @@ func NewFlashcard(file *File, note *Note) *Flashcard {
 		stale: true,
 	}
 
-	f.updateContent(frontMarkdown, backMarkdown)
-
-	return f
+	return f, nil
 }
 
 /* Object */
@@ -180,17 +199,12 @@ func (f *Flashcard) ModificationTime() time.Time {
 }
 
 func (f *Flashcard) Refresh() (bool, error) {
-	// Regenerate the flashcard content by rereading the associated note
-	file, err := CurrentRepository().LoadFileByOID(f.FileOID)
-	if err != nil {
-		return false, err
-	}
-	note, err := CurrentRepository().LoadNoteByOID(f.NoteOID)
-	if err != nil {
-		return false, err
-	}
-	f.update(file, note)
-	return f.stale, nil
+	// TODO: No need to refresh?
+	return false, nil
+}
+
+func (f *Flashcard) Stale() bool {
+	return f.stale
 }
 
 func (f *Flashcard) State() State {
@@ -233,10 +247,6 @@ func (f *Flashcard) Write(w io.Writer) error {
 	return err
 }
 
-func (f *Flashcard) SubObjects() []StatefulObject {
-	return nil
-}
-
 func (f *Flashcard) Blobs() []*BlobRef {
 	// Use Media.Blobs() instead
 	return nil
@@ -251,18 +261,27 @@ func (f Flashcard) String() string {
 	return fmt.Sprintf("flashcard %q [%s]", f.ShortTitle, f.OID)
 }
 
-/* Update */
+/* Format */
 
-func (f *Flashcard) updateContent(frontMarkdown, backMarkdown string) {
-	f.FrontMarkdown = frontMarkdown
-	f.BackMarkdown = backMarkdown
-	f.FrontHTML = markdown.ToHTML(frontMarkdown)
-	f.BackHTML = markdown.ToHTML(backMarkdown)
-	f.FrontText = markdown.ToText(frontMarkdown)
-	f.BackText = markdown.ToText(backMarkdown)
+func (f *Flashcard) ToYAML() string {
+	return ToBeautifulYAML(f)
 }
 
-func (f *Flashcard) update(file *File, note *Note) {
+func (f *Flashcard) ToJSON() string {
+	return ToBeautifulJSON(f)
+}
+
+func (f *Flashcard) ToMarkdown() string {
+	var sb strings.Builder
+	sb.WriteString(string(f.Front))
+	sb.WriteString("\n---\n")
+	sb.WriteString(string(f.Back))
+	return sb.String()
+}
+
+/* Update */
+
+func (f *Flashcard) update(file *File, note *Note, parsedFlashcard *ParsedFlashcardNew) {
 	if f.ShortTitle != note.ShortTitle {
 		f.ShortTitle = note.ShortTitle
 		f.stale = true
@@ -280,14 +299,23 @@ func (f *Flashcard) update(file *File, note *Note) {
 		f.stale = true
 	}
 
+	if f.Slug != note.Slug {
+		f.Slug = note.Slug
+		f.stale = true
+	}
+
 	if !reflect.DeepEqual(f.Tags, note.GetTags()) {
 		f.Tags = note.GetTags()
 		f.stale = true
 	}
 
-	frontMarkdown, backMarkdown, _ := splitFrontBack(note.ContentMarkdown)
-	if f.FrontMarkdown != frontMarkdown || f.BackMarkdown != backMarkdown {
-		f.updateContent(frontMarkdown, backMarkdown)
+	if f.Front != parsedFlashcard.Front {
+		f.Front = parsedFlashcard.Front
+		f.stale = true
+	}
+
+	if f.Back != parsedFlashcard.Back {
+		f.Back = parsedFlashcard.Back
 		f.stale = true
 	}
 }
@@ -300,29 +328,6 @@ func (f *Flashcard) New() bool {
 
 func (f *Flashcard) Updated() bool {
 	return f.stale
-}
-
-/* Parsing */
-
-func splitFrontBack(content string) (string, string, bool) {
-	front := true
-	var frontContent bytes.Buffer
-	var backContent bytes.Buffer
-	lines := strings.Split(content, "\n")
-	for _, line := range lines {
-		if line == "---" {
-			front = false
-			continue
-		}
-		if front {
-			frontContent.WriteString(line)
-			frontContent.WriteString("\n")
-		} else {
-			backContent.WriteString(line)
-			backContent.WriteString("\n")
-		}
-	}
-	return strings.TrimSpace(frontContent.String()), strings.TrimSpace(backContent.String()), !front
 }
 
 func (f *Flashcard) Check() error {
@@ -371,18 +376,15 @@ func (f *Flashcard) Insert() error {
 			note_oid,
 			relative_path,
 			short_title,
+			slug,
 			tags,
-			front_markdown,
-			back_markdown,
-			front_html,
-			back_html,
-			front_text,
-			back_text,
+			front,
+			back,
 			created_at,
 			updated_at,
 			last_checked_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 		`
 	_, err := CurrentDB().Client().Exec(query,
 		f.OID,
@@ -390,13 +392,10 @@ func (f *Flashcard) Insert() error {
 		f.NoteOID,
 		f.RelativePath,
 		f.ShortTitle,
+		f.Slug,
 		strings.Join(f.Tags, ","),
-		f.FrontMarkdown,
-		f.BackMarkdown,
-		f.FrontHTML,
-		f.BackHTML,
-		f.FrontText,
-		f.BackText,
+		f.Front,
+		f.Back,
 		timeToSQL(f.CreatedAt),
 		timeToSQL(f.UpdatedAt),
 		timeToSQL(f.LastCheckedAt))
@@ -416,13 +415,10 @@ func (f *Flashcard) Update() error {
 			note_oid = ?,
 			relative_path = ?,
 			short_title = ?,
+			slug = ?,
 			tags = ?,
-			front_markdown = ?,
-			back_markdown = ?,
-			front_html = ?,
-			back_html = ?,
-			front_text = ?,
-			back_text = ?,
+			front = ?,
+			back = ?,
 			updated_at = ?,
 			last_checked_at = ?
 		WHERE oid = ?;
@@ -432,13 +428,10 @@ func (f *Flashcard) Update() error {
 		f.NoteOID,
 		f.RelativePath,
 		f.ShortTitle,
+		f.Slug,
 		strings.Join(f.Tags, ","),
-		f.FrontMarkdown,
-		f.BackMarkdown,
-		f.FrontHTML,
-		f.BackHTML,
-		f.FrontText,
-		f.BackText,
+		f.Front,
+		f.Back,
 		timeToSQL(f.UpdatedAt),
 		timeToSQL(f.LastCheckedAt),
 		f.OID)
@@ -475,8 +468,34 @@ func (r *Repository) CountFlashcards() (int, error) {
 	return count, nil
 }
 
+func (r *Repository) FindMatchingFlashcard(note *Note, parsedFlashcard *ParsedFlashcardNew) (*Flashcard, error) {
+	// Search by slug
+	flashcard, err := r.LoadFlashcardBySlug(parsedFlashcard.Slug)
+	if err != nil {
+		return nil, err
+	}
+	if flashcard != nil {
+		return flashcard, nil
+	}
+
+	// Search by note OID
+	flashcard, err = r.LoadFlashcardByNoteOID(note.OID)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if flashcard != nil {
+		return flashcard, nil
+	}
+
+	return nil, nil
+}
+
 func (r *Repository) LoadFlashcardByOID(oid string) (*Flashcard, error) {
 	return QueryFlashcard(CurrentDB().Client(), `WHERE oid = ?`, oid)
+}
+
+func (r *Repository) LoadFlashcardBySlug(slug string) (*Flashcard, error) {
+	return QueryFlashcard(CurrentDB().Client(), `WHERE slug = ?`, slug)
 }
 
 func (r *Repository) LoadFlashcardByNoteOID(noteID string) (*Flashcard, error) {
@@ -518,13 +537,10 @@ func QueryFlashcard(db SQLClient, whereClause string, args ...any) (*Flashcard, 
 			note_oid,
 			relative_path,
 			short_title,
+			slug,
 			tags,
-			front_markdown,
-			back_markdown,
-			front_html,
-			back_html,
-			front_text,
-			back_text,
+			front,
+			back,
 			due_at,
 			studied_at,
 			settings,
@@ -539,13 +555,10 @@ func QueryFlashcard(db SQLClient, whereClause string, args ...any) (*Flashcard, 
 			&f.NoteOID,
 			&f.RelativePath,
 			&f.ShortTitle,
+			&f.Slug,
 			&tagsRaw,
-			&f.FrontMarkdown,
-			&f.BackMarkdown,
-			&f.FrontHTML,
-			&f.BackHTML,
-			&f.FrontText,
-			&f.BackText,
+			&f.Front,
+			&f.Back,
 			&dueAt,
 			&studiedAt,
 			&settingsRaw,
@@ -588,13 +601,10 @@ func QueryFlashcards(db SQLClient, whereClause string, args ...any) ([]*Flashcar
 			note_oid,
 			relative_path,
 			short_title,
+			slug,
 			tags,
-			front_markdown,
-			back_markdown,
-			front_html,
-			back_html,
-			front_text,
-			back_text,
+			front,
+			back,
 			due_at,
 			studied_at,
 			settings,
@@ -623,13 +633,10 @@ func QueryFlashcards(db SQLClient, whereClause string, args ...any) ([]*Flashcar
 			&f.NoteOID,
 			&f.RelativePath,
 			&f.ShortTitle,
+			&f.Slug,
 			&tagsRaw,
-			&f.FrontMarkdown,
-			&f.BackMarkdown,
-			&f.FrontHTML,
-			&f.BackHTML,
-			&f.FrontText,
-			&f.BackText,
+			&f.Front,
+			&f.Back,
 			&dueAt,
 			&studiedAt,
 			&settingsRaw,
@@ -674,7 +681,8 @@ func QueryFlashcards(db SQLClient, whereClause string, args ...any) ([]*Flashcar
 // NewStudy creates a new study.
 func NewStudy(flashcardOID string) *Study {
 	return &Study{
-		OID: NewOID(),
+		OID:   NewOID(),
+		stale: true,
 	}
 }
 
@@ -695,6 +703,10 @@ func (s *Study) ModificationTime() time.Time {
 func (s *Study) Refresh() (bool, error) {
 	// Study are immutable
 	return false, nil
+}
+
+func (s *Study) Stale() bool {
+	return s.stale
 }
 
 func (s *Study) State() State {
@@ -722,14 +734,6 @@ func (s *Study) Write(w io.Writer) error {
 	}
 	_, err = w.Write(data)
 	return err
-}
-
-func (s *Study) SubObjects() []StatefulObject {
-	return nil
-}
-
-func (s *Study) Blobs() []*BlobRef {
-	return nil
 }
 
 func (s *Study) Relations() []*Relation {

@@ -79,24 +79,10 @@ CREATE TABLE note (
   content_raw TEXT NOT NULL,
   -- Hash of content_raw
   hashsum TEXT NOT NULL,
-  -- Long title in Markdown format (best for editing)
-  title_markdown TEXT NOT NULL,
-  -- Long title in HTML format (best for rendering)
-  title_html TEXT NOT NULL,
-  -- Long title in text format (best for indexing)
-  title_text TEXT NOT NULL,
-  -- Content in Markdown format (best for editing)
-  content_markdown TEXT NOT NULL,
-  -- Content in HTML format (best for rendering)
-  content_html TEXT NOT NULL,
-  -- Content in text format (best for indexing)
-  content_text TEXT NOT NULL,
+  -- Edited content in Markdown format
+  content TEXT NOT NULL,
   -- Comment in Markdown format
-  comment_markdown TEXT NOT NULL,
-  -- Content in HTML format
-  comment_html TEXT NOT NULL,
-  -- Content in text format
-  comment_text TEXT NOT NULL,
+  comment TEXT NOT NULL,
 
   -- Timestamps to track changes
   created_at TEXT NOT NULL,
@@ -106,17 +92,18 @@ CREATE TABLE note (
 
 CREATE VIRTUAL TABLE note_fts USING FTS5(oid UNINDEXED, kind UNINDEXED, short_title, content_text, content='note', content_rowid='rowid');
 
+-- FIXME content_text no longer exitts
 create trigger note_fts_after_insert after insert on note begin
-  insert into note_fts (rowid, oid, kind, short_title, content_text) values (new.rowid, new.oid, new.kind, new.short_title, new.content_text);
+  insert into note_fts (rowid, oid, kind, short_title, content_text) values (new.rowid, new.oid, new.kind, new.short_title, new.content);
 end;
 
 create trigger note_fts_after_update after update on note begin
-  insert into note_fts (note_fts, rowid, oid, kind, short_title, content_text) values('delete', old.rowid, old.oid, old.kind, old.short_title, old.content_text);
-  insert into note_fts (rowid, oid, kind, short_title, content_text) values (new.rowid, new.oid, new.kind, new.short_title, new.content_text);
+  insert into note_fts (note_fts, rowid, oid, kind, short_title, content_text) values('delete', old.rowid, old.oid, old.kind, old.short_title, old.content);
+  insert into note_fts (rowid, oid, kind, short_title, content_text) values (new.rowid, new.oid, new.kind, new.short_title, new.content);
 end;
 
 create trigger note_fts_after_delete after delete on note begin
-  insert into note_fts (note_fts, rowid, oid, kind, short_title, content_text) values('delete', old.rowid, old.oid, old.kind, old.short_title, old.content_text);
+  insert into note_fts (note_fts, rowid, oid, kind, short_title, content_text) values('delete', old.rowid, old.oid, old.kind, old.short_title, old.content);
 end;
 
 CREATE TABLE media (
@@ -209,20 +196,15 @@ CREATE TABLE flashcard (
   -- Note short title
   short_title TEXT NOT NULL,
 
+  -- Slug (denormalized field)
+  slug TEXT,
+
   -- Comma separated list of tags
   tags TEXT DEFAULT '',
 
-  -- Fields in Markdown (best for editing)
-  front_markdown TEXT NOT NULL,
-  back_markdown TEXT NOT NULL,
-
-  -- Fields in HTML (best for rendering)
-  front_html TEXT NOT NULL,
-  back_html TEXT NOT NULL,
-
-  -- Fields in raw text (best for indexing)
-  front_text TEXT NOT NULL,
-  back_text TEXT NOT NULL,
+  -- Fields in Markdown
+  front TEXT NOT NULL,
+  back TEXT NOT NULL,
 
   -- SRS
   due_at TEXT, -- null = suspended card
@@ -249,10 +231,7 @@ CREATE TABLE reminder (
   relative_path TEXT NOT NULL,
 
   -- Description
-  description_raw TEXT NOT NULL,
-  description_markdown TEXT NOT NULL,
-  description_html TEXT NOT NULL,
-  description_text TEXT NOT NULL,
+  description TEXT NOT NULL,
 
   -- Tag value containig the formula to determine the next occurence
   tag TEXT NOT NULL,

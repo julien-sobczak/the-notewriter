@@ -7,14 +7,14 @@ import (
 
 type Relation struct {
 	// Source
-	SourceOID  string `yaml:"source_oid"`
-	SourceKind string `yaml:"source_kind"`
+	SourceOID  string `yaml:"source_oid" json:"source_oid"`
+	SourceKind string `yaml:"source_kind" json:"source_kind"`
 
 	// Target
-	TargetOID  string `yaml:"target_oid"`
-	TargetKind string `yaml:"target_kind"`
+	TargetOID  string `yaml:"target_oid" json:"target_oid"`
+	TargetKind string `yaml:"target_kind" json:"target_kind"`
 
-	Type string `yaml:"type"`
+	Type string `yaml:"type" json:"type"`
 }
 
 func NewRelationFromObjects(objA, objB Object, relationType string) *Relation {
@@ -35,6 +35,18 @@ func NewRelation(oidA string, kindA string, oidB string, kindB string, relationT
 
 func (r Relation) String() string {
 	return fmt.Sprintf("relation %s[%s] -> %s -> %s[%s]", r.SourceKind, r.SourceOID, r.Type, r.TargetKind, r.TargetOID)
+}
+
+func (r *Relation) ToYAML() string {
+	return ToBeautifulYAML(r)
+}
+
+func (r *Relation) ToJSON() string {
+	return ToBeautifulJSON(r)
+}
+
+func (r *Relation) ToMarkdown() string {
+	return fmt.Sprintf("%s(%s) -> %s(%s)", r.SourceKind, r.SourceOID, r.TargetKind, r.TargetOID)
 }
 
 /* Database Management */
