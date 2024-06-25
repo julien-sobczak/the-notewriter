@@ -124,7 +124,7 @@ var catFileCmd = &cobra.Command{
 	},
 }
 
-func dumpObject(object core.Object) {
+func dumpObject(object core.Dumpable) {
 	switch outputFormat {
 	case "yaml":
 		fmt.Println(object.ToYAML())

@@ -12,7 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type Link struct {
+type GoLink struct {
 	OID string `yaml:"oid" json:"oid"`
 
 	NoteOID string `yaml:"note_oid" json:"note_oid"`
@@ -42,20 +42,20 @@ type Link struct {
 	stale bool
 }
 
-func NewOrExistingLink(note *Note, parsedLink *ParsedLinkNew) (*Link, error) {
-	existingLink, err := CurrentRepository().FindLinkByGoName(string(parsedLink.GoName))
+func NewOrExistingGoLink(note *Note, parsedGoLink *ParsedGoLinkNew) (*GoLink, error) {
+	existingGoLink, err := CurrentRepository().FindGoLinkByGoName(string(parsedGoLink.GoName))
 	if err != nil {
 		return nil, err
 	}
-	if existingLink != nil {
-		existingLink.update(note, parsedLink)
-		return existingLink, nil
+	if existingGoLink != nil {
+		existingGoLink.update(note, parsedGoLink)
+		return existingGoLink, nil
 	}
-	return NewLink(note, parsedLink), nil
+	return NewGoLink(note, parsedGoLink), nil
 }
 
-func NewLink(note *Note, parsedLink *ParsedLinkNew) *Link {
-	return &Link{
+func NewGoLink(note *Note, parsedLink *ParsedGoLinkNew) *GoLink {
+	return &GoLink{
 		OID:          NewOID(),
 		NoteOID:      note.OID,
 		RelativePath: note.RelativePath,
@@ -74,28 +74,28 @@ func NewLink(note *Note, parsedLink *ParsedLinkNew) *Link {
 
 /* Object */
 
-func (l *Link) Kind() string {
+func (l *GoLink) Kind() string {
 	return "link"
 }
 
-func (l *Link) UniqueOID() string {
+func (l *GoLink) UniqueOID() string {
 	return l.OID
 }
 
-func (l *Link) ModificationTime() time.Time {
+func (l *GoLink) ModificationTime() time.Time {
 	return l.UpdatedAt
 }
 
-func (l *Link) Refresh() (bool, error) {
+func (l *GoLink) Refresh() (bool, error) {
 	// No dependencies = no need to refresh
 	return false, nil
 }
 
-func (l *Link) Stale() bool {
+func (l *GoLink) Stale() bool {
 	return l.stale
 }
 
-func (l *Link) State() State {
+func (l *GoLink) State() State {
 	if !l.DeletedAt.IsZero() {
 		return Deleted
 	}
@@ -108,7 +108,7 @@ func (l *Link) State() State {
 	return None
 }
 
-func (l *Link) ForceState(state State) {
+func (l *GoLink) ForceState(state State) {
 	switch state {
 	case Added:
 		l.new = true
@@ -118,7 +118,7 @@ func (l *Link) ForceState(state State) {
 	l.stale = true
 }
 
-func (l *Link) Read(r io.Reader) error {
+func (l *GoLink) Read(r io.Reader) error {
 	err := yaml.NewDecoder(r).Decode(l)
 	if err != nil {
 		return err
@@ -126,7 +126,7 @@ func (l *Link) Read(r io.Reader) error {
 	return nil
 }
 
-func (l *Link) Write(w io.Writer) error {
+func (l *GoLink) Write(w io.Writer) error {
 	data, err := yaml.Marshal(l)
 	if err != nil {
 		return err
@@ -135,25 +135,29 @@ func (l *Link) Write(w io.Writer) error {
 	return err
 }
 
-func (l *Link) Relations() []*Relation {
+func (l *GoLink) Relations() []*Relation {
 	return nil
 }
 
-func (l Link) String() string {
+func (l *GoLink) Blobs() []*BlobRef {
+	return nil
+}
+
+func (l GoLink) String() string {
 	return fmt.Sprintf("link %q [%s]", l.URL, l.OID)
 }
 
 /* Format */
 
-func (l *Link) ToYAML() string {
+func (l *GoLink) ToYAML() string {
 	return ToBeautifulYAML(l)
 }
 
-func (l *Link) ToJSON() string {
+func (l *GoLink) ToJSON() string {
 	return ToBeautifulJSON(l)
 }
 
-func (l *Link) ToMarkdown() string {
+func (l *GoLink) ToMarkdown() string {
 	var sb strings.Builder
 	sb.WriteString("[")
 	sb.WriteString(string(l.Text))
@@ -165,7 +169,7 @@ func (l *Link) ToMarkdown() string {
 
 /* Update */
 
-func (l *Link) update(note *Note, parsedLink *ParsedLinkNew) {
+func (l *GoLink) update(note *Note, parsedLink *ParsedGoLinkNew) {
 	if l.NoteOID != note.OID {
 		l.NoteOID = note.OID
 		l.stale = true
@@ -190,17 +194,17 @@ func (l *Link) update(note *Note, parsedLink *ParsedLinkNew) {
 
 /* State Management */
 
-func (l *Link) New() bool {
+func (l *GoLink) New() bool {
 	return l.new
 }
 
-func (l *Link) Updated() bool {
+func (l *GoLink) Updated() bool {
 	return l.stale
 }
 
 /* Database Management */
 
-func (l *Link) Check() error {
+func (l *GoLink) Check() error {
 	CurrentLogger().Debugf("Checking link %s...", l.GoName)
 	l.LastCheckedAt = clock.Now()
 	query := `
@@ -215,7 +219,7 @@ func (l *Link) Check() error {
 	return err
 }
 
-func (l *Link) Save() error {
+func (l *GoLink) Save() error {
 	var err error
 	l.UpdatedAt = clock.Now()
 	l.LastCheckedAt = clock.Now()
@@ -237,8 +241,8 @@ func (l *Link) Save() error {
 	return nil
 }
 
-func (l *Link) Insert() error {
-	CurrentLogger().Debugf("Creating link %s...", l.GoName)
+func (l *GoLink) Insert() error {
+	CurrentLogger().Debugf("Creating go link %s...", l.GoName)
 	query := `
 		INSERT INTO link(
 			oid,
@@ -273,7 +277,7 @@ func (l *Link) Insert() error {
 	return nil
 }
 
-func (l *Link) Update() error {
+func (l *GoLink) Update() error {
 	CurrentLogger().Debugf("Updating link %s...", l.GoName)
 	query := `
 		UPDATE link
@@ -304,15 +308,15 @@ func (l *Link) Update() error {
 	return err
 }
 
-func (l *Link) Delete() error {
+func (l *GoLink) Delete() error {
 	CurrentLogger().Debugf("Deleting link %s...", l.GoName)
 	query := `DELETE FROM link WHERE oid = ?;`
 	_, err := CurrentDB().Client().Exec(query, l.OID)
 	return err
 }
 
-// CountLinks returns the total number of links.
-func (r *Repository) CountLinks() (int, error) {
+// CountGoLinks returns the total number of links.
+func (r *Repository) CountGoLinks() (int, error) {
 	var count int
 	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM link`).Scan(&count); err != nil {
 		return 0, err
@@ -321,29 +325,29 @@ func (r *Repository) CountLinks() (int, error) {
 	return count, nil
 }
 
-func (r *Repository) LoadLinkByOID(oid string) (*Link, error) {
-	return QueryLink(CurrentDB().Client(), "WHERE oid = ?", oid)
+func (r *Repository) LoadGoLinkByOID(oid string) (*GoLink, error) {
+	return QueryGoLink(CurrentDB().Client(), "WHERE oid = ?", oid)
 }
 
-func (r *Repository) FindLinkByGoName(goName string) (*Link, error) {
-	return QueryLink(CurrentDB().Client(), "WHERE go_name = ?", goName)
+func (r *Repository) FindGoLinkByGoName(goName string) (*GoLink, error) {
+	return QueryGoLink(CurrentDB().Client(), "WHERE go_name = ?", goName)
 }
 
-func (r *Repository) FindLinksByText(text string) ([]*Link, error) {
-	return QueryLinks(CurrentDB().Client(), "WHERE text = ?", text)
+func (r *Repository) FindGoLinksByText(text string) ([]*GoLink, error) {
+	return QueryGoLinks(CurrentDB().Client(), "WHERE text = ?", text)
 }
 
-func (r *Repository) FindLinksLastCheckedBefore(point time.Time, path string) ([]*Link, error) {
+func (r *Repository) FindGoLinksLastCheckedBefore(point time.Time, path string) ([]*GoLink, error) {
 	if path == "." {
 		path = ""
 	}
-	return QueryLinks(CurrentDB().Client(), `WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
+	return QueryGoLinks(CurrentDB().Client(), `WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 /* SQL Helpers */
 
-func QueryLink(db SQLClient, whereClause string, args ...any) (*Link, error) {
-	var l Link
+func QueryGoLink(db SQLClient, whereClause string, args ...any) (*GoLink, error) {
+	var l GoLink
 	var createdAt string
 	var updatedAt string
 	var lastCheckedAt string
@@ -388,8 +392,8 @@ func QueryLink(db SQLClient, whereClause string, args ...any) (*Link, error) {
 	return &l, nil
 }
 
-func QueryLinks(db SQLClient, whereClause string, args ...any) ([]*Link, error) {
-	var links []*Link
+func QueryGoLinks(db SQLClient, whereClause string, args ...any) ([]*GoLink, error) {
+	var links []*GoLink
 
 	rows, err := db.Query(fmt.Sprintf(`
 		SELECT
@@ -410,7 +414,7 @@ func QueryLinks(db SQLClient, whereClause string, args ...any) ([]*Link, error) 
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var l Link
+		var l GoLink
 		var createdAt string
 		var updatedAt string
 		var lastCheckedAt string

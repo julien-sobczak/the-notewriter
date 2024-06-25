@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
-	"github.com/julien-sobczak/the-notewriter/pkg/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"gopkg.in/yaml.v3"
 )
@@ -153,6 +153,10 @@ func (r *Reminder) Write(w io.Writer) error {
 }
 
 func (r *Reminder) Relations() []*Relation {
+	return nil
+}
+
+func (r *Reminder) Blobs() []*BlobRef {
 	return nil
 }
 

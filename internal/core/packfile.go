@@ -85,7 +85,7 @@ func (od ObjectData) Unmarshal(target interface{}) error {
 		m.Read(dest)
 		return nil
 	}
-	if l, ok := target.(*Link); ok {
+	if l, ok := target.(*GoLink); ok {
 		l.Read(dest)
 		return nil
 	}
@@ -165,7 +165,7 @@ func (p *PackObject) ReadObject() StatefulObject {
 		p.Data.Unmarshal(note)
 		return note
 	case "link":
-		link := new(Link)
+		link := new(GoLink)
 		p.Data.Unmarshal(link)
 		return link
 	case "media":

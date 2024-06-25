@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
@@ -263,14 +264,13 @@ func FilterNonInheritableAttributes(attributes map[string]interface{}, relativeP
 
 // ExtractBlockTagsAndAttributes searches for all tags and attributes declared on standalone lines
 // (in comparison with tags/attributes defined, for example, on To-Do list items).
-func ExtractBlockTagsAndAttributes(content string) ([]string, map[string]interface{}) {
+func ExtractBlockTagsAndAttributes(content markdown.Document) ([]string, map[string]interface{}) {
 
 	// Collect tags and attributes
 	var tags []string
 	var attributes map[string]interface{} = make(map[string]interface{})
 
-	lines := strings.Split(content, "\n")
-	for _, line := range lines {
+	for _, line := range content.Lines() {
 
 		// only tags and attributes?
 		if text.IsBlank(line) || !regexBlockTagAttributesLine.MatchString(line) {

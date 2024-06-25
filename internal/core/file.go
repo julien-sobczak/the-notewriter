@@ -404,6 +404,10 @@ func (f *File) Relations() []*Relation {
 	return nil
 }
 
+func (f *File) Blobs() []*BlobRef {
+	return nil
+}
+
 func (f File) String() string {
 	return fmt.Sprintf("file %q [%s]", f.RelativePath, f.OID)
 }

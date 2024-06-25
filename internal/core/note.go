@@ -12,8 +12,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
-	"github.com/julien-sobczak/the-notewriter/pkg/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
@@ -138,9 +138,9 @@ func NewNote(file *File, parent *Note, parsedNote *ParsedNoteNew) (*Note, error)
 	}
 
 	// Set dynamic properties
-	n.updateLongTitle()         // Require the file and optional parent
-	n.updateContent(parsedNote) // Require the file
-	n.updateSlug()              // Require the file and note attributes
+	n.updateLongTitle()                 // Require the file and optional parent
+	n.updateContent(parsedNote.Content) // Require the file
+	n.updateSlug()                      // Require the file and note attributes
 
 	CurrentDB().WIP().Register(n) // FIXME useless with 2-pass algorithm?
 
@@ -265,7 +265,7 @@ func (n *Note) Relations() []*Relation {
 
 	// Search for embedded notes
 	reEmbeddedNote := regexp.MustCompile(`^!\[\[(.*)(?:\|.*)?\]\]\s*`)
-	matches := reEmbeddedNote.FindAllStringSubmatch(n.ContentRaw, -1)
+	matches := reEmbeddedNote.FindAllStringSubmatch(string(n.ContentRaw), -1)
 	for _, match := range matches {
 		wikilink := match[1]
 		addWikilink(wikilink, "includes")
@@ -306,6 +306,10 @@ func (n *Note) Relations() []*Relation {
 	return relations
 }
 
+func (n *Note) Blobs() []*BlobRef {
+	return nil
+}
+
 func (n Note) String() string {
 	return fmt.Sprintf("note %q [%s]", n.Title, n.OID)
 }
@@ -339,6 +343,14 @@ func (n *Note) update(f *File, parent *Note, parsedNote *ParsedNoteNew) {
 		n.NoteKind = parsedNote.Kind
 		n.stale = true
 	}
+	if n.Body != parsedNote.Body {
+		n.Body = parsedNote.Body
+		n.stale = true
+	}
+	if n.Comment != parsedNote.Comment {
+		n.Comment = parsedNote.Comment
+		n.stale = true
+	}
 
 	newWikilink := f.Wikilink + "#" + string(parsedNote.Title.TrimSpace())
 	if n.Wikilink != newWikilink {
@@ -352,10 +364,12 @@ func (n *Note) update(f *File, parent *Note, parsedNote *ParsedNoteNew) {
 		n.stale = true
 	}
 
+
+
 	// Set dynamic properties
-	n.updateLongTitle()         // Require the file and optional parent
-	n.updateContent(parsedNote) // Require the file
-	n.updateSlug()              // Require the file and note attributes
+	n.updateLongTitle()                 // Require the file and optional parent
+	n.updateContent(parsedNote.Content) // Require the file
+	n.updateSlug()                      // Require the file and note attributes
 
 	if n.stale {
 		n.UpdatedAt = clock.Now()
@@ -436,7 +450,7 @@ func (n *Note) updateSlug() {
 	var fileSlug string
 	var attributeSlug string
 	var kind NoteKind
-	var shortTitle string
+	var shortTitle markdown.Document
 
 	// Check if a specific slug is specified
 	noteAttributes := n.GetNoteAttributes()
@@ -458,7 +472,7 @@ func (n *Note) updateSlug() {
 		fileSlug,
 		attributeSlug,
 		kind,
-		shortTitle,
+		string(shortTitle),
 	)
 	if n.Slug != newSlug {
 		n.Slug = newSlug
@@ -477,11 +491,11 @@ func DetermineNoteSlug(fileSlug string, attributeSlug string, kind NoteKind, sho
 	return markdown.Slug(fileSlug, string(kind), shortTitle)
 }
 
-func (n *Note) updateContent(parsedNote *ParsedNoteNew) {
+func (n *Note) updateContent(newContent markdown.Document) {
 	prevContentRaw := n.ContentRaw
 	prevAttributes := n.Attributes
 
-	n.ContentRaw = parsedNote.Content.TrimSpace()
+	n.ContentRaw = newContent
 	n.Hash = n.ContentRaw.Hash()
 
 	tags, attributes := ExtractBlockTagsAndAttributes(n.ContentRaw)
@@ -589,10 +603,6 @@ func (n *Note) updateContent(parsedNote *ParsedNoteNew) {
 			mdContent += markdown.ToMarkdown(blockContent)
 		}
 	*/
-
-	n.Title = parsedNote.Title
-	n.Body = parsedNote.Body
-	n.Comment = parsedNote.Comment
 
 	if prevContentRaw != n.ContentRaw || !reflect.DeepEqual(prevAttributes, n.Attributes) {
 		n.stale = true
@@ -1348,7 +1358,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 	return notes, err
 }
 
-/* Format */
+/* Dumpable */
 
 func (n *Note) ToYAML() string {
 	return ToBeautifulYAML(n)
@@ -1367,7 +1377,7 @@ func (n *Note) ToMarkdown() string {
 }
 
 // FormatLongTitle formats the long title of a note.
-func FormatLongTitle(titles ...markdown.Document) string {
+func FormatLongTitle(titles ...markdown.Document) markdown.Document {
 	// Implementation: We concatenate the titles but we must avoid duplication.
 	//
 	// Ex:
@@ -1388,7 +1398,7 @@ func FormatLongTitle(titles ...markdown.Document) string {
 	longTitle := ""
 
 	for i := len(titles) - 1; i >= 0; i-- {
-		title := titles[i]
+		title := string(titles[i])
 
 		if text.IsBlank(title) { // Empty
 			continue
@@ -1414,5 +1424,5 @@ func FormatLongTitle(titles ...markdown.Document) string {
 		prevTitle = title
 	}
 
-	return longTitle
+	return markdown.Document(longTitle)
 }

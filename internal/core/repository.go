@@ -277,7 +277,7 @@ func (r *Repository) normalizePaths(paths ...string) []string {
 }
 
 // AddNew implements the command `nt add`
-func (r *Repository) AddNew(paths ...string) error {
+func (r *Repository) Add(paths ...string) error {
 	r.MustLint(paths...)
 
 	// Any object not updated after this date will be considered as deletions
@@ -285,17 +285,10 @@ func (r *Repository) AddNew(paths ...string) error {
 	db := CurrentDB()
 	paths = r.normalizePaths(paths...)
 
-	// Keep notes of processed objects to avoid duplication of effort
-	// when some objects like medias are referenced by different notes.
-	traversedObjects := make(map[string]bool)
-	var traversedNotes []*Note
-
-	// Keep notes of unprocessed medias to generate blob using goroutines to speed up the execution
-	var unprocessedMedias []*Media
-
 	var updatedParsedFiles []*ParsedFileNew
 	var updatedFiles []*File
 	var updatedMedias []*Media
+	var updatedNotes []*Note
 
 	// Traverse all given paths to detected updated medias/files
 	err := r.walkNew(paths, func(mdFile *markdown.File) error {
@@ -336,7 +329,8 @@ func (r *Repository) AddNew(paths ...string) error {
 	// Process blobs first outside the SQL transaction (takes a long time and resuming if the command is interrupted is not dangerous, just some CPU cycles lost)
 	CurrentLogger().Infof("Processing %d medias", len(updatedMedias))
 	for _, newMedia := range updatedMedias {
-		newMedia.WriteBlobs()
+		// TODO use CurrentConsole() to show progress
+		newMedia.GenerateBlobs()
 	}
 
 	// Run all queries inside the same transaction
@@ -363,21 +357,29 @@ func (r *Repository) AddNew(paths ...string) error {
 		// Process notes
 		for _, parsedNote := range parsedFile.Notes {
 
-			note, err := NewOrExistingNote(file, nil, parsedNote) // FIXME set the parent!!!!
+			var parentNote *Note
+			if parsedNote.Parent != nil {
+				parentNote, err = r.FindMatchingNote(parsedNote.Parent)
+				if err != nil {
+					return err
+				}
+			}
+			note, err := NewOrExistingNote(file, parentNote, parsedNote)
 			if err != nil {
 				return err
 			}
 			if err := note.Save(); err != nil {
 				return err
 			}
+			updatedNotes = append(updatedNotes, note)
 
 			// Process links
-			for _, link := range parsedNote.Links {
-				link, err := NewOrExistingLink(note, link)
+			for _, parsedGoLink := range parsedNote.GoLinks {
+				goLink, err := NewOrExistingGoLink(note, parsedGoLink)
 				if err != nil {
 					return err
 				}
-				if err := link.Save(); err != nil {
+				if err := goLink.Save(); err != nil {
 					return err
 				}
 			}
@@ -408,7 +410,34 @@ func (r *Repository) AddNew(paths ...string) error {
 
 	}
 
-	// FIXME Make a second-pass on notes to manage cross-references (ex: note embedding)
+	// Make a second-pass on notes to manage cross-references (ex: note embedding)
+	for _, note := range updatedNotes {
+		changed, err := note.Refresh()
+		if err != nil {
+			return err
+		}
+		if changed {
+			//  Updated notes embedding this note
+			if err := note.Save(); err != nil {
+				return err
+			}
+			dependencies, err := r.FindRelationsTo(note.OID)
+			if err != nil {
+				return err
+			}
+			for _, relation := range dependencies {
+				if relation.Type == "embeds" && relation.SourceKind == "note" {
+					dependentNote, err := r.LoadNoteByOID(relation.SourceOID)
+					if err != nil {
+						return err
+					}
+					if err := dependentNote.Save(); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
 
 	// Find objects to delete for every path
 	var deletions []StatefulObject
@@ -471,267 +500,12 @@ func (r *Repository) MustLint(paths ...string) {
 	}
 }
 
-// Add implements the command `nt add`.`
-func (r *Repository) Add(paths ...string) error {
-	r.MustLint(paths...)
-
-	// Any object not updated after this date will be considered as deletions
-	buildTime := clock.Now()
-	db := CurrentDB()
-	paths = r.normalizePaths(paths...)
-
-	// Keep notes of processed objects to avoid duplication of effort
-	// when some objects like medias are referenced by different notes.
-	traversedObjects := make(map[string]bool)
-	var traversedNotes []*Note
-
-	// Keep notes of unprocessed medias to generate blob using goroutines to speed up the execution
-	var unprocessedMedias []*Media
-
-	// Run all queries inside the same transaction
-	err := db.BeginTransaction()
-	if err != nil {
-		return err
-	}
-	defer db.RollbackTransaction()
-
-	// Traverse all given path to add files
-	err = r.walkNew(paths, func(mdFile *markdown.File) error {
-		CurrentLogger().Debugf("Processing %s...\n", mdFile.AbsolutePath)
-
-		parsedFile, err := ParseFile(CurrentConfig().RootDirectory, mdFile)
-		if parsedFile != nil {
-			return err
-		}
-
-		file, err := NewOrExistingFile(parsedFile)
-		if err != nil {
-			return err
-		}
-
-		if file.HasTag("ignore") {
-			// Do not add to index files marked as ignorable
-			return nil
-		}
-
-		if file.State() != None {
-			if err := db.StageObject(file); err != nil {
-				return fmt.Errorf("unable to stage modified object %s: %v", file, err)
-			}
-		}
-		traversedObjects[file.UniqueOID()] = true
-		if err := file.Save(); err != nil {
-			return nil
-		}
-
-		for _, object := range file.SubObjects() {
-			if _, found := traversedObjects[object.UniqueOID()]; found {
-				// already processed
-				continue
-			}
-
-			// Notes are processed in two passes
-			if object.Kind() == "note" {
-				if note, ok := object.(*Note); ok {
-					traversedNotes = append(traversedNotes, note)
-				}
-			}
-
-			if object.State() != None {
-				if object.Kind() == "media" {
-					unprocessedMedia := object.(*Media)
-					if !unprocessedMedia.Dangling {
-						unprocessedMedias = append(unprocessedMedias, unprocessedMedia)
-					}
-				}
-
-				if err := db.StageObject(object); err != nil {
-					return fmt.Errorf("unable to stage modified object %s: %v", object, err)
-				}
-			}
-			traversedObjects[object.UniqueOID()] = true
-			if err := object.Save(); err != nil {
-				return err
-			}
-		}
-
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-
-	// Generate blobs
-	mediaJobs := make(chan *Media, len(unprocessedMedias))
-	mediaResults := make(chan *Media, len(unprocessedMedias))
-	countWorkers := CurrentConfig().ConfigFile.Medias.Parallel
-	if countWorkers == 0 {
-		countWorkers = 1
-	}
-	for w := 1; w <= countWorkers; w++ {
-		go func(workerNum int, jobs <-chan *Media, results chan<- *Media) {
-			for media := range jobs {
-				CurrentLogger().Infof("[worker %d] Generating blobs for %s...\n", workerNum, media.RelativePath)
-				media.UpdateBlobs()
-				results <- media
-			}
-		}(w, mediaJobs, mediaResults)
-	}
-	for _, media := range unprocessedMedias {
-		mediaJobs <- media
-	}
-	close(mediaJobs)
-	// Then, wait for blob generation to end
-	for i := 0; i < len(unprocessedMedias); i++ {
-		mediaCompleted := <-mediaResults
-		if err := mediaCompleted.InsertBlobs(); err != nil {
-			return err
-		}
-		if err := db.StageObject(mediaCompleted); err != nil {
-			return fmt.Errorf("unable to stage modified object %s: %v", mediaCompleted, err)
-		}
-	}
-
-	// Find objects to delete for every path
-	var deletions []StatefulObject
-	for _, path := range paths {
-		relpath, err := r.GetFileRelativePath(path)
-		if err != nil {
-			return err
-		}
-		pathDeletions, err := r.findObjectsLastCheckedBefore(buildTime, relpath)
-		if err != nil {
-			return err
-		}
-		deletions = append(deletions, pathDeletions...)
-	}
-
-	// Check for dead medias only when adding the root directory.
-	// For example, when adding a file, it can contains references to medias stored in a directory outside the given path.
-	if slices.Contains(paths, CurrentConfig().RootDirectory) { // ex: nt add .
-		// As we walked the whole hierarchy, all medias must have be checked.
-		mediaDeletions, err := CurrentRepository().FindMediasLastCheckedBefore(buildTime)
-		if err != nil {
-			return err
-		}
-		for _, mediaDeletion := range mediaDeletions {
-			deletions = append(deletions, mediaDeletion)
-		}
-	}
-
-	for _, deletion := range deletions {
-		deletion.ForceState(Deleted)
-		if err := deletion.Save(); err != nil {
-			return err
-		}
-		if err := db.StageObject(deletion); err != nil {
-			return fmt.Errorf("unable to stage deleted object %s: %v", deletion, err)
-		}
-	}
-
-	// Second pass: Refresh all notes
-	// Same logic but for dependent notes (avoid cycles)
-	traversedRefreshedObjects := make(map[string]bool)
-
-	var refreshDependencies func(oid string) error
-	refreshDependencies = func(oid string) error {
-		dependencies, err := r.FindRelationsTo(oid)
-		if err != nil {
-			return err
-		}
-		for _, relation := range dependencies {
-			dependentObject, err := db.ReadLastStagedOrCommittedObjectFromDB(relation.SourceOID)
-			if err != nil {
-				return err
-			}
-
-			changed, err := dependentObject.Refresh()
-			if err != nil {
-				return err
-			}
-			if changed {
-				if err := db.StageObject(dependentObject); err != nil {
-					return fmt.Errorf("unable to stage modified dependent object %s: %v", dependentObject, err)
-				}
-				traversedRefreshedObjects[relation.SourceOID] = true
-				if err := dependentObject.Save(); err != nil {
-					return err
-				}
-				if err := refreshDependencies(relation.SourceOID); err != nil {
-					return err
-				}
-			}
-		}
-		return nil
-	}
-	for _, note := range traversedNotes {
-		CurrentLogger().Infof("Reprocessing note %s...", note)
-		// Refresh content after having processed all notes (useful when a note include a note processed later)
-		changed, err := note.Refresh()
-		if err != nil {
-			return err
-		}
-		// Save relations only now that we know existing dependencies really exist
-		if err := r.UpdateRelations(note); err != nil {
-			return err
-		}
-		if !changed {
-			continue
-		}
-		if err := note.Save(); err != nil {
-			return err
-		}
-		dependencies, err := r.FindRelationsTo(note.UniqueOID())
-		if err != nil {
-			return err
-		}
-		for _, relation := range dependencies {
-			dependentObject, err := db.ReadLastStagedOrCommittedObjectFromDB(relation.SourceOID)
-			if err != nil {
-				return err
-			}
-
-			CurrentLogger().Infof("Reprocessing dependent object %s...", dependentObject)
-			changed, err := dependentObject.Refresh()
-			if err != nil {
-				return err
-			}
-			if changed {
-				if err := db.StageObject(dependentObject); err != nil {
-					return fmt.Errorf("unable to stage modified dependent object %s: %v", dependentObject, err)
-				}
-				traversedRefreshedObjects[relation.SourceOID] = true
-				if err := dependentObject.Save(); err != nil {
-					return err
-				}
-				if err := r.UpdateRelations(dependentObject); err != nil {
-					return err
-				}
-				if err := refreshDependencies(relation.SourceOID); err != nil {
-					return err
-				}
-			}
-		}
-	}
-
-	// Don't forget to commit
-	if err := db.CommitTransaction(); err != nil {
-		return err
-	}
-	// And to persist the index
-	if err := db.index.Save(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (r *Repository) findObjectsLastCheckedBefore(buildTime time.Time, path string) ([]StatefulObject, error) {
 	CurrentLogger().Debugf("Searching for %s", path)
 	// Search for deleted objects...
 	var deletions []StatefulObject
 
-	links, err := CurrentRepository().FindLinksLastCheckedBefore(buildTime, path)
+	links, err := CurrentRepository().FindGoLinksLastCheckedBefore(buildTime, path)
 	if err != nil {
 		return nil, err
 	}
@@ -793,10 +567,7 @@ func (r *Repository) Status() (string, error) {
 
 	root := CurrentConfig().RootDirectory
 	err := r.walk([]string{root}, func(path string, stat fs.FileInfo) error {
-		relpath, err := CurrentRepository().GetFileRelativePath(path)
-		if err != nil {
-			return err
-		}
+		relpath := r.GetFileRelativePath(path)
 
 		// Use index to determine if the file is new or changed
 		indexObject, ok := CurrentDB().index.StagingArea.ContainsFile(relpath)
@@ -880,18 +651,13 @@ func (r *Repository) Lint(ruleNames []string, paths ...string) (*LintResult, err
 	var result LintResult
 
 	paths = r.normalizePaths(paths...)
-	err := r.walk(paths, func(path string, stat fs.FileInfo) error {
-		CurrentLogger().Debugf("Processing %s...\n", path)
+	err := r.walkNew(paths, func(mdFile *markdown.File) error {
+		CurrentLogger().Debugf("Processing %s...\n", mdFile.AbsolutePath)
 
 		// Work without the database
-		file, err := ParseFile(path)
+		file, err := ParseFile(CurrentConfig().RootDirectory, mdFile)
 		if err != nil {
 			return err
-		}
-
-		// Ignore ignorable files
-		if file.HasTag("ignore") {
-			return nil
 		}
 
 		// Check file
@@ -933,7 +699,7 @@ func (r *Repository) CountObjectsByType() (map[string]int, error) {
 	if err != nil {
 		return nil, err
 	}
-	countLinks, err := r.CountLinks()
+	countLinks, err := r.CountGoLinks()
 	if err != nil {
 		return nil, err
 	}
@@ -966,10 +732,6 @@ func (r *Repository) Diff(staged bool) (string, error) {
 	db := CurrentDB()
 	path := CurrentConfig().RootDirectory
 
-	// Keep notes of processed objects to avoid duplication of effort
-	// when some objects like medias are referenced by different notes.
-	traversedObjects := make(map[string]bool)
-
 	// We will update the last-checked date of objects to find the deleted ones
 	// and rollback the transaction to have no side-effects.
 	err := db.BeginTransaction()
@@ -980,39 +742,36 @@ func (r *Repository) Diff(staged bool) (string, error) {
 
 	// Traverse all given path to view note changes
 	var updatedNotes []*Note
-	err = r.walk([]string{path}, func(path string, stat fs.FileInfo) error {
-		CurrentLogger().Debugf("Processing %s...\n", path)
+	err = r.walkNew([]string{path}, func(mdFile *markdown.File) error {
+		CurrentLogger().Debugf("Processing %s...\n", mdFile.AbsolutePath)
 
-		parentRelativePath := r.GetFileRelativePath(filepath.Join(filepath.Dir(path), "index.md"))
-		parent, err := r.FindFileByRelativePath(parentRelativePath)
+		parsedFile, err := ParseFile(CurrentConfig().RootDirectory, mdFile)
+		if err != nil {
+			return err
+		}
+		file, err := NewOrExistingFile(parsedFile)
 		if err != nil {
 			return err
 		}
 
-		file, err := NewOrExistingFile(parent, path)
-		if err != nil {
-			return err
-		}
-
-		if file.State() != None {
-			for _, note := range file.GetNotes() {
-				if note.State() != None {
-					updatedNotes = append(updatedNotes, note)
-				}
-			}
-		}
-		traversedObjects[file.UniqueOID()] = true
-		if err := file.Save(); err != nil { // to update last-checked timestamp to find deleted files later
+		// Skip unmodified files
+		if !file.Stale() {
 			return nil
 		}
 
-		for _, object := range file.SubObjects() {
-			if _, found := traversedObjects[object.UniqueOID()]; found {
-				// already processed
-				continue
+		for _, parsedNote := range parsedFile.Notes {
+			var parentNote *Note
+			if parsedNote.Parent != nil {
+				parentNote, err = r.FindMatchingNote(parsedNote.Parent)
+				if err != nil {
+					return err
+				}
 			}
-			traversedObjects[object.UniqueOID()] = true
-			if err := object.Save(); err != nil {
+			note, err := NewOrExistingNote(file, parentNote, parsedNote)
+			if err != nil {
+				return err
+			}
+			if err := note.Save(); err != nil {
 				return err
 			}
 		}
@@ -1040,9 +799,9 @@ func (r *Repository) Diff(staged bool) (string, error) {
 		noteContentBefore := ""
 		if objectBefore != nil {
 			noteBefore := objectBefore.(*Note)
-			noteContentBefore = noteBefore.ContentRaw
+			noteContentBefore = string(noteBefore.ContentRaw)
 		}
-		noteContentAfter := noteAfter.ContentRaw
+		noteContentAfter := string(noteAfter.ContentRaw)
 		patch := godiffpatch.GeneratePatch(noteAfter.RelativePath, noteContentBefore, noteContentAfter)
 		diff.WriteString(patch)
 	}
@@ -1053,7 +812,7 @@ func (r *Repository) Diff(staged bool) (string, error) {
 			return "", err
 		}
 		noteBefore := objectBefore.(*Note)
-		noteContentBefore := noteBefore.ContentRaw
+		noteContentBefore := string(noteBefore.ContentRaw)
 		noteContentAfter := ""
 		patch := godiffpatch.GeneratePatch(noteAfter.RelativePath, noteContentBefore, noteContentAfter)
 		diff.WriteString(patch)

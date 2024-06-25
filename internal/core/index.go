@@ -676,3 +676,17 @@ func (c *Commit) IncludePackFile(oid string) (*PackFileRef, bool) {
 func (c Commit) String() string {
 	return fmt.Sprintf("%s (including %d pack files)", c.OID, len(c.PackFiles))
 }
+
+/* Dumpable */
+
+func (c *Commit) ToYAML() string {
+	return ToBeautifulYAML(c)
+}
+
+func (c *Commit) ToJSON() string {
+	return ToBeautifulJSON(c)
+}
+
+func (c *Commit) ToMarkdown() string {
+	return fmt.Sprintf("Commit %s\n", c.OID)
+}

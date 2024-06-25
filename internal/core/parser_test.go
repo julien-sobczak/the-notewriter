@@ -81,7 +81,7 @@ func TestParseFile(t *testing.T) {
 				assert.Empty(t, nil, noteNote.NoteTags)
 				// No subobjects
 				assert.Nil(t, noteNote.Flashcard)
-				assert.Len(t, noteNote.Links, 0)
+				assert.Len(t, noteNote.GoLinks, 0)
 				assert.Len(t, noteNote.Reminders, 0)
 
 				// Check "Quote: Tim Ferris on Note-Taking"

@@ -49,6 +49,8 @@ type ParsedFileNew struct {
 
 // ParsedNote represents a single raw note inside a file.
 type ParsedNoteNew struct {
+	Parent *ParsedNoteNew
+
 	Level int
 	Kind  NoteKind
 
@@ -71,7 +73,7 @@ type ParsedNoteNew struct {
 
 	// Extracted objects
 	Flashcard *ParsedFlashcardNew
-	Links     []*ParsedLinkNew
+	GoLinks   []*ParsedGoLinkNew
 	Reminders []*ParsedReminderNew
 }
 
@@ -87,7 +89,7 @@ type ParsedFlashcardNew struct {
 	Back  markdown.Document
 }
 
-type ParsedLinkNew struct {
+type ParsedGoLinkNew struct {
 	// The link text
 	Text markdown.Document
 
@@ -262,7 +264,7 @@ func (p *ParsedFileNew) extractNotes() ([]*ParsedNoteNew, error) {
 		}
 
 		// Determine the attributes
-		tags, attributes := ExtractBlockTagsAndAttributes(string(noteBody)) // TODO change signature
+		tags, attributes := ExtractBlockTagsAndAttributes(noteBody)
 
 		// Determine the titles
 		title := section.HeadingText
@@ -298,7 +300,21 @@ func (p *ParsedFileNew) extractNotes() ([]*ParsedNoteNew, error) {
 		// TODO convert quotes
 		// FIXME extract Comm
 
+		// Find a possible parent note
+		i := len(notes) - 1
+		var previousNote *ParsedNoteNew
+		var parentNote *ParsedNoteNew
+		for i > 0 {
+			previousNote = notes[i]
+			if previousNote.Level < section.HeadingLevel {
+				parentNote = previousNote
+				break
+			}
+			i--
+		}
+
 		parsedNote := &ParsedNoteNew{
+			Parent:       parentNote,
 			Level:        section.HeadingLevel,
 			Kind:         kind,
 			AbsolutePath: p.AbsolutePath,
@@ -340,7 +356,7 @@ func (p *ParsedFileNew) extractNotes() ([]*ParsedNoteNew, error) {
 		if err != nil {
 			return nil, err
 		}
-		note.Links, err = note.extractLinks()
+		note.GoLinks, err = note.extractGoLinks()
 		if err != nil {
 			return nil, err
 		}
@@ -568,8 +584,8 @@ func (p *ParsedNoteNew) extractFlashcard() (*ParsedFlashcardNew, error) {
 	}, nil
 }
 
-func (p *ParsedNoteNew) extractLinks() ([]*ParsedLinkNew, error) {
-	var links []*ParsedLinkNew
+func (p *ParsedNoteNew) extractGoLinks() ([]*ParsedGoLinkNew, error) {
+	var links []*ParsedGoLinkNew
 
 	reLink := regexp.MustCompile(`(?:^|[^!])\[(.*?)\]\("?(http[^\s"]*)"?(?:\s+["'](.*?)["'])?\)`)
 	// Note: Markdown images uses the same syntax as links but precedes the link by !
@@ -587,7 +603,7 @@ func (p *ParsedNoteNew) extractLinks() ([]*ParsedLinkNew, error) {
 		shortTitle := submatch[1]
 		goName := submatch[2]
 
-		link := &ParsedLinkNew{
+		link := &ParsedGoLinkNew{
 			Text:   markdown.Document(text),
 			URL:    url,
 			Title:  shortTitle,

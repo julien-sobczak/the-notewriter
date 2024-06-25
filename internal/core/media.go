@@ -185,7 +185,7 @@ func (m *Media) update(parsedMedia *ParsedMediaNew) {
 	}
 }
 
-func (m *Media) UpdateBlobs() {
+func (m *Media) GenerateBlobs() {
 	if CurrentConfig().DryRun {
 		return
 	}
@@ -431,10 +431,19 @@ func (m *Media) Save() error {
 	switch m.State() {
 	case Added:
 		err = m.Insert()
+		if err == nil {
+			err = m.InsertBlobs()
+		}
 	case Modified:
 		err = m.Update()
+		if err == nil {
+			err = m.InsertBlobs()
+		}
 	case Deleted:
 		err = m.Delete()
+		if err == nil {
+			err = m.DeleteBlobs()
+		}
 	default:
 		err = m.Check()
 	}

@@ -199,7 +199,7 @@ func (db *DB) WIP() *WIP {
 /* Row Management */
 
 // ReadLastStagedOrCommittedObjectFromDB reads the last known version (in staging or committed) by rereading the database.
-func (db *DB) ReadLastStagedOrCommittedObjectFromDB(oid string) (StatefulObject, error) {
+func (db *DB) ReadLastStagedOrCommittedObjectFromDB(oid string) (StatefulObject, error) { // FIXME delete?
 	var kind string
 
 	if stagedObject, ok := db.index.StagingArea.ReadStagingObject(oid); ok {
@@ -222,7 +222,7 @@ func (db *DB) ReadLastStagedOrCommittedObjectFromDB(oid string) (StatefulObject,
 	case "flashcard":
 		return CurrentRepository().LoadFlashcardByOID(oid)
 	case "link":
-		return CurrentRepository().LoadLinkByOID(oid)
+		return CurrentRepository().LoadGoLinkByOID(oid)
 	case "reminder":
 		return CurrentRepository().LoadReminderByOID(oid)
 	case "media":
@@ -943,9 +943,9 @@ func (db *DB) Diff() (string, error) {
 		noteContentBefore := ""
 		if commitObj != nil {
 			commitNote := commitObj.(*Note)
-			noteContentBefore = commitNote.ContentRaw
+			noteContentBefore = string(commitNote.ContentRaw)
 		}
-		noteContentAfter := stagedNote.ContentRaw
+		noteContentAfter := string(stagedNote.ContentRaw)
 		patch := godiffpatch.GeneratePatch(stagedNote.RelativePath, noteContentBefore, noteContentAfter)
 		diff.WriteString(patch)
 	}

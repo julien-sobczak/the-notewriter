@@ -740,6 +740,10 @@ func (s *Study) Relations() []*Relation {
 	return nil
 }
 
+func (s *Study) Blobs() []*BlobRef {
+	return nil
+}
+
 func (s Study) String() string {
 	return fmt.Sprintf("study %q started on %v", s.OID, s.StartedAt)
 }

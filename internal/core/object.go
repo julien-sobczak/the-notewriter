@@ -3,6 +3,7 @@ package core
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -20,16 +21,36 @@ func OIDToPath(oid string) string {
 
 type BlobRef struct {
 	// OID to locate the blob file in .nt/objects
-	OID        string                 `yaml:"oid"`
-	MimeType   string                 `yaml:"mime"`
-	Attributes map[string]interface{} `yaml:"attributes"`
-	Tags       []string               `yaml:"tags"`
+	OID        string                 `yaml:"oid" json:"oid"`
+	MimeType   string                 `yaml:"mime" json:"mime"`
+	Attributes map[string]interface{} `yaml:"attributes" json:"attributes"`
+	Tags       []string               `yaml:"tags" json:"tags"`
+}
+
+func (b *BlobRef) ToYAML() string {
+	return ToBeautifulYAML(b)
+}
+
+func (b *BlobRef) ToJSON() string {
+	return ToBeautifulJSON(b)
+}
+
+func (b *BlobRef) ToMarkdown() string {
+	return fmt.Sprintf("Blob %s %s\n", b.OID, b.MimeType)
+}
+
+type Dumpable interface {
+	ToYAML() string
+	ToJSON() string
+	ToMarkdown() string
 }
 
 // Object groups method common to all kinds of managed objects.
 // Useful when creating commits in a generic way where a single commit
 // groups different kinds of objects inside the same object.
 type Object interface {
+	Dumpable
+
 	// Kind returns the object kind to determine which kind of object to create.
 	Kind() string
 	// UniqueOID returns the OID of the object.
@@ -39,6 +60,8 @@ type Object interface {
 
 	// Relations returns the relations where the current object is the source.
 	Relations() []*Relation
+	// Blobs returns the optional blobs associated with this object.
+	Blobs() []*BlobRef
 
 	// Read rereads the object from YAML.
 	Read(r io.Reader) error
@@ -47,10 +70,6 @@ type Object interface {
 
 	// String returns a one-line description
 	String() string
-
-	ToYAML() string
-	ToJSON() string
-	ToMarkdown() string
 
 	// Update website/guides/devolopers/presentation.md
 }

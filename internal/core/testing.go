@@ -156,8 +156,8 @@ func MustCountNotes(t *testing.T) int {
 	return count
 }
 
-func MustCountLinks(t *testing.T) int {
-	count, err := CurrentRepository().CountLinks()
+func MustCountGoLinks(t *testing.T) int {
+	count, err := CurrentRepository().CountGoLinks()
 	require.NoError(t, err)
 	return count
 }
@@ -192,8 +192,8 @@ func AssertNoFlashcards(t *testing.T) {
 	require.Equal(t, 0, count)
 }
 
-func AssertNoLinks(t *testing.T) {
-	count, err := CurrentRepository().CountLinks()
+func AssertNoGoLinks(t *testing.T) {
+	count, err := CurrentRepository().CountGoLinks()
 	require.NoError(t, err)
 	require.Equal(t, 0, count)
 }
