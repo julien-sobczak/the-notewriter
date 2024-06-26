@@ -71,22 +71,22 @@ schemas:
   - name: Hooks
     attributes:
     - name: hook
-      type: array
+      type: string[]
       inherit: false
 
   - name: Tags
     attributes:
       - name: tags
-        type: array
+        type: string[]
 
   - name: Relations
     attributes:
       - name: source
         inherit: false
       - name: references
-        type: array
+        type: string[]
       - name: inspirations
-        type: array
+        type: string[]
 `
 
 // Edit website/docs/guides/linter.md after for updating this list

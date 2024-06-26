@@ -21,7 +21,150 @@ var (
 	regexBlockTagAttributesLine = regexp.MustCompile("^\\s*(`.*?`\\s+)*`.*?`\\s*$")        // Ex: `#favorite` `@isbn: 9780807014271`
 )
 
-func DiffKeys(a, b map[string]interface{}) []string {
+/*
+ * TagSet
+ */
+
+type TagSet []string
+
+var EmptyTags TagSet
+
+// NewTagSet creates a new tag set removing duplicate tags.
+func NewTagSet(tags []string) TagSet {
+	return EmptyTags.Merge(tags)
+}
+
+func (t TagSet) Merge(tagSets ...TagSet) TagSet {
+	var result TagSet
+
+	// Start with initial set
+	result = append(result, t...)
+
+	// Append new tag in other sets
+	for _, tags := range tagSets {
+		for _, tag := range tags {
+			if !slices.Contains(result, tag) {
+				result = append(result, tag)
+			}
+		}
+	}
+	return result
+}
+
+/*
+ * AttributeSet
+ */
+
+type AttributeSet map[string]any
+
+type CastFn[T any] func(v any) (T, bool)
+
+var CastStringFn CastFn[string] = func(value any) (string, bool) {
+	if IsPrimitive(value) {
+		return fmt.Sprintf("%v", value), true
+	}
+	return "", false
+}
+
+var CastObjectFn CastFn[any] = func(value any) (any, bool) {
+	if IsObject(value) {
+		return value, true
+	}
+	return nil, false
+}
+
+var CastIntegerFn CastFn[int64] = func(value any) (int64, bool) {
+	if IsString(value) {
+		stringValue := fmt.Sprintf("%v", value)
+		typedValue, err := strconv.ParseInt(stringValue, 10, 64)
+		if err == nil {
+			return typedValue, true
+		}
+		return 0, false
+	}
+	if IsInteger(value) {
+		switch v := value.(type) {
+		case int:
+			return int64(v), true
+		case int8:
+			return int64(v), true
+		case int16:
+			return int64(v), true
+		case int32:
+			return int64(v), true
+		case int64:
+			return int64(v), true
+		case uint:
+			return int64(v), true
+		case uint8:
+			return int64(v), true
+		case uint16:
+			return int64(v), true
+		case uint32:
+			return int64(v), true
+		case uint64:
+			return int64(v), true
+		case uintptr:
+			return int64(v), true
+		}
+	}
+
+	if IsFloat(value) {
+		switch v := value.(type) {
+		case float32:
+			return int64(v), true
+		case float64:
+			return int64(v), true
+		}
+	}
+
+	return 0, false
+}
+
+var CastFloatFn CastFn[float64] = func(value any) (float64, bool) {
+	if IsString(value) {
+		stringValue := fmt.Sprintf("%v", value)
+		typedValue, err := strconv.ParseFloat(stringValue, 64)
+		if err == nil {
+			return typedValue, true
+		}
+		return 0, false
+	}
+
+	if IsInteger(value) {
+		return float64(value.(int)), true
+	}
+
+	if IsFloat(value) {
+		switch v := value.(type) {
+		case float32:
+			return float64(v), true
+		case float64:
+			return v, true
+		}
+	}
+	return 0, false
+}
+
+var CastBoolFn CastFn[bool] = func(value any) (bool, bool) {
+	if IsString(value) {
+		if value == "true" {
+			return true, true
+		} else if value == "false" {
+			return false, true
+		} else {
+			return false, false
+		}
+	}
+	if IsBool(value) {
+		return value.(bool), true
+	}
+	return false, false
+}
+
+// DiffKeys returns the keys present in only one of the attribute sets.
+func (a AttributeSet) DiffKeys(other AttributeSet) []string {
+	b := other
 	var results []string
 	for key, valueA := range a {
 		valueB, ok := b[key]
@@ -39,236 +182,169 @@ func DiffKeys(a, b map[string]interface{}) []string {
 	return results
 }
 
-func AttributesJSON(attributes map[string]interface{}) (string, error) {
-	var buf bytes.Buffer
-	bufEncoder := json.NewEncoder(&buf)
-	err := bufEncoder.Encode(attributes)
-	if err != nil {
-		return "", err
-	}
-	return buf.String(), nil
-}
+// Const to represent an empty set of attributes
+var EmptyAttributes AttributeSet
 
-func AttributesYAML(attributes map[string]interface{}) (string, error) {
-	var buf bytes.Buffer
-	bufEncoder := yaml.NewEncoder(&buf)
-	bufEncoder.SetIndent(2)
-	err := bufEncoder.Encode(attributes)
-	if err != nil {
-		return "", err
-	}
-	return buf.String(), nil
-}
-
-func mergeTags(tags ...[]string) []string {
-	var result []string
-	for _, items := range tags {
-		for _, item := range items {
-			found := false
-			for _, existingItem := range result {
-				if existingItem == item {
-					found = true
-					break
-				}
-			}
-			if !found {
-				result = append(result, item)
-			}
-		}
-	}
-	return result
-}
-
-func MergeAttributes(attributes ...map[string]interface{}) map[string]interface{} {
-	// Implementation: Attribute lists must already have been casted correctly
-	// using the function CastAttributes.
-
-	result := make(map[string]interface{})
-	empty := true
-
-	// Iterate over maps
-	for _, m := range attributes {
-		for newKey, newValue := range m {
-			MergeAttribute(result, newKey, newValue)
-			empty = false
-		}
-	}
-	if empty {
-		return nil
-	}
-	return result
-}
-
-func MergeAttribute(attributes map[string]interface{}, name string, value interface{}) {
-	// Check if the attribute was already defined
-	currentValue, ok := attributes[name]
-
-	if !ok {
-		attributes[name] = value
-	}
-
-	// If the tyoe is a slice, append the new value instead of overriding
-	switch x := currentValue.(type) {
-	case []interface{}:
-		switch y := value.(type) {
-		case []interface{}:
-			attributes[name] = append(x, y...)
-		default:
-			attributes[name] = append(x, value)
-		}
-	default:
-		// override
-		attributes[name] = value
-	}
-}
-
-// UnmarshalAttributes unmarshall attributes and ensure the right types are used.
-func UnmarshalAttributes(rawValue string) (map[string]interface{}, error) {
+// NewAttributeSetFromYAML unmarshall attributes.
+func NewAttributeSetFromYAML(rawValue string) (AttributeSet, error) {
 	var attributes map[string]interface{}
 	err := yaml.Unmarshal([]byte(rawValue), &attributes)
 	if err != nil {
 		return nil, err
 	}
-	types := GetSchemaAttributeTypes()
-	return CastAttributes(attributes, types), nil
+	return attributes, nil
+}
+
+func (a AttributeSet) Merge(attributes ...AttributeSet) AttributeSet {
+	// Implementation: Attribute lists must already have been casted correctly to avoid incompatible types
+
+	var result AttributeSet = make(map[string]any)
+	for newKey, newValue := range a {
+		result.SetAttribute(newKey, newValue)
+	}
+	for _, m := range attributes {
+		for newKey, newValue := range m {
+			result.SetAttribute(newKey, newValue)
+		}
+	}
+
+	if len(result) == 0 {
+		return nil
+	}
+
+	return result
+}
+
+func (a AttributeSet) SetAttribute(name string, value any) {
+	// Check if the attribute was already defined
+	currentValue, ok := a[name]
+
+	if !ok {
+		a[name] = value
+	}
+
+	// If the type is a slice, append the new value instead of overriding
+	switch x := currentValue.(type) {
+	case []any:
+		switch y := value.(type) {
+		case []any:
+			a[name] = append(x, y...)
+		default:
+			a[name] = append(x, value)
+		}
+	default:
+		// override
+		a[name] = value
+	}
+}
+
+func (a AttributeSet) ToJSON() (string, error) {
+	var buf bytes.Buffer
+	bufEncoder := json.NewEncoder(&buf)
+	err := bufEncoder.Encode(a)
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+func (a AttributeSet) ToYAML() (string, error) {
+	var buf bytes.Buffer
+	bufEncoder := yaml.NewEncoder(&buf)
+	bufEncoder.SetIndent(2)
+	err := bufEncoder.Encode(a)
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
 }
 
 // CastAttributes enforces the types declared in linter schemas.
-func CastAttributes(attributes map[string]interface{}, types map[string]string) map[string]interface{} {
+func (a AttributeSet) Cast(types map[string]string) AttributeSet {
 	result := make(map[string]interface{})
 
 	// Implementation: We ignore invalid values to avoid having to cast or manage errors
 	// when reading them later.
 
-	for key, value := range attributes {
+	for key, value := range a {
 		declaredType, found := types[key]
 		if !found {
 			result[key] = value
 			continue
 		}
-		typedValue := CastAttribute(value, declaredType)
-		if typedValue != nil {
+		if typedValue, ok := CastAttribute(value, declaredType); ok {
 			result[key] = typedValue
 		}
 	}
+
 	return result
+}
+
+func CastArray[T any](arr []any, castFn CastFn[T]) (results []T, ok bool) {
+	for _, itemValue := range arr {
+		v, ok := castFn(itemValue)
+		if !ok {
+			return nil, false
+		}
+		results = append(results, v)
+	}
+	return results, true
 }
 
 // CastAttribute enforces the type declared in linter schemas.
-func CastAttribute(value interface{}, declaredType string) interface{} {
+func CastAttribute(value any, declaredType string) (any, bool) {
 	if value == nil {
-		return nil
+		return nil, true
 	}
-	switch declaredType {
-	case "array":
+
+	if strings.HasSuffix(declaredType, "[]") {
 		if !IsArray(value) {
-			if IsString(value) {
-				return []interface{}{fmt.Sprintf("%s", value)}
-			} else {
-				return []interface{}{value}
-			}
+			value = []any{value}
 		}
-		return value
+		itemType := strings.TrimSuffix(declaredType, "[]")
+		arr := UnpackArray(value)
+		switch itemType {
+		case "string":
+			return CastArray(arr, CastStringFn)
+		case "object":
+			return CastArray(arr, CastObjectFn)
+		case "integer":
+			return CastArray(arr, CastIntegerFn)
+		case "float":
+			return CastArray(arr, CastFloatFn)
+		case "bool":
+			return CastArray(arr, CastBoolFn)
+		}
+	}
+
+	switch declaredType {
 	case "string":
-		if IsPrimitive(value) {
-			typedValue := fmt.Sprintf("%v", value)
-			return typedValue
-		}
+		return CastStringFn(value)
 	case "object":
-		if IsObject(value) {
-			return value
-		}
-	case "number":
-		if IsString(value) {
-			stringValue := fmt.Sprintf("%v", value)
-			if strings.Contains(stringValue, ".") { // decimal point
-				typedValue, err := strconv.ParseFloat(stringValue, 64)
-				if err == nil {
-					return typedValue
-				}
-			} else {
-				typedValue, err := strconv.ParseInt(stringValue, 10, 64)
-				if err == nil {
-					return typedValue
-				}
-			}
-		} else if IsInteger(value) {
-			switch v := value.(type) {
-			case int:
-				return int64(v)
-			case int8:
-				return int64(v)
-			case int16:
-				return int64(v)
-			case int32:
-				return int64(v)
-			case int64:
-				return int64(v)
-			case uint:
-				return int64(v)
-			case uint8:
-				return int64(v)
-			case uint16:
-				return int64(v)
-			case uint32:
-				return int64(v)
-			case uint64:
-				return int64(v)
-			case uintptr:
-				return int64(v)
-			}
-		} else if IsFloat(value) {
-			switch v := value.(type) {
-			case float32:
-				return float64(v)
-			case float64:
-				return v
-			}
-		}
-	case "boolean":
-		fallthrough
+		return CastObjectFn(value)
+	case "integer":
+		return CastIntegerFn(value)
+	case "float":
+		return CastFloatFn(value)
 	case "bool":
-		if IsBool(value) {
-			return value
-		}
+		return CastBoolFn(value)
 	}
+
 	// Ignore invalid values
-	return nil
+	return nil, false
 }
 
-// NonInheritableAttributes returns the attributes that must not be inherited.
-func NonInheritableAttributes(relativePath string, kind NoteKind) []string {
-	var results []string
-	definitions := GetSchemaAttributes(relativePath, kind)
-	for _, definition := range definitions {
-		if !*definition.Inherit {
-			results = append(results, definition.Name)
-		}
-	}
-	return results
-}
-
-// FilterNonInheritableAttributes removes from the list all non-inheritable attributes.
-func FilterNonInheritableAttributes(attributes map[string]interface{}, relativePath string, kind NoteKind) map[string]interface{} {
-	nonInheritableAttributes := NonInheritableAttributes(relativePath, kind)
-	result := make(map[string]interface{})
-	for key, value := range attributes {
-		if slices.Contains(nonInheritableAttributes, key) {
-			// non-inheritable
-			continue
-		}
-		result[key] = value
-	}
-	return result
-}
+/*
+ * Markdown
+ */
 
 // ExtractBlockTagsAndAttributes searches for all tags and attributes declared on standalone lines
 // (in comparison with tags/attributes defined, for example, on To-Do list items).
-func ExtractBlockTagsAndAttributes(content markdown.Document) ([]string, map[string]interface{}) {
+func ExtractBlockTagsAndAttributes(content markdown.Document, types map[string]string) (TagSet, AttributeSet) {
 
 	// Collect tags and attributes
-	var tags []string
-	var attributes map[string]interface{} = make(map[string]interface{})
+	var tags TagSet
+	var attributes AttributeSet = make(map[string]interface{})
 
 	for _, line := range content.Lines() {
 
@@ -296,7 +372,13 @@ func ExtractBlockTagsAndAttributes(content markdown.Document) ([]string, map[str
 			name := match[1]
 			value := match[2]
 
-			MergeAttribute(attributes, name, CastAttribute(value, GetSchemaAttributeType(name)))
+			declaredType := "string"
+			if types[name] != "" {
+				declaredType = types[name]
+			}
+			if typedValue, ok := CastAttribute(value, declaredType); ok {
+				attributes.SetAttribute(name, typedValue)
+			}
 
 			// Tags can also be set as attributes (= longer syntax)
 			if name == "tags" {
@@ -309,32 +391,30 @@ func ExtractBlockTagsAndAttributes(content markdown.Document) ([]string, map[str
 }
 
 // StripTagsAndAttributes remove all tags and attributes.
-func StripBlockTagsAndAttributes(content string) string {
+func StripBlockTagsAndAttributes(content markdown.Document) markdown.Document {
 	var res bytes.Buffer
 
-	lines := strings.Split(content, "\n")
-	for _, line := range lines {
-
+	for _, line := range content.Lines() {
 		// not only tags and attributes?
 		if text.IsBlank(line) || strings.HasPrefix(line, "```") || !regexBlockTagAttributesLine.MatchString(line) {
 			res.WriteString(line + "\n")
 		}
 	}
 
-	return strings.TrimSpace(text.SquashBlankLines(res.String()))
+	return markdown.Document(text.SquashBlankLines(res.String())).TrimSpace()
 }
 
-// RemoveTagsAndAttributes removes all tags and attributes from a text.
-func RemoveTagsAndAttributes(content string) string {
+// StripAllTagsAndAttributes removes all tags and attributes from a text.
+func StripAllTagsAndAttributes(content markdown.Document) markdown.Document {
 	var res bytes.Buffer
-	for _, line := range strings.Split(content, "\n") {
+	for _, line := range content.Lines() {
 		newLine := regexTags.ReplaceAllLiteralString(line, "")
 		newLine = regexAttributes.ReplaceAllLiteralString(newLine, "")
 		if !text.IsBlank(newLine) {
 			res.WriteString(newLine + "\n")
 		}
 	}
-	return strings.TrimSpace(text.SquashBlankLines(res.String()))
+	return markdown.Document(text.SquashBlankLines(res.String())).TrimSpace()
 }
 
 /* Helpers */
@@ -453,4 +533,13 @@ func IsBool(value interface{}) bool {
 // IsString returns if a variable is a JSON string.
 func IsString(value interface{}) bool {
 	return reflect.String == reflect.TypeOf(value).Kind()
+}
+
+func UnpackArray(value any) []any {
+	v := reflect.ValueOf(value)
+	r := make([]any, v.Len())
+	for i := 0; i < v.Len(); i++ {
+		r[i] = v.Index(i).Interface()
+	}
+	return r
 }

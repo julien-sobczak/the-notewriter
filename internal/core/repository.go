@@ -341,6 +341,7 @@ func (r *Repository) Add(paths ...string) error {
 	defer db.RollbackTransaction()
 
 	// Save the medias
+	// TODO create packfiles
 	for _, media := range updatedMedias {
 		if err := media.Save(); err != nil {
 			return err
@@ -478,8 +479,8 @@ func (r *Repository) Add(paths ...string) error {
 		return err
 	}
 
-	packFile := file.ToPackFile()
-	db.index.StagePackFile(packFile)
+	// TODO create packfile
+	// db.index.StagePackFile(packFile)
 
 	// And to persist the index
 	if err := db.index.Save(); err != nil {

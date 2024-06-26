@@ -21,10 +21,10 @@ func OIDToPath(oid string) string {
 
 type BlobRef struct {
 	// OID to locate the blob file in .nt/objects
-	OID        string                 `yaml:"oid" json:"oid"`
-	MimeType   string                 `yaml:"mime" json:"mime"`
-	Attributes map[string]interface{} `yaml:"attributes" json:"attributes"`
-	Tags       []string               `yaml:"tags" json:"tags"`
+	OID        string       `yaml:"oid" json:"oid"`
+	MimeType   string       `yaml:"mime" json:"mime"`
+	Attributes AttributeSet `yaml:"attributes" json:"attributes"`
+	Tags       TagSet       `yaml:"tags" json:"tags"`
 }
 
 func (b *BlobRef) ToYAML() string {

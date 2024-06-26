@@ -42,7 +42,7 @@ type File struct {
 	FrontMatter markdown.FrontMatter `yaml:"front_matter" json:"front_matter"`
 
 	// Merged attributes
-	Attributes map[string]any `yaml:"attributes,omitempty" json:"attributes,omitempty"`
+	Attributes AttributeSet `yaml:"attributes,omitempty" json:"attributes,omitempty"`
 
 	// Original title of the main heading without leading # characters
 	Title markdown.Document `yaml:"title,omitempty" json:"title,omitempty"`
@@ -310,7 +310,7 @@ func NewFile(parent *File, parsedFile *ParsedFileNew) (*File, error) {
 	return file, nil
 }
 
-func (f *File) mergeAttributes(attributes ...map[string]interface{}) map[string]interface{} {
+func (f *File) mergeAttributes(attributes ...AttributeSet) AttributeSet { // TODO r
 	// File attributes are always inheritable to top level-notes
 	// (NB: `source` is configured to be non-inheritable).
 	//
@@ -328,7 +328,7 @@ func (f *File) mergeAttributes(attributes ...map[string]interface{}) map[string]
 	//   ## Note: Parent
 	//   `@source:XXX`
 	//   ### Note: Child
-	return MergeAttributes(attributes...)
+	return EmptyAttributes.Merge(attributes...)
 }
 
 /* Object */
@@ -635,7 +635,7 @@ func (f *File) Insert() error {
 	if err != nil {
 		return err
 	}
-	attributesJSON, err := AttributesJSON(f.Attributes)
+	attributesJSON, err := f.Attributes.ToJSON()
 	if err != nil {
 		return err
 	}
@@ -694,7 +694,7 @@ func (f *File) Update() error {
 	if err != nil {
 		return err
 	}
-	attributesJSON, err := AttributesJSON(f.Attributes)
+	attributesJSON, err := f.Attributes.ToJSON()
 	if err != nil {
 		return err
 	}
@@ -837,12 +837,12 @@ func QueryFile(db SQLClient, whereClause string, args ...any) (*File, error) {
 		return nil, err
 	}
 
-	attributes, err := UnmarshalAttributes(attributesRaw)
+	attributes, err := NewAttributeSetFromYAML(attributesRaw)
 	if err != nil {
 		return nil, err
 	}
 
-	f.Attributes = attributes
+	f.Attributes = attributes.Cast(GetSchemaAttributeTypes())
 	f.CreatedAt = timeFromSQL(createdAt)
 	f.UpdatedAt = timeFromSQL(updatedAt)
 	f.LastCheckedAt = timeFromSQL(lastCheckedAt)
@@ -912,12 +912,12 @@ func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) 
 			return nil, err
 		}
 
-		attributes, err := UnmarshalAttributes(attributesRaw)
+		attributes, err := NewAttributeSetFromYAML(attributesRaw)
 		if err != nil {
 			return nil, err
 		}
 
-		f.Attributes = attributes
+		f.Attributes = attributes.Cast(GetSchemaAttributeTypes())
 		f.CreatedAt = timeFromSQL(createdAt)
 		f.UpdatedAt = timeFromSQL(updatedAt)
 		f.LastCheckedAt = timeFromSQL(lastCheckedAt)

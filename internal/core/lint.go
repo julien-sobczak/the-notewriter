@@ -226,6 +226,32 @@ func GetSchemaAttributes(relativePath string, kind NoteKind) []*ConfigLintSchema
 	return results
 }
 
+// NonInheritableAttributes returns the attributes that must not be inherited.
+func NonInheritableAttributes(relativePath string, kind NoteKind) []string {
+	var results []string
+	definitions := GetSchemaAttributes(relativePath, kind)
+	for _, definition := range definitions {
+		if !*definition.Inherit {
+			results = append(results, definition.Name)
+		}
+	}
+	return results
+}
+
+// FilterNonInheritableAttributes removes from the list all non-inheritable attributes.
+func FilterNonInheritableAttributes(attributes map[string]interface{}, relativePath string, kind NoteKind) map[string]interface{} {
+	nonInheritableAttributes := NonInheritableAttributes(relativePath, kind)
+	result := make(map[string]interface{})
+	for key, value := range attributes {
+		if slices.Contains(nonInheritableAttributes, key) {
+			// non-inheritable
+			continue
+		}
+		result[key] = value
+	}
+	return result
+}
+
 /* Rules */
 
 // NoDuplicateNoteTitle implements the rule "no-duplicate-note-title".
@@ -595,7 +621,7 @@ func RequireQuoteTag(file *ParsedFileNew, args []string) ([]*Violation, error) {
 			continue
 		}
 
-		attributes := MergeAttributes(file.FileAttributes, note.NoteAttributes)
+		attributes := file.FileAttributes.Merge(note.NoteAttributes)
 		tags := note.NoteTags
 		if attributeValue, ok := attributes["tags"]; ok {
 			if attributeTags, ok := attributeValue.([]interface{}); ok {

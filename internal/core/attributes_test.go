@@ -4,193 +4,407 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 )
 
-func TestMergeTags(t *testing.T) {
-	var tests = []struct {
-		name     string // name
-		inputA   []string
-		inputB   []string
-		expected []string
-	}{
-		{
-			"empty slices",
-			nil,
-			nil,
-			nil,
-		},
-		{
-			"empty slice",
-			[]string{"favorite"},
-			nil,
-			[]string{"favorite"},
-		},
-		{
-			"single value",
-			[]string{"favorite"},
-			[]string{"life-changing"},
-			[]string{"favorite", "life-changing"},
-		},
-		{
-			"multiple values",
-			[]string{"a", "b"},
-			[]string{"c", "d"},
-			[]string{"a", "b", "c", "d"},
-		},
-		{
-			"duplicates",
-			[]string{"a", "b"},
-			[]string{"b", "c"},
-			[]string{"a", "b", "c"},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			actual := mergeTags(tt.inputA, tt.inputB)
-			assert.Equal(t, tt.expected, actual)
-		})
-	}
+func TestTagSet(t *testing.T) {
+
+	t.Run("NewTagSet", func(t *testing.T) {
+		var tests = []struct {
+			name     string // name
+			inputA   TagSet
+			inputB   TagSet
+			expected TagSet
+		}{
+			{
+				"empty slices",
+				nil,
+				nil,
+				nil,
+			},
+			{
+				"empty slice",
+				[]string{"favorite"},
+				nil,
+				[]string{"favorite"},
+			},
+			{
+				"single value",
+				[]string{"favorite"},
+				[]string{"life-changing"},
+				[]string{"favorite", "life-changing"},
+			},
+			{
+				"multiple values",
+				[]string{"a", "b"},
+				[]string{"c", "d"},
+				[]string{"a", "b", "c", "d"},
+			},
+			{
+				"duplicates",
+				[]string{"a", "b"},
+				[]string{"b", "c"},
+				[]string{"a", "b", "c"},
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				actual := NewTagSet(tt.inputA).Merge(tt.inputB)
+				assert.Equal(t, tt.expected, actual)
+			})
+		}
+	})
+
 }
 
-func TestStripBlockTagsAndAttributes(t *testing.T) {
-	tests := []struct {
-		name     string
-		md       string // input
-		expected string // output
-	}{
-		{
-			name: "Basic",
-			md: "" +
-				"`#favorite` `#life-changing`\n" +
-				"`@isbn: 0671244221`\n" +
-				"\n" +
-				"My note\n",
-			expected: "My note",
-		},
-		{
-			name: "Code Block",
-			md: "" +
-				"```go" +
-				"fmt.Println(`Hello`)\n" +
-				"```\n",
-			expected: "" +
-				"```go" +
-				"fmt.Println(`Hello`)\n" +
-				"```",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			actual := StripBlockTagsAndAttributes(tt.md)
-			assert.Equal(t, tt.expected, actual)
-		})
-	}
+func TestCastFn(t *testing.T) {
+
+	t.Run("CastStringFn", func(t *testing.T) {
+		v, ok := CastStringFn("string")
+		// String is OK
+		assert.True(t, ok)
+		assert.Equal(t, "string", v)
+
+		v, ok = CastStringFn("")
+		assert.True(t, ok)
+		assert.Equal(t, "", v)
+
+		// Primitive types are OK
+		v, ok = CastStringFn(false)
+		assert.True(t, ok)
+		assert.Equal(t, "false", v)
+
+		v, ok = CastStringFn(10)
+		assert.True(t, ok)
+		assert.Equal(t, "10", v)
+
+		v, ok = CastStringFn(10)
+		assert.True(t, ok)
+		assert.Equal(t, "10", v)
+
+		// Other types are KO
+		_, ok = CastStringFn(map[string]any{"key": "value"})
+		assert.False(t, ok)
+		_, ok = CastStringFn(struct{ id int }{id: 1})
+		assert.False(t, ok)
+	})
+
+	t.Run("CastObjectFn", func(t *testing.T) {
+		v, ok := CastObjectFn(map[string]any{"key": "value"})
+		assert.True(t, ok)
+		assert.Equal(t, map[string]any{"key": "value"}, v)
+		v, ok = CastObjectFn(struct{ id int }{id: 1})
+		assert.True(t, ok)
+		assert.NotNil(t, v)
+
+		// Other types cannot be casted
+		_, ok = CastObjectFn("test")
+		assert.False(t, ok)
+		_, ok = CastObjectFn(10)
+		assert.False(t, ok)
+	})
+
+	t.Run("CastIntegerFn", func(t *testing.T) {
+		// Integers are OK
+		v, ok := CastIntegerFn(int(10))
+		assert.True(t, ok)
+		assert.Equal(t, int64(10), v)
+		v, ok = CastIntegerFn(int8(10))
+		assert.True(t, ok)
+		assert.Equal(t, int64(10), v)
+		v, ok = CastIntegerFn(int16(10))
+		assert.True(t, ok)
+		assert.Equal(t, int64(10), v)
+		v, ok = CastIntegerFn(int32(10))
+		assert.True(t, ok)
+		assert.Equal(t, int64(10), v)
+		v, ok = CastIntegerFn(int64(10))
+		assert.True(t, ok)
+		assert.Equal(t, int64(10), v)
+		v, ok = CastIntegerFn(uint(10))
+		assert.True(t, ok)
+		assert.Equal(t, int64(10), v)
+
+		// String are OK if integer
+		v, ok = CastIntegerFn("10")
+		assert.True(t, ok)
+		assert.Equal(t, int64(10), v)
+
+		_, ok = CastIntegerFn("10.0")
+		assert.False(t, ok)
+		_, ok = CastIntegerFn("not an integer")
+		assert.False(t, ok)
+	})
+
+	t.Run("CastFloatFn", func(t *testing.T) {
+		// Floats are KO
+		v, ok := CastFloatFn(float32(10.0))
+		assert.True(t, ok)
+		assert.Equal(t, float64(10), v)
+		v, ok = CastFloatFn(float64(10.0))
+		assert.True(t, ok)
+		assert.Equal(t, float64(10), v)
+
+		// Integer are OK
+		v, ok = CastFloatFn(10)
+		assert.True(t, ok)
+		assert.Equal(t, float64(10), v)
+
+		// Strings are OK if integer or float
+		v, ok = CastFloatFn("10")
+		assert.True(t, ok)
+		assert.Equal(t, float64(10), v)
+		v, ok = CastFloatFn("10.0")
+		assert.True(t, ok)
+		assert.Equal(t, float64(10), v)
+		_, ok = CastFloatFn("invalid")
+		assert.False(t, ok)
+	})
+
+	t.Run("CastBoolFn", func(t *testing.T) {
+		// Booleans are OK
+		v, ok := CastBoolFn(true)
+		assert.True(t, ok)
+		assert.Equal(t, true, v)
+		v, ok = CastBoolFn(false)
+		assert.True(t, ok)
+		assert.Equal(t, false, v)
+
+		// Strings are OK if true|false
+		v, ok = CastBoolFn("true")
+		assert.True(t, ok)
+		assert.Equal(t, true, v)
+		v, ok = CastBoolFn("false")
+		assert.True(t, ok)
+		assert.Equal(t, false, v)
+		_, ok = CastBoolFn("vrai")
+		assert.False(t, ok)
+	})
+
 }
 
-func TestMergeAttributes(t *testing.T) {
-	var tests = []struct {
-		name     string // name
-		inputA   map[string]interface{}
-		inputB   map[string]interface{}
-		expected map[string]interface{}
-	}{
-		{
-			name:     "nil maps",
-			inputA:   nil,
-			inputB:   nil,
-			expected: nil,
-		},
-		{
-			name: "append in slices",
-			inputA: map[string]interface{}{
-				"tags": []string{"a", "b"},
-			},
-			inputB: map[string]interface{}{
-				"tags": "c", // Must not happen
-			},
-			expected: map[string]interface{}{
-				"tags": "c", // Last definition wins
-			},
-		},
-		{
-			name: "append in slices",
-			inputA: map[string]interface{}{
-				"tags": []interface{}{"a", "b"},
-			},
-			inputB: map[string]interface{}{
-				"tags": []interface{}{"c", "d"},
-			},
-			expected: map[string]interface{}{
-				"tags": []interface{}{"a", "b", "c", "d"},
-			},
-		},
-		{
-			name: "override basic value",
-			inputA: map[string]interface{}{
-				"tags": "a",
-			},
-			inputB: map[string]interface{}{
-				"tags": "b",
-			},
-			expected: map[string]interface{}{
-				"tags": "b",
-			},
-		},
-		{
-			name: "add new keys",
-			inputA: map[string]interface{}{
-				"a": "a",
-			},
-			inputB: map[string]interface{}{
-				"b": "b",
-			},
-			expected: map[string]interface{}{
-				"a": "a",
-				"b": "b",
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			actual := MergeAttributes(tt.inputA, tt.inputB)
-			assert.Equal(t, tt.expected, actual)
+func TestAttributeSet(t *testing.T) {
+
+	t.Run("NewAttributeSetFromYAML", func(t *testing.T) {
+		frontMatter := `
+title: "A notebook"
+tags: favorite
+`
+		actual, err := NewAttributeSetFromYAML(frontMatter)
+		require.NoError(t, err)
+		expected := AttributeSet(map[string]any{
+			"title": "A notebook",
+			"tags":  "favorite",
 		})
-	}
+		assert.Equal(t, expected, actual)
+	})
+
+	t.Run("DiffKeys", func(t *testing.T) {
+		var tests = []struct {
+			name     string
+			a        AttributeSet
+			b        AttributeSet
+			expected []string
+		}{
+			{
+				name: "Basic",
+				a: map[string]interface{}{
+					"1": "toto",
+					"2": []string{"toto"},
+					"3": 3,
+					"4": "OK",
+				},
+				b: map[string]interface{}{
+					// 1 is missing
+					"2": "toto", // different type
+					"3": "3",    // different type
+					"4": "OK",
+				},
+				expected: []string{"1", "2", "3"},
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				actual := tt.a.DiffKeys(tt.b)
+				assert.Equal(t, tt.expected, actual)
+			})
+		}
+	})
+
+	t.Run("Merge", func(t *testing.T) {
+		var tests = []struct {
+			name     string // name
+			inputA   AttributeSet
+			inputB   AttributeSet
+			expected AttributeSet
+		}{
+			{
+				name:     "nil maps",
+				inputA:   nil,
+				inputB:   nil,
+				expected: nil,
+			},
+			{
+				name: "append in slices",
+				inputA: map[string]interface{}{
+					"tags": []string{"a", "b"},
+				},
+				inputB: map[string]interface{}{
+					"tags": "c", // Must not happen
+				},
+				expected: map[string]interface{}{
+					"tags": "c", // Last definition wins
+				},
+			},
+			{
+				name: "append in slices",
+				inputA: map[string]interface{}{
+					"tags": []interface{}{"a", "b"},
+				},
+				inputB: map[string]interface{}{
+					"tags": []interface{}{"c", "d"},
+				},
+				expected: map[string]interface{}{
+					"tags": []interface{}{"a", "b", "c", "d"},
+				},
+			},
+			{
+				name: "override basic value",
+				inputA: map[string]interface{}{
+					"tags": "a",
+				},
+				inputB: map[string]interface{}{
+					"tags": "b",
+				},
+				expected: map[string]interface{}{
+					"tags": "b",
+				},
+			},
+			{
+				name: "add new keys",
+				inputA: map[string]interface{}{
+					"a": "a",
+				},
+				inputB: map[string]interface{}{
+					"b": "b",
+				},
+				expected: map[string]interface{}{
+					"a": "a",
+					"b": "b",
+				},
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				actual := tt.inputA.Merge(tt.inputB)
+				assert.Equal(t, tt.expected, actual)
+			})
+		}
+	})
+
+	t.Run("ToJSON", func(t *testing.T) {
+		attributes := AttributeSet(map[string]any{
+			"key1": 10,
+			"key2": []string{"value1", "value2"},
+			"key3": map[string]any{
+				"subkey1": 1.5,
+				"subkey2": true,
+			},
+		})
+		actual, err := attributes.ToJSON()
+		require.NoError(t, err)
+		expected := `{"key1":10,"key2":["value1","value2"],"key3":{"subkey1":1.5,"subkey2":true}}`
+		assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
+	})
+
+	t.Run("ToYAML", func(t *testing.T) {
+		attributes := AttributeSet(map[string]any{
+			"key1": 10,
+			"key2": []string{"value1", "value2"},
+			"key3": map[string]any{
+				"subkey1": 1.5,
+				"subkey2": true,
+			},
+		})
+		actual, err := attributes.ToYAML()
+		require.NoError(t, err)
+		expected := `
+key1: 10
+key2:
+  - value1
+  - value2
+key3:
+  subkey1: 1.5
+  subkey2: true
+`
+		assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
+	})
+
+	t.Run("Cast", func(t *testing.T) {
+		attributes := AttributeSet(map[string]any{
+			"key1": 10,
+			"key2": []any{"value1", "value2"},
+			"key3": 15.5,
+			"key4": "single",
+		})
+
+		actual := attributes.Cast(map[string]string{
+			"key1": "string",
+			"key2": "string[]",
+			"key3": "integer",
+			"key4": "string[]",
+		})
+		expected := AttributeSet(map[string]any{
+			"key1": "10",
+			"key2": []string{"value1", "value2"},
+			"key3": int64(15),
+			"key4": []string{"single"},
+		})
+		assert.Equal(t, expected, actual)
+	})
+
 }
 
-func TestDiffKeys(t *testing.T) {
-	var tests = []struct {
-		name     string
-		a        map[string]interface{}
-		b        map[string]interface{}
-		expected []string
-	}{
-		{
-			name: "Basic",
-			a: map[string]interface{}{
-				"1": "toto",
-				"2": []string{"toto"},
-				"3": 3,
-				"4": "OK",
+func TestMarkdownAttributes(t *testing.T) {
+
+	t.Run("StripBlockTagsAndAttributes", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			md       markdown.Document // input
+			expected markdown.Document // output
+		}{
+			{
+				name: "Basic",
+				md: "" +
+					"`#favorite` `#life-changing`\n" +
+					"`@isbn: 0671244221`\n" +
+					"\n" +
+					"My note\n",
+				expected: "My note",
 			},
-			b: map[string]interface{}{
-				// 1 is missing
-				"2": "toto", // different type
-				"3": "3",    // different type
-				"4": "OK",
+			{
+				name: "Code Block",
+				md: "" +
+					"```go" +
+					"fmt.Println(`Hello`)\n" +
+					"```\n",
+				expected: "" +
+					"```go" +
+					"fmt.Println(`Hello`)\n" +
+					"```",
 			},
-			expected: []string{"1", "2", "3"},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			actual := DiffKeys(tt.a, tt.b)
-			assert.Equal(t, tt.expected, actual)
-		})
-	}
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				actual := StripBlockTagsAndAttributes(tt.md)
+				assert.Equal(t, tt.expected, actual)
+			})
+		}
+	})
+
 }
 
 func TestIsXXX(t *testing.T) {
@@ -223,6 +437,8 @@ object:
 	assert.True(t, IsObject(data["object"]))
 }
 
+/* Learning Tests */
+
 func TestYAMLListWithDifferentTypes(t *testing.T) {
 	// Learning test to ensure a YAML list can contains variables of different types.
 	input := `
@@ -240,68 +456,4 @@ key:
 	assert.Equal(t, 10, values[0])
 	assert.Equal(t, "string", values[1])
 	assert.Equal(t, true, values[2])
-}
-
-func TestYAMLUnmarshallOnInlineAttributes(t *testing.T) {
-	// Learning test to ensure YAML Unmarshall returns the correct variable type
-	// when parsing inline attributes (in the same way we would parse them
-	// if present in the Front Matter of a file).
-	tests := []struct {
-		input string // Important: Use "key" as key name
-		value interface{}
-	}{
-		{
-			"@key: http://google.com",
-			"http://google.com",
-		},
-		{
-			"@key: 10",
-			10,
-		},
-		{
-			"@key: 3.14",
-			3.14,
-		},
-		{
-			"@key: true",
-			true,
-		},
-		{
-			"@key: false",
-			false,
-		},
-	}
-	for _, tt := range tests {
-		yamlDoc := strings.TrimPrefix(tt.input, "@")
-		data := make(map[string]interface{})
-		err := yaml.Unmarshal([]byte(yamlDoc), &data)
-		require.NoError(t, err)
-		assert.Equal(t, tt.value, data["key"])
-	}
-}
-
-func TestCastAttributes(t *testing.T) {
-	types := map[string]string{
-		"tags":        "array",
-		"isbn":        "string",
-		"references":  "array",
-		"ease-factor": "number",
-		"lapses":      "number",
-	}
-
-	actual := CastAttributes(map[string]interface{}{
-		"tags":        "favorite",    // must be converted to an array
-		"isbn":        9780807014271, // must be converted to a string
-		"references":  []interface{}{"a book"},
-		"ease-factor": "2.5",
-		"lapses":      "10",
-	}, types)
-	expected := map[string]interface{}{
-		"tags":        []interface{}{"favorite"},
-		"isbn":        "9780807014271",
-		"references":  []interface{}{"a book"},
-		"ease-factor": float64(2.5),
-		"lapses":      int64(10),
-	}
-	assert.Equal(t, expected, actual)
 }

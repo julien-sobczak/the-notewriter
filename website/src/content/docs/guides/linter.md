@@ -492,7 +492,7 @@ schemas:
   attributes:           # Define a list of attributes
     - name: name        # The attribute name
       aliases: [author] # Optional aliases for the attribute name
-      type: string      # One of: array, string (default), boolean, number, object
+      type: string      # One of: string[], string (default), boolean, number, object
       required: true    # Mandatory? (default: false)
       inherit: true     # Attribute is inheritable by sub-notes? (default: true)
 ```
@@ -505,22 +505,22 @@ schemas:
   - name: Hooks
     attributes:
     - name: hook
-      type: array
+      type: string[]
       inherit: false
 
   - name: Tags
     attributes:
       - name: tags
-        type: array
+        type: string[]
 
   - name: Relations
     attributes:
       - name: source
         inherit: false
       - name: references
-        type: array
+        type: string[]
       - name: inspirations
-        type: array
+        type: string[]
 ```
 
 Declaring attributes as `array` is convenient as value will automatically be appended to existing values:

@@ -87,10 +87,10 @@ type Note struct {
 	Wikilink string `yaml:"wikilink" json:"wikilink"`
 
 	// Merged attributes
-	Attributes map[string]any `yaml:"attributes,omitempty" json:"attributes,omitempty"`
+	Attributes AttributeSet `yaml:"attributes,omitempty" json:"attributes,omitempty"`
 
 	// Merged tags
-	Tags []string `yaml:"tags,omitempty" json:"tags,omitempty"`
+	Tags TagSet `yaml:"tags,omitempty" json:"tags,omitempty"`
 
 	// Line number (1-based index) of the note section title
 	Line int `yaml:"line" json:"line"`
@@ -364,8 +364,6 @@ func (n *Note) update(f *File, parent *Note, parsedNote *ParsedNoteNew) {
 		n.stale = true
 	}
 
-
-
 	// Set dynamic properties
 	n.updateLongTitle()                 // Require the file and optional parent
 	n.updateContent(parsedNote.Content) // Require the file
@@ -498,7 +496,7 @@ func (n *Note) updateContent(newContent markdown.Document) {
 	n.ContentRaw = newContent
 	n.Hash = n.ContentRaw.Hash()
 
-	tags, attributes := ExtractBlockTagsAndAttributes(n.ContentRaw)
+	tags, attributes := ExtractBlockTagsAndAttributes(n.ContentRaw, GetSchemaAttributeTypes())
 
 	// Merge with parent attributes
 	if n.ParentNoteOID == "" {
@@ -509,9 +507,9 @@ func (n *Note) updateContent(newContent markdown.Document) {
 
 	// Merge with parent tags
 	if n.ParentNoteOID == "" {
-		tags = mergeTags(n.GetFile().GetTags(), tags)
+		tags = tags.Merge(n.GetFile().GetTags(), tags)
 	} else {
-		tags = mergeTags(n.GetParentNote().GetTags(), tags)
+		tags = tags.Merge(n.GetParentNote().GetTags(), tags)
 	}
 
 	n.Tags = tags
@@ -610,22 +608,22 @@ func (n *Note) updateContent(newContent markdown.Document) {
 }
 
 // mergeAttributes is similar to generic mergeAttributes function but filter to exclude non-inheritable attributes.
-func (n *Note) mergeAttributes(fileAttributes, parentNoteAttributes, noteAttributes map[string]interface{}) map[string]interface{} {
+func (n *Note) mergeAttributes(fileAttributes, parentNoteAttributes, noteAttributes AttributeSet) map[string]interface{} {
 	inheritableFileAttributes := fileAttributes
 	inheritableParentNoteAttributes := FilterNonInheritableAttributes(parentNoteAttributes, n.RelativePath, n.NoteKind)
 	ownAttributes := noteAttributes
-	return MergeAttributes(inheritableFileAttributes, inheritableParentNoteAttributes, ownAttributes)
+	return fileAttributes.Merge(inheritableFileAttributes, inheritableParentNoteAttributes, ownAttributes)
 }
 
 // GetNoteAttributes returns the attributes specifically present on the note.
 func (n *Note) GetNoteAttributes() map[string]interface{} {
-	_, attributes := ExtractBlockTagsAndAttributes(n.ContentRaw)
-	return CastAttributes(attributes, GetSchemaAttributeTypes())
+	_, attributes := ExtractBlockTagsAndAttributes(n.ContentRaw, GetSchemaAttributeTypes())
+	return attributes.Cast(GetSchemaAttributeTypes())
 }
 
 // GetNoteTags returns the tags specifically present on the note.
 func (n *Note) GetNoteTags() []string {
-	tags, _ := ExtractBlockTagsAndAttributes(n.ContentRaw)
+	tags, _ := ExtractBlockTagsAndAttributes(n.ContentRaw, GetSchemaAttributeTypes())
 	return tags
 }
 
@@ -821,7 +819,7 @@ func (n *Note) Insert() error {
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 
-	attributesJSON, err := AttributesJSON(n.Attributes)
+	attributesJSON, err := n.Attributes.ToJSON()
 	if err != nil {
 		return err
 	}
@@ -881,7 +879,7 @@ func (n *Note) Update() error {
 		WHERE oid = ?;
 	`
 
-	attributesJSON, err := AttributesJSON(n.Attributes)
+	attributesJSON, err := n.Attributes.ToJSON()
 	if err != nil {
 		return err
 	}
@@ -1258,12 +1256,12 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 		return nil, err
 	}
 
-	attributes, err := UnmarshalAttributes(attributesRaw)
+	attributes, err := NewAttributeSetFromYAML(attributesRaw)
 	if err != nil {
 		return nil, err
 	}
 
-	n.Attributes = attributes
+	n.Attributes = attributes.Cast(GetSchemaAttributeTypes())
 	n.Tags = strings.Split(tagsRaw, ",")
 	n.CreatedAt = timeFromSQL(createdAt)
 	n.UpdatedAt = timeFromSQL(updatedAt)
@@ -1337,12 +1335,12 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			return nil, err
 		}
 
-		attributes, err := UnmarshalAttributes(attributesRaw)
+		attributes, err := NewAttributeSetFromYAML(attributesRaw)
 		if err != nil {
 			return nil, err
 		}
 
-		n.Attributes = attributes
+		n.Attributes = attributes.Cast(GetSchemaAttributeTypes())
 		n.Tags = strings.Split(tagsRaw, ",")
 		n.CreatedAt = timeFromSQL(createdAt)
 		n.UpdatedAt = timeFromSQL(updatedAt)

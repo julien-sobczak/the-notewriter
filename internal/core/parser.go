@@ -39,7 +39,7 @@ type ParsedFileNew struct {
 	ShortTitle markdown.Document
 
 	// File attributes extracted from the Front Matter
-	FileAttributes map[string]interface{}
+	FileAttributes AttributeSet
 
 	// Extracted objects
 	Notes     []*ParsedNoteNew
@@ -68,8 +68,8 @@ type ParsedNoteNew struct {
 	Content        markdown.Document
 	Body           markdown.Document
 	Comment        markdown.Document
-	NoteAttributes map[string]interface{}
-	NoteTags       []string
+	NoteAttributes AttributeSet
+	NoteTags       TagSet
 
 	// Extracted objects
 	Flashcard *ParsedFlashcardNew
@@ -177,10 +177,10 @@ func ParseFile(repositoryAbsolutePath string, md *markdown.File) (*ParsedFileNew
 	if err != nil {
 		return nil, err
 	}
-	// fileAttributes := CastAttributes(frontMatter, GetSchemaAttributeTypes()) // FIXME move in file
-	fileAttributes := frontMatter
+	fileAttributes := AttributeSet(frontMatter).Cast(GetSchemaAttributeTypes())
 
 	// Check if file must be ignored
+	// FIXME if fileAttributes.Tags().Includes("ignore") {
 	if value, ok := fileAttributes["tags"]; ok {
 		if v, ok := value.(string); ok && v == "ignore" {
 			return nil, nil
@@ -245,6 +245,7 @@ func ParseFile(repositoryAbsolutePath string, md *markdown.File) (*ParsedFileNew
 }
 
 func (p *ParsedFileNew) extractNotes() ([]*ParsedNoteNew, error) {
+
 	// All notes collected until now
 	var notes []*ParsedNoteNew
 
@@ -264,7 +265,7 @@ func (p *ParsedFileNew) extractNotes() ([]*ParsedNoteNew, error) {
 		}
 
 		// Determine the attributes
-		tags, attributes := ExtractBlockTagsAndAttributes(noteBody)
+		tags, attributes := ExtractBlockTagsAndAttributes(noteBody, GetSchemaAttributeTypes())
 
 		// Determine the titles
 		title := section.HeadingText

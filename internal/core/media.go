@@ -514,7 +514,7 @@ func (m *Media) InsertBlobs() error {
 		}
 
 		CurrentLogger().Debugf("Inserting blob %s...", b.OID)
-		attributes, err := AttributesYAML(b.Attributes)
+		attributes, err := b.Attributes.ToJSON()
 		if err != nil {
 			return err
 		}

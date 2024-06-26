@@ -14,12 +14,12 @@ schemas:
 - name: Tags
   attributes:
     - name: tags
-      type: array
+      type: string[]
       inherit: true
 - name: Links
   attributes:
     - name: references
-      type: array
+      type: string[]
       inherit: true
     - name: source
       inherit: true

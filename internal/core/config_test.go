@@ -75,7 +75,7 @@ schemas:
     inherit: false
     required: true
   - name: references
-    type: array
+    type: string[]
 `,
 
 			".ntignore": `README.md`,
@@ -249,7 +249,7 @@ schemas:
 - name: Persons
   attributes:
   - name: title
-    type: array
+    type: string[]
 `,
 		})
 
