@@ -42,7 +42,7 @@ type GoLink struct {
 	stale bool
 }
 
-func NewOrExistingGoLink(note *Note, parsedGoLink *ParsedGoLinkNew) (*GoLink, error) {
+func NewOrExistingGoLink(note *Note, parsedGoLink *ParsedGoLink) (*GoLink, error) {
 	existingGoLink, err := CurrentRepository().FindGoLinkByGoName(string(parsedGoLink.GoName))
 	if err != nil {
 		return nil, err
@@ -54,7 +54,7 @@ func NewOrExistingGoLink(note *Note, parsedGoLink *ParsedGoLinkNew) (*GoLink, er
 	return NewGoLink(note, parsedGoLink), nil
 }
 
-func NewGoLink(note *Note, parsedLink *ParsedGoLinkNew) *GoLink {
+func NewGoLink(note *Note, parsedLink *ParsedGoLink) *GoLink {
 	return &GoLink{
 		OID:          NewOID(),
 		NoteOID:      note.OID,
@@ -169,7 +169,7 @@ func (l *GoLink) ToMarkdown() string {
 
 /* Update */
 
-func (l *GoLink) update(note *Note, parsedLink *ParsedGoLinkNew) {
+func (l *GoLink) update(note *Note, parsedLink *ParsedGoLink) {
 	if l.NoteOID != note.OID {
 		l.NoteOID = note.OID
 		l.stale = true

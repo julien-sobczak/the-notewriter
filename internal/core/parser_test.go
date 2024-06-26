@@ -17,12 +17,12 @@ func TestParseFile(t *testing.T) {
 	testcases := []struct {
 		name   string
 		golden string
-		test   func(t *testing.T, file *core.ParsedFileNew)
+		test   func(t *testing.T, file *core.ParsedFile)
 	}{
 		{
 			name:   "Basic",
 			golden: "basic",
-			test: func(t *testing.T, file *core.ParsedFileNew) {
+			test: func(t *testing.T, file *core.ParsedFile) {
 				require.NotNil(t, file)
 
 				// We check everything in this basic file
@@ -53,7 +53,7 @@ func TestParseFile(t *testing.T) {
 				// Check media "da-vinci-notebook.png"
 				mediaDaVinci, ok := file.FindMediaByFilename("da-vinci-notebook.png")
 				require.True(t, ok)
-				expectedDaVinci := &core.ParsedMediaNew{
+				expectedDaVinci := &core.ParsedMedia{
 					RawPath:      "medias/da-vinci-notebook.png",
 					AbsolutePath: filepath.Join(filepath.Dir(file.Markdown.AbsolutePath), "medias/da-vinci-notebook.png"),
 					Extension:    ".png",
@@ -113,7 +113,7 @@ func TestParseFile(t *testing.T) {
 		{
 			name:   "Characters Replacement",
 			golden: "characters-replacement",
-			test: func(t *testing.T, file *core.ParsedFileNew) {
+			test: func(t *testing.T, file *core.ParsedFile) {
 				require.NotNil(t, file)
 				noteAsciidoc, ok := file.FindNoteByShortTitle("Asciidoc Text replacements")
 				require.True(t, ok)
@@ -141,7 +141,7 @@ func TestParseFile(t *testing.T) {
 		{
 			name:   "Comment",
 			golden: "comment",
-			test: func(t *testing.T, file *core.ParsedFileNew) {
+			test: func(t *testing.T, file *core.ParsedFile) {
 				require.NotNil(t, file)
 
 				noteA, ok := file.FindNoteByShortTitle("A")
@@ -157,7 +157,7 @@ func TestParseFile(t *testing.T) {
 		{
 			name:   "Ignore",
 			golden: "ignore",
-			test: func(t *testing.T, file *core.ParsedFileNew) {
+			test: func(t *testing.T, file *core.ParsedFile) {
 				require.Nil(t, file)
 				// Nothing more to check
 			},
@@ -166,7 +166,7 @@ func TestParseFile(t *testing.T) {
 		{
 			name:   "Minimal",
 			golden: "minimal",
-			test: func(t *testing.T, file *core.ParsedFileNew) {
+			test: func(t *testing.T, file *core.ParsedFile) {
 				require.NotNil(t, file)
 
 				// TODO complete
@@ -176,7 +176,7 @@ func TestParseFile(t *testing.T) {
 		{
 			name:   "Generator",
 			golden: "generator",
-			test: func(t *testing.T, file *core.ParsedFileNew) {
+			test: func(t *testing.T, file *core.ParsedFile) {
 				require.NotNil(t, file)
 
 			},

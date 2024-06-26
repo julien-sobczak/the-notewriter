@@ -51,7 +51,7 @@ type Reminder struct {
 	stale bool
 }
 
-func NewOrExistingReminder(note *Note, parsedReminder *ParsedReminderNew) (*Reminder, error) {
+func NewOrExistingReminder(note *Note, parsedReminder *ParsedReminder) (*Reminder, error) {
 	// Try to find an existing note (instead of recreating it from scratch after every change)
 	existingReminder, err := CurrentRepository().FindMatchingReminder(note, parsedReminder)
 	if err != nil {
@@ -67,7 +67,7 @@ func NewOrExistingReminder(note *Note, parsedReminder *ParsedReminderNew) (*Remi
 }
 
 // NewReminder instantiates a new reminder.
-func NewReminder(note *Note, parsedReminder *ParsedReminderNew) (*Reminder, error) {
+func NewReminder(note *Note, parsedReminder *ParsedReminder) (*Reminder, error) {
 	r := &Reminder{
 		OID:          NewOID(),
 		FileOID:      note.FileOID,
@@ -166,7 +166,7 @@ func (r Reminder) String() string {
 
 /* Update */
 
-func (r *Reminder) update(note *Note, parsedReminder *ParsedReminderNew) error {
+func (r *Reminder) update(note *Note, parsedReminder *ParsedReminder) error {
 	if r.FileOID != note.FileOID {
 		r.FileOID = note.FileOID
 		r.File = note.File
@@ -736,7 +736,7 @@ func (r *Repository) FindReminders() ([]*Reminder, error) {
 	return QueryReminders(CurrentDB().Client(), "")
 }
 
-func (r *Repository) FindMatchingReminder(note *Note, parsedReminder *ParsedReminderNew) (*Reminder, error) {
+func (r *Repository) FindMatchingReminder(note *Note, parsedReminder *ParsedReminder) (*Reminder, error) {
 	return QueryReminder(CurrentDB().Client(), `WHERE note_oid = ? and description = ? and tag = ?`, note.OID, parsedReminder.Description, parsedReminder.Tag)
 }
 

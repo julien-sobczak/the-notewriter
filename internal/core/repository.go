@@ -285,7 +285,7 @@ func (r *Repository) Add(paths ...string) error {
 	db := CurrentDB()
 	paths = r.normalizePaths(paths...)
 
-	var updatedParsedFiles []*ParsedFileNew
+	var updatedParsedFiles []*ParsedFile
 	var updatedFiles []*File
 	var updatedMedias []*Media
 	var updatedNotes []*Note

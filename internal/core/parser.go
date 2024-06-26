@@ -25,7 +25,7 @@ type Tag string // TODO see if useful in practice (mainly when working with remi
 
 type GoName string // TODO see if useful in practice (=> no method = useless)
 
-type ParsedFileNew struct {
+type ParsedFile struct {
 	Markdown *markdown.File
 
 	RepositoryPath string
@@ -42,14 +42,14 @@ type ParsedFileNew struct {
 	FileAttributes AttributeSet
 
 	// Extracted objects
-	Notes     []*ParsedNoteNew
-	Medias    []*ParsedMediaNew
+	Notes     []*ParsedNote
+	Medias    []*ParsedMedia
 	Wikilinks []*markdown.Wikilink
 }
 
 // ParsedNote represents a single raw note inside a file.
-type ParsedNoteNew struct {
-	Parent *ParsedNoteNew
+type ParsedNote struct {
+	Parent *ParsedNote
 
 	Level int
 	Kind  NoteKind
@@ -72,12 +72,12 @@ type ParsedNoteNew struct {
 	NoteTags       TagSet
 
 	// Extracted objects
-	Flashcard *ParsedFlashcardNew
-	GoLinks   []*ParsedGoLinkNew
-	Reminders []*ParsedReminderNew
+	Flashcard *ParsedFlashcard
+	GoLinks   []*ParsedGoLink
+	Reminders []*ParsedReminder
 }
 
-type ParsedFlashcardNew struct {
+type ParsedFlashcard struct {
 	// Short title of the note
 	ShortTitle markdown.Document
 
@@ -89,7 +89,7 @@ type ParsedFlashcardNew struct {
 	Back  markdown.Document
 }
 
-type ParsedGoLinkNew struct {
+type ParsedGoLink struct {
 	// The link text
 	Text markdown.Document
 
@@ -103,7 +103,7 @@ type ParsedGoLinkNew struct {
 	GoName GoName
 }
 
-type ParsedReminderNew struct {
+type ParsedReminder struct {
 	// Description in Markdown of the reminder (ex: the line)
 	Description markdown.Document
 
@@ -111,7 +111,7 @@ type ParsedReminderNew struct {
 	Tag string `yaml:"tag"`
 }
 
-type ParsedMediaNew struct {
+type ParsedMedia struct {
 	// The path as specified in the file. (Ex: "../medias/pic.png")
 	RawPath string
 	// The absolute path
@@ -138,11 +138,11 @@ type ParsedMediaNew struct {
 }
 
 // Hash returns a hash based on the Markdown content.
-func (p *ParsedNoteNew) Hash() string {
+func (p *ParsedNote) Hash() string {
 	return p.Content.Hash()
 }
 
-func (p *ParsedNoteNew) GetAttributeAsString(name string) string {
+func (p *ParsedNote) GetAttributeAsString(name string) string {
 	if v, ok := p.NoteAttributes[name]; ok {
 		if s, ok := v.(string); ok {
 			return s
@@ -152,17 +152,17 @@ func (p *ParsedNoteNew) GetAttributeAsString(name string) string {
 	return ""
 }
 
-func (p *ParsedMediaNew) MTime() time.Time {
+func (p *ParsedMedia) MTime() time.Time {
 	return p.mtime
 }
-func (p *ParsedMediaNew) Size() int64 {
+func (p *ParsedMedia) Size() int64 {
 	return p.size
 }
-func (p *ParsedMediaNew) Mode() fs.FileMode {
+func (p *ParsedMedia) Mode() fs.FileMode {
 	return p.mode
 }
 
-func ParseFileFromRelativePath(repositoryAbsolutePath, fileRelativePath string) (*ParsedFileNew, error) {
+func ParseFileFromRelativePath(repositoryAbsolutePath, fileRelativePath string) (*ParsedFile, error) {
 	fileAbsolutePath := filepath.Join(repositoryAbsolutePath, "check-attribute/check-attribute.md")
 	markdownFile, err := markdown.ParseFile(fileAbsolutePath)
 	if err != nil {
@@ -171,7 +171,7 @@ func ParseFileFromRelativePath(repositoryAbsolutePath, fileRelativePath string) 
 	return ParseFile(repositoryAbsolutePath, markdownFile)
 }
 
-func ParseFile(repositoryAbsolutePath string, md *markdown.File) (*ParsedFileNew, error) {
+func ParseFile(repositoryAbsolutePath string, md *markdown.File) (*ParsedFile, error) {
 	// Extract file attributes
 	frontMatter, err := md.FrontMatter.AsMap()
 	if err != nil {
@@ -210,7 +210,7 @@ func ParseFile(repositoryAbsolutePath string, md *markdown.File) (*ParsedFileNew
 		}
 	}
 
-	result := &ParsedFileNew{
+	result := &ParsedFile{
 		Markdown: md,
 
 		RepositoryPath: repositoryAbsolutePath,
@@ -244,10 +244,10 @@ func ParseFile(repositoryAbsolutePath string, md *markdown.File) (*ParsedFileNew
 	return result, nil
 }
 
-func (p *ParsedFileNew) extractNotes() ([]*ParsedNoteNew, error) {
+func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 
 	// All notes collected until now
-	var notes []*ParsedNoteNew
+	var notes []*ParsedNote
 
 	sections, err := p.Markdown.GetSections()
 	if err != nil {
@@ -303,8 +303,8 @@ func (p *ParsedFileNew) extractNotes() ([]*ParsedNoteNew, error) {
 
 		// Find a possible parent note
 		i := len(notes) - 1
-		var previousNote *ParsedNoteNew
-		var parentNote *ParsedNoteNew
+		var previousNote *ParsedNote
+		var parentNote *ParsedNote
 		for i > 0 {
 			previousNote = notes[i]
 			if previousNote.Level < section.HeadingLevel {
@@ -314,7 +314,7 @@ func (p *ParsedFileNew) extractNotes() ([]*ParsedNoteNew, error) {
 			i--
 		}
 
-		parsedNote := &ParsedNoteNew{
+		parsedNote := &ParsedNote{
 			Parent:       parentNote,
 			Level:        section.HeadingLevel,
 			Kind:         kind,
@@ -370,7 +370,7 @@ func (p *ParsedFileNew) extractNotes() ([]*ParsedNoteNew, error) {
 	return notes, nil
 }
 
-func (p *ParsedFileNew) GenerateNotes(generator *ParsedNoteNew) ([]*ParsedNoteNew, []*ParsedMediaNew, error) {
+func (p *ParsedFile) GenerateNotes(generator *ParsedNote) ([]*ParsedNote, []*ParsedMedia, error) {
 	// Inline or external?
 	filename := generator.GetAttributeAsString("file")
 	interpreter := generator.GetAttributeAsString("interpreter")
@@ -464,8 +464,8 @@ func (p *ParsedFileNew) GenerateNotes(generator *ParsedNoteNew) ([]*ParsedNoteNe
 		return nil, nil, err
 	}
 
-	var resultsNotes []*ParsedNoteNew
-	var resultsMedias []*ParsedMediaNew
+	var resultsNotes []*ParsedNote
+	var resultsMedias []*ParsedMedia
 	// Use original line number to make easy to jump to the generator note
 	for _, generatedNote := range generatedFile.Notes {
 		generatedNote.Line = generator.Line
@@ -477,37 +477,37 @@ func (p *ParsedFileNew) GenerateNotes(generator *ParsedNoteNew) ([]*ParsedNoteNe
 	return resultsNotes, resultsMedias, nil
 }
 
-func (p *ParsedFileNew) extractWikilinks() []*markdown.Wikilink {
+func (p *ParsedFile) extractWikilinks() []*markdown.Wikilink {
 	return p.Markdown.Body.Wikilinks()
 }
 
 // Hash returns a hash based on the full file content.
-func (p *ParsedFileNew) Hash() string {
+func (p *ParsedFile) Hash() string {
 	return helpers.Hash([]byte(p.Markdown.Content))
 }
 
 // Filename returns the filename of the Markdown file.
-func (p *ParsedFileNew) Filename() string {
+func (p *ParsedFile) Filename() string {
 	return filepath.Base(p.AbsolutePath)
 }
 
 // AbsoluteDir returns the dirname of the Markdown file.
-func (p *ParsedFileNew) AbsoluteDir() string {
+func (p *ParsedFile) AbsoluteDir() string {
 	return filepath.Dir(p.AbsolutePath)
 }
 
 // RelativeDir returns the dirname of the Markdown file.
-func (p *ParsedFileNew) RelativeDir() string {
+func (p *ParsedFile) RelativeDir() string {
 	return filepath.Dir(p.RelativePath)
 }
 
-func (p *ParsedFileNew) FileLineNumber(bodyLineNumber int) int {
+func (p *ParsedFile) FileLineNumber(bodyLineNumber int) int {
 	return p.Markdown.BodyLine + bodyLineNumber - 1
 }
 
-func (p *ParsedFileNew) extractMedias() ([]*ParsedMediaNew, error) {
+func (p *ParsedFile) extractMedias() ([]*ParsedMedia, error) {
 	// All medias collected until now
-	var medias []*ParsedMediaNew
+	var medias []*ParsedMedia
 
 	// Avoid returning duplicates if a media is included twice
 	filepaths := make(map[string]bool)
@@ -534,7 +534,7 @@ func (p *ParsedFileNew) extractMedias() ([]*ParsedMediaNew, error) {
 			return nil, err
 		}
 
-		medias = append(medias, &ParsedMediaNew{
+		medias = append(medias, &ParsedMedia{
 			RawPath:      rawPath,
 			AbsolutePath: absolutePath,
 			RelativePath: RelativePath(p.RepositoryPath, absolutePath),
@@ -561,7 +561,7 @@ func (p *ParsedFileNew) extractMedias() ([]*ParsedMediaNew, error) {
 	return medias, nil
 }
 
-func (p *ParsedNoteNew) extractFlashcard() (*ParsedFlashcardNew, error) {
+func (p *ParsedNote) extractFlashcard() (*ParsedFlashcard, error) {
 	if p.Kind != KindFlashcard {
 		return nil, nil
 	}
@@ -577,7 +577,7 @@ func (p *ParsedNoteNew) extractFlashcard() (*ParsedFlashcardNew, error) {
 	front := parts[0]
 	back := parts[1]
 
-	return &ParsedFlashcardNew{
+	return &ParsedFlashcard{
 		ShortTitle: p.ShortTitle,
 		Slug:       p.Slug,
 		Front:      front,
@@ -585,8 +585,8 @@ func (p *ParsedNoteNew) extractFlashcard() (*ParsedFlashcardNew, error) {
 	}, nil
 }
 
-func (p *ParsedNoteNew) extractGoLinks() ([]*ParsedGoLinkNew, error) {
-	var links []*ParsedGoLinkNew
+func (p *ParsedNote) extractGoLinks() ([]*ParsedGoLink, error) {
+	var links []*ParsedGoLink
 
 	reLink := regexp.MustCompile(`(?:^|[^!])\[(.*?)\]\("?(http[^\s"]*)"?(?:\s+["'](.*?)["'])?\)`)
 	// Note: Markdown images uses the same syntax as links but precedes the link by !
@@ -604,7 +604,7 @@ func (p *ParsedNoteNew) extractGoLinks() ([]*ParsedGoLinkNew, error) {
 		shortTitle := submatch[1]
 		goName := submatch[2]
 
-		link := &ParsedGoLinkNew{
+		link := &ParsedGoLink{
 			Text:   markdown.Document(text),
 			URL:    url,
 			Title:  shortTitle,
@@ -616,8 +616,8 @@ func (p *ParsedNoteNew) extractGoLinks() ([]*ParsedGoLinkNew, error) {
 	return links, nil
 }
 
-func (p *ParsedNoteNew) extractReminders() ([]*ParsedReminderNew, error) {
-	var reminders []*ParsedReminderNew
+func (p *ParsedNote) extractReminders() ([]*ParsedReminder, error) {
+	var reminders []*ParsedReminder
 
 	reReminders := regexp.MustCompile("`(#reminder-(\\S+))`")
 	reList := regexp.MustCompile(`^\s*(?:[-+*]|\d+[.])\s+(?:\[.\]\s+)?(.*)\s*$`)
@@ -642,7 +642,7 @@ func (p *ParsedNoteNew) extractReminders() ([]*ParsedReminderNew, error) {
 				description = descriptionCleaned
 			}
 
-			reminder := &ParsedReminderNew{
+			reminder := &ParsedReminder{
 				Description: description,
 				Tag:         tag,
 			}
@@ -655,7 +655,7 @@ func (p *ParsedNoteNew) extractReminders() ([]*ParsedReminderNew, error) {
 
 // FindMediaByFilename searches for a media based on the filename.
 // The code uses `strings.HasSuffix` and therefore, (partial) paths can be passed too.
-func (f *ParsedFileNew) FindMediaByFilename(filename string) (*ParsedMediaNew, bool) {
+func (f *ParsedFile) FindMediaByFilename(filename string) (*ParsedMedia, bool) {
 	for _, media := range f.Medias {
 		if strings.HasSuffix(media.AbsolutePath, filename) {
 			return media, true
@@ -666,7 +666,7 @@ func (f *ParsedFileNew) FindMediaByFilename(filename string) (*ParsedMediaNew, b
 
 // FindNoteByShortTitle searches for a note based on its short title.
 // The code does a strict comparison and the exact short title must be passed.
-func (f *ParsedFileNew) FindNoteByShortTitle(shortTitle string) (*ParsedNoteNew, bool) {
+func (f *ParsedFile) FindNoteByShortTitle(shortTitle string) (*ParsedNote, bool) {
 	for _, note := range f.Notes {
 		if note.ShortTitle == markdown.Document(shortTitle) {
 			return note, true
@@ -676,7 +676,7 @@ func (f *ParsedFileNew) FindNoteByShortTitle(shortTitle string) (*ParsedNoteNew,
 }
 
 // TODO uncomment after refactoring
-// func (p *ParsedFileNew) ToFile() (*File, error) {
+// func (p *ParsedFile) ToFile() (*File, error) {
 // 	return NewFileFromParsedFile(p)
 // }
 

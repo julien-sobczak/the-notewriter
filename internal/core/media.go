@@ -104,7 +104,7 @@ func DetectMediaKind(filename string) MediaKind {
 }
 
 // NewMedia initializes a new media.
-func NewMedia(parsedMedia *ParsedMediaNew) (*Media, error) {
+func NewMedia(parsedMedia *ParsedMedia) (*Media, error) {
 	hash := ""
 	if !parsedMedia.Dangling {
 		contentHash, err := helpers.HashFromFile(parsedMedia.AbsolutePath)
@@ -131,7 +131,7 @@ func NewMedia(parsedMedia *ParsedMediaNew) (*Media, error) {
 	}, nil
 }
 
-func NewOrExistingMedia(parsedMedia *ParsedMediaNew) (*Media, error) {
+func NewOrExistingMedia(parsedMedia *ParsedMedia) (*Media, error) {
 	existingMedia, err := CurrentRepository().FindMatchingMedia(parsedMedia)
 	if err != nil {
 		return nil, err
@@ -145,7 +145,7 @@ func NewOrExistingMedia(parsedMedia *ParsedMediaNew) (*Media, error) {
 	return NewMedia(parsedMedia)
 }
 
-func (m *Media) update(parsedMedia *ParsedMediaNew) {
+func (m *Media) update(parsedMedia *ParsedMedia) {
 	// Special case when file didn't exist or no longer exist
 	if m.Dangling != parsedMedia.Dangling {
 		m.Dangling = parsedMedia.Dangling
@@ -617,7 +617,7 @@ func (r *Repository) LoadMediaByOID(oid string) (*Media, error) {
 	return QueryMedia(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
-func (r *Repository) FindMatchingMedia(parsedMedia *ParsedMediaNew) (*Media, error) {
+func (r *Repository) FindMatchingMedia(parsedMedia *ParsedMedia) (*Media, error) {
 	// Find by relative path
 	relativePath := r.GetFileRelativePath(parsedMedia.AbsolutePath)
 	return r.FindMediaByRelativePath(relativePath)

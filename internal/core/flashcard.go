@@ -133,7 +133,7 @@ type Review struct {
 	Settings     map[string]any `yaml:"settings" json:"settings"` // Include algorithm-specific attributes (like the e-factor in SM-2)
 }
 
-func NewOrExistingFlashcard(file *File, note *Note, parsedFlashcard *ParsedFlashcardNew) (*Flashcard, error) {
+func NewOrExistingFlashcard(file *File, note *Note, parsedFlashcard *ParsedFlashcard) (*Flashcard, error) {
 
 	// Try to find an existing note (instead of recreating it from scratch after every change)
 	existingFlashcard, err := CurrentRepository().FindMatchingFlashcard(note, parsedFlashcard)
@@ -150,7 +150,7 @@ func NewOrExistingFlashcard(file *File, note *Note, parsedFlashcard *ParsedFlash
 }
 
 // NewFlashcard initializes a new flashcard.
-func NewFlashcard(file *File, note *Note, parsedFlashcard *ParsedFlashcardNew) (*Flashcard, error) {
+func NewFlashcard(file *File, note *Note, parsedFlashcard *ParsedFlashcard) (*Flashcard, error) {
 	f := &Flashcard{
 		OID: NewOID(),
 
@@ -281,7 +281,7 @@ func (f *Flashcard) ToMarkdown() string {
 
 /* Update */
 
-func (f *Flashcard) update(file *File, note *Note, parsedFlashcard *ParsedFlashcardNew) {
+func (f *Flashcard) update(file *File, note *Note, parsedFlashcard *ParsedFlashcard) {
 	if f.ShortTitle != note.ShortTitle {
 		f.ShortTitle = note.ShortTitle
 		f.stale = true
@@ -468,7 +468,7 @@ func (r *Repository) CountFlashcards() (int, error) {
 	return count, nil
 }
 
-func (r *Repository) FindMatchingFlashcard(note *Note, parsedFlashcard *ParsedFlashcardNew) (*Flashcard, error) {
+func (r *Repository) FindMatchingFlashcard(note *Note, parsedFlashcard *ParsedFlashcard) (*Flashcard, error) {
 	// Search by slug
 	flashcard, err := r.LoadFlashcardBySlug(parsedFlashcard.Slug)
 	if err != nil {

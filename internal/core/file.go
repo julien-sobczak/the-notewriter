@@ -250,7 +250,7 @@ func NewEmptyFile(name string) *File { // TODO still useful?
 	}
 }
 
-func NewOrExistingFile(parsedFile *ParsedFileNew) (*File, error) {
+func NewOrExistingFile(parsedFile *ParsedFile) (*File, error) {
 	var existingParent *File
 	var existingFile *File
 
@@ -277,7 +277,7 @@ func NewOrExistingFile(parsedFile *ParsedFileNew) (*File, error) {
 	}
 }
 
-func NewFile(parent *File, parsedFile *ParsedFileNew) (*File, error) {
+func NewFile(parent *File, parsedFile *ParsedFile) (*File, error) {
 	file := &File{
 		OID:          NewOID(),
 		Slug:         parsedFile.Slug,
@@ -414,7 +414,7 @@ func (f File) String() string {
 
 /* Update */
 
-func (f *File) update(parent *File, parsedFile *ParsedFileNew) error {
+func (f *File) update(parent *File, parsedFile *ParsedFile) error {
 	newAttributes := parsedFile.FileAttributes
 	if parent != nil {
 		newAttributes = f.mergeAttributes(parent.GetAttributes(), newAttributes)
@@ -735,11 +735,11 @@ func (r *Repository) FindFileByRelativePath(relativePath string) (*File, error) 
 	return QueryFile(CurrentDB().Client(), `WHERE relative_path = ?`, relativePath)
 }
 
-func (r *Repository) FindMatchingFile(parsedFile *ParsedFileNew) (*File, error) {
+func (r *Repository) FindMatchingFile(parsedFile *ParsedFile) (*File, error) {
 	return QueryFile(CurrentDB().Client(), `WHERE relative_path = ?`, parsedFile.RelativePath)
 }
 
-func (r *Repository) FindMatchingParentFile(parsedFile *ParsedFileNew) (*File, error) {
+func (r *Repository) FindMatchingParentFile(parsedFile *ParsedFile) (*File, error) {
 	if parsedFile.Filename() == "index.md" {
 		return nil, nil
 	}
