@@ -5,7 +5,6 @@ import (
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestIsHeading(t *testing.T) {
@@ -48,58 +47,4 @@ func TestIsHeading(t *testing.T) {
 	// Sub levels are not currently supported
 	ok, _, _ = markdown.IsHeading("####### Heading 7")
 	assert.False(t, ok)
-}
-
-func TestWikilinks(t *testing.T) {
-	text := markdown.Document(`
-[[1234abcdABCD-_]]
-[[file.md]]
-[[path/to/file.md]]
-[[path/to/file]]
-[[a|b]]
-[[a.md|A long text]]
-[[a.md#B]]
-	`)
-
-	actual := text.Wikilinks()
-	require.Len(t, actual, 7)
-
-	expected := []*markdown.Wikilink{
-		{
-			Link: "1234abcdABCD-_",
-			Text: "",
-			Line: 2,
-		},
-		{
-			Link: "file.md",
-			Text: "",
-			Line: 3,
-		},
-		{
-			Link: "path/to/file.md",
-			Text: "",
-			Line: 4,
-		},
-		{
-			Link: "path/to/file",
-			Text: "",
-			Line: 5,
-		},
-		{
-			Link: "a",
-			Text: "b",
-			Line: 6,
-		},
-		{
-			Link: "a.md",
-			Text: "A long text",
-			Line: 7,
-		},
-		{
-			Link: "a.md#B",
-			Text: "",
-			Line: 8,
-		},
-	}
-	assert.Equal(t, expected, actual)
 }

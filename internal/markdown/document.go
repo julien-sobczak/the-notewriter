@@ -57,32 +57,6 @@ func (m Document) TrimSpace() Document {
 	return Document(strings.TrimSpace(string(m)))
 }
 
-// Wikilinks searches for wikilinks inside a Markdown document
-func (m Document) Wikilinks() []*Wikilink {
-	var results []*Wikilink
-
-	// Ignore medias inside code blocks (ex: a sample Markdown code block)
-	text := m.MustTransform(StripCodeBlocks()).String()
-
-	matches := regexWikilink.FindAllStringSubmatchIndex(text, -1)
-	for _, match := range matches {
-		link := text[match[2]:match[3]]
-		title := ""
-		if match[4] != -1 {
-			title = text[match[4]:match[5]]
-		}
-		line := len(strings.Split(text[:match[0]], "\n"))
-
-		results = append(results, &Wikilink{
-			Link: link,
-			Text: title,
-			Line: line,
-		})
-	}
-
-	return results
-}
-
 /*
  * Helpers
  */

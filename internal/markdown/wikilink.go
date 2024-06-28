@@ -9,7 +9,10 @@ import (
 )
 
 // Regex to match wikilinks
-var regexWikilink = regexp.MustCompile(`\[\[([/\a-zA-Z0-9_-]*?(?:#.*?)?)(?:\|(.*?))?\]\]`)
+const regexWikilinkRaw = `\[\[([/\a-zA-Z0-9_-]*?(?:#.*?)?)(?:\|(.*?))?\]\]`
+
+var regexWikilink = regexp.MustCompile(`(?:^|[^!])` + regexWikilinkRaw) // Golang doesn't support negative lookbehind
+var regexEmbeddedWikilink = regexp.MustCompile(`!` + regexWikilinkRaw)
 
 // Wikilink is an internal link.
 // See https://en.wikipedia.org/wiki/Help:Link
@@ -82,4 +85,42 @@ func (w Wikilink) String() string {
 		return fmt.Sprintf("[[%s|%s]]", w.Link, w.Text)
 	}
 	return fmt.Sprintf("[[%s]]", w.Link)
+}
+
+/*
+ * Document
+ */
+
+// Wikilinks searches for wikilinks inside a Markdown document
+func (m Document) Wikilinks() []Wikilink {
+	return m.extractWikilinks(regexWikilink)
+}
+
+func (m Document) EmbeddedWikilinks() []Wikilink {
+	return m.extractWikilinks(regexEmbeddedWikilink)
+}
+
+func (m Document) extractWikilinks(r *regexp.Regexp) []Wikilink {
+	var results []Wikilink
+
+	// Ignore medias inside code blocks (ex: a sample Markdown code block)
+	text := m.MustTransform(StripCodeBlocks()).String()
+
+	matches := r.FindAllStringSubmatchIndex(text, -1)
+	for _, match := range matches {
+		wikilinkLink := text[match[2]:match[3]]
+		wikilinkText := wikilinkLink
+		if match[4] != -1 {
+			wikilinkText = text[match[4]:match[5]]
+		}
+		wikilinkLine := len(strings.Split(text[:match[0]+1], "\n")) // Add +1 as the regex matches the previous character
+
+		results = append(results, Wikilink{
+			Link: wikilinkLink,
+			Text: wikilinkText,
+			Line: wikilinkLine,
+		})
+	}
+
+	return results
 }
