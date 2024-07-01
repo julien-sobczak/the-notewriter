@@ -74,6 +74,7 @@ type File struct {
 	stale bool
 }
 
+// FIXME remove this comment block
 // NewXFromParsedX
 // -> do not check the database
 // NewXOrExistingFromParsedX
@@ -289,6 +290,8 @@ func NewFile(parent *File, parsedFile *ParsedFile) (*File, error) {
 		MTime:        parsedFile.Markdown.LStat.ModTime(),
 		Attributes:   make(map[string]any),
 		FrontMatter:  parsedFile.Markdown.FrontMatter,
+		Title:        parsedFile.Title,
+		ShortTitle:   parsedFile.ShortTitle,
 		Body:         parsedFile.Markdown.Body,
 		BodyLine:     parsedFile.Markdown.BodyLine,
 		CreatedAt:    clock.Now(),
@@ -300,35 +303,13 @@ func NewFile(parent *File, parsedFile *ParsedFile) (*File, error) {
 		file.ParentFileOID = parent.OID
 		file.ParentFile = parent
 	}
-	newAttributes := parsedFile.FileAttributes
+	newAttributes := parsedFile.FileAttributes.Cast(GetSchemaAttributeTypes())
 	if parent != nil {
-		// TODO now cast attributes
-		newAttributes = file.mergeAttributes(parent.GetAttributes(), newAttributes)
+		newAttributes = parent.Attributes.Merge(newAttributes)
 	}
 	file.Attributes = newAttributes
 
 	return file, nil
-}
-
-func (f *File) mergeAttributes(attributes ...AttributeSet) AttributeSet { // TODO r
-	// File attributes are always inheritable to top level-notes
-	// (NB: `source` is configured to be non-inheritable).
-	//
-	// Ex:
-	//   ---
-	//   source: XXX
-	//   ---
-	//   # Example
-	//   ## Note: Parent
-	//   ### Note: Child
-	//
-	// Is the same as:
-	//
-	//   # Example
-	//   ## Note: Parent
-	//   `@source:XXX`
-	//   ### Note: Child
-	return EmptyAttributes.Merge(attributes...)
 }
 
 /* Object */
@@ -415,9 +396,9 @@ func (f File) String() string {
 /* Update */
 
 func (f *File) update(parent *File, parsedFile *ParsedFile) error {
-	newAttributes := parsedFile.FileAttributes
+	newAttributes := parsedFile.FileAttributes.Cast(GetSchemaAttributeTypes())
 	if parent != nil {
-		newAttributes = f.mergeAttributes(parent.GetAttributes(), newAttributes)
+		newAttributes = parent.Attributes.Merge(newAttributes)
 	}
 
 	// Check if attributes have changed
@@ -437,9 +418,9 @@ func (f *File) update(parent *File, parsedFile *ParsedFile) error {
 		f.Size = md.LStat.Size()
 		f.Hash = helpers.Hash(md.Content)
 		f.FrontMatter = md.FrontMatter
-		f.Attributes = parsedFile.FileAttributes
+		f.Attributes = parsedFile.FileAttributes.Cast(GetSchemaAttributeTypes())
 		if parent != nil {
-			f.Attributes = f.mergeAttributes(parent.GetAttributes(), f.Attributes)
+			f.Attributes = parent.Attributes.Merge(f.Attributes)
 		}
 		f.MTime = md.LStat.ModTime()
 		f.Body = md.Body
@@ -466,44 +447,14 @@ func (f *File) AbsoluteBodyLine(bodyLine int) int {
 	return f.BodyLine + bodyLine - 1
 }
 
-// GetAttributes returns all file-specific and inherited attributes.
-func (f *File) GetAttributes() map[string]interface{} {
-	return f.Attributes
-}
-
-// GetAttribute extracts a single attribute value at the top.
-func (f *File) GetAttribute(key string) interface{} {
-	value, ok := f.Attributes[key]
-	if !ok {
-		return nil
-	}
-	return value
-}
-
-// GetTags returns all defined tags.
+// GetTags returns the tags defined in attributes.
 func (f *File) GetTags() []string {
-	value := f.GetAttribute("tags")
-	if tag, ok := value.(string); ok {
-		return []string{tag}
-	}
-	if tags, ok := value.([]string); ok {
-		return tags
-	}
-	if rawTags, ok := value.([]interface{}); ok {
-		var tags []string
-		for _, rawTag := range rawTags {
-			if tag, ok := rawTag.(string); ok {
-				tags = append(tags, tag)
-			}
-		}
-		return tags
-	}
-	return nil
+	return f.Attributes.GetTags()
 }
 
 // HasTag returns if a file has a given tag.
 func (f *File) HasTag(name string) bool {
-	return slices.Contains(f.GetTags(), name)
+	return slices.Contains(f.Attributes.GetTags(), name)
 }
 
 /* Content */
@@ -946,12 +897,14 @@ func (f *File) ToJSON() string {
 
 func (f *File) ToMarkdown() string {
 	var sb strings.Builder
-	frontMatter, err := f.FrontMatter.AsBeautifulYAML()
-	if err != nil {
-		sb.WriteString(frontMatter)
+	if !text.IsBlank(string(f.FrontMatter)) {
+		frontMatter, err := f.FrontMatter.AsBeautifulYAML()
+		sb.WriteString("---\n")
+		if err == nil {
+			sb.WriteString(frontMatter)
+		}
+		sb.WriteString("---\n\n")
 	}
-	sb.WriteRune('\n')
-	sb.WriteRune('\n')
 	sb.WriteString(string(f.Body))
 	return sb.String()
 }

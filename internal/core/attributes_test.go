@@ -250,18 +250,6 @@ tags: favorite
 			{
 				name: "append in slices",
 				inputA: map[string]interface{}{
-					"tags": []string{"a", "b"},
-				},
-				inputB: map[string]interface{}{
-					"tags": "c", // Must not happen
-				},
-				expected: map[string]interface{}{
-					"tags": "c", // Last definition wins
-				},
-			},
-			{
-				name: "append in slices",
-				inputA: map[string]interface{}{
 					"tags": []interface{}{"a", "b"},
 				},
 				inputB: map[string]interface{}{
@@ -316,7 +304,19 @@ tags: favorite
 		})
 		actual, err := attributes.ToJSON()
 		require.NoError(t, err)
-		expected := `{"key1":10,"key2":["value1","value2"],"key3":{"subkey1":1.5,"subkey2":true}}`
+		expected := `
+{
+  "key1": 10,
+  "key2": [
+    "value1",
+    "value2"
+  ],
+  "key3": {
+    "subkey1": 1.5,
+    "subkey2": true
+  }
+}
+`
 		assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
 	})
 

@@ -149,6 +149,6 @@ func ToBeautifulYAML(obj any) string {
 }
 
 func ToBeautifulJSON(obj any) string {
-	output, _ := json.MarshalIndent(obj, "", " ")
+	output, _ := json.MarshalIndent(obj, "", "  ")
 	return string(output)
 }

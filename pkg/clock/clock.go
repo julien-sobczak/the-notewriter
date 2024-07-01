@@ -36,6 +36,11 @@ func NewTestClockAt(date time.Time) *TestClock {
 	}
 }
 
+func (c *TestClock) FastForward(d time.Duration) time.Time {
+	c.now = c.now.Add(d)
+	return c.now
+}
+
 func (c *TestClock) Now() time.Time {
 	return c.now
 }
@@ -55,14 +60,16 @@ func Now() time.Time {
 	return CurrentClock().Now()
 }
 
-func FreezeAt(now time.Time) time.Time {
-	clockSingleton = NewTestClockAt(now)
-	return now
+func FreezeAt(now time.Time) *TestClock {
+	testClock := NewTestClockAt(now)
+	clockSingleton = testClock
+	return testClock
 }
 
-func Freeze() time.Time {
-	clockSingleton = NewTestClock()
-	return clockSingleton.Now()
+func Freeze() *TestClock {
+	testClock := NewTestClock()
+	clockSingleton = testClock
+	return testClock
 }
 
 func Unfreeze() {

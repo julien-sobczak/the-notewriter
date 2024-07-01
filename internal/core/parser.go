@@ -44,7 +44,7 @@ type ParsedFile struct {
 	// Extracted objects
 	Notes     []*ParsedNote
 	Medias    []*ParsedMedia
-	Wikilinks []*markdown.Wikilink
+	Wikilinks []markdown.Wikilink
 }
 
 // ParsedNote represents a single raw note inside a file.
@@ -163,7 +163,7 @@ func (p *ParsedMedia) Mode() fs.FileMode {
 }
 
 func ParseFileFromRelativePath(repositoryAbsolutePath, fileRelativePath string) (*ParsedFile, error) {
-	fileAbsolutePath := filepath.Join(repositoryAbsolutePath, "check-attribute/check-attribute.md")
+	fileAbsolutePath := filepath.Join(repositoryAbsolutePath, fileRelativePath)
 	markdownFile, err := markdown.ParseFile(fileAbsolutePath)
 	if err != nil {
 		return nil, err
@@ -177,7 +177,7 @@ func ParseFile(repositoryAbsolutePath string, md *markdown.File) (*ParsedFile, e
 	if err != nil {
 		return nil, err
 	}
-	fileAttributes := AttributeSet(frontMatter).Cast(GetSchemaAttributeTypes())
+	fileAttributes := AttributeSet(frontMatter)
 
 	// Check if file must be ignored
 	// FIXME if fileAttributes.Tags().Includes("ignore") {
@@ -185,7 +185,7 @@ func ParseFile(repositoryAbsolutePath string, md *markdown.File) (*ParsedFile, e
 		if v, ok := value.(string); ok && v == "ignore" {
 			return nil, nil
 		}
-		if v, ok := value.([]string); ok && slices.Contains[[]string](v, "ignore") {
+		if v, ok := value.([]string); ok && slices.Contains(v, "ignore") {
 			return nil, nil
 		}
 	}
@@ -202,7 +202,8 @@ func ParseFile(repositoryAbsolutePath string, md *markdown.File) (*ParsedFile, e
 	_, _, shortTitle := isSupportedNote(string(title)) // TODO change signature to avoid casts
 
 	// Extract/Generate slug
-	slug := DetermineFileSlug(md.AbsolutePath)
+	relativePath := RelativePath(repositoryAbsolutePath, md.AbsolutePath)
+	slug := DetermineFileSlug(relativePath)
 	// Slug is explicitely defined?
 	if value, ok := fileAttributes["slug"]; ok {
 		if v, ok := value.(string); ok {
@@ -256,7 +257,9 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 
 	for _, section := range sections {
 
-		noteContent := section.ContentText
+		// Trim content to remove sub-notes (= typed notes)
+		noteContent := section.ContentText.MustTransform(StripSubNotesTransformer)
+
 		noteBody := noteContent.ExtractLines(2, -1) // Trim heading
 
 		if noteBody.IsBlank() {
@@ -265,7 +268,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		}
 
 		// Determine the attributes
-		tags, attributes := ExtractBlockTagsAndAttributes(noteBody, GetSchemaAttributeTypes())
+		tags, attributes := ExtractBlockTagsAndAttributes(noteBody, nil)
 
 		// Determine the titles
 		title := section.HeadingText
@@ -299,7 +302,6 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 			return nil, err
 		}
 		// TODO convert quotes
-		// FIXME extract Comm
 
 		// Find a possible parent note
 		i := len(notes) - 1
@@ -314,22 +316,23 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 			i--
 		}
 
+		body, comment := postProcessedNoteBody.ExtractComment()
+
 		parsedNote := &ParsedNote{
-			Parent:       parentNote,
-			Level:        section.HeadingLevel,
-			Kind:         kind,
-			AbsolutePath: p.AbsolutePath,
-			RelativePath: p.RelativePath,
-			Slug:         slug,
-			Title:        title,
-			ShortTitle:   markdown.Document(shortTitle),
-			Line:         section.FileLineStart,
-			// NoteAttributes: CastAttributes(attributes, GetSchemaAttributeTypes()), FIXME
+			Parent:         parentNote,
+			Level:          section.HeadingLevel,
+			Kind:           kind,
+			AbsolutePath:   p.AbsolutePath,
+			RelativePath:   p.RelativePath,
+			Slug:           slug,
+			Title:          title,
+			ShortTitle:     markdown.Document(shortTitle),
+			Line:           section.FileLineStart,
 			NoteAttributes: attributes,
 			NoteTags:       tags,
 			Content:        noteContent,
-			Body:           postProcessedNoteBody.TrimSpace(),
-			Comment:        "",
+			Body:           body,
+			Comment:        comment,
 		}
 
 		if parsedNote.Kind == KindGenerator {
@@ -477,7 +480,7 @@ func (p *ParsedFile) GenerateNotes(generator *ParsedNote) ([]*ParsedNote, []*Par
 	return resultsNotes, resultsMedias, nil
 }
 
-func (p *ParsedFile) extractWikilinks() []*markdown.Wikilink {
+func (p *ParsedFile) extractWikilinks() []markdown.Wikilink {
 	return p.Markdown.Body.Wikilinks()
 }
 
@@ -664,6 +667,17 @@ func (f *ParsedFile) FindMediaByFilename(filename string) (*ParsedMedia, bool) {
 	return nil, false
 }
 
+// FindNoteByTitle searches for a note based on its title.
+// The code does a strict comparison and the exact title must be passed (without the leading '#' characters).
+func (f *ParsedFile) FindNoteByTitle(title string) (*ParsedNote, bool) {
+	for _, note := range f.Notes {
+		if note.Title == markdown.Document(title) {
+			return note, true
+		}
+	}
+	return nil, false
+}
+
 // FindNoteByShortTitle searches for a note based on its short title.
 // The code does a strict comparison and the exact short title must be passed.
 func (f *ParsedFile) FindNoteByShortTitle(shortTitle string) (*ParsedNote, bool) {
@@ -696,16 +710,19 @@ func StripTagsAndAttributes() markdown.Transformer {
 }
 
 // DetermineFileSlug generates a slug from a file path.
-func DetermineFileSlug(path string) string {
+func DetermineFileSlug(relativePath string) string {
 	var slugsParts []any
 
 	// Include the dirname
-	dirname := filepath.Base(filepath.Dir(path))
-	slugsParts = append(slugsParts, dirname)
+	dirname := filepath.Base(filepath.Dir(relativePath))
+	if dirname != "" {
+		// Do not prefix by the dirname when file are present at the root
+		slugsParts = append(slugsParts, dirname)
+	}
 
 	// Include the filename (without the extension) except for index.md (as no additional meaning)
 	// and except when the file is named after the directory.
-	filenameWithoutExtension := text.TrimExtension(filepath.Base(path))
+	filenameWithoutExtension := text.TrimExtension(filepath.Base(relativePath))
 	if filenameWithoutExtension != "index" && filenameWithoutExtension != dirname {
 		slugsParts = append(slugsParts, filenameWithoutExtension)
 	}
@@ -726,4 +743,35 @@ func RelativePath(rootPath, absolutePath string) string {
 		log.Fatalf("Unable to determine relative path for %q from root %q: %v", absolutePath, rootPath, err)
 	}
 	return relativePath
+}
+
+// StripSubNotesTransformer removes sub-notes from a document
+func StripSubNotesTransformer(document markdown.Document) (markdown.Document, error) {
+	// The current implementation traverses the lines until finding the first sub-note
+	it := document.Iterator()
+
+	// Skip top note heading
+	for it.HasNext() {
+		line := it.Next()
+		ok, _, _ := markdown.IsHeading(line.Text)
+		if ok {
+			break
+		}
+	}
+
+	// Move to next note-specific heading
+	for it.HasNext() {
+		line := it.Next()
+		ok, headingText, _ := markdown.IsHeading(line.Text)
+		if ok {
+			supported, _, _ := isSupportedNote(headingText)
+			if supported {
+				// Found the first sub-note
+				return document.ExtractLines(0, line.Number-1).TrimSpace(), nil
+			}
+		}
+	}
+
+	// No sub-note found, simply returns the original document
+	return document, nil
 }

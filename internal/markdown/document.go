@@ -84,6 +84,6 @@ func IsHeading(line string) (bool, string, int) { // FIXME move to core/markdown
 }
 
 // TODO document
-func (m *Document) ToCleanMarkdown() Document { // FIXME formerly markdown.ToMarkdown
+func (m *Document) ToCleanMarkdown() Document {
 	return m.MustTransform(AlignHeadings(), SquashBlankLines()).TrimSpace()
 }

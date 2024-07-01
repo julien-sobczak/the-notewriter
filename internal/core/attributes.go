@@ -51,6 +51,10 @@ func (t TagSet) Merge(tagSets ...TagSet) TagSet {
 	return result
 }
 
+func (t TagSet) AsList() []string {
+	return t
+}
+
 /*
  * AttributeSet
  */
@@ -196,8 +200,6 @@ func NewAttributeSetFromYAML(rawValue string) (AttributeSet, error) {
 }
 
 func (a AttributeSet) Merge(attributes ...AttributeSet) AttributeSet {
-	// Implementation: Attribute lists must already have been casted correctly to avoid incompatible types
-
 	var result AttributeSet = make(map[string]any)
 	for newKey, newValue := range a {
 		result.SetAttribute(newKey, newValue)
@@ -215,7 +217,27 @@ func (a AttributeSet) Merge(attributes ...AttributeSet) AttributeSet {
 	return result
 }
 
+func (a AttributeSet) AddTag(newTag string) {
+	// IMPROVEMENT Avoid side-effect methods
+	if _, ok := a["tags"]; !ok {
+		// Not tag currently present
+		a["tags"] = []string{newTag}
+		return
+	}
+	if tags, ok := a["tags"].([]string); ok {
+		for _, tag := range tags {
+			if tag == newTag {
+				// Already present
+				return
+			}
+		}
+		a["tags"] = append(tags, newTag)
+		return
+	}
+}
+
 func (a AttributeSet) SetAttribute(name string, value any) {
+	// IMPROVEMENT Avoid side-effect methods
 	// Check if the attribute was already defined
 	currentValue, ok := a[name]
 
@@ -225,6 +247,13 @@ func (a AttributeSet) SetAttribute(name string, value any) {
 
 	// If the type is a slice, append the new value instead of overriding
 	switch x := currentValue.(type) {
+	case []string:
+		switch y := value.(type) {
+		case []string:
+			a[name] = append(x, y...)
+		default:
+			a[name] = append(x, fmt.Sprintf("%v", value))
+		}
 	case []any:
 		switch y := value.(type) {
 		case []any:
@@ -238,9 +267,25 @@ func (a AttributeSet) SetAttribute(name string, value any) {
 	}
 }
 
+func (a AttributeSet) AsMap() map[string]any {
+	return a
+}
+
+/* Utility */
+
+func (a AttributeSet) GetTags() []string {
+	if v, ok := a["tags"].([]string); ok {
+		return v
+	}
+	return nil
+}
+
+/* Format */
+
 func (a AttributeSet) ToJSON() (string, error) {
 	var buf bytes.Buffer
 	bufEncoder := json.NewEncoder(&buf)
+	bufEncoder.SetIndent("", "  ")
 	err := bufEncoder.Encode(a)
 	if err != nil {
 		return "", err
@@ -360,31 +405,29 @@ func ExtractBlockTagsAndAttributes(content markdown.Document, types map[string]s
 
 			// Append new tag
 			tags = append(tags, tag)
-
-			// Append tags in attributes too (tags are attributes with syntaxic sugar)
-			if _, ok := attributes["tags"]; !ok {
-				attributes["tags"] = []interface{}{}
-			}
-			attributes["tags"] = append(attributes["tags"].([]interface{}), tag)
 		}
 		matches = regexAttributes.FindAllStringSubmatch(line, -1)
 		for _, match := range matches {
 			name := match[1]
 			value := match[2]
 
-			declaredType := "string"
-			if types[name] != "" {
-				declaredType = types[name]
-			}
-			if typedValue, ok := CastAttribute(value, declaredType); ok {
-				attributes.SetAttribute(name, typedValue)
-			}
-
-			// Tags can also be set as attributes (= longer syntax)
-			if name == "tags" {
-				attributes["tags"] = append(attributes["tags"].([]interface{}), value)
-			}
+			attributes[name] = value
 		}
+	}
+
+	// Cast (ensure the tags attribute is an array too)
+	attributes = attributes.Cast(types)
+
+	tagsInAttributes := attributes.GetTags()
+
+	// The tag syntax is only syntax sugar. Tags must be added in attributes too.
+	for _, tag := range tags {
+		attributes.AddTag(tag)
+	}
+
+	// Add tags declared using `@tags` attributes
+	for _, tagInAttribute := range tagsInAttributes {
+		tags = append(tags, tagInAttribute)
 	}
 
 	return tags, attributes

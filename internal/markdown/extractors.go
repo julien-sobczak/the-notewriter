@@ -104,10 +104,10 @@ func (m Document) ExtractCodeBlocks() []*CodeBlock {
 }
 
 // StripComment extracts the optional user comment from a note body.
-func (m *Document) ExtractComment() (string, string) {
-	body := string(m.TrimSpace())
+func (m *Document) ExtractComment() (Document, Document) {
+	body := m.TrimSpace()
 
-	lines := strings.Split(body, "\n")
+	lines := body.Lines()
 	if len(lines) == 0 {
 		return "", ""
 	}
@@ -128,9 +128,9 @@ func (m *Document) ExtractComment() (string, string) {
 
 	// A blank line must precede the comment and other non-blank lines must exists before
 	if text.IsBlank(lines[i]) && i > 0 {
-		content := text.ExtractLines(body, 1, i+1)
-		comment := text.TrimLinePrefix(text.ExtractLines(body, i+2, -1), "> ")
-		return strings.TrimSpace(content), strings.TrimSpace(comment)
+		content := body.ExtractLines(1, i+1)
+		comment := Document(text.TrimLinePrefix(body.ExtractLines(i+2, -1).String(), "> "))
+		return content.TrimSpace(), comment.TrimSpace()
 	} else {
 		return body, ""
 	}

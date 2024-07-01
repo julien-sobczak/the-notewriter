@@ -15,7 +15,7 @@ type Transformer func(document Document) (Document, error)
 func (m Document) Transform(transformers ...Transformer) (Document, error) {
 	result := m
 	for _, transformer := range transformers {
-		resultTransformed, err := transformer(m)
+		resultTransformed, err := transformer(result)
 		if err != nil {
 			return m, err
 		}
@@ -170,7 +170,7 @@ func AlignHeadings() Transformer {
 		for _, line := range strings.Split(text, "\n") {
 			ok, headingTitle, level := IsHeading(line)
 			if ok {
-				newLevel := level - minHeadingLevel + 2 // The top sub-heading should be ##
+				newLevel := level - minHeadingLevel + 2 // The top sub-heading should be ## because # is reserved for the document title
 				res.WriteString(levelHeading[newLevel])
 				res.WriteString(" ")
 				res.WriteString(headingTitle)

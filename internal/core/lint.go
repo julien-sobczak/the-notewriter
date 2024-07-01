@@ -677,9 +677,10 @@ func CheckAttribute(file *ParsedFile, args []string) ([]*Violation, error) {
 				if presentOnFile {
 					found = true
 
+					// FIXME reuse CastFn
 					line := text.LineNumber(string(file.Markdown.Content), name+":")
 					switch definition.Type {
-					case "array":
+					case "string[]":
 						if !IsArray(fileValue) && !IsPrimitive(fileValue) {
 							violations = append(violations, &Violation{
 								Name:         "check-attribute",
@@ -745,7 +746,7 @@ func CheckAttribute(file *ParsedFile, args []string) ([]*Violation, error) {
 					found = true
 					line := file.Markdown.BodyLine + note.Line - 1 + text.LineNumber(note.Body.String(), "@"+name)
 					switch definition.Type {
-					case "array":
+					case "string[]":
 						if !IsArray(noteValue) && !IsPrimitive(noteValue) {
 							violations = append(violations, &Violation{
 								Name:         "check-attribute",

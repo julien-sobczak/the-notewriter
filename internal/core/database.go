@@ -943,9 +943,9 @@ func (db *DB) Diff() (string, error) {
 		noteContentBefore := ""
 		if commitObj != nil {
 			commitNote := commitObj.(*Note)
-			noteContentBefore = string(commitNote.ContentRaw)
+			noteContentBefore = string(commitNote.Content)
 		}
-		noteContentAfter := string(stagedNote.ContentRaw)
+		noteContentAfter := string(stagedNote.Content)
 		patch := godiffpatch.GeneratePatch(stagedNote.RelativePath, noteContentBefore, noteContentAfter)
 		diff.WriteString(patch)
 	}

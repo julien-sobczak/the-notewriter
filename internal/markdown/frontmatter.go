@@ -23,8 +23,8 @@ func (f FrontMatter) AsNode() (*yaml.Node, error) {
 	return frontMatter, nil
 }
 
-func (f FrontMatter) AsMap() (map[string]interface{}, error) {
-	var attributes = make(map[string]interface{})
+func (f FrontMatter) AsMap() (map[string]any, error) {
+	var attributes = make(map[string]any)
 	if err := yaml.Unmarshal([]byte(f), attributes); err != nil {
 		return nil, err
 	}
@@ -36,8 +36,11 @@ func (f FrontMatter) AsBeautifulYAML() (string, error) {
 	var buf bytes.Buffer
 	bufEncoder := yaml.NewEncoder(&buf)
 	bufEncoder.SetIndent(Indent)
-	err := bufEncoder.Encode(f)
+	m, err := f.AsMap()
 	if err != nil {
+		return "", err
+	}
+	if err = bufEncoder.Encode(m); err != nil {
 		return "", err
 	}
 	return CompactYAML(buf.String()), nil

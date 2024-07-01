@@ -31,7 +31,7 @@ func TestGetSchemaAttributes(t *testing.T) {
 		},
 		{
 			Name:     "references",
-			Type:     "array",
+			Type:     "string[]",
 			Required: BoolPointer(false),
 			Inherit:  BoolPointer(true),
 		},
@@ -43,7 +43,7 @@ func TestGetSchemaAttributes(t *testing.T) {
 		},
 		{
 			Name:     "tags",
-			Type:     "array",
+			Type:     "string[]",
 			Required: BoolPointer(false),
 			Inherit:  BoolPointer(true),
 		},
@@ -64,7 +64,7 @@ func TestGetSchemaAttributes(t *testing.T) {
 		// Name does not match
 		{
 			Name:     "references",
-			Type:     "array",
+			Type:     "string[]",
 			Required: BoolPointer(false),
 			Inherit:  BoolPointer(true),
 		},
@@ -76,7 +76,7 @@ func TestGetSchemaAttributes(t *testing.T) {
 		},
 		{
 			Name:     "tags",
-			Type:     "array",
+			Type:     "string[]",
 			Required: BoolPointer(false),
 			Inherit:  BoolPointer(true),
 		},

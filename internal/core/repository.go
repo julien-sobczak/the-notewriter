@@ -800,9 +800,9 @@ func (r *Repository) Diff(staged bool) (string, error) {
 		noteContentBefore := ""
 		if objectBefore != nil {
 			noteBefore := objectBefore.(*Note)
-			noteContentBefore = string(noteBefore.ContentRaw)
+			noteContentBefore = string(noteBefore.Content)
 		}
-		noteContentAfter := string(noteAfter.ContentRaw)
+		noteContentAfter := string(noteAfter.Content)
 		patch := godiffpatch.GeneratePatch(noteAfter.RelativePath, noteContentBefore, noteContentAfter)
 		diff.WriteString(patch)
 	}
@@ -813,7 +813,7 @@ func (r *Repository) Diff(staged bool) (string, error) {
 			return "", err
 		}
 		noteBefore := objectBefore.(*Note)
-		noteContentBefore := string(noteBefore.ContentRaw)
+		noteContentBefore := string(noteBefore.Content)
 		noteContentAfter := ""
 		patch := godiffpatch.GeneratePatch(noteAfter.RelativePath, noteContentBefore, noteContentAfter)
 		diff.WriteString(patch)

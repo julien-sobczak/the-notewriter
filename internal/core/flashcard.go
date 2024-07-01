@@ -253,7 +253,6 @@ func (f *Flashcard) Blobs() []*BlobRef {
 }
 
 func (f *Flashcard) Relations() []*Relation {
-	// We consider only relations related to notes
 	return nil
 }
 

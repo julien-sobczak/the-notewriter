@@ -23,7 +23,7 @@ CREATE TABLE file (
   -- Same as title without the optional kind
   short_title TEXT NOT NULL,
 
-  -- Raw file content
+  -- Body file content
   body TEXT NOT NULL,
   body_line INTEGER NOT NULL,
 
@@ -75,12 +75,12 @@ CREATE TABLE note (
   -- Line number (1-based index) of the note section title
   "line" INTEGER NOT NULL,
 
-  -- Content without post-prcessing (including tags, attributes, ...)
-  content_raw TEXT NOT NULL,
+  -- Content without post-processing (including tags, attributes, ...)
+  content TEXT NOT NULL,
   -- Hash of content_raw
   hashsum TEXT NOT NULL,
   -- Edited content in Markdown format
-  content TEXT NOT NULL,
+  body TEXT NOT NULL,
   -- Comment in Markdown format
   comment TEXT NOT NULL,
 
@@ -90,20 +90,19 @@ CREATE TABLE note (
   last_checked_at TEXT
 );
 
-CREATE VIRTUAL TABLE note_fts USING FTS5(oid UNINDEXED, kind UNINDEXED, short_title, content_text, content='note', content_rowid='rowid');
+CREATE VIRTUAL TABLE note_fts USING FTS5(oid UNINDEXED, kind UNINDEXED, short_title, content, content='note', content_rowid='rowid');
 
--- FIXME content_text no longer exitts
 create trigger note_fts_after_insert after insert on note begin
-  insert into note_fts (rowid, oid, kind, short_title, content_text) values (new.rowid, new.oid, new.kind, new.short_title, new.content);
+  insert into note_fts (rowid, oid, kind, short_title, content) values (new.rowid, new.oid, new.kind, new.short_title, new.content);
 end;
 
 create trigger note_fts_after_update after update on note begin
-  insert into note_fts (note_fts, rowid, oid, kind, short_title, content_text) values('delete', old.rowid, old.oid, old.kind, old.short_title, old.content);
-  insert into note_fts (rowid, oid, kind, short_title, content_text) values (new.rowid, new.oid, new.kind, new.short_title, new.content);
+  insert into note_fts (note_fts, rowid, oid, kind, short_title, content) values('delete', old.rowid, old.oid, old.kind, old.short_title, old.content);
+  insert into note_fts (rowid, oid, kind, short_title, content) values (new.rowid, new.oid, new.kind, new.short_title, new.content);
 end;
 
 create trigger note_fts_after_delete after delete on note begin
-  insert into note_fts (note_fts, rowid, oid, kind, short_title, content_text) values('delete', old.rowid, old.oid, old.kind, old.short_title, old.content);
+  insert into note_fts (note_fts, rowid, oid, kind, short_title, content) values('delete', old.rowid, old.oid, old.kind, old.short_title, old.content);
 end;
 
 CREATE TABLE media (

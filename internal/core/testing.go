@@ -46,7 +46,7 @@ func SetUpRepositoryFromFileContent(t *testing.T, name, content string) string {
 	filename := testutil.SetUpFromFileContent(t, name, content)
 	dirname := filepath.Dir(filename)
 	configureDir(t, dirname)
-	return filename
+	return dirname
 }
 
 // SetUpRepositoryFromGoldenDir populates a temp directory containing a valid .nt repository.
@@ -101,14 +101,14 @@ command="random"
 /* Reproducible Tests */
 
 // FreezeNow wraps the clock API to register the cleanup function at the end of the test.
-func FreezeNow(t *testing.T) time.Time {
+func FreezeNow(t *testing.T) *clock.TestClock {
 	now := clock.Freeze()
 	t.Cleanup(clock.Unfreeze)
 	return now
 }
 
 // FreezeAt wraps the clock API to register the cleanup function at the end of the test.
-func FreezeAt(t *testing.T, point time.Time) time.Time {
+func FreezeAt(t *testing.T, point time.Time) *clock.TestClock {
 	now := clock.FreezeAt(point)
 	t.Cleanup(clock.Unfreeze)
 	return now
@@ -254,10 +254,17 @@ func UnescapeTestContent(content string) string {
 	// We support a special syntax for backticks in content.
 	// Backticks are used to define note attributes (= common syntax with The NoteWriter) but
 	// multiline strings in Golang cannot contains backticks.
-	// We allows the ” character instead as suggested here: https://stackoverflow.com/a/59900008
+
+	// We allow the ” character instead as suggested here: https://stackoverflow.com/a/59900008
 	//
 	// Example: ”@slug: toto” will become `@slug: toto`
-	return strings.ReplaceAll(content, "”", "`")
+	result := strings.ReplaceAll(content, "”", "`")
+
+	// We allow the ‛ character
+	// Example: ‛@slug: toto‛ will become `@slug: toto`
+	result = strings.ReplaceAll(result, "‛", "`")
+
+	return result
 }
 
 // MustDeleteFile remove a file iin the current repository.

@@ -173,5 +173,4 @@ func ToBookTitle(text string) string {
 		return fmt.Sprintf("%s: %s", title, subtitle)
 	}
 	return title
-
 }

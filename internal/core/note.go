@@ -95,8 +95,8 @@ type Note struct {
 	// Line number (1-based index) of the note section title
 	Line int `yaml:"line" json:"line"`
 
-	// Content in various formats (best for editing, rendering, writing, etc.)
-	ContentRaw markdown.Document `yaml:"content_raw" json:"content_raw"`
+	// Content
+	Content    markdown.Document `yaml:"content" json:"content"`
 	Hash       string            `yaml:"content_hash" json:"content_hash"`
 	Body       markdown.Document `yaml:"body" json:"body"`
 	Comment    markdown.Document `yaml:"comment,omitempty" json:"comment,omitempty"`
@@ -124,7 +124,10 @@ func NewNote(file *File, parent *Note, parsedNote *ParsedNote) (*Note, error) {
 		RelativePath: file.RelativePath,
 		Attributes:   make(map[string]interface{}),
 		Wikilink:     file.Wikilink + "#" + string(parsedNote.Title.TrimSpace()),
-		Line:         file.AbsoluteBodyLine(parsedNote.Line),
+		Content:      parsedNote.Content,
+		Body:         parsedNote.Body,
+		Comment:      parsedNote.Comment,
+		Line:         parsedNote.Line,
 		CreatedAt:    clock.Now(),
 		UpdatedAt:    clock.Now(),
 		new:          true,
@@ -179,7 +182,7 @@ func (n *Note) ModificationTime() time.Time {
 
 func (n *Note) Refresh() (bool, error) {
 	// Simply force the content to be reevaluated to force included notes to be reread
-	n.updateContent(n.ContentRaw)
+	n.updateContent(n.Content)
 	return n.stale, nil
 }
 
@@ -265,7 +268,7 @@ func (n *Note) Relations() []*Relation {
 
 	// Search for embedded notes
 	reEmbeddedNote := regexp.MustCompile(`^!\[\[(.*)(?:\|.*)?\]\]\s*`)
-	matches := reEmbeddedNote.FindAllStringSubmatch(string(n.ContentRaw), -1)
+	matches := reEmbeddedNote.FindAllStringSubmatch(string(n.Content), -1)
 	for _, match := range matches {
 		wikilink := match[1]
 		addWikilink(wikilink, "includes")
@@ -490,19 +493,19 @@ func DetermineNoteSlug(fileSlug string, attributeSlug string, kind NoteKind, sho
 }
 
 func (n *Note) updateContent(newContent markdown.Document) {
-	prevContentRaw := n.ContentRaw
+	prevContent := n.Content
 	prevAttributes := n.Attributes
 
-	n.ContentRaw = newContent
-	n.Hash = n.ContentRaw.Hash()
+	n.Content = newContent
+	n.Hash = n.Content.Hash()
 
-	tags, attributes := ExtractBlockTagsAndAttributes(n.ContentRaw, GetSchemaAttributeTypes())
+	tags, attributes := ExtractBlockTagsAndAttributes(n.Content, GetSchemaAttributeTypes())
 
 	// Merge with parent attributes
 	if n.ParentNoteOID == "" {
-		attributes = n.mergeAttributes(n.GetFile().GetAttributes(), nil, attributes)
+		attributes = n.mergeAttributes(n.GetFile().Attributes, nil, attributes)
 	} else {
-		attributes = n.mergeAttributes(n.GetFile().GetAttributes(), n.GetParentNote().GetNoteAttributes(), attributes)
+		attributes = n.mergeAttributes(n.GetFile().Attributes, n.GetParentNote().GetNoteAttributes(), attributes)
 	}
 
 	// Merge with parent tags
@@ -517,113 +520,113 @@ func (n *Note) updateContent(newContent markdown.Document) {
 
 	// Append note title in a attribute title if not already present
 	if _, ok := attributes["title"]; !ok {
-		n.SetAttribute("title", n.ShortTitle)
+		n.SetAttribute("title", n.ShortTitle.String())
 	}
 
 	// Replace local-specific links by generic OID links
 	// FIXME remove oid
 	// content = n.ReplaceMediasByOIDLinks(content)
 
-	/*
-		// Quotes are processed differently
-		if n.NoteKind == KindQuote {
-			quote, attribution := markdown.ExtractQuote(content)
+	/* FIXME address this feature
+	// Quotes are processed differently
+	if n.NoteKind == KindQuote {
+		quote, attribution := markdown.ExtractQuote(content)
 
-			// Turn every text line into a quote
-			// Add the attribute name or author in suffix
-			// Ex:
-			//   `@name: Walt Disney`
-			//
-			//   The way to get started is to quit
-			//   talking and begin doing.
-			//
-			// Becomes:
-			//
-			//   > The way to get started is to quit
-			//   > talking and begin doing.
-			//   > — Walt Disney
+		// Turn every text line into a quote
+		// Add the attribute name or author in suffix
+		// Ex:
+		//   `@name: Walt Disney`
+		//
+		//   The way to get started is to quit
+		//   talking and begin doing.
+		//
+		// Becomes:
+		//
+		//   > The way to get started is to quit
+		//   > talking and begin doing.
+		//   > — Walt Disney
 
-			if attribution == "" {
-				attribution = n.GetAttributeString("name", n.GetAttributeString("author", ""))
-			}
-			source := n.GetAttributeString("source", "")
-			if strings.Contains(source, "[[") {
-				// Ignore source containing wikilink.
-				// Ideally, we would retrieve the correspond note to retrieve its title.
-				source = ""
-			}
-
-			// Markdown
-			mdContent += text.PrefixLines(quote, "> ")
-			mdContent = strings.TrimSpace(mdContent)
-
-			return
+		if attribution == "" {
+			attribution = n.GetAttributeString("name", n.GetAttributeString("author", ""))
+		}
+		source := n.GetAttributeString("source", "")
+		if strings.Contains(source, "[[") {
+			// Ignore source containing wikilink.
+			// Ideally, we would retrieve the correspond note to retrieve its title.
+			source = ""
 		}
 
-		// Manage embedded notes
-		// We process as usual the other lines but inject the embedded note content.
-		lines := strings.Split(content, "\n")
-		reEmbeddedNote := regexp.MustCompile(`^!\[\[(.*)(?:\|.*)?\]\]\s*`)
-		var currentBlock strings.Builder
-		for _, line := range lines {
-			matches := reEmbeddedNote.FindStringSubmatch(line)
-			if matches != nil {
-				if currentBlock.Len() > 0 {
-					blockContent := currentBlock.String()
-					mdContent += markdown.ToMarkdown(blockContent) + "\n\n"
-					htmlContent += markdown.ToHTML(blockContent) + "\n\n"
-					txtContent += markdown.ToText(blockContent) + "\n\n"
-					currentBlock.Reset()
-				}
-				wikilink := matches[1]
-				note, _ := CurrentRepository().FindNoteByWikilink(wikilink)
-				if note == nil {
-					note = CurrentDB().WIP().FindNoteByWikilink(wikilink)
-				}
-				// Ignore missing notes, this one will be reprocessed later
-				if note != nil {
-					mdContent += note.ContentMarkdown + "\n\n"
-					htmlContent += note.ContentHTML + "\n\n"
-					txtContent += note.ContentText + "\n\n"
-				} else {
-					// Print the missing link, otherwise the note content may be weird
-					mdContent += line + "\n\n"
-					htmlContent += "<del>" + wikilink + "</del>\n\n"
-					txtContent += markdown.ToText(line) + "\n\n"
-				}
+		// Markdown
+		mdContent += text.PrefixLines(quote, "> ")
+		mdContent = strings.TrimSpace(mdContent)
+
+		return
+	}
+
+	// Manage embedded notes
+	// We process as usual the other lines but inject the embedded note content.
+	lines := strings.Split(content, "\n")
+	reEmbeddedNote := regexp.MustCompile(`^!\[\[(.*)(?:\|.*)?\]\]\s*`)
+	var currentBlock strings.Builder
+	for _, line := range lines {
+		matches := reEmbeddedNote.FindStringSubmatch(line)
+		if matches != nil {
+			if currentBlock.Len() > 0 {
+				blockContent := currentBlock.String()
+				mdContent += markdown.ToMarkdown(blockContent) + "\n\n"
+				htmlContent += markdown.ToHTML(blockContent) + "\n\n"
+				txtContent += markdown.ToText(blockContent) + "\n\n"
+				currentBlock.Reset()
+			}
+			wikilink := matches[1]
+			note, _ := CurrentRepository().FindNoteByWikilink(wikilink)
+			if note == nil {
+				note = CurrentDB().WIP().FindNoteByWikilink(wikilink)
+			}
+			// Ignore missing notes, this one will be reprocessed later
+			if note != nil {
+				mdContent += note.ContentMarkdown + "\n\n"
+				htmlContent += note.ContentHTML + "\n\n"
+				txtContent += note.ContentText + "\n\n"
 			} else {
-				currentBlock.WriteString(line)
-				currentBlock.WriteRune('\n')
+				// Print the missing link, otherwise the note content may be weird
+				mdContent += line + "\n\n"
+				htmlContent += "<del>" + wikilink + "</del>\n\n"
+				txtContent += markdown.ToText(line) + "\n\n"
 			}
+		} else {
+			currentBlock.WriteString(line)
+			currentBlock.WriteRune('\n')
 		}
-		if currentBlock.Len() > 0 {
-			blockContent := currentBlock.String()
-			mdContent += markdown.ToMarkdown(blockContent)
-		}
+	}
+	if currentBlock.Len() > 0 {
+		blockContent := currentBlock.String()
+		mdContent += markdown.ToMarkdown(blockContent)
+	}
 	*/
 
-	if prevContentRaw != n.ContentRaw || !reflect.DeepEqual(prevAttributes, n.Attributes) {
+	if prevContent != n.Content || !reflect.DeepEqual(prevAttributes, n.Attributes) {
 		n.stale = true
 	}
 }
 
 // mergeAttributes is similar to generic mergeAttributes function but filter to exclude non-inheritable attributes.
-func (n *Note) mergeAttributes(fileAttributes, parentNoteAttributes, noteAttributes AttributeSet) map[string]interface{} {
+func (n *Note) mergeAttributes(fileAttributes, parentNoteAttributes, noteAttributes AttributeSet) AttributeSet {
 	inheritableFileAttributes := fileAttributes
 	inheritableParentNoteAttributes := FilterNonInheritableAttributes(parentNoteAttributes, n.RelativePath, n.NoteKind)
 	ownAttributes := noteAttributes
-	return fileAttributes.Merge(inheritableFileAttributes, inheritableParentNoteAttributes, ownAttributes)
+	return inheritableFileAttributes.Merge(inheritableParentNoteAttributes, ownAttributes)
 }
 
 // GetNoteAttributes returns the attributes specifically present on the note.
-func (n *Note) GetNoteAttributes() map[string]interface{} {
-	_, attributes := ExtractBlockTagsAndAttributes(n.ContentRaw, GetSchemaAttributeTypes())
-	return attributes.Cast(GetSchemaAttributeTypes())
+func (n *Note) GetNoteAttributes() AttributeSet {
+	_, attributes := ExtractBlockTagsAndAttributes(n.Content, GetSchemaAttributeTypes())
+	return attributes
 }
 
 // GetNoteTags returns the tags specifically present on the note.
 func (n *Note) GetNoteTags() []string {
-	tags, _ := ExtractBlockTagsAndAttributes(n.ContentRaw, GetSchemaAttributeTypes())
+	tags, _ := ExtractBlockTagsAndAttributes(n.Content, GetSchemaAttributeTypes())
 	return tags
 }
 
@@ -809,7 +812,7 @@ func (n *Note) Insert() error {
 			attributes,
 			tags,
 			"line",
-			content_raw,
+			content,
 			hashsum,
 			body,
 			comment,
@@ -838,7 +841,7 @@ func (n *Note) Insert() error {
 		attributesJSON,
 		strings.Join(n.Tags, ","),
 		n.Line,
-		n.ContentRaw,
+		n.Content,
 		n.Hash,
 		n.Body,
 		n.Comment,
@@ -870,7 +873,7 @@ func (n *Note) Update() error {
 			attributes = ?,
 			tags = ?,
 			"line" = ?,
-			content_raw = ?,
+			content = ?,
 			hashsum = ?,
 			body = ?,
 			comment = ?,
@@ -897,7 +900,7 @@ func (n *Note) Update() error {
 		attributesJSON,
 		strings.Join(n.Tags, ","),
 		n.Line,
-		n.ContentRaw,
+		n.Content,
 		n.Hash,
 		n.Body,
 		n.Comment,
@@ -1219,7 +1222,7 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 			attributes,
 			tags,
 			"line",
-			content_raw,
+			content,
 			hashsum,
 			body,
 			comment,
@@ -1242,7 +1245,7 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 			&attributesRaw,
 			&tagsRaw,
 			&n.Line,
-			&n.ContentRaw,
+			&n.Content,
 			&n.Hash,
 			&n.Body,
 			&n.Comment,
@@ -1288,7 +1291,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			attributes,
 			tags,
 			"line",
-			content_raw,
+			content,
 			hashsum,
 			body,
 			comment,
@@ -1323,7 +1326,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			&attributesRaw,
 			&tagsRaw,
 			&n.Line,
-			&n.ContentRaw,
+			&n.Content,
 			&n.Hash,
 			&n.Body,
 			&n.Comment,
@@ -1370,7 +1373,7 @@ func (n *Note) ToMarkdown() string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("# %s\n", n.Title))
 	sb.WriteRune('\n')
-	sb.WriteString(string(n.ContentRaw))
+	sb.WriteString(string(n.Body))
 	return sb.String()
 }
 

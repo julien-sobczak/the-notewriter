@@ -125,7 +125,7 @@ Blablabla`,
 				},
 				{
 					Name:     "references",
-					Type:     "array",
+					Type:     "string[]",
 					Inherit:  BoolPointer(true),  // default value
 					Required: BoolPointer(false), // default value
 				},

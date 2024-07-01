@@ -17,19 +17,24 @@ website: https://julien-sobczak.github.io/the-notewriter
 
 ![[#Artwork: Initial Draft]]
 
-* Motivations
-  * My frustrations with commercial products, Anki UI.
-  * My commitment to take notes for a very long time (I don't want to lose my time trying new, shiny products)
-* Introduction
-  * Explain the main logic: Edit Markdown => Extract Objects
-  * Explain the Git inspiration
-* Demo
-  * A short 5-minute guide to explain how to start taking notes immediately
-  * Link to the user guide for a complete overview of my workflow
-* Future
-  * A status of future developments.
+#### Motivations
 
-## Reference: Note-Taking Apps
+* My frustrations with commercial products, Anki UI.
+* My commitment to take notes for a very long time (I don't want to lose my time trying new, shiny products)
+
+#### Introduction
+
+* Explain the main logic: Edit Markdown => Extract Objects
+* Explain the Git inspiration
+
+#### Demo
+
+* A short 5-minute guide to explain how to start taking notes immediately
+* Link to the user guide for a complete overview of my workflow
+
+## References
+
+### Reference: Note-Taking Apps
 
 (⚠️ _The list is not exhaustive_)
 
@@ -38,6 +43,22 @@ website: https://julien-sobczak.github.io/the-notewriter
 * Roam
 * [Tana](https://tana.inc/)
 * Mem
+
+### Reference: First Notebooks
+
+`@source: https://en.wikipedia.org/wiki/Notebook`
+
+The earliest form of notebook was the wax tablet, which was used as a reusable and portable writing surface in classical antiquity and throughout the Middle Ages.
+
+#### Flashcard: First Notebooks
+
+`#note-taking`
+
+(Note-Taking) Which **material** was used by the first notebooks?
+
+---
+
+**Wax** tablets.
 
 ## Cheatsheet: How to create a repository
 

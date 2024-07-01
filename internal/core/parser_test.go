@@ -35,16 +35,16 @@ func TestParseFile(t *testing.T) {
 				assert.True(t, strings.HasPrefix(file.AbsolutePath, file.RepositoryPath))
 				assert.True(t, strings.HasSuffix(file.AbsolutePath, file.RelativePath))
 				assert.Equal(t, "basic-notetaking", file.Slug)
-				assert.Equal(t, "Basic Note-Taking", file.Title)
-				assert.Equal(t, "Basic Note-Taking", file.ShortTitle)
+				assert.Equal(t, "Basic Note-Taking", file.Title.String())
+				assert.Equal(t, "Basic Note-Taking", file.ShortTitle.String())
 
 				// File attributes extracted from the Front Matter
-				assert.Equal(t, map[string]any{
+				assert.Equal(t, core.AttributeSet(map[string]any{
 					"title":  "Basic Note-Taking",
 					"rating": 5,
 					"slug":   "basic-notetaking",
 					"tags":   []any{"thinking"},
-				}, file.FileAttributes)
+				}), file.FileAttributes)
 
 				// Check subobjects
 				assert.Len(t, file.Medias, 1)
@@ -56,6 +56,7 @@ func TestParseFile(t *testing.T) {
 				expectedDaVinci := &core.ParsedMedia{
 					RawPath:      "medias/da-vinci-notebook.png",
 					AbsolutePath: filepath.Join(filepath.Dir(file.Markdown.AbsolutePath), "medias/da-vinci-notebook.png"),
+					RelativePath: "medias/da-vinci-notebook.png",
 					Extension:    ".png",
 					MediaKind:    core.KindPicture,
 					Line:         41,
@@ -72,11 +73,11 @@ func TestParseFile(t *testing.T) {
 				assert.Equal(t, 2, noteNote.Level)
 				assert.Equal(t, core.KindNote, noteNote.Kind)
 				assert.Equal(t, "basic-notetaking-note-a-note", noteNote.Slug)
-				assert.Equal(t, "Note: A Note", noteNote.Title)
-				assert.Equal(t, "A Note", noteNote.ShortTitle)
+				assert.Equal(t, markdown.Document("Note: A Note"), noteNote.Title)
+				assert.Equal(t, markdown.Document("A Note"), noteNote.ShortTitle)
 				assert.Equal(t, 11, noteNote.Line)
-				assert.Equal(t, "## Note: A Note\n\nNotes has many uses:\n\n* Journaling\n* To-Do list\n* Drawing\n* Diary\n* Flashcard\n* Reminder", noteNote.Content)
-				assert.Equal(t, "Notes has many uses:\n\n* Journaling\n* To-Do list\n* Drawing\n* Diary\n* Flashcard\n* Reminder", noteNote.Body)
+				assert.Equal(t, "## Note: A Note\n\nNotes has many uses:\n\n* Journaling\n* To-Do list\n* Drawing\n* Diary\n* Flashcard\n* Reminder", noteNote.Content.String())
+				assert.Equal(t, "Notes has many uses:\n\n* Journaling\n* To-Do list\n* Drawing\n* Diary\n* Flashcard\n* Reminder", noteNote.Body.String())
 				assert.Empty(t, nil, noteNote.NoteAttributes)
 				assert.Empty(t, nil, noteNote.NoteTags)
 				// No subobjects
@@ -87,26 +88,26 @@ func TestParseFile(t *testing.T) {
 				// Check "Quote: Tim Ferris on Note-Taking"
 				noteTimFerris, ok := file.FindNoteByShortTitle("Tim Ferris on Note-Taking")
 				require.True(t, ok)
-				require.Equal(t, map[string]any{
+				require.Equal(t, core.AttributeSet(map[string]any{
 					"author": "Tim Ferris",
-				}, noteTimFerris.NoteAttributes)
+				}), noteTimFerris.NoteAttributes)
 
 				// Check "Flashcard: Commonplace Book"
 				noteCommomplace, ok := file.FindNoteByShortTitle("Commonplace Book")
 				require.True(t, ok)
 				require.NotNil(t, noteCommomplace.Flashcard)
 				flashcardCommonplace := noteCommomplace.Flashcard
-				assert.Equal(t, "Commonplace Book", flashcardCommonplace.ShortTitle)
-				assert.Equal(t, "(Thinking) What are **commonplace books**?", flashcardCommonplace.Front)
-				assert.Equal(t, "A tool to compile knowledge, usually by writing information into books.", flashcardCommonplace.Back)
+				assert.Equal(t, "Commonplace Book", flashcardCommonplace.ShortTitle.String())
+				assert.Equal(t, "(Thinking) What are **commonplace books**?", flashcardCommonplace.Front.String())
+				assert.Equal(t, "A tool to compile knowledge, usually by writing information into books.", flashcardCommonplace.Back.String())
 
 				// Check "Reference: Leonardo da Vinci's Notebooks"
 				noteDaVinci, ok := file.FindNoteByShortTitle("Leonardo da Vinci's Notebooks")
 				require.True(t, ok)
-				require.Equal(t, map[string]any{
+				require.Equal(t, core.AttributeSet(map[string]any{
 					"author": "Leonardo da Vinci",
 					"year":   "~1510",
-				}, noteDaVinci.NoteAttributes)
+				}), noteDaVinci.NoteAttributes)
 			},
 		},
 
@@ -149,8 +150,8 @@ func TestParseFile(t *testing.T) {
 				noteB, ok := file.FindNoteByShortTitle("B")
 				require.True(t, ok)
 
-				assert.Equal(t, `Some text inside the note.`, noteA.Body)
-				assert.Equal(t, `Text`, noteB.Body)
+				assert.Equal(t, `Some text inside the note.`, noteA.Body.String())
+				assert.Equal(t, `Text`, noteB.Body.String())
 			},
 		},
 
@@ -169,6 +170,18 @@ func TestParseFile(t *testing.T) {
 			test: func(t *testing.T, file *core.ParsedFile) {
 				require.NotNil(t, file)
 
+				// Sub-headings must only be included when untyped
+				// Ex:
+				note, ok := file.FindNoteByTitle("Note: Blog Post Outline")
+				require.True(t, ok)
+				assert.Contains(t, note.Body.String(), "#### Motivations")
+				assert.Contains(t, note.Body.String(), "#### Introduction")
+				assert.Contains(t, note.Body.String(), "#### Demo")
+				// BUT
+				note, ok = file.FindNoteByTitle("Reference: First Notebooks")
+				require.True(t, ok)
+				assert.NotContains(t, note.Body.String(), "Flashcard: First Notebooks")
+
 				// TODO complete
 			},
 		},
@@ -179,6 +192,7 @@ func TestParseFile(t *testing.T) {
 			test: func(t *testing.T, file *core.ParsedFile) {
 				require.NotNil(t, file)
 
+				// TODO complete
 			},
 		},
 
@@ -218,9 +232,94 @@ func TestDetermineFileSlug(t *testing.T) {
 			path: "go/go.md",
 			slug: "go",
 		},
+		// File at root does not include the dir prefix
+		{
+			path: "go.md",
+			slug: "go",
+		},
 	}
 	for _, tt := range tests {
 		actual := core.DetermineFileSlug(tt.path)
 		assert.Equal(t, tt.slug, actual)
 	}
+}
+
+func TestMarkdownTransformers(t *testing.T) {
+
+	t.Run("StripSubNotesTransformer", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			input    markdown.Document // input
+			expected markdown.Document // output
+		}{
+
+			{
+				name: "No sub-notes",
+				input: `
+## Note: A note
+
+A simple note
+`,
+				// Nothing must be stripped
+				expected: `
+## Note: A note
+
+A simple note
+`,
+			},
+
+			{
+				name: "Untyped sub-notes",
+				input: `
+## Note: A note
+
+A simple note
+
+### Subheading
+
+Some more text
+`,
+				// Sub-sections must be present as they are not typed notes
+				expected: `
+## Note: A note
+
+A simple note
+
+### Subheading
+
+Some more text
+`,
+			},
+
+			{
+				name: "With sub-notes",
+				input: `
+## Note: A note
+
+A simple note
+
+### Note: A sub note
+
+Some more text
+`,
+				// Sub-notes must be trimmed
+				expected: `
+## Note: A note
+
+A simple note
+`,
+			},
+
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				actual, err := tt.input.Transform(core.StripSubNotesTransformer)
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected.TrimSpace(), actual.TrimSpace())
+			})
+		}
+
+	})
+
 }
