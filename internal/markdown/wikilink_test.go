@@ -102,22 +102,22 @@ func TestWikilinks(t *testing.T) {
 		expected := []markdown.Wikilink{
 			{
 				Link: "1234abcdABCD-_",
-				Text: "1234abcdABCD-_",
+				Text: "",
 				Line: 2,
 			},
 			{
 				Link: "file.md",
-				Text: "file.md",
+				Text: "",
 				Line: 3,
 			},
 			{
 				Link: "path/to/file.md",
-				Text: "path/to/file.md",
+				Text: "",
 				Line: 4,
 			},
 			{
 				Link: "path/to/file",
-				Text: "path/to/file",
+				Text: "",
 				Line: 5,
 			},
 			{
@@ -132,7 +132,7 @@ func TestWikilinks(t *testing.T) {
 			},
 			{
 				Link: "a.md#B",
-				Text: "a.md#B",
+				Text: "",
 				Line: 8,
 			},
 		}
@@ -150,17 +150,17 @@ func TestWikilinks(t *testing.T) {
 		expected := []markdown.Wikilink{
 			{
 				Link: "links#Wikilinks",
-				Text: "links#Wikilinks",
+				Text: "",
 				Line: 5,
 			},
 			{
 				Link: "testdata/TestMarkdown/links",
-				Text: "testdata/TestMarkdown/links",
+				Text: "",
 				Line: 13,
 			},
 			{
 				Link: "TestMarkdown/links#Wikilinks",
-				Text: "TestMarkdown/links#Wikilinks",
+				Text: "",
 				Line: 13,
 			},
 			{

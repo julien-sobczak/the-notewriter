@@ -12,7 +12,7 @@ func TestGetSchemaAttributes(t *testing.T) {
 
 	file, err := ParseFileFromRelativePath(root, "check-attribute/check-attribute.md")
 	require.NoError(t, err)
-	require.Equal(t, "Quote: Steve Jobs on Life", file.Notes[0].Title)
+	require.Equal(t, "Quote: Steve Jobs on Life", file.Notes[0].Title.String())
 	definitions := GetSchemaAttributes(file.RelativePath, file.Notes[0].Kind)
 	assert.Equal(t, []*ConfigLintSchemaAttribute{
 		{
@@ -51,7 +51,7 @@ func TestGetSchemaAttributes(t *testing.T) {
 
 	file, err = ParseFileFromRelativePath(root, "check-attribute.md")
 	require.NoError(t, err)
-	require.Equal(t, "Note: _Steve Jobs_ by Walter Isaacson", file.Notes[1].Title)
+	require.Equal(t, "Note: _Steve Jobs_ by Walter Isaacson", file.Notes[1].Title.String())
 	definitions = GetSchemaAttributes(file.RelativePath, file.Notes[1].Kind)
 	assert.Equal(t, []*ConfigLintSchemaAttribute{
 		{
@@ -272,24 +272,6 @@ func TestRequireQuoteTag(t *testing.T) {
 	assert.Len(t, violations, 0)
 }
 
-func TestNoFreeNote(t *testing.T) {
-	root := SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
-
-	file, err := ParseFileFromRelativePath(root, "no-free-note.md")
-	require.NoError(t, err)
-
-	violations, err := NoFreeNote(file, nil)
-	require.NoError(t, err)
-	require.Equal(t, []*Violation{
-		{
-			Name:         "no-free-note",
-			RelativePath: "no-free-note.md",
-			Message:      `free note "A free note" not allowed`,
-			Line:         3,
-		},
-	}, violations)
-}
-
 func TestNoDanglingMedia(t *testing.T) {
 	root := SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
 
@@ -411,6 +393,7 @@ func TestNoAmbiguousWikilink(t *testing.T) {
 }
 
 func TestCheckAttribute(t *testing.T) {
+	// TODO now debug
 	root := SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
 
 	fileRoot, err := ParseFileFromRelativePath(root, "check-attribute.md")
@@ -421,6 +404,7 @@ func TestCheckAttribute(t *testing.T) {
 	violations, err := CheckAttribute(fileRoot, nil)
 	require.NoError(t, err)
 	require.Len(t, violations, 1)
+
 	require.ElementsMatch(t, []*Violation{
 		{
 			Name:         "check-attribute",

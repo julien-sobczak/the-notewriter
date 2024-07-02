@@ -20,7 +20,7 @@ func (n *Note) RunHooks(hookNames []string) error {
 		// No hooks on this note
 		return nil
 	}
-	hooks, ok := hookValue.([]interface{})
+	hooks, ok := hookValue.([]string)
 	if !ok {
 		return fmt.Errorf("invalid type for hook attribute")
 	}
@@ -32,9 +32,7 @@ func (n *Note) RunHooks(hookNames []string) error {
 	// Start by checking all hook executable exists
 	hookDir := filepath.Join(CurrentConfig().RootDirectory, ".nt", "hooks")
 	hookExecutables := map[string]string{}
-	for _, hookNameRaw := range hooks {
-		hookName := hookNameRaw.(string)
-
+	for _, hookName := range hooks {
 		// Search for an executable file named `hookName(.ext)?` under `.nt/hooks`
 		var matchingExecutableFiles []string
 		filepath.WalkDir(hookDir, func(path string, info fs.DirEntry, err error) error {
@@ -74,9 +72,7 @@ func (n *Note) RunHooks(hookNames []string) error {
 	}
 
 	// Trigger the hook commands
-	for _, hookNameRaw := range hooks {
-		hookName := hookNameRaw.(string)
-
+	for _, hookName := range hooks {
 		if len(hookNames) > 0 && !slices.Contains(hookNames, hookName) {
 			// Ignore this hook
 			continue

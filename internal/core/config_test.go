@@ -62,11 +62,11 @@ rules:
   severity: warning # Default to error
   args: [2]
 
-# Forbid untyped notes (must be able to exclude paths)
-- name: no-free-note
+# Forbid dangling medias (must be able to exclude paths)
+- name: no-dangling-media
   includes: # default to root
-  - todo/
-  - "!todo/misc"
+  - references/
+  - "!references/misc"
 
 schemas:
 - name: Relations
@@ -107,9 +107,9 @@ Blablabla`,
 		assert.Equal(t, "min-lines-between-notes", rule1.Name)
 		assert.Equal(t, "warning", rule1.Severity)
 		assert.EqualValues(t, []string{"2"}, rule1.Args)
-		assert.Equal(t, "no-free-note", rule2.Name)
+		assert.Equal(t, "no-dangling-media", rule2.Name)
 		assert.Equal(t, "", rule2.Severity)
-		assert.EqualValues(t, []GlobPath{"todo/", "!todo/misc"}, rule2.Includes)
+		assert.EqualValues(t, []GlobPath{"references/", "!references/misc"}, rule2.Includes)
 
 		// Check .nt/lint schemas
 		require.Len(t, c.LintFile.Schemas, 1)

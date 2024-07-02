@@ -10,13 +10,13 @@ slug: c
 
 Slugs cannot contains spaces.
 
-## Note 2
+## Note: 2
 
 `@slug: éà`
 
 Slugs cannot contains accents.
 
-## Note 3
+## Note: 3
 
 `@slug: TitleCase`
 

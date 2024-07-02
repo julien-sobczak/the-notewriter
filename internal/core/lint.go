@@ -94,11 +94,6 @@ var LintRules = map[string]LintRuleDefinition{
 		Eval: NoteTitleMatch,
 	},
 
-	// Forbid untyped notes
-	"no-free-note": {
-		Eval: NoFreeNote,
-	},
-
 	// Path to media files must exist
 	"no-dangling-media": {
 		Eval: NoDanglingMedia,
@@ -266,7 +261,7 @@ func NoDuplicateNoteTitle(file *ParsedFile, args []string) ([]*Violation, error)
 				Name:         "no-duplicate-note-title",
 				Message:      fmt.Sprintf("duplicated note with title %q", note.ShortTitle),
 				RelativePath: file.RelativePath,
-				Line:         file.FileLineNumber(note.Line),
+				Line:         note.Line,
 			})
 		} else {
 			uniqueNoteTitles[cleanTitle] = true
@@ -289,38 +284,26 @@ func NoDuplicateSlug(file *ParsedFile, args []string) ([]*Violation, error) {
 	var violations []*Violation
 
 	for _, note := range file.Notes {
-		// Collect relevant attributes
-		fileSlug := file.Slug
-		attributeSlug := ""
-		if slugRawValue, ok := note.NoteAttributes["slug"]; ok {
-			if slugStringValue, ok := slugRawValue.(string); ok {
-				attributeSlug = slugStringValue
-			}
-		}
-
-		// Determine the note
-		slug := DetermineNoteSlug(fileSlug, attributeSlug, note.Kind, string(note.ShortTitle))
-
 		// Check if not already in use
-		if _, ok := slugInventory[slug]; ok {
+		if _, ok := slugInventory[note.Slug]; ok {
 			violations = append(violations, &Violation{
 				Name:         "no-duplicate-slug",
-				Message:      fmt.Sprintf("duplicated slug %q", slug),
+				Message:      fmt.Sprintf("duplicated slug %q", note.Slug),
 				RelativePath: file.RelativePath,
-				Line:         file.FileLineNumber(note.Line),
+				Line:         note.Line,
 			})
 		} else {
-			if markdown.Slug(slug) != slug {
+			if markdown.Slug(note.Slug) != note.Slug {
 				// Slug does not match the expected format
 				// (important to use slug in URLs)
 				violations = append(violations, &Violation{
 					Name:         "no-duplicate-slug",
-					Message:      fmt.Sprintf("invalid slug format %q", slug),
+					Message:      fmt.Sprintf("invalid slug format %q", note.Slug),
 					RelativePath: file.RelativePath,
-					Line:         file.FileLineNumber(note.Line),
+					Line:         note.Line,
 				})
 			}
-			slugInventory[slug] = true
+			slugInventory[note.Slug] = true
 		}
 	}
 
@@ -355,7 +338,7 @@ func MinLinesBetweenNotes(file *ParsedFile, args []string) ([]*Violation, error)
 					Name:         "min-lines-between-notes",
 					RelativePath: file.RelativePath,
 					Message:      fmt.Sprintf("missing blank lines before note %q", note.Title),
-					Line:         file.FileLineNumber(note.Line),
+					Line:         note.Line,
 				})
 			}
 		}
@@ -402,7 +385,7 @@ func MaxLinesBetweenNotes(file *ParsedFile, args []string) ([]*Violation, error)
 				Name:         "max-lines-between-notes",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("too many blank lines before note %q", note.Title),
-				Line:         file.FileLineNumber(note.Line),
+				Line:         note.Line,
 			})
 		}
 	}
@@ -423,34 +406,12 @@ func NoteTitleMatch(file *ParsedFile, args []string) ([]*Violation, error) {
 	}
 
 	for _, note := range file.Notes {
-		if note.Kind == KindFree {
-			// Free notes can used any syntax
-			continue
-		}
 		if !re.MatchString(string(note.Title)) {
 			violations = append(violations, &Violation{
 				Name:         "note-title-match",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("note title %q does not match regex %q", note.Title, args[0]),
-				Line:         file.FileLineNumber(note.Line),
-			})
-		}
-	}
-
-	return violations, nil
-}
-
-// NoFreeNote implements the rule "no-free-note".
-func NoFreeNote(file *ParsedFile, args []string) ([]*Violation, error) {
-	var violations []*Violation
-
-	for _, note := range file.Notes {
-		if note.Kind == KindFree {
-			violations = append(violations, &Violation{
-				Name:         "no-free-note",
-				RelativePath: file.RelativePath,
-				Message:      fmt.Sprintf("free note %q not allowed", note.Title),
-				Line:         file.FileLineNumber(note.Line),
+				Line:         note.Line,
 			})
 		}
 	}
@@ -646,7 +607,7 @@ func RequireQuoteTag(file *ParsedFile, args []string) ([]*Violation, error) {
 				Name:         "require-quote-tag",
 				RelativePath: file.RelativePath,
 				Message:      fmt.Sprintf("quote %q does not have tags", note.Title),
-				Line:         file.FileLineNumber(note.Line),
+				Line:         note.Line,
 			})
 		}
 	}
@@ -677,66 +638,24 @@ func CheckAttribute(file *ParsedFile, args []string) ([]*Violation, error) {
 				if presentOnFile {
 					found = true
 
-					// FIXME reuse CastFn
 					line := text.LineNumber(string(file.Markdown.Content), name+":")
-					switch definition.Type {
-					case "string[]":
-						if !IsArray(fileValue) && !IsPrimitive(fileValue) {
+					if _, ok := CastAttribute(fileValue, definition.Type); !ok {
+						violations = append(violations, &Violation{
+							Name:         "check-attribute",
+							RelativePath: file.RelativePath,
+							Message:      fmt.Sprintf("attribute %q in file %q is not a valid %s or cannot be converted", name, file.RelativePath, definition.Type),
+							Line:         line,
+						})
+					} else if definition.Pattern != "" {
+						// Check pattern
+						regexAttribute := regexp.MustCompile(definition.Pattern)
+						// Convert value to string
+						fileStringValue := fmt.Sprintf("%s", fileValue)
+						if !regexAttribute.MatchString(fileStringValue) {
 							violations = append(violations, &Violation{
 								Name:         "check-attribute",
 								RelativePath: file.RelativePath,
-								Message:      fmt.Sprintf("attribute %q in file %q is not an array and cannot be converted", name, file.RelativePath),
-								Line:         line,
-							})
-						}
-					case "string":
-						if !IsString(fileValue) && !IsPrimitive(fileValue) {
-							violations = append(violations, &Violation{
-								Name:         "check-attribute",
-								RelativePath: file.RelativePath,
-								Message:      fmt.Sprintf("attribute %q in file %q is not a string and cannot be converted", name, file.RelativePath),
-								Line:         line,
-							})
-						} else if definition.Pattern != "" {
-							// Check pattern
-							regexAttribute := regexp.MustCompile(definition.Pattern)
-							// Convert value to string
-							fileStringValue := fmt.Sprintf("%s", fileValue)
-							if !regexAttribute.MatchString(fileStringValue) {
-								violations = append(violations, &Violation{
-									Name:         "check-attribute",
-									RelativePath: file.RelativePath,
-									Message:      fmt.Sprintf("attribute %q in file %q does not match pattern %q", name, file.RelativePath, definition.Pattern),
-									Line:         line,
-								})
-							}
-						}
-					case "object":
-						if !IsObject(fileValue) {
-							violations = append(violations, &Violation{
-								Name:         "check-attribute",
-								RelativePath: file.RelativePath,
-								Message:      fmt.Sprintf("attribute %q in file %q is not an object", name, file.RelativePath),
-								Line:         line,
-							})
-						}
-					case "number":
-						if !IsNumber(fileValue) {
-							violations = append(violations, &Violation{
-								Name:         "check-attribute",
-								RelativePath: file.RelativePath,
-								Message:      fmt.Sprintf("attribute %q in file %q is not a number", name, file.RelativePath),
-								Line:         line,
-							})
-						}
-					case "boolean":
-						fallthrough
-					case "bool":
-						if !IsBool(fileValue) {
-							violations = append(violations, &Violation{
-								Name:         "check-attribute",
-								RelativePath: file.RelativePath,
-								Message:      fmt.Sprintf("attribute %q in file %q is not a bool", name, file.RelativePath),
+								Message:      fmt.Sprintf("attribute %q in file %q does not match pattern %q", name, file.RelativePath, definition.Pattern),
 								Line:         line,
 							})
 						}
@@ -744,65 +663,24 @@ func CheckAttribute(file *ParsedFile, args []string) ([]*Violation, error) {
 				}
 				if presentOnNote {
 					found = true
-					line := file.Markdown.BodyLine + note.Line - 1 + text.LineNumber(note.Body.String(), "@"+name)
-					switch definition.Type {
-					case "string[]":
-						if !IsArray(noteValue) && !IsPrimitive(noteValue) {
+					line := note.Line - 1 + text.LineNumber(note.Content.String(), "@"+name)
+					if _, ok := CastAttribute(noteValue, definition.Type); !ok {
+						violations = append(violations, &Violation{
+							Name:         "check-attribute",
+							RelativePath: file.RelativePath,
+							Message:      fmt.Sprintf("attribute %q in file %q is not a valid %s or cannot be converted", name, file.RelativePath, definition.Type),
+							Line:         line,
+						})
+					} else if definition.Pattern != "" {
+						// Check pattern
+						regexAttribute := regexp.MustCompile(definition.Pattern)
+						// Convert value to string
+						noteStringValue := fmt.Sprintf("%s", noteValue)
+						if !regexAttribute.MatchString(noteStringValue) {
 							violations = append(violations, &Violation{
 								Name:         "check-attribute",
 								RelativePath: file.RelativePath,
-								Message:      fmt.Sprintf("attribute %q in file %q is not an array and cannot be converted", name, file.RelativePath),
-								Line:         line,
-							})
-						}
-					case "string":
-						if !IsString(noteValue) && !IsPrimitive(noteValue) {
-							violations = append(violations, &Violation{
-								Name:         "check-attribute",
-								RelativePath: file.RelativePath,
-								Message:      fmt.Sprintf("attribute %q in file %q is not a string and cannot be converted", name, file.RelativePath),
-								Line:         line,
-							})
-						} else if definition.Pattern != "" {
-							// Check pattern
-							regexAttribute := regexp.MustCompile(definition.Pattern)
-							// Convert value to string
-							noteStringValue := fmt.Sprintf("%s", noteValue)
-							if !regexAttribute.MatchString(noteStringValue) {
-								violations = append(violations, &Violation{
-									Name:         "check-attribute",
-									RelativePath: file.RelativePath,
-									Message:      fmt.Sprintf("attribute %q in note %q in file %q does not match pattern %q", name, note.Title, file.RelativePath, definition.Pattern),
-									Line:         line,
-								})
-							}
-						}
-					case "object":
-						if !IsObject(noteValue) {
-							violations = append(violations, &Violation{
-								Name:         "check-attribute",
-								RelativePath: file.RelativePath,
-								Message:      fmt.Sprintf("attribute %q in file %q is not an object", name, file.RelativePath),
-								Line:         line,
-							})
-						}
-					case "number":
-						if !IsNumber(noteValue) {
-							violations = append(violations, &Violation{
-								Name:         "check-attribute",
-								RelativePath: file.RelativePath,
-								Message:      fmt.Sprintf("attribute %q in file %q is not a number", name, file.RelativePath),
-								Line:         line,
-							})
-						}
-					case "boolean":
-						fallthrough
-					case "bool":
-						if !IsBool(noteValue) {
-							violations = append(violations, &Violation{
-								Name:         "check-attribute",
-								RelativePath: file.RelativePath,
-								Message:      fmt.Sprintf("attribute %q in file %q is not a bool", name, file.RelativePath),
+								Message:      fmt.Sprintf("attribute %q in note %q in file %q does not match pattern %q", name, note.Title, file.RelativePath, definition.Pattern),
 								Line:         line,
 							})
 						}
@@ -817,7 +695,7 @@ func CheckAttribute(file *ParsedFile, args []string) ([]*Violation, error) {
 					Name:         "check-attribute",
 					RelativePath: file.RelativePath,
 					Message:      fmt.Sprintf("attribute %q missing on note %q in file %q", definition.Name, note.Title, file.RelativePath),
-					Line:         file.FileLineNumber(note.Line),
+					Line:         note.Line,
 				})
 			}
 

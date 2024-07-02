@@ -44,10 +44,10 @@ func TestObjectData(t *testing.T) {
 	require.NoError(t, err)
 
 	// Unmarshall
-	noteDest := new(File)
-	err = dataDest.Unmarshal(noteDest)
+	fileDest := new(File)
+	err = dataDest.Unmarshal(fileDest)
 	require.NoError(t, err)
-	assert.Equal(t, "TODO: Backlog", noteDest.Title)
+	assert.Equal(t, "Project", fileDest.Title.String())
 }
 
 func TestPackFile(t *testing.T) {
@@ -64,9 +64,11 @@ func TestPackFile(t *testing.T) {
 
 		file, err := NewFile(nil, parsedFile)
 		require.NoError(t, err)
-		note, err := NewNote(file, nil, parsedFile.Notes[0])
+		parsedNote, ok := parsedFile.FindNoteByTitle("Flashcard: Golang Logo")
+		require.True(t, ok)
+		note, err := NewNote(file, nil, parsedNote)
 		require.NoError(t, err)
-		flashcard, err := NewFlashcard(file, note, parsedFile.Notes[0].Flashcard)
+		flashcard, err := NewFlashcard(file, note, parsedNote.Flashcard)
 		require.NoError(t, err)
 
 		packFileSrc := NewPackFile()
@@ -88,14 +90,14 @@ objects:
       kind: note
       state: added
       mtime: 2023-01-01T01:12:30Z
-      desc: 'note "Reference: Golang History" [93267c32147a4ab7a1100ce82faab56a99fca1cd]'
-      data: eJzEUsFq20AQvesrBvngBCJrJTu2vNimNxd6KSGnlqKMtKPVYmlXrNZxA/34Ikt24jYNlAa6t5l58+bN2zFKcFhO4/kin8bRbIEzzBYYRYzllMQFYnY7x+WyyDHKhddWe8lBmsBSQZZ0ToE0FWoZlKp1xj55haoo/TvSBi1pl2rjhk7f93ZKCw7nKZ5TriIO47tThsP2OBg+9oPHXmW0TAfcZc1rS2PdH2qWKnTqkdIGXdntNqmFd1A7VSm94zCWZvTGUHTOqmzvqOUeAEBr9rbDlc41LQ9D0pOOqyGhcGKsDLso3Jr0qrFGWqxrpWXace5R0vWRw6Ec2LoXgDQvgpPPR+CrCz23n1uf2yqliUPi5Ua7znSLBw4/giPqYTSgHrw+/vCP2ww8X3uB365ONNJMBD2GwuQh+CNpQmn8azhgC4JaJTUJyJ7gzmRkHWwtqZZqsjddBj6rHd0AagGfSMN9aeqmNRrQwdYYWREoDTFji8l5xRLbkgOjDJN5nmSMJTmL4ziZL6m4nd4mYpZglsSzqCjyZLi0tEa7E+agOYxHv316DyldXXFYldHmsr4Ky2gzYBx9d2d/f/mnLrW+eGfJL6b/H/PGz+71WzabFUJpqVj7rwjxwaGV5NZ+mlWod35/muuTvsGhVYib91a6CpvNWWxv9+Dzu9+TJXQkUnQcYhZPAxYFLLpnEY9iPmVfvH0j3gb8DAAA//9fO8O2
+      desc: 'note "Flashcard: Golang Logo" [93267c32147a4ab7a1100ce82faab56a99fca1cd]'
+      data: eJy8kU2L2z4Qxu/6FPPfHPKvQYlkx/Fal9JL99JjodBSzNgayyJayViTLYV++JKX3RT6Ar1Up+F5fppnhkneGmirct8MVal3De6wb1BrpQa6L0fEvt5j244D6sGKHI7OgEtyDJinARcrXQoYnQzJJTH6QN3fdZxxochdTHz9eXcnDj5aAy8Rgj0HMrB++6wYeDinwrvk0lqEFF13hR4SbH90RZ7Swjf3ZiwUkP0TdTPydFpq82jFF3/wwceDgbVLq98FIvPi+yNTNgIAgNFdq9OT4NJF/jn0Rp6p4CMZ0I0YUmSKbOCbPLurFfw6XJztDxMy2EQZeCIoiitwOkJRwELzQpkiv77QUspL8QaKwqV5oqUoNhfpv0+nrp//32wfyXrMW5c2+cm9ep6omzBPBuqqHpq+b5XuVW8VNWOLfVtbvG/2taU9laoddziKPtmvL1v8izEXQibbIRsoVVlJpaXS75U2ujSV+iiOs/0z8D0AAP//Mqvm+Q==
     - oid: 93267c32147a4ab7a1100ce82faab56a99fca1cd
       kind: flashcard
       state: added
       mtime: 2023-01-01T01:12:30Z
       desc: flashcard "Golang Logo" [93267c32147a4ab7a1100ce82faab56a99fca1cd]
-      data: eJykkE9r20AQxe/6FFOd2gXZu5Jq14us4lMvPRYKLUWMtWtJWNKI1TTJIR8+6E+MkkCwCcxpeO/xe48qo2EXhZttHoUq3mKMxy0qJWVuv4UnxOPXDe52pxxVbry+JMcZV1xbDT+oxraAn1SQd6pqm92W1RLfanG2Rq7ubNYhlxoKWjXGYyx67QEABDCQOGo5a9CdDd23Gn6XyGDI9sClBSFm6poKEgKc7ZztbcvfvSPm54XvMRgzDyBEQV1pnRArb3x9+jtU/vd5YI9lfM3JLzNXyU2tIenSl1hJz47aIl3AJev5t2BM1l06cU45M2PSpYdLxAR7ca9Gz7MsaaypEKgye/9adB+w5r0/dPZhnY55Uxm2D/x64EWDN+NO+suwE+mHRs2dRbYmQ9YQyjAKpAqk+iWVVqGO5B/vf2feFzwFAAD//+eX4GM=
+      data: eJyUjTFP8zAQQHf/ivu2D0tO7aS01AtiYmFEQgKh6GpfnAg3F9nXTvx4lIoZqdvp3r13PEUPh67d7UPXuu0et3jco3PWBnpoB8Tj/Q4PhyGgC1ENU6b+NmVmuVUplFGmC/ULyughcXOKquZzWmczZKxjwBJN4oxzMpkTqzpykV4myeTh+QrgZQWCqXoFAGAgsRoKz+LhbUSByFRBRgKtf401pTUUWgpVmuVRHTF8efg218ITaJ14Galo3ajr6t/H+uXzf7M5UZywbhI39ZLuVCiEQrFH8dDatjPWGeterfOu9Z19V+cl/n3wEwAA//8UR3ua
 `), strings.TrimSpace(cYAML))
 
 		// Unmarshall YAML
@@ -109,13 +111,13 @@ objects:
 		noteDest := new(Note)
 		err = packFileDest.PackObjects[0].Data.Unmarshal(noteDest)
 		require.NoError(t, err)
-		assert.Equal(t, "Reference: Golang History", noteDest.Title)
+		assert.Equal(t, "Flashcard: Golang Logo", noteDest.Title.String())
 
 		// Unmarshall the note
 		flashcardDest := new(Flashcard)
 		err = packFileDest.PackObjects[1].Data.Unmarshal(flashcardDest)
 		require.NoError(t, err)
-		assert.Equal(t, "Golang Logo", flashcardDest.ShortTitle)
+		assert.Equal(t, "Golang Logo", flashcardDest.ShortTitle.String())
 
 		require.EqualValues(t, packFileSrc, packFileDest)
 

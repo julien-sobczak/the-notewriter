@@ -168,7 +168,7 @@ func NewFlashcard(file *File, note *Note, parsedFlashcard *ParsedFlashcard) (*Fl
 
 		// Flashcard-specific attributes
 		Front: parsedFlashcard.Front,
-		Back:  parsedFlashcard.Front,
+		Back:  parsedFlashcard.Back,
 
 		// SRS-specific attributes
 		// Wait for first study to initialize SRS fields

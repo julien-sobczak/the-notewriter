@@ -109,7 +109,7 @@ func (m Document) extractWikilinks(r *regexp.Regexp) []Wikilink {
 	matches := r.FindAllStringSubmatchIndex(text, -1)
 	for _, match := range matches {
 		wikilinkLink := text[match[2]:match[3]]
-		wikilinkText := wikilinkLink
+		wikilinkText := ""
 		if match[4] != -1 {
 			wikilinkText = text[match[4]:match[5]]
 		}

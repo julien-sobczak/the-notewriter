@@ -4,9 +4,9 @@
 
 This is a note.
 
-### Flashcard: The same title is allowed on different kinds
+### Reference: The same title is allowed on different kinds
 
-This is a flashcard.
+This is a reference note.
 
 ## Note: Long title must be unique inside a file
 

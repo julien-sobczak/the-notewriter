@@ -27,7 +27,6 @@ const missingMediaOID string = "4044044044044044044044044044044044044040"
 type NoteKind string
 
 const (
-	KindFree       NoteKind = "free"
 	KindReference  NoteKind = "reference"
 	KindNote       NoteKind = "note"
 	KindFlashcard  NoteKind = "flashcard"
@@ -96,10 +95,10 @@ type Note struct {
 	Line int `yaml:"line" json:"line"`
 
 	// Content
-	Content    markdown.Document `yaml:"content" json:"content"`
-	Hash       string            `yaml:"content_hash" json:"content_hash"`
-	Body       markdown.Document `yaml:"body" json:"body"`
-	Comment    markdown.Document `yaml:"comment,omitempty" json:"comment,omitempty"`
+	Content markdown.Document `yaml:"content" json:"content"`
+	Hash    string            `yaml:"content_hash" json:"content_hash"`
+	Body    markdown.Document `yaml:"body" json:"body"`
+	Comment markdown.Document `yaml:"comment,omitempty" json:"comment,omitempty"`
 
 	// Timestamps to track changes
 	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
@@ -733,7 +732,7 @@ func isSupportedNote(text string) (bool, NoteKind, string) {
 	if m := regexJournal.FindStringSubmatch(text); m != nil {
 		return true, KindJournal, m[1]
 	}
-	return false, KindFree, text
+	return false, "", text
 }
 
 /* State Management */
@@ -932,7 +931,6 @@ func (r *Repository) CountNotes() (int, error) {
 // CountNotesByKind returns the total number of notes for every kind.
 func (r *Repository) CountNotesByKind() (map[NoteKind]int, error) {
 	res := map[NoteKind]int{
-		KindFree:       0,
 		KindReference:  0,
 		KindNote:       0,
 		KindFlashcard:  0,
@@ -945,9 +943,6 @@ func (r *Repository) CountNotesByKind() (map[NoteKind]int, error) {
 	}
 
 	var count int
-	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM note where kind = ?`, KindFree).Scan(&count); err == nil {
-		res[KindFree] = count
-	}
 	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM note where kind = ?`, KindReference).Scan(&count); err == nil {
 		res[KindReference] = count
 	}

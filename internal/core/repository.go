@@ -295,7 +295,7 @@ func (r *Repository) Add(paths ...string) error {
 		CurrentLogger().Debugf("Processing %s...\n", mdFile.AbsolutePath)
 
 		parsedFile, err := ParseFile(CurrentConfig().RootDirectory, mdFile)
-		if parsedFile != nil {
+		if err != nil {
 			return err
 		}
 
@@ -848,7 +848,6 @@ func NewStatsInDBEmpty() *StatsInDB {
 			"reminder":  0,
 		},
 		Kinds: map[NoteKind]int{
-			KindFree:       0,
 			KindReference:  0,
 			KindNote:       0,
 			KindFlashcard:  0,
