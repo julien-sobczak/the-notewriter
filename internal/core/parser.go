@@ -23,8 +23,6 @@ type Slug string // TODO see if useful in practice (mainly to build, validate or
 
 type Tag string // TODO see if useful in practice (mainly when working with reminder tags)
 
-type GoName string // TODO see if useful in practice (=> no method = useless)
-
 type ParsedFile struct {
 	Markdown *markdown.File
 
@@ -44,7 +42,7 @@ type ParsedFile struct {
 	// Extracted objects
 	Notes     []*ParsedNote
 	Medias    []*ParsedMedia
-	Wikilinks []markdown.Wikilink
+	Wikilinks []markdown.Wikilink // TODO still useful now that the method is exposed on markdown.Document?
 }
 
 // ParsedNote represents a single raw note inside a file.
@@ -100,7 +98,7 @@ type ParsedGoLink struct {
 	Title string
 
 	// The optional GO name
-	GoName GoName
+	GoName string
 }
 
 type ParsedReminder struct {
@@ -135,21 +133,6 @@ type ParsedMedia struct {
 
 	// Line number where the link present.
 	Line int
-}
-
-// Hash returns a hash based on the Markdown content.
-func (p *ParsedNote) Hash() string {
-	return p.Content.Hash()
-}
-
-func (p *ParsedNote) GetAttributeAsString(name string) string {
-	if v, ok := p.NoteAttributes[name]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	// Conversion errors are ignored (we consider the requested attribute doesn't exist)
-	return ""
 }
 
 func (p *ParsedMedia) MTime() time.Time {
@@ -611,7 +594,7 @@ func (p *ParsedNote) extractGoLinks() ([]*ParsedGoLink, error) {
 			Text:   markdown.Document(text),
 			URL:    url,
 			Title:  shortTitle,
-			GoName: GoName(goName),
+			GoName: goName,
 		}
 		links = append(links, link)
 	}
@@ -656,6 +639,21 @@ func (p *ParsedNote) extractReminders() ([]*ParsedReminder, error) {
 	return reminders, nil
 }
 
+// Hash returns a hash based on the Markdown content.
+func (p *ParsedNote) Hash() string {
+	return p.Content.Hash()
+}
+
+func (p *ParsedNote) GetAttributeAsString(name string) string {
+	if v, ok := p.NoteAttributes[name]; ok {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	// Conversion errors are ignored (we consider the requested attribute doesn't exist)
+	return ""
+}
+
 // FindMediaByFilename searches for a media based on the filename.
 // The code uses `strings.HasSuffix` and therefore, (partial) paths can be passed too.
 func (f *ParsedFile) FindMediaByFilename(filename string) (*ParsedMedia, bool) {
@@ -689,10 +687,25 @@ func (f *ParsedFile) FindNoteByShortTitle(shortTitle string) (*ParsedNote, bool)
 	return nil, false
 }
 
-// TODO uncomment after refactoring
-// func (p *ParsedFile) ToFile() (*File, error) {
-// 	return NewFileFromParsedFile(p)
-// }
+// FindGoLinkByGoName searches for a go link from its go name.
+func (p *ParsedNote) FindGoLinkByGoName(name string) (*ParsedGoLink, bool) {
+	for _, goLink := range p.GoLinks {
+		if goLink.GoName == name {
+			return goLink, true
+		}
+	}
+	return nil, false
+}
+
+// FindReminderByTag searches for a go link from its go name.
+func (p *ParsedNote) FindReminderByTag(tag string) (*ParsedReminder, bool) {
+	for _, reminder := range p.Reminders {
+		if reminder.Tag == tag {
+			return reminder, true
+		}
+	}
+	return nil, false
+}
 
 // StripTagsAndAttributes removes all tags and attributes from a NoteWriter note.
 func StripTagsAndAttributes() markdown.Transformer {

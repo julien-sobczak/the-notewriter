@@ -60,7 +60,7 @@ type Flashcard struct {
 	ShortTitle markdown.Document `yaml:"short_title" json:"short_title"`
 
 	// List of tags
-	Tags []string `yaml:"tags,omitempty" json:"tags,omitempty"`
+	Tags TagSet `yaml:"tags,omitempty" json:"tags,omitempty"`
 
 	// Fields in Markdown (best for editing)
 	Front markdown.Document `yaml:"front" json:"front"`
@@ -273,7 +273,7 @@ func (f *Flashcard) ToJSON() string {
 func (f *Flashcard) ToMarkdown() string {
 	var sb strings.Builder
 	sb.WriteString(string(f.Front))
-	sb.WriteString("\n---\n")
+	sb.WriteString("\n\n---\n\n")
 	sb.WriteString(string(f.Back))
 	return sb.String()
 }
@@ -439,6 +439,7 @@ func (f *Flashcard) Update() error {
 }
 
 func (f *Flashcard) Delete() error {
+	f.ForceState(Deleted)
 	CurrentLogger().Debugf("Deleting flashcard %s...", f.ShortTitle)
 	query := `DELETE FROM flashcard WHERE oid = ?;`
 	_, err := CurrentDB().Client().Exec(query, f.OID)

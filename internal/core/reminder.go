@@ -233,8 +233,10 @@ func (r *Reminder) ToJSON() string {
 func (r *Reminder) ToMarkdown() string {
 	var sb strings.Builder
 	sb.WriteString(string(r.Description))
-	sb.WriteRune('\n')
+	sb.WriteRune(' ')
+	sb.WriteRune('`')
 	sb.WriteString(r.Tag)
+	sb.WriteRune('`')
 	return sb.String()
 }
 
@@ -717,6 +719,7 @@ func (r *Reminder) Update() error {
 }
 
 func (r *Reminder) Delete() error {
+	r.ForceState(Deleted)
 	CurrentLogger().Debugf("Deleting reminder %s...", r.Description)
 	query := `DELETE FROM reminder WHERE oid = ?;`
 	_, err := CurrentDB().Client().Exec(query, r.OID)
@@ -737,7 +740,7 @@ func (r *Repository) FindReminders() ([]*Reminder, error) {
 }
 
 func (r *Repository) FindMatchingReminder(note *Note, parsedReminder *ParsedReminder) (*Reminder, error) {
-	return QueryReminder(CurrentDB().Client(), `WHERE note_oid = ? and description = ? and tag = ?`, note.OID, parsedReminder.Description, parsedReminder.Tag)
+	return QueryReminder(CurrentDB().Client(), `WHERE note_oid = ? and description = ?`, note.OID, parsedReminder.Description)
 }
 
 func (r *Repository) FindMatchingReminders(noteOID string, descriptionRaw string) ([]*Reminder, error) {

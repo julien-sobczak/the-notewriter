@@ -30,7 +30,7 @@ type GoLink struct {
 	Title string `yaml:"title" json:"title"`
 
 	// The optional GO name
-	GoName GoName `yaml:"go_name" json:"go_name"`
+	GoName string `yaml:"go_name" json:"go_name"`
 
 	// Timestamps to track changes
 	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
@@ -290,7 +290,6 @@ func (l *GoLink) Update() error {
 			go_name = ?,
 			updated_at = ?,
 			last_checked_at = ?
-		)
 		WHERE oid = ?;
 		`
 	_, err := CurrentDB().Client().Exec(query,
@@ -309,6 +308,7 @@ func (l *GoLink) Update() error {
 }
 
 func (l *GoLink) Delete() error {
+	l.ForceState(Deleted)
 	CurrentLogger().Debugf("Deleting link %s...", l.GoName)
 	query := `DELETE FROM link WHERE oid = ?;`
 	_, err := CurrentDB().Client().Exec(query, l.OID)

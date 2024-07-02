@@ -395,7 +395,7 @@ func (m *Media) ToMarkdown() string {
 	var sb strings.Builder
 	sb.WriteString("![](")
 	sb.WriteString(string(m.RelativePath))
-	sb.WriteString("(")
+	sb.WriteString(")")
 	return sb.String()
 }
 
@@ -579,6 +579,7 @@ func (m *Media) Update() error {
 }
 
 func (m *Media) Delete() error {
+	m.ForceState(Deleted)
 	if err := m.DeleteBlobs(); err != nil {
 		return err
 	}
