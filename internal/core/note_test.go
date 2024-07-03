@@ -14,6 +14,187 @@ import (
 )
 
 func TestNote(t *testing.T) {
+	root := SetUpRepositoryFromFileContent(t, "go.md", UnescapeTestContent(`---
+tags:
+- go
+---
+
+# Go
+
+## Reference: Golang History
+
+‛#history‛
+
+‛@source: https://en.wikipedia.org/wiki/Go_(programming_language)‛
+
+[Golang](https://go.dev/doc/ "#go/go") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.
+
+> Go was created in 2007
+`))
+
+	UseSequenceOID(t)
+	AssertNoNotes(t)
+	c := FreezeNow(t)
+	createdAt := clock.Now()
+
+	// Init the file
+	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
+	require.NoError(t, err)
+
+	// Create
+	file, err := NewFile(nil, parsedFile)
+	require.NoError(t, err)
+	require.NoError(t, file.Save())
+	parsedNote, ok := parsedFile.FindNoteByTitle("Reference: Golang History")
+	require.True(t, ok)
+	note, err := NewNote(file, nil, parsedNote)
+	require.NoError(t, err)
+	noteCopy, err := NewNote(file, nil, parsedNote)
+	require.NoError(t, err)
+	require.NotEqual(t, note.OID, noteCopy.OID)
+
+	// Check all fields
+	assert.Equal(t, "0000000000000000000000000000000000000002", note.OID)
+	assert.Equal(t, file.OID, note.FileOID)
+	assert.Empty(t, note.ParentNoteOID)
+	assert.Equal(t, KindReference, note.NoteKind)
+	assert.Equal(t, "go-reference-golang-history", note.Slug)
+	assert.Equal(t, markdown.Document("Reference: Golang History"), note.Title)
+	assert.Equal(t, markdown.Document("Golang History"), note.ShortTitle)
+	assert.Equal(t, markdown.Document("Go / Golang History"), note.LongTitle)
+	assert.Equal(t, "go.md", note.RelativePath)
+	assert.Equal(t, "go#Reference: Golang History", note.Wikilink)
+	assert.Equal(t, AttributeSet(map[string]any{
+		"source": "https://en.wikipedia.org/wiki/Go_(programming_language)",
+		"tags":   []string{"go", "history"},
+		"title":  "Golang History",
+	}), note.Attributes)
+	assert.Equal(t, TagSet([]string{"history", "go"}), note.Tags)
+	assert.Equal(t, 8, note.Line)
+	assert.Equal(t, markdown.Document("## Reference: Golang History\n\n`#history`\n\n`@source: https://en.wikipedia.org/wiki/Go_(programming_language)`\n\n[Golang](https://go.dev/doc/ \"#go/go\") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.\n\n> Go was created in 2007"), note.Content)
+	assert.Equal(t, "96ce446651b290347d7c1bd87d636da441c1b34a", note.Hash)
+	assert.Equal(t, markdown.Document("`#history`\n\n`@source: https://en.wikipedia.org/wiki/Go_(programming_language)`\n\n[Golang](https://go.dev/doc/ \"#go/go\") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007."), note.Body)
+	assert.Equal(t, markdown.Document("Go was created in 2007"), note.Comment)
+	assert.Equal(t, clock.Now(), note.CreatedAt)
+	assert.Equal(t, clock.Now(), note.UpdatedAt)
+	assert.Empty(t, note.DeletedAt)
+	assert.Empty(t, note.LastCheckedAt)
+
+	// Save
+	require.NoError(t, note.Save())
+	require.Equal(t, 1, MustCountNotes(t))
+
+	// Reread and recheck all fields
+	actual, err := CurrentRepository().LoadNoteByOID(note.OID)
+	require.NoError(t, err)
+	require.NotNil(t, actual)
+	assert.Equal(t, note.OID, actual.OID)
+	assert.Equal(t, note.FileOID, actual.FileOID)
+	assert.Equal(t, note.ParentNoteOID, actual.ParentNoteOID)
+	assert.Equal(t, note.NoteKind, actual.NoteKind)
+	assert.Equal(t, note.Slug, actual.Slug)
+	assert.Equal(t, note.Title, actual.Title)
+	assert.Equal(t, note.ShortTitle, actual.ShortTitle)
+	assert.Equal(t, note.LongTitle, actual.LongTitle)
+	assert.Equal(t, note.RelativePath, actual.RelativePath)
+	assert.Equal(t, note.Wikilink, actual.Wikilink)
+	assert.Equal(t, note.Attributes, actual.Attributes)
+	assert.Equal(t, note.Tags, actual.Tags)
+	assert.Equal(t, note.Line, actual.Line)
+	assert.Equal(t, note.Content, actual.Content)
+	assert.Equal(t, note.Hash, actual.Hash)
+	assert.Equal(t, note.Body, actual.Body)
+	assert.Equal(t, note.Comment, actual.Comment)
+	assert.WithinDuration(t, clock.Now(), actual.CreatedAt, 1*time.Second)
+	assert.WithinDuration(t, clock.Now(), actual.UpdatedAt, 1*time.Second)
+	assert.WithinDuration(t, clock.Now(), actual.LastCheckedAt, 1*time.Second)
+	assert.Empty(t, actual.DeletedAt)
+
+	// Force update
+	updatedAt := c.FastForward(10 * time.Minute)
+	ReplaceLine(t, filepath.Join(root, "go.md"), 16,
+		"> Go was created in 2007",
+		"> Golang was created in 2007")
+
+	// Recreate...
+	parsedFile, err = ParseFileFromRelativePath(root, "go.md")
+	require.NoError(t, err)
+	parsedNote, ok = parsedFile.FindNoteByTitle("Reference: Golang History")
+	require.True(t, ok)
+	newNote, err := NewOrExistingNote(file, nil, parsedNote)
+	require.NoError(t, err)
+	require.NoError(t, newNote.Save())
+	// ...and compare
+	assert.Equal(t, note.OID, newNote.OID) // Must have found the previous one
+	assert.Contains(t, newNote.Comment, "Golang was created in 2007")
+
+	// Retrieve
+	updatedNote, err := CurrentRepository().LoadNoteByOID(newNote.OID)
+	require.NoError(t, err)
+	// Timestamps must have changed
+	assert.WithinDuration(t, createdAt, updatedNote.CreatedAt, 1*time.Second)
+	assert.WithinDuration(t, updatedAt, updatedNote.UpdatedAt, 1*time.Second)
+	assert.WithinDuration(t, updatedAt, updatedNote.LastCheckedAt, 1*time.Second)
+
+	// Delete
+	require.NoError(t, note.Delete())
+	assert.Equal(t, clock.Now(), note.DeletedAt)
+
+	AssertNoNotes(t)
+}
+
+func TestNoteWithParent(t *testing.T) {
+	content := UnescapeTestContent(`
+# Go
+
+## Reference: Golang History
+
+‛@source: https://en.wikipedia.org/wiki/Go_(programming_language)‛
+‛@tags: go‛
+
+[Golang](https://go.dev/doc/ "#go/go") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.
+
+### Flashcard: Golang History
+
+‛#study‛
+
+(Go) **When** was created Go?
+
+---
+
+2007
+`)
+	root := SetUpRepositoryFromTempDir(t)
+	err := os.WriteFile(filepath.Join(root, "go.md"), []byte(UnescapeTestContent(content)), 0644)
+	require.NoError(t, err)
+
+	// Init the file
+	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
+	require.NoError(t, err)
+	file, err := NewFile(nil, parsedFile)
+	require.NoError(t, err)
+	require.NoError(t, file.Save())
+
+	// Init the notes
+	parentParsedFile, ok := parsedFile.FindNoteByTitle("Reference: Golang History")
+	require.True(t, ok)
+	parentNote, err := NewNote(file, nil, parentParsedFile)
+	require.NoError(t, err)
+	childParsedFile, ok := parsedFile.FindNoteByTitle("Flashcard: Golang History")
+	require.True(t, ok)
+	childNote, err := NewNote(file, parentNote, childParsedFile)
+	require.NoError(t, err)
+
+	// Check attributes
+	assert.Equal(t, parentNote.OID, childNote.ParentNoteOID)
+	assert.Equal(t, AttributeSet(map[string]any{
+		"tags":  []string{"go", "study"},
+		"title": "Golang History",
+	}), childNote.Attributes)
+	assert.ElementsMatch(t, []string{"go", "study"}, childNote.Tags.AsList())
+}
+
+func TestNoteOld(t *testing.T) {
 
 	t.Run("NewNote", func(t *testing.T) {
 

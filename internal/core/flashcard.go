@@ -580,7 +580,9 @@ func QueryFlashcard(db SQLClient, whereClause string, args ...any) (*Flashcard, 
 		}
 	}
 
-	f.Tags = strings.Split(tagsRaw, ",")
+	if tagsRaw != "" {
+		f.Tags = strings.Split(tagsRaw, ",")
+	}
 	f.Settings = settings
 	f.DueAt = timeFromNullableSQL(dueAt)
 	f.StudiedAt = timeFromNullableSQL(studiedAt)
@@ -656,7 +658,9 @@ func QueryFlashcards(db SQLClient, whereClause string, args ...any) ([]*Flashcar
 			}
 		}
 
-		f.Tags = strings.Split(tagsRaw, ",")
+		if tagsRaw != "" {
+			f.Tags = strings.Split(tagsRaw, ",")
+		}
 		f.Settings = settings
 		f.DueAt = timeFromNullableSQL(dueAt)
 		f.StudiedAt = timeFromNullableSQL(studiedAt)

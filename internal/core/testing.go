@@ -280,6 +280,7 @@ func MustDeleteFile(t *testing.T, path string) {
 
 // ReplaceLine replaces a line inside a file.
 func ReplaceLine(t *testing.T, path string, lineNumber int, oldLine string, newLine string) {
+	t.Helper()
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	lines := strings.Split(string(data), "\n")

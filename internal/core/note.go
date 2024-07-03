@@ -912,6 +912,7 @@ func (n *Note) Update() error {
 }
 
 func (n *Note) Delete() error {
+	n.ForceState(Deleted)
 	CurrentLogger().Debugf("Deleting note %s...", n.Wikilink)
 	query := `DELETE FROM note WHERE oid = ?;`
 	_, err := CurrentDB().Client().Exec(query, n.OID)

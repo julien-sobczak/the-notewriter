@@ -12,6 +12,107 @@ import (
 )
 
 func TestReminder(t *testing.T) {
+	root := SetUpRepositoryFromFileContent(t, "project.md", UnescapeTestContent(`
+## TODO: Backlog
+
+* [ ] Test ”#reminder-2085-09”
+`))
+	UseSequenceOID(t)
+	AssertNoReminders(t)
+	c := FreezeNow(t)
+	createdAt := clock.Now()
+
+	// Init the file
+	parsedFile, err := ParseFileFromRelativePath(root, "project.md")
+	require.NoError(t, err)
+	file, err := NewFile(nil, parsedFile)
+	require.NoError(t, err)
+	require.NoError(t, file.Save())
+	parsedNote, ok := parsedFile.FindNoteByTitle("TODO: Backlog")
+	require.True(t, ok)
+	note, err := NewNote(file, nil, parsedNote)
+	require.NoError(t, err)
+	require.NoError(t, note.Save())
+
+	// Create
+	parsedReminder, ok := parsedNote.FindReminderByTag("#reminder-2085-09")
+	require.True(t, ok)
+	reminder, err := NewReminder(note, parsedReminder)
+	require.NoError(t, err)
+
+	// Check all fields
+	assert.NotNil(t, reminder.OID)
+	assert.Equal(t, note.FileOID, reminder.FileOID)
+	assert.Equal(t, note.OID, reminder.NoteOID)
+	assert.Equal(t, note.RelativePath, reminder.RelativePath)
+	assert.Equal(t, "Test", reminder.Description.String())
+	assert.Equal(t, "#reminder-2085-09", reminder.Tag)
+	assert.Empty(t, reminder.LastPerformedAt)
+	assert.Equal(t, HumanTime(t, "2085-09-01 00:00:00"), reminder.NextPerformedAt)
+	assert.Equal(t, clock.Now(), reminder.CreatedAt)
+	assert.Equal(t, clock.Now(), reminder.UpdatedAt)
+	assert.Empty(t, reminder.DeletedAt)
+	assert.Empty(t, reminder.LastCheckedAt)
+
+	// Save
+	require.NoError(t, reminder.Save())
+	require.Equal(t, 1, MustCountReminders(t))
+
+	// Reread and recheck all fields
+	actual, err := CurrentRepository().LoadReminderByOID(reminder.OID)
+	require.NoError(t, err)
+	require.NotNil(t, actual)
+	assert.Equal(t, reminder.OID, actual.OID)
+	assert.Equal(t, reminder.FileOID, actual.FileOID)
+	assert.Equal(t, reminder.NoteOID, actual.NoteOID)
+	assert.Equal(t, reminder.RelativePath, actual.RelativePath)
+	assert.Equal(t, reminder.Description, actual.Description)
+	assert.Equal(t, reminder.Tag, actual.Tag)
+	assert.Empty(t, reminder.LastPerformedAt)
+	assert.Equal(t, HumanTime(t, "2085-09-01 00:00:00"), reminder.NextPerformedAt)
+	assert.WithinDuration(t, clock.Now(), actual.CreatedAt, 1*time.Second)
+	assert.WithinDuration(t, clock.Now(), actual.UpdatedAt, 1*time.Second)
+	assert.WithinDuration(t, clock.Now(), actual.LastCheckedAt, 1*time.Second)
+	assert.Empty(t, actual.DeletedAt)
+
+	// Force update
+	updatedAt := c.FastForward(10 * time.Minute)
+	ReplaceLine(t, filepath.Join(root, "project.md"), 4,
+		"* [ ] Test `#reminder-2085-09`",
+		"* [ ] Test `#reminder-2050-01`")
+	parsedFile, err = ParseFileFromRelativePath(root, "project.md")
+	require.NoError(t, err)
+	parsedNote, ok = parsedFile.FindNoteByTitle("TODO: Backlog")
+	require.True(t, ok)
+	newNote, err := NewOrExistingNote(file, nil, parsedNote)
+	require.NoError(t, err)
+	require.NoError(t, newNote.Save())
+	parsedReminder, ok = parsedNote.FindReminderByTag("#reminder-2050-01")
+	require.True(t, ok)
+	newReminder, err := NewOrExistingReminder(newNote, parsedReminder)
+	require.NoError(t, err)
+	require.NoError(t, newReminder.Save())
+
+	// Compare
+	assert.Equal(t, reminder.OID, newReminder.OID) // Must have found the previous one
+	assert.Equal(t, "#reminder-2050-01", newReminder.Tag)
+
+	// Retrieve
+	updatedReminder, err := CurrentRepository().LoadReminderByOID(reminder.OID)
+	require.NoError(t, err)
+	// Timestamps must have changed
+	assert.WithinDuration(t, createdAt, updatedReminder.CreatedAt, 1*time.Second)
+	assert.WithinDuration(t, updatedAt, updatedReminder.UpdatedAt, 1*time.Second)
+	assert.WithinDuration(t, updatedAt, updatedReminder.LastCheckedAt, 1*time.Second)
+
+	// Delete
+	require.NoError(t, reminder.Delete())
+	assert.Equal(t, clock.Now(), reminder.DeletedAt)
+
+	AssertNoReminders(t)
+}
+
+func TestReminderOld(t *testing.T) {
 
 	content := `
 ## TODO: Backlog

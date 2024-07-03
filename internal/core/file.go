@@ -672,6 +672,7 @@ func (f *File) Update() error {
 }
 
 func (f *File) Delete() error {
+	f.ForceState(Deleted)
 	CurrentLogger().Debugf("Deleting file %s...", f.RelativePath)
 	query := `DELETE FROM file WHERE oid = ?;`
 	_, err := CurrentDB().Client().Exec(query, f.OID)

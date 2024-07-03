@@ -14,6 +14,138 @@ import (
 )
 
 func TestFile(t *testing.T) {
+	root := SetUpRepositoryFromFileContent(t, "go.md", UnescapeTestContent(`---
+tags:
+- go
+---
+
+# Go
+
+## Reference: Golang History
+
+‛#history‛
+
+‛@source: https://en.wikipedia.org/wiki/Go_(programming_language)‛
+
+[Golang](https://go.dev/doc/ "#go/go") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.
+
+
+## Flashcard: Golang Logo
+
+What does the **Golang logo** represent?
+
+---
+
+A **gopher**.
+
+![Logo](./medias/go.svg)
+
+
+## TODO: Conferences
+
+* [Gophercon Europe](https://gophercon.eu/) ‛#reminder-2023-06-26‛
+
+`))
+
+	UseSequenceOID(t)
+	AssertNoFiles(t)
+	c := FreezeNow(t)
+	createdAt := clock.Now()
+
+	// Init the file
+	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
+	require.NoError(t, err)
+
+	// Create
+	file, err := NewFile(nil, parsedFile)
+	require.NoError(t, err)
+	fileCopy, err := NewFile(nil, parsedFile)
+	require.NoError(t, err)
+	require.NotEqual(t, file.OID, fileCopy.OID)
+
+	// Check all fields
+	assert.NotNil(t, file.OID)
+	assert.Equal(t, "go", file.Slug)
+	assert.Empty(t, file.ParentFileOID)
+	assert.Equal(t, "go.md", file.RelativePath)
+	assert.Equal(t, "go", file.Wikilink)
+	assert.Equal(t, markdown.FrontMatter("tags:\n- go\n"), file.FrontMatter)
+	assert.Equal(t, AttributeSet(map[string]any{
+		"tags": []string{"go"},
+	}), file.Attributes)
+	assert.Equal(t, markdown.Document("Go"), file.Title)
+	assert.Equal(t, markdown.Document("Go"), file.ShortTitle)
+	assert.True(t, strings.HasPrefix(file.Body.String(), "# Go"))
+	assert.Equal(t, 6, file.BodyLine)
+	assert.Equal(t, parsedFile.Markdown.LStat.Mode(), file.Mode)
+	assert.Equal(t, parsedFile.Markdown.Stat.Size(), file.Size)
+	assert.Equal(t, parsedFile.Markdown.Stat.ModTime(), file.MTime)
+	assert.NotEqual(t, parsedFile.Markdown.Body.Hash(), file.Hash) // Must use whole content to determine the hash (including the front matter)
+	assert.Equal(t, clock.Now(), file.CreatedAt)
+	assert.Equal(t, clock.Now(), file.UpdatedAt)
+	assert.Empty(t, file.DeletedAt)
+	assert.Empty(t, file.LastCheckedAt)
+
+	// Save
+	require.NoError(t, file.Save())
+	require.Equal(t, 1, MustCountFiles(t))
+
+	// Reread and recheck all fields
+	actual, err := CurrentRepository().LoadFileByOID(file.OID)
+	require.NoError(t, err)
+	require.NotNil(t, actual)
+	assert.Equal(t, file.OID, actual.OID)
+	assert.Equal(t, file.RelativePath, actual.RelativePath)
+	assert.Equal(t, file.Wikilink, actual.Wikilink)
+	expectedFrontMatter, err := file.FrontMatter.AsBeautifulYAML()
+	assert.NoError(t, err)
+	actualFrontMatter, err := actual.FrontMatter.AsBeautifulYAML()
+	assert.NoError(t, err)
+	assert.Equal(t, expectedFrontMatter, actualFrontMatter)
+	assert.Equal(t, file.Attributes.GetTags(), actual.Attributes.GetTags())
+	assert.Equal(t, file.Body, actual.Body)
+	assert.Equal(t, file.BodyLine, actual.BodyLine)
+	assert.Equal(t, file.Mode, actual.Mode)
+	assert.Equal(t, file.Size, actual.Size)
+	assert.Equal(t, file.Hash, actual.Hash)
+	assert.Equal(t, file.MTime, actual.MTime)
+	assert.WithinDuration(t, clock.Now(), actual.CreatedAt, 1*time.Second)
+	assert.WithinDuration(t, clock.Now(), actual.UpdatedAt, 1*time.Second)
+	assert.WithinDuration(t, clock.Now(), actual.LastCheckedAt, 1*time.Second)
+	assert.Empty(t, actual.DeletedAt)
+
+	// Force update
+	updatedAt := c.FastForward(10 * time.Minute)
+	ReplaceLine(t, filepath.Join(root, "go.md"), 19,
+		"What does the **Golang logo** represent?",
+		"What is the **Golang logo**?")
+
+	// Recreate...
+	parsedFile, err = ParseFileFromRelativePath(root, "go.md")
+	require.NoError(t, err)
+	newFile, err := NewOrExistingFile(parsedFile)
+	require.NoError(t, err)
+	require.NoError(t, newFile.Save())
+	// ...and compare
+	assert.Equal(t, file.OID, newFile.OID) // Must have found the previous one
+	assert.Contains(t, newFile.Body, "What is the **Golang logo**?")
+
+	// Retrieve
+	updatedFile, err := CurrentRepository().LoadFileByOID(newFile.OID)
+	require.NoError(t, err)
+	// Timestamps must have changed
+	assert.WithinDuration(t, createdAt, updatedFile.CreatedAt, 1*time.Second)
+	assert.WithinDuration(t, updatedAt, updatedFile.UpdatedAt, 1*time.Second)
+	assert.WithinDuration(t, updatedAt, updatedFile.LastCheckedAt, 1*time.Second)
+
+	// Delete
+	require.NoError(t, file.Delete())
+	assert.Equal(t, clock.Now(), file.DeletedAt)
+
+	AssertNoFiles(t)
+}
+
+func TestFileOld(t *testing.T) {
 
 	t.Run("NewFile", func(t *testing.T) {
 
@@ -158,7 +290,6 @@ tags: [programming]
 		assert.NoError(t, err)
 		assert.Equal(t, expectedFrontMatter, actualFrontMatter)
 		assert.Equal(t, file.Attributes.GetTags(), actual.Attributes.GetTags())
-
 		assert.Equal(t, file.Body, actual.Body)
 		assert.Equal(t, file.BodyLine, actual.BodyLine)
 		assert.Equal(t, file.Mode, actual.Mode)
