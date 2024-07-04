@@ -30,13 +30,13 @@ const (
 // See https://git-scm.com/docs/index-format for inspiration.
 //
 // The index file is used to determine if an object is new
-// and to quickly locate which the commit file containing the object otherwise.
-// Useful when adding or restoring objects.
+// and to quickly locate the commit file containing the object otherwise.
+// The index is particularly useful when adding or restoring objects.
 type Index struct {
 	Objects []*IndexObject `yaml:"objects" json:"objects"`
-	// Same as objects when searching by OID
+	// Same as `Objects` when searching by OID
 	objectsRef map[string]*IndexObject `yaml:"-" json:"-"`
-	// Same as objects when searching by relative path
+	// Same as `Objects` when searching by relative path
 	filesRef map[string]*IndexObject `yaml:"-" json:"-"`
 
 	// Mapping between pack files and their commit OID
