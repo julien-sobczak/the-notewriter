@@ -341,8 +341,13 @@ func (r *Repository) Add(paths ...string) error {
 	defer db.RollbackTransaction()
 
 	// Save the medias
-	// TODO create packfiles
 	for _, media := range updatedMedias {
+		// Save the pack file first (easy to gc if the command fails)
+		packFile := NewPackFile()
+		packFile.MustAppendObject(media)
+		if err := packFile.Save(); err != nil {
+			CurrentDB().StagePackFileWithBlobs(packFile, media.BlobRefs)
+		}
 		if err := media.Save(); err != nil {
 			return err
 		}
@@ -351,9 +356,12 @@ func (r *Repository) Add(paths ...string) error {
 	for i, parsedFile := range updatedParsedFiles {
 		file := updatedFiles[i]
 
+		packFile := NewPackFile()
+
 		if err := file.Save(); err != nil {
 			return err
 		}
+		packFile.MustAppendObject(file)
 
 		// Process notes
 		for _, parsedNote := range parsedFile.Notes {
@@ -372,6 +380,7 @@ func (r *Repository) Add(paths ...string) error {
 			if err := note.Save(); err != nil {
 				return err
 			}
+			packFile.MustAppendObject(note)
 			updatedNotes = append(updatedNotes, note)
 
 			// Process links
@@ -383,6 +392,7 @@ func (r *Repository) Add(paths ...string) error {
 				if err := goLink.Save(); err != nil {
 					return err
 				}
+				packFile.MustAppendObject(goLink)
 			}
 
 			// Process flashcards
@@ -395,6 +405,7 @@ func (r *Repository) Add(paths ...string) error {
 				if err := flashcard.Save(); err != nil {
 					return err
 				}
+				packFile.MustAppendObject(flashcard)
 			}
 
 			// Process reminders
@@ -406,38 +417,14 @@ func (r *Repository) Add(paths ...string) error {
 				if err := reminder.Save(); err != nil {
 					return err
 				}
+				packFile.MustAppendObject(reminder)
 			}
 		}
 
-	}
-
-	// Make a second-pass on notes to manage cross-references (ex: note embedding)
-	for _, note := range updatedNotes {
-		changed, err := note.Refresh()
-		if err != nil {
+		if err := packFile.Save(); err != nil {
 			return err
 		}
-		if changed {
-			//  Updated notes embedding this note
-			if err := note.Save(); err != nil {
-				return err
-			}
-			dependencies, err := r.FindRelationsTo(note.OID)
-			if err != nil {
-				return err
-			}
-			for _, relation := range dependencies {
-				if relation.Type == "embeds" && relation.SourceKind == "note" {
-					dependentNote, err := r.LoadNoteByOID(relation.SourceOID)
-					if err != nil {
-						return err
-					}
-					if err := dependentNote.Save(); err != nil {
-						return err
-					}
-				}
-			}
-		}
+		CurrentDB().StagePackFile(packFile)
 	}
 
 	// Find objects to delete for every path
@@ -478,9 +465,6 @@ func (r *Repository) Add(paths ...string) error {
 	if err := db.CommitTransaction(); err != nil {
 		return err
 	}
-
-	// TODO create packfile
-	// db.index.StagePackFile(packFile)
 
 	// And to persist the index
 	if err := db.index.Save(); err != nil {

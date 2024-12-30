@@ -70,7 +70,7 @@ type Media struct {
 	Mode fs.FileMode `yaml:"mode" json:"mode"`
 
 	// Eager-loaded list of blobs
-	BlobRefs []*BlobRef `yaml:"blobs" json:"blobs"`
+	BlobRefs []BlobRef `yaml:"blobs" json:"blobs"`
 
 	// Timestamps to track changes
 	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
@@ -288,7 +288,7 @@ func toWebM(converter medias.Converter, src, dest string) {
 }
 
 // MustWriteBlob writes a new blob object or fails.
-func MustWriteBlob(path string, tags []string) *BlobRef {
+func MustWriteBlob(path string, tags []string) BlobRef {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		log.Fatalf("Unable to read blob %q: %v", path, err)
@@ -303,7 +303,7 @@ func MustWriteBlob(path string, tags []string) *BlobRef {
 	if err := CurrentDB().WriteBlob(blob.OID, data); err != nil {
 		log.Fatalf("Unable to write blob from file %q: %v", path, err)
 	}
-	return &blob
+	return blob
 }
 
 /* Object */

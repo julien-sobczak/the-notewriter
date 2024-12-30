@@ -247,11 +247,6 @@ func (f *Flashcard) Write(w io.Writer) error {
 	return err
 }
 
-func (f *Flashcard) Blobs() []*BlobRef {
-	// Use Media.Blobs() instead
-	return nil
-}
-
 func (f *Flashcard) Relations() []*Relation {
 	return nil
 }
@@ -741,10 +736,6 @@ func (s *Study) Write(w io.Writer) error {
 }
 
 func (s *Study) Relations() []*Relation {
-	return nil
-}
-
-func (s *Study) Blobs() []*BlobRef {
 	return nil
 }
 

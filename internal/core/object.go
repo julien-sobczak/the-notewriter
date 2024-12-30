@@ -60,8 +60,6 @@ type Object interface {
 
 	// Relations returns the relations where the current object is the source.
 	Relations() []*Relation
-	// Blobs returns the optional blobs associated with this object.
-	Blobs() []*BlobRef
 
 	// Read rereads the object from YAML.
 	Read(r io.Reader) error
@@ -136,6 +134,17 @@ func (c *BlobFile) Save() error {
 	}
 	defer f.Close()
 	return c.Write(f)
+}
+
+// Convenient type to add methods
+type BlobRefs []BlobRef
+
+func (r BlobRefs) OIDs() []string {
+	var results []string
+	for _, ref := range r {
+		results = append(results, ref.OID)
+	}
+	return results
 }
 
 /* Utility */

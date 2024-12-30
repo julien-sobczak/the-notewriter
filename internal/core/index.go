@@ -33,31 +33,62 @@ const (
 // and to quickly locate the commit file containing the object otherwise.
 // The index is particularly useful when adding or restoring objects.
 type Index struct {
-	Objects []*IndexObject `yaml:"objects" json:"objects"`
-	// Same as `Objects` when searching by OID
-	objectsRef map[string]*IndexObject `yaml:"-" json:"-"`
-	// Same as `Objects` when searching by relative path
-	filesRef map[string]*IndexObject `yaml:"-" json:"-"`
-
-	// Mapping between pack files and their commit OID
-	PackFiles map[string]string `yaml:"packfiles" json:"packfiles"`
+	// The "Three Trees"
+	// See https://git-scm.com/book/en/v2/Git-Tools-Reset-Demystified
+	Head        IndexTree
+	StagingArea IndexTree
 
 	// A list of pack files that is known to be orphans
 	OrphanPackFiles []*IndexOrphanPackFile `yaml:"orphan_packfiles" json:"orphan_packfiles"`
-
 	// A list of blobs that is known to be orphans
 	OrphanBlobs []*IndexOrphanBlob `yaml:"orphan_blobs" json:"orphan_blobs"`
+}
 
-	StagingArea StagingArea `yaml:"staging" json:"staging"`
+type IndexTree struct {
+	PackFiles []*IndexPackFile `yaml:"packfiles" json:"packfiles"`
+	Blobs     []*IndexBlob     `yaml:"blobs" json:"blobs"`
+	Objects   []*IndexObject   `yaml:"objects" json:"objects"`
+	// Same as `Objects` when searching by OID
+	objectsRef map[string]*IndexObject `yaml:"-" json:"-"`
+}
+
+type IndexPackFile struct {
+	PackFileRef
+
+	// When nt add
+	Staged   bool      `yaml:"-" json:"-"`
+	StagedAt time.Time `yaml:"-" json:"-"`
+
+	// TODO remove comment
+	// When nt commit
+	// Search for Staged and creates a commit containing all StagedOID
+
+	// When nt status
+	// List Staged, reread previous version from OID and make a diff
+
+	// When nt reset
+	// Delete PackFile on disk, clear Staged/StagedOID
+}
+
+type IndexBlob struct {
+	BlobRef
+
+	// When nt add
+	Staged   bool      `yaml:"-" json:"-"`
+	StagedAt time.Time `yaml:"-" json:"-"`
 }
 
 type IndexObject struct {
 	OID   string    `yaml:"oid" json:"oid"`
 	Kind  string    `yaml:"kind" json:"kind"`
 	MTime time.Time `yaml:"mtime" json:"mtime"`
-	// The commit (and its packfile) containing the latest version (empty for uncommitted object)
-	CommitOID   string `yaml:"commit_oid" json:"commit_oid"`
-	PackFileOID string `yaml:"packfile_oid" json:"packfile_oid"`
+	// The packfile/commit containing the latest committed version (empty for uncommitted objects)
+	LastPackFileOID string `yaml:"packfile_oid" json:"packfile_oid"`
+	LastCommitOID   string `yaml:"commit_oid" json:"commit_oid"`
+	// The packfile containing the latest staged version (empty for committed and not-modified objects)
+	Staged            bool      `yaml:"-" json:"-"`
+	StagedAt          time.Time `yaml:"-" json:"-"`
+	StagedPackFileOID string    `yaml:"-" json:"-"`
 }
 
 type IndexOrphanPackFile struct {
@@ -72,22 +103,12 @@ type IndexOrphanBlob struct {
 	MediaOID string `yaml:"media_oid" json:"media_oid"`
 }
 
-type StagingObject struct {
-	PackObject
-	PreviousCommitOID   string `yaml:"previous_commit_oid" json:"previous_commit_oid"`
-	PreviousPackFileOID string `yaml:"previous_packfile_oid" json:"previous_packfile_oid"`
-}
-
 func (i IndexObject) String() string {
 	return fmt.Sprintf("%s (%s)", i.Kind, i.OID)
 }
 
-func (s StagingObject) String() string {
-	return fmt.Sprintf("%s %s (%s)", s.State, s.Kind, s.OID)
-}
-
-type StagingArea []*StagingObject
-
+/*
+FIXME remove
 // ReadStagingObject searches for the given staging object in staging area
 func (sa *StagingArea) ReadStagingObject(objectOID string) (*StagingObject, bool) {
 	for _, obj := range *sa {
@@ -106,32 +127,15 @@ func (sa *StagingArea) ReadObject(objectOID string) (StatefulObject, bool) {
 	}
 	return obj.ReadObject(), true
 }
+*/
 
-// Contains file returns the staging object from a given file path.
-func (sa *StagingArea) ContainsFile(relpath string) (*StagingObject, bool) {
-	for _, obj := range *sa {
-		if obj.Kind == "file" {
-			file := new(File)
-			obj.Data.Unmarshal(file)
-			if file.RelativePath == relpath {
-				return obj, true
-			}
-		}
-	}
-	return nil, false
-}
-
-// Count returns the number of objects inside the staging area.
-func (sa *StagingArea) Count() int {
-	return len(*sa)
-}
-
-// CountByState returns the number of objects inside the staging area in a given state.
-func (sa *StagingArea) CountByState(state State) int {
+// CountStagedObjects returns the number of objects inside the staging area.
+func (i *Index) CountStagedPackFiles() int {
+	// TODO remove this comment => Replace Count()
 	count := 0
-	for _, obj := range *sa {
-		if obj.State == state {
-			count++
+	for _, packFile := range i.PackFiles {
+		if packFile.Staged {
+			count += 1
 		}
 	}
 	return count
@@ -140,9 +144,13 @@ func (sa *StagingArea) CountByState(state State) int {
 // NewIndex instantiates a new index.
 func NewIndex() *Index {
 	return &Index{
+		PackFiles:       []*IndexPackFile{},
+		Blobs:           []*IndexBlob{},
+		Objects:         []*IndexObject{},
+		OrphanPackFiles: []*IndexOrphanPackFile{},
+		OrphanBlobs:     []*IndexOrphanBlob{},
+		// internal caches
 		objectsRef: make(map[string]*IndexObject),
-		filesRef:   make(map[string]*IndexObject),
-		PackFiles:  make(map[string]string),
 	}
 }
 
@@ -167,29 +175,35 @@ func NewIndexFromPath(path string) (*Index, error) {
 			index.objectsRef[object.OID] = object
 		}
 	}
-	if index.filesRef == nil {
-		index.filesRef = make(map[string]*IndexObject)
-	}
 	in.Close()
 	return index, nil
 }
 
-// CountChanges returns the number of changes currently present in the staging area.
-func (i *Index) CountChanges() int {
-	return i.StagingArea.Count()
-}
-
 // CloneForRemote prepares a cleaned index before a push.
 func (i *Index) CloneForRemote() *Index {
-	return &Index{
-		Objects:         i.Objects,
-		objectsRef:      i.objectsRef,
-		filesRef:        i.filesRef,
-		PackFiles:       i.PackFiles,
-		OrphanPackFiles: i.OrphanPackFiles,
-		OrphanBlobs:     i.OrphanBlobs,
-		// IMPORTANT: StagingArea must not be pushed remotely
+	remoteIndex := NewIndex()
+
+	// Keep only pack files not staged
+	for _, packFile := range i.PackFiles {
+		if !packFile.Staged {
+			remoteIndex.PackFiles = append(remoteIndex.PackFiles, packFile)
+		}
 	}
+	// Keep only blobs not staged
+	for _, blob := range i.Blobs {
+		if !blob.Staged {
+			remoteIndex.Blobs = append(remoteIndex.Blobs, blob)
+		}
+	}
+	// Keep only objects not staged
+	for _, object := range i.Objects {
+		if !object.Staged {
+			remoteIndex.Objects = append(remoteIndex.Objects, object)
+			remoteIndex.objectsRef[object.OID] = object
+		}
+	}
+
+	return remoteIndex
 }
 
 // Save persists the index on disk.
@@ -215,7 +229,7 @@ func (i *Index) FindCommitContaining(objectOID string) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	return indexFile.CommitOID, true
+	return indexFile.LastCommitOID, true
 }
 
 // FindPackFileContaining returns the pack file associated with a given object.
@@ -224,13 +238,13 @@ func (i *Index) FindPackFileContaining(objectOID string) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	return indexFile.PackFileOID, true
+	return indexFile.LastPackFileOID, true
 }
 
-// IsOrphanBlob checks if the blob has already beeing deleted.
-func (i *Index) IsOrphanBlob(oid string) bool {
-	for _, b := range i.OrphanBlobs {
-		if b.OID == oid {
+// IsOrphanPackFile checks if the pack file has already beeing deleted.
+func (i *Index) IsOrphanPackFile(oid string) bool {
+	for _, o := range i.OrphanPackFiles {
+		if o.OID == oid {
 			return true
 		}
 	}
@@ -238,134 +252,87 @@ func (i *Index) IsOrphanBlob(oid string) bool {
 	return false
 }
 
-// AppendPackFile completes the index with object from a pack file.
-func (i *Index) AppendPackFile(commitOID string, packFile *PackFile) {
-	for _, packObject := range packFile.PackObjects {
-		i.putPackObject(commitOID, packFile.OID, packObject)
-	}
-	i.PackFiles[packFile.OID] = commitOID
-}
-
-// StageObject registers a changed object into the staging area
-func (i *Index) StageObject(obj StatefulObject) error {
-	objData, err := NewObjectData(obj)
-	if err != nil {
-		return err
-	}
-
-	// Update staging area
-	newStagingObject := &StagingObject{
-		PackObject: PackObject{
-			OID:         obj.UniqueOID(),
-			Kind:        obj.Kind(),
-			State:       obj.State(),
-			MTime:       obj.ModificationTime(),
-			Description: obj.String(),
-			Data:        objData,
-		},
-	}
-	if commitObject, ok := i.objectsRef[obj.UniqueOID()]; ok {
-		newStagingObject.PreviousCommitOID = commitObject.CommitOID
-		newStagingObject.PreviousPackFileOID = commitObject.PackFileOID
-	}
-
-	// Check if object was already added
-	for j, stagedObject := range i.StagingArea {
-		if stagedObject.OID == newStagingObject.OID {
-			// Do not update other properties
-			// Ex: when staging a media after the generation of blobs,
-			// the state must stay "added" even if the media has already been saved in database since.
-			i.StagingArea[j].Data = newStagingObject.Data
-			return nil
+// IsOrphanBlob checks if the blob has already beeing deleted.
+func (i *Index) IsOrphanBlob(oid string) bool {
+	for _, o := range i.OrphanBlobs {
+		if o.OID == oid {
+			return true
 		}
 	}
+	// not found
+	return false
+}
 
-	// Otherwise, append the new object
-	i.StagingArea = append(i.StagingArea, newStagingObject)
+// StagePackFile adds a pack file to the staging area.
+func (i *Index) StagePackFile(packFile *PackFile) {
+	i.StagePackFileWithBlobs(packFile, nil)
+}
 
-	return nil
+// StagePackFile adds a pack file to the staging area.
+func (i *Index) StagePackFileWithBlobs(packFile *PackFile, blobs []BlobRef) {
+	stagedAt := clock.Now()
+
+	indexPackFile := &IndexPackFile{
+		PackFileRef: packFile.Ref(),
+
+		Staged:   true,
+		StagedAt: stagedAt,
+	}
+
+	i.PackFiles = append(i.PackFiles, indexPackFile)
+
+	for _, packObject := range packFile.PackObjects {
+		indexObject := &IndexObject{
+			OID:               packObject.OID,
+			Kind:              packObject.Kind,
+			MTime:             packObject.MTime,
+			Staged:            true,
+			StagedAt:          stagedAt,
+			StagedPackFileOID: packFile.OID,
+		}
+		i.Objects = append(i.Objects, indexObject)
+		i.objectsRef[indexObject.OID] = indexObject
+	}
+
+	for _, blob := range blobs {
+		indexBlob := &IndexBlob{
+			BlobRef:  blob,
+			Staged:   true,
+			StagedAt: stagedAt,
+		}
+		i.Blobs = append(i.Blobs, indexBlob)
+	}
 }
 
 // CreateCommit generates a new commit from current changes in the staging area.
-func (i *Index) CreateCommitFromStagingArea() (*Commit, []*PackFile) {
+func (i *Index) CreateCommitFromStagingArea() *Commit {
 	commit := NewCommit()
 
-	// Group pack objects
-	var packFiles []*PackFile
-
-	// Rebuild a new pack file after every X objects
-	packFile := NewPackFile()
-	objectsInPackFile := 0
-
-	for _, obj := range i.StagingArea {
-		// Append to pack file
-		packFile.AppendPackObject(&obj.PackObject)
-		objectsInPackFile++
-
-		// Register in index
-		i.putPackObject(commit.OID, packFile.OID, &obj.PackObject)
-
-		if objectsInPackFile == CurrentConfig().ConfigFile.Core.MaxObjectsPerPackFile {
-			packFiles = append(packFiles, packFile)
-			commit.PackFiles = append(commit.PackFiles, packFile.Ref())
-			i.PackFiles[packFile.OID] = commit.OID
-			// Start a new pack file
-			packFile = NewPackFile()
-			objectsInPackFile = 0
+	for _, packFile := range i.PackFiles {
+		if packFile.Staged {
+			packFile.Staged = false
+			packFile.StagedAt = time.Time{}
+			commit.AppendPackFile(packFile)
 		}
 	}
-	if objectsInPackFile > 0 {
-		packFiles = append(packFiles, packFile)
-		commit.PackFiles = append(commit.PackFiles, packFile.Ref())
-		i.PackFiles[packFile.OID] = commit.OID
+	for _, blob := range i.Blobs {
+		if blob.Staged {
+			blob.Staged = false
+			blob.StagedAt = time.Time{}
+			commit.AppendBlob(blob)
+		}
 	}
-
-	// Clear the staging area
-	i.StagingArea = nil
-
-	return commit, packFiles
-}
-
-// putPackFile registers a new pack file inside the index.
-func (i *Index) putPackFile(commitOID string, packFile *PackFile) {
-	for _, packObject := range packFile.PackObjects {
-		i.putPackObject(commitOID, packFile.OID, packObject)
-	}
-	i.PackFiles[packFile.OID] = commitOID
-}
-
-// putPackObject registers a new pack object inside the index.
-func (i *Index) putPackObject(commitOID string, packFileOID string, obj *PackObject) {
-	if indexObject, ok := i.objectsRef[obj.OID]; ok {
-		// Simply updates the commit OID for existing objects
-		indexObject.CommitOID = commitOID
-		indexObject.PackFileOID = packFileOID
-		return
-	}
-
-	indexObject := &IndexObject{
-		OID:         obj.OID,
-		Kind:        obj.Kind,
-		MTime:       obj.MTime,
-		CommitOID:   commitOID,
-		PackFileOID: packFileOID,
-	}
-
-	// Update inner mappings
-	i.objectsRef[obj.OID] = indexObject
-	if obj.Kind == "file" {
-		_, found := i.filesRef[obj.OID]
-		// Update mapping path -> object
-		if !found {
-			file := new(File)
-			obj.Data.Unmarshal(file)
-			if file.RelativePath != "" {
-				i.filesRef[file.RelativePath] = indexObject
-			}
+	for _, object := range i.Objects {
+		if object.Staged {
+			object.Staged = false
+			object.StagedAt = time.Time{}
+			object.LastPackFileOID = object.StagedPackFileOID
+			object.LastCommitOID = commit.OID
+			object.StagedPackFileOID = ""
 		}
 	}
 
-	i.Objects = append(i.Objects, indexObject)
+	return commit
 }
 
 // Read read an index from the file.
@@ -624,6 +591,7 @@ type Commit struct {
 	CTime     time.Time    `yaml:"ctime" json:"ctime"`
 	MTime     time.Time    `yaml:"mtime" json:"mtime"`
 	PackFiles PackFileRefs `yaml:"packfiles" json:"packfiles"`
+	Blobs     BlobRefs     `yaml:"blobs" json:"blobs"`
 }
 
 // NewCommit initializes a new empty commit.
@@ -632,20 +600,6 @@ func NewCommit() *Commit {
 		OID:   NewOID(),
 		CTime: clock.Now(),
 		MTime: clock.Now(),
-	}
-}
-
-// NewCommitFromPackFiles initializes a new commit referencing the given pack files.
-func NewCommitFromPackFiles(packFiles ...*PackFile) *Commit {
-	var packFilesRefs []*PackFileRef
-	for _, packFile := range packFiles {
-		packFilesRefs = append(packFilesRefs, packFile.Ref())
-	}
-	return &Commit{
-		OID:       NewOID(),
-		CTime:     clock.Now(),
-		MTime:     clock.Now(),
-		PackFiles: packFilesRefs,
 	}
 }
 
@@ -659,15 +613,20 @@ func NewCommitWithOID(oid string) *Commit {
 }
 
 // AppendPackFile appends a new pack file OID in the commit.
-func (c *Commit) AppendPackFile(packFile *PackFile) {
-	c.PackFiles = append(c.PackFiles, packFile.Ref())
+func (c *Commit) AppendPackFile(packFile *IndexPackFile) {
+	c.PackFiles = append(c.PackFiles, packFile.PackFileRef)
+}
+
+// AppendPackFile appends a new pack file OID in the commit.
+func (c *Commit) AppendBlob(blob *IndexBlob) {
+	c.Blobs = append(c.Blobs, blob.BlobRef)
 }
 
 // IncludePackFile returns the pack file is present in the commit.
 func (c *Commit) IncludePackFile(oid string) (*PackFileRef, bool) {
 	for _, packFile := range c.PackFiles {
 		if packFile.OID == oid {
-			return packFile, true
+			return &packFile, true
 		}
 	}
 	return nil, false

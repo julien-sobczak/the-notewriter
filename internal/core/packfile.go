@@ -19,7 +19,6 @@ import (
  * ObjectData
  */
 
-
 // ObjectData serializes any Object to base64 after zlib compression.
 type ObjectData []byte // alias to serialize to YAML easily
 
@@ -102,10 +101,11 @@ func (od ObjectData) Unmarshal(target interface{}) error {
  */
 
 type PackFile struct {
-	OID         string        `yaml:"oid" json:"oid"`
-	CTime       time.Time     `yaml:"ctime" json:"ctime"`
-	MTime       time.Time     `yaml:"mtime" json:"mtime"`
-	PackObjects []*PackObject `yaml:"objects" json:"objects"`
+	OID          string        `yaml:"oid" json:"oid"`
+	RelativePath string        `yaml:"relative_path" json:"relative_path"`
+	CTime        time.Time     `yaml:"ctime" json:"ctime"`
+	MTime        time.Time     `yaml:"mtime" json:"mtime"`
+	PackObjects  []*PackObject `yaml:"objects" json:"objects"`
 }
 
 type PackObject struct {
@@ -116,7 +116,6 @@ type PackObject struct {
 	Description string     `yaml:"desc" json:"desc"`
 	Data        ObjectData `yaml:"data" json:"data"`
 }
-
 
 // NewPackFileRefWithOID initializes a new empty pack file ref with a given OID.
 func NewPackFileRefWithOID(oid string) *PackFileRef {
@@ -199,11 +198,12 @@ func NewPackFileFromPath(path string) (*PackFile, error) {
 }
 
 // Ref returns a ref to the pack file.
-func (p *PackFile) Ref() *PackFileRef {
-	return &PackFileRef{
-		OID:   p.OID,
-		CTime: p.CTime,
-		MTime: p.MTime,
+func (p *PackFile) Ref() PackFileRef {
+	return PackFileRef{
+		RelativePath: p.RelativePath,
+		OID:          p.OID,
+		CTime:        p.CTime,
+		MTime:        p.MTime,
 	}
 }
 
@@ -222,16 +222,11 @@ func (p *PackFile) AppendPackObject(obj *PackObject) {
 	p.PackObjects = append(p.PackObjects, obj)
 }
 
-// Append registers a new staged object inside a pack file.
-func (p *PackFile) AppendStagingObject(obj *StagingObject) {
-	p.PackObjects = append(p.PackObjects, &PackObject{
-		OID:         obj.OID,
-		Kind:        obj.Kind,
-		State:       obj.State,
-		MTime:       obj.MTime,
-		Description: obj.Description,
-		Data:        obj.Data,
-	})
+// MustAppendObject registers a new object inside the pack file or panic.
+func (p *PackFile) MustAppendObject(obj StatefulObject) {
+	if err := p.AppendObject(obj); err != nil {
+		panic(err)
+	}
 }
 
 // AppendObject registers a new object inside the pack file.
@@ -317,23 +312,19 @@ func (p *PackFile) SaveTo(path string) error {
 	return p.Write(f)
 }
 
-func (p *PackFile) Blobs() []*BlobRef {
-	// Blobs are stored outside packfiles.
-	return nil
-}
-
 /*
  * PackFileRef
  */
 
 type PackFileRef struct {
-	OID   string    `yaml:"oid" json:"oid"`
-	CTime time.Time `yaml:"ctime" json:"ctime"`
-	MTime time.Time `yaml:"mtime" json:"mtime"`
+	RelativePath string    `yaml:"relative_path" json:"relative_path"`
+	OID          string    `yaml:"oid" json:"oid"`
+	CTime        time.Time `yaml:"ctime" json:"ctime"`
+	MTime        time.Time `yaml:"mtime" json:"mtime"`
 }
 
 // Convenient type to add methods
-type PackFileRefs []*PackFileRef
+type PackFileRefs []PackFileRef
 
 func (p PackFileRefs) OIDs() []string {
 	var results []string
@@ -342,4 +333,3 @@ func (p PackFileRefs) OIDs() []string {
 	}
 	return results
 }
-

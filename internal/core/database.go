@@ -487,8 +487,12 @@ func (db *DB) initClient() *sql.DB {
 	return dbSingleton.client
 }
 
-func (db *DB) StageObject(obj StatefulObject) error {
-	return db.index.StageObject(obj)
+func (db *DB) StagePackFile(packFile *PackFile) {
+	db.index.StagePackFile(packFile)
+}
+
+func (db *DB) StagePackFileWithBlobs(packFile *PackFile, blobs []BlobRef) {
+	db.index.StagePackFileWithBlobs(packFile, blobs)
 }
 
 // Commit creates a new commit object and clear the staging area.

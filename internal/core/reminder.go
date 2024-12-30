@@ -156,10 +156,6 @@ func (r *Reminder) Relations() []*Relation {
 	return nil
 }
 
-func (r *Reminder) Blobs() []*BlobRef {
-	return nil
-}
-
 func (r Reminder) String() string {
 	return fmt.Sprintf("reminder %s [%s]", r.Tag, r.OID)
 }

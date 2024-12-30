@@ -139,10 +139,6 @@ func (l *GoLink) Relations() []*Relation {
 	return nil
 }
 
-func (l *GoLink) Blobs() []*BlobRef {
-	return nil
-}
-
 func (l GoLink) String() string {
 	return fmt.Sprintf("link %q [%s]", l.URL, l.OID)
 }

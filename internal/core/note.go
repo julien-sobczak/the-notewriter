@@ -308,10 +308,6 @@ func (n *Note) Relations() []*Relation {
 	return relations
 }
 
-func (n *Note) Blobs() []*BlobRef {
-	return nil
-}
-
 func (n Note) String() string {
 	return fmt.Sprintf("note %q [%s]", n.Title, n.OID)
 }
