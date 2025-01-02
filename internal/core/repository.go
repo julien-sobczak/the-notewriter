@@ -88,21 +88,21 @@ type MatchedFile struct {
 }
 
 // IndexFilesFirst ensures index files are processed first.
-var IndexFilesFirst = func(a, b string) bool {
+var IndexFilesFirst = func(a, b string) int {
 	dirA := filepath.Dir(a)
 	dirB := filepath.Dir(b)
 	if dirA != dirB {
-		return a < b
+		return strings.Compare(a, b)
 	}
 	baseA := text.TrimExtension(filepath.Base(a))
 	baseB := text.TrimExtension(filepath.Base(b))
 	// move index files up
 	if strings.EqualFold(baseA, "index") {
-		return true
+		return 1
 	} else if strings.EqualFold(baseB, "index") {
-		return false
+		return -1
 	}
-	return a < b // os.WalkDir already returns file in lexical order
+	return strings.Compare(a, b) // os.WalkDir already returns file in lexical order
 }
 
 func (r *Repository) walk(paths []string, fn func(path string, stat fs.FileInfo) error) error {

@@ -399,12 +399,16 @@ func (l *LintFile) GetAttributeDefinition(name string, filter func(schema Config
 	}
 
 	// Sort from most specific to least specific
-	slices.SortFunc(matchingSchemas, func(a, b ConfigLintSchema) bool {
+	slices.SortFunc(matchingSchemas, func(a, b ConfigLintSchema) int {
 		// Most specific path first
 		if a.Path != b.Path {
-			return strings.HasPrefix(a.Path, b.Path)
+			if strings.HasPrefix(a.Path, b.Path) {
+				return -1
+			} else {
+				return 1
+			}
 		}
-		return false // The last must win but SortFunc is not stable...
+		return 0 // The last must win but SortFunc is not stable...
 	})
 
 	schemaToUse := matchingSchemas[0]

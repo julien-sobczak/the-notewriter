@@ -193,17 +193,21 @@ func GetSchemaAttributes(relativePath string, kind NoteKind) []*ConfigLintSchema
 	}
 
 	// Sort from most specific to least specific
-	slices.SortFunc(matchingSchemas, func(a, b ConfigLintSchema) bool {
+	slices.SortFunc(matchingSchemas, func(a, b ConfigLintSchema) int {
 		// Most specific path first
 		if a.Path != b.Path {
-			return strings.HasPrefix(a.Path, b.Path)
+			if strings.HasPrefix(a.Path, b.Path) {
+				return 1
+			} else {
+				return -1
+			}
 		}
 		if a.Kind != "" && b.Kind == "" {
-			return true
+			return 1
 		} else if a.Kind == "" && b.Kind != "" {
-			return false
+			return -1
 		}
-		return false // both have same priority... (NB: SortFunc is not stable...)
+		return -1 // both have same priority... (NB: SortFunc is not stable...)
 	})
 
 	resultsMap := make(map[string]*ConfigLintSchemaAttribute)
@@ -221,8 +225,8 @@ func GetSchemaAttributes(relativePath string, kind NoteKind) []*ConfigLintSchema
 		results = append(results, definition)
 	}
 	// Sort by name
-	slices.SortFunc(results, func(a, b *ConfigLintSchemaAttribute) bool {
-		return a.Name < b.Name
+	slices.SortFunc(results, func(a, b *ConfigLintSchemaAttribute) int {
+		return strings.Compare(a.Name, b.Name)
 	})
 	return results
 }

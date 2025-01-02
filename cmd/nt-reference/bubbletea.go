@@ -151,7 +151,6 @@ func (m CategoryModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if ok {
 				m.choice = string(i.key)
 			}
-			fmt.Println("Selected", m.choice)
 			return m, tea.Quit
 		}
 	}
