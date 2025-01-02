@@ -13,6 +13,7 @@ build:
 	go build --tags "fts5" -o build/nt cmd/nt/*.go
 	go build --tags "fts5" -o build/ntlite cmd/ntlite/*.go
 	go build --tags "fts5" -o build/ntreference cmd/nt-reference/*.go
+	go build --tags "fts5" -o build/ntjournal cmd/nt-journal/*.go
 	go build --tags "fts5" -o build/ntanki cmd/nt-anki/*.go
 
 test:
@@ -43,5 +44,6 @@ test-all:
 install: build
 	cp build/nt /Users/julien/go/bin/nt
 	cp build/ntreference /Users/julien/go/bin/nt-reference
+	cp build/ntjournal /Users/julien/go/bin/nt-journal
 	cp build/ntanki /Users/julien/go/bin/nt-anki
 # go install --tags "fts5" cmd/nt/*.go => FIXME build an invalid main executable instead of a nt file
