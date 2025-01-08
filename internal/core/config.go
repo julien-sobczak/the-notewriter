@@ -22,9 +22,6 @@ import (
 // How many parent directories to traverse before considering a directory as not a nt repository
 const maxDepth = 10
 
-// Database
-const MaxObjectsPerPackFileDefault = 100
-
 // SRS
 const (
 	DefaultSRSBoostFactor = 100
@@ -107,8 +104,7 @@ type ConfigFile struct {
 	Reference map[string]*ConfigReference
 }
 type ConfigCore struct {
-	Extensions            []string
-	MaxObjectsPerPackFile int
+	Extensions []string
 }
 type ConfigMedias struct {
 	Command  string
@@ -637,9 +633,6 @@ func parseConfigFile(content string) (*ConfigFile, error) {
 	err := d.Decode(&result)
 
 	// Apply default values
-	if result.Core.MaxObjectsPerPackFile == 0 {
-		result.Core.MaxObjectsPerPackFile = MaxObjectsPerPackFileDefault
-	}
 	for _, deck := range result.Deck {
 		if deck.Algorithm == "" {
 			deck.Algorithm = DefaultSRSAlgorithm

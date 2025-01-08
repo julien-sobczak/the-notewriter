@@ -20,7 +20,7 @@ var commitCmd = &cobra.Command{
 	Short: "Commit",
 	Run: func(cmd *cobra.Command, args []string) {
 		CheckConfig()
-		err := core.CurrentDB().Commit(commitMessage)
+		err := core.CurrentRepository().Commit(commitMessage)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

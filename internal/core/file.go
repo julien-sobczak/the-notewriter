@@ -905,3 +905,41 @@ func (f *File) ToMarkdown() string {
 	sb.WriteString(string(f.Body))
 	return sb.String()
 }
+
+/* FileObject interface */
+
+func (f *File) FileRelativePath() string {
+	return f.RelativePath
+}
+func (f *File) FileMTime() time.Time {
+	return f.MTime
+}
+func (f *File) FileSize() int64 {
+	return f.Size
+}
+func (f *File) FileHash() string {
+	return f.Hash
+}
+func (f *File) FileMode() fs.FileMode {
+	return f.Mode
+}
+
+func (f *File) Blobs() []*BlobRef {
+	// No blobs. Medias are managed separately.
+	return nil
+}
+func (f *File) Objects() []Object {
+	// FIXME implement
+	return nil
+}
+
+/* PackFile Management */
+
+func (f *File) ToPackFile() *PackFile {
+	return NewPackFile(f)
+}
+
+func (f *File) SaveToPackFile() error {
+	pf := f.ToPackFile()
+	return pf.Save()
+}

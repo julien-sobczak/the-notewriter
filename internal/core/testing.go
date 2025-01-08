@@ -10,6 +10,7 @@ import (
 
 	"github.com/julien-sobczak/the-notewriter/internal/testutil"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/filesystem"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -104,6 +105,8 @@ command="random"
 func FreezeNow(t *testing.T) *clock.TestClock {
 	now := clock.Freeze()
 	t.Cleanup(clock.Unfreeze)
+	filesystem.OverrideFileInfoReader(filesystem.NewClockBasedFileInfoReader())
+	t.Cleanup(filesystem.RestoreFileInfoReader)
 	return now
 }
 
@@ -111,6 +114,8 @@ func FreezeNow(t *testing.T) *clock.TestClock {
 func FreezeAt(t *testing.T, point time.Time) *clock.TestClock {
 	now := clock.FreezeAt(point)
 	t.Cleanup(clock.Unfreeze)
+	filesystem.OverrideFileInfoReader(filesystem.NewClockBasedFileInfoReader())
+	t.Cleanup(filesystem.RestoreFileInfoReader)
 	return now
 }
 

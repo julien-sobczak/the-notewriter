@@ -144,8 +144,6 @@ func NewNote(file *File, parent *Note, parsedNote *ParsedNote) (*Note, error) {
 	n.updateContent(parsedNote.Content) // Require the file
 	n.updateSlug()                      // Require the file and note attributes
 
-	CurrentDB().WIP().Register(n) // FIXME useless with 2-pass algorithm?
-
 	return n, nil
 }
 

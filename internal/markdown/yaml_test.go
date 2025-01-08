@@ -110,7 +110,7 @@ func ExampleCompactYAML_withScalars() {
 		log.Fatalf("Unable to marshall: %v", err)
 	}
 
-	log.Printf("\n---\n" + string(bytes) + "---")
+	log.Printf("\n---\n%s---", bytes)
 }
 
 func ExampleCompactYAML_withObject() {

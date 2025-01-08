@@ -6,13 +6,16 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/filesystem"
 	"github.com/julien-sobczak/the-notewriter/pkg/resync"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
+	godiffpatch "github.com/sourcegraph/go-diff-patch"
 	"golang.org/x/exp/slices"
 )
 
@@ -273,12 +276,7 @@ func (r *Repository) normalizePaths(paths ...string) []string {
 	return results
 }
 
-// Commit implements the command `nt commit`
-func (r *Repository) Commit(msg string) error {
-	return nil
-}
-
-// Add implements the command `nt add`
+// AddNew implements the command `nt add`
 func (r *Repository) Add(paths ...string) error {
 	r.MustLint(paths...)
 
@@ -287,11 +285,40 @@ func (r *Repository) Add(paths ...string) error {
 	db := CurrentDB()
 	paths = r.normalizePaths(paths...)
 
+	var updatedParsedFiles []*ParsedFile
+	var updatedFiles []*File
+	var updatedMedias []*Media
+	var updatedNotes []*Note
+
 	// Traverse all given paths to detected updated medias/files
 	err := r.walkNew(paths, func(mdFile *markdown.File) error {
 		CurrentLogger().Debugf("Processing %s...\n", mdFile.AbsolutePath)
 
-		// TODO
+		parsedFile, err := ParseFile(CurrentConfig().RootDirectory, mdFile)
+		if err != nil {
+			return err
+		}
+
+		// Check for stale file(s)
+		file, err := NewOrExistingFile(parsedFile)
+		if err != nil {
+			return err
+		}
+		if file.Stale() {
+			updatedParsedFiles = append(updatedParsedFiles, parsedFile)
+			updatedFiles = append(updatedFiles, file)
+		}
+
+		// Check for stale media(s)
+		for _, parsedMedia := range parsedFile.Medias {
+			media, err := NewOrExistingMedia(parsedMedia)
+			if err != nil {
+				return err
+			}
+			if media.Stale() {
+				updatedMedias = append(updatedMedias, media)
+			}
+		}
 
 		return nil
 	})
@@ -299,7 +326,140 @@ func (r *Repository) Add(paths ...string) error {
 		return err
 	}
 
-	fmt.Println(buildTime)
+	// Process blobs first outside the SQL transaction (takes a long time and resuming if the command is interrupted is not dangerous, just some CPU cycles lost)
+	CurrentLogger().Infof("Processing %d medias", len(updatedMedias))
+	for _, newMedia := range updatedMedias {
+		// TODO use CurrentConsole() to show progress
+		newMedia.GenerateBlobs()
+	}
+
+	// Run all queries inside the same transaction
+	err = db.BeginTransaction()
+	if err != nil {
+		return err
+	}
+	defer db.RollbackTransaction()
+
+	// Save the medias
+	for _, media := range updatedMedias {
+		// Save the pack file first (easy to gc if the command fails)
+		packFile := NewPackFile()
+		packFile.MustAppendObject(media)
+		if err := packFile.Save(); err != nil {
+			CurrentDB().StagePackFileWithBlobs(packFile, media.BlobRefs)
+		}
+		if err := media.Save(); err != nil {
+			return err
+		}
+	}
+
+	for i, parsedFile := range updatedParsedFiles {
+		file := updatedFiles[i]
+
+		packFile := NewPackFile()
+
+		if err := file.Save(); err != nil {
+			return err
+		}
+		packFile.MustAppendObject(file)
+
+		// Process notes
+		for _, parsedNote := range parsedFile.Notes {
+
+			var parentNote *Note
+			if parsedNote.Parent != nil {
+				parentNote, err = r.FindMatchingNote(parsedNote.Parent)
+				if err != nil {
+					return err
+				}
+			}
+			note, err := NewOrExistingNote(file, parentNote, parsedNote)
+			if err != nil {
+				return err
+			}
+			if err := note.Save(); err != nil {
+				return err
+			}
+			packFile.MustAppendObject(note)
+			updatedNotes = append(updatedNotes, note)
+
+			// Process links
+			for _, parsedGoLink := range parsedNote.GoLinks {
+				goLink, err := NewOrExistingGoLink(note, parsedGoLink)
+				if err != nil {
+					return err
+				}
+				if err := goLink.Save(); err != nil {
+					return err
+				}
+				packFile.MustAppendObject(goLink)
+			}
+
+			// Process flashcards
+			if parsedNote.Flashcard != nil {
+				parsedFlashcard := parsedNote.Flashcard
+				flashcard, err := NewOrExistingFlashcard(file, note, parsedFlashcard)
+				if err != nil {
+					return err
+				}
+				if err := flashcard.Save(); err != nil {
+					return err
+				}
+				packFile.MustAppendObject(flashcard)
+			}
+
+			// Process reminders
+			for _, reminder := range parsedNote.Reminders {
+				reminder, err := NewOrExistingReminder(note, reminder)
+				if err != nil {
+					return err
+				}
+				if err := reminder.Save(); err != nil {
+					return err
+				}
+				packFile.MustAppendObject(reminder)
+			}
+		}
+
+		if err := packFile.Save(); err != nil {
+			return err
+		}
+		CurrentDB().StagePackFile(packFile)
+	}
+
+	// Find objects to delete for every path
+	var deletions []StatefulObject
+	for _, path := range paths {
+		relpath := r.GetFileRelativePath(path)
+		pathDeletions, err := r.findObjectsLastCheckedBefore(buildTime, relpath)
+		if err != nil {
+			return err
+		}
+		deletions = append(deletions, pathDeletions...)
+	}
+
+	// Check for dead medias only when adding the root directory.
+	// For example, when adding a file, it can contains references to medias stored in a directory outside the given path.
+	if slices.Contains(paths, CurrentConfig().RootDirectory) { // ex: nt add .
+		// As we walked the whole hierarchy, all medias must have be checked.
+		mediaDeletions, err := CurrentRepository().FindMediasLastCheckedBefore(buildTime)
+		if err != nil {
+			return err
+		}
+		for _, mediaDeletion := range mediaDeletions {
+			deletions = append(deletions, mediaDeletion)
+		}
+	}
+
+	for _, deletion := range deletions {
+		deletion.ForceState(Deleted)
+		if err := deletion.Save(); err != nil {
+			return err
+		}
+		if err := db.StageObject(deletion); err != nil {
+			return fmt.Errorf("unable to stage deleted object %s: %v", deletion, err)
+		}
+	}
 
 	// Don't forget to commit
 	if err := db.CommitTransaction(); err != nil {
@@ -325,6 +485,49 @@ func (r *Repository) MustLint(paths ...string) {
 	}
 }
 
+func (r *Repository) findObjectsLastCheckedBefore(buildTime time.Time, path string) ([]StatefulObject, error) {
+	CurrentLogger().Debugf("Searching for %s", path)
+	// Search for deleted objects...
+	var deletions []StatefulObject
+
+	links, err := CurrentRepository().FindGoLinksLastCheckedBefore(buildTime, path)
+	if err != nil {
+		return nil, err
+	}
+	for _, object := range links {
+		deletions = append(deletions, object)
+	}
+	reminders, err := CurrentRepository().FindRemindersLastCheckedBefore(buildTime, path)
+	if err != nil {
+		return nil, err
+	}
+	for _, object := range reminders {
+		deletions = append(deletions, object)
+	}
+	flashcards, err := CurrentRepository().FindFlashcardsLastCheckedBefore(buildTime, path)
+	if err != nil {
+		return nil, err
+	}
+	for _, object := range flashcards {
+		deletions = append(deletions, object)
+	}
+	notes, err := CurrentRepository().FindNotesLastCheckedBefore(buildTime, path)
+	if err != nil {
+		return nil, err
+	}
+	for _, object := range notes {
+		deletions = append(deletions, object)
+	}
+	files, err := CurrentRepository().FindFilesLastCheckedBefore(buildTime, path)
+	if err != nil {
+		return nil, err
+	}
+	for _, object := range files {
+		deletions = append(deletions, object)
+	}
+	return deletions, nil
+}
+
 // Status displays current objects in staging area.
 func (r *Repository) Status() (string, error) {
 	// No side-effect with this command.
@@ -334,6 +537,87 @@ func (r *Repository) Status() (string, error) {
 	// Show staging area content
 	sb.WriteString(`Changes to be committed:` + "\n")
 	sb.WriteString(`  (use "nt restore..." to unstage)` + "\n")
+	stagingArea := CurrentDB().index.StagingArea
+	for _, obj := range stagingArea {
+		sb.WriteString(fmt.Sprintf("\t%s:\t%s\n", obj.State, obj.Description))
+	}
+
+	// Show modified files not in staging area
+	type ObjectStatus struct {
+		RelativePath string
+		OID          string
+		Status       State
+	}
+	uncommittedFiles := make(map[string]ObjectStatus)
+
+	root := CurrentConfig().RootDirectory
+	err := r.walk([]string{root}, func(path string, stat fs.FileInfo) error {
+		relpath := r.GetFileRelativePath(path)
+
+		// Use index to determine if the file is new or changed
+		indexObject, ok := CurrentDB().index.StagingArea.ContainsFile(relpath)
+		if ok {
+			if indexObject.MTime.Equal(stat.ModTime()) {
+				// File was not updated since added to staging area = still OK
+				return nil
+			}
+			if indexObject.MTime.Before(stat.ModTime()) {
+				uncommittedFiles[relpath] = ObjectStatus{
+					RelativePath: relpath,
+					OID:          indexObject.OID,
+					Status:       Modified,
+				}
+			} else {
+				uncommittedFiles[relpath] = ObjectStatus{
+					RelativePath: relpath,
+					OID:          indexObject.OID,
+					Status:       None,
+				}
+			}
+		} else {
+			uncommittedFiles[relpath] = ObjectStatus{
+				RelativePath: relpath,
+				Status:       Added,
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+
+	// Traverse index to find known files not traversed by the walk
+	for relpath, indexObject := range CurrentDB().index.filesRef {
+		_, found := uncommittedFiles[relpath]
+		if !found {
+			uncommittedFiles[relpath] = ObjectStatus{
+				RelativePath: relpath,
+				OID:          indexObject.OID,
+				Status:       Deleted,
+			}
+		}
+	}
+
+	if len(uncommittedFiles) > 0 {
+		// Sort map entries
+		keys := make([]string, 0, len(uncommittedFiles))
+		for k := range uncommittedFiles {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+
+		sb.WriteString("\n")
+		sb.WriteString(`Changes not staged for commit:` + "\n")
+		sb.WriteString(`  (use "nt add <file>..." to update what will be committed)` + "\n")
+		for _, key := range keys {
+			obj := uncommittedFiles[key]
+			if obj.Status == None {
+				continue
+			}
+			sb.WriteString(fmt.Sprintf("\t%s:\t%s\n", obj.Status, obj.RelativePath))
+		}
+	}
 
 	return sb.String(), nil
 }
@@ -424,7 +708,107 @@ func (r *Repository) Diff(staged bool) (string, error) {
 	// Enable dry-run mode to not generate blobs
 	CurrentConfig().DryRun = true
 
-	return "", nil
+	if staged {
+		return CurrentDB().Diff()
+	}
+
+	// Any object not updated after this date will be considered as deletions
+	buildTime := clock.Now()
+	db := CurrentDB()
+	path := CurrentConfig().RootDirectory
+
+	// We will update the last-checked date of objects to find the deleted ones
+	// and rollback the transaction to have no side-effects.
+	err := db.BeginTransaction()
+	if err != nil {
+		return "", err
+	}
+	defer db.RollbackTransaction()
+
+	// Traverse all given path to view note changes
+	var updatedNotes []*Note
+	err = r.walkNew([]string{path}, func(mdFile *markdown.File) error {
+		CurrentLogger().Debugf("Processing %s...\n", mdFile.AbsolutePath)
+
+		parsedFile, err := ParseFile(CurrentConfig().RootDirectory, mdFile)
+		if err != nil {
+			return err
+		}
+		file, err := NewOrExistingFile(parsedFile)
+		if err != nil {
+			return err
+		}
+
+		// Skip unmodified files
+		if !file.Stale() {
+			return nil
+		}
+
+		for _, parsedNote := range parsedFile.Notes {
+			var parentNote *Note
+			if parsedNote.Parent != nil {
+				parentNote, err = r.FindMatchingNote(parsedNote.Parent)
+				if err != nil {
+					return err
+				}
+			}
+			note, err := NewOrExistingNote(file, parentNote, parsedNote)
+			if err != nil {
+				return err
+			}
+			if err := note.Save(); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+
+	// Find deleted notes for every path
+	relpath := r.GetFileRelativePath(path)
+	deletedNotes, err := r.FindNotesLastCheckedBefore(buildTime, relpath)
+	if err != nil {
+		return "", err
+	}
+
+	var diff strings.Builder
+	// Diff updated notes
+	for _, noteAfter := range updatedNotes {
+		objectBefore, err := db.ReadLastStagedOrCommittedObject(noteAfter.OID)
+		if err != nil {
+			return "", err
+		}
+		noteContentBefore := ""
+		if objectBefore != nil {
+			noteBefore := objectBefore.(*Note)
+			noteContentBefore = string(noteBefore.Content)
+		}
+		noteContentAfter := string(noteAfter.Content)
+		patch := godiffpatch.GeneratePatch(noteAfter.RelativePath, noteContentBefore, noteContentAfter)
+		diff.WriteString(patch)
+	}
+	// Diff deleted notes
+	for _, noteAfter := range deletedNotes {
+		objectBefore, err := db.ReadLastStagedOrCommittedObject(noteAfter.OID)
+		if err != nil {
+			return "", err
+		}
+		noteBefore := objectBefore.(*Note)
+		noteContentBefore := string(noteBefore.Content)
+		noteContentAfter := ""
+		patch := godiffpatch.GeneratePatch(noteAfter.RelativePath, noteContentBefore, noteContentAfter)
+		diff.WriteString(patch)
+	}
+
+	// Don't forget to rollback
+	if err := db.RollbackTransaction(); err != nil {
+		return "", err
+	}
+
+	return diff.String(), nil
 }
 
 /* Statistics */

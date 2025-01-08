@@ -70,7 +70,7 @@ type Media struct {
 	Mode fs.FileMode `yaml:"mode" json:"mode"`
 
 	// Eager-loaded list of blobs
-	BlobRefs []BlobRef `yaml:"blobs" json:"blobs"`
+	BlobRefs []*BlobRef `yaml:"blobs" json:"blobs"`
 
 	// Timestamps to track changes
 	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
@@ -288,14 +288,14 @@ func toWebM(converter medias.Converter, src, dest string) {
 }
 
 // MustWriteBlob writes a new blob object or fails.
-func MustWriteBlob(path string, tags []string) BlobRef {
+func MustWriteBlob(path string, tags []string) *BlobRef {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		log.Fatalf("Unable to read blob %q: %v", path, err)
 	}
 	ext := filepath.Ext(path)
 	oid := helpers.Hash(data)
-	blob := BlobRef{
+	blob := &BlobRef{
 		OID:      oid,
 		MimeType: medias.MimeType(ext),
 		Tags:     tags,
@@ -366,10 +366,6 @@ func (m *Media) Write(w io.Writer) error {
 	}
 	_, err = w.Write(data)
 	return err
-}
-
-func (m *Media) Blobs() []*BlobRef {
-	return m.BlobRefs
 }
 
 func (m *Media) Relations() []*Relation {
@@ -859,4 +855,40 @@ func QueryBlobs(db SQLClient, whereClause string, args ...any) ([]*BlobRef, erro
 	}
 
 	return blobs, err
+}
+
+/* FileObject interface */
+
+func (m *Media) FileRelativePath() string {
+	return m.RelativePath
+}
+func (m *Media) FileMTime() time.Time {
+	return m.MTime
+}
+func (m *Media) FileSize() int64 {
+	return m.Size
+}
+func (m *Media) FileHash() string {
+	return m.Hash
+}
+func (m *Media) FileMode() fs.FileMode {
+	return m.Mode
+}
+
+func (m *Media) Blobs() []*BlobRef {
+	return m.BlobRefs
+}
+func (m *Media) Objects() []Object {
+	return []Object{m}
+}
+
+/* PackFile Management */
+
+func (m *Media) ToPackFile() *PackFile {
+	return NewPackFile(m)
+}
+
+func (m *Media) SaveToPackFile() error {
+	pf := m.ToPackFile()
+	return pf.Save()
 }

@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"compress/zlib"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
@@ -101,51 +101,41 @@ func (od ObjectData) Unmarshal(target interface{}) error {
  */
 
 type PackFile struct {
-	OID          string        `yaml:"oid" json:"oid"`
-	RelativePath string        `yaml:"relative_path" json:"relative_path"`
-	CTime        time.Time     `yaml:"ctime" json:"ctime"`
-	MTime        time.Time     `yaml:"mtime" json:"mtime"`
-	PackObjects  []*PackObject `yaml:"objects" json:"objects"`
+	OID              string        `yaml:"oid" json:"oid"`
+	FileRelativePath string        `yaml:"file_relative_path" json:"file_relative_path"`
+	FileMTime        time.Time     `yaml:"file_mtime" json:"file_mtime"`
+	FileSize         int64         `yaml:"file_size" json:"file_size"`
+	CTime            time.Time     `yaml:"ctime" json:"ctime"`
+	MTime            time.Time     `yaml:"mtime" json:"mtime"`
+	PackObjects      []*PackObject `yaml:"objects" json:"objects"`
 }
 
 type PackObject struct {
 	OID         string     `yaml:"oid" json:"oid"`
 	Kind        string     `yaml:"kind" json:"kind"`
-	State       State      `yaml:"state" json:"state"` // (A) added, (D) deleted, (M) modified, (R) renamed
 	MTime       time.Time  `yaml:"mtime" json:"mtime"`
 	Description string     `yaml:"desc" json:"desc"`
 	Data        ObjectData `yaml:"data" json:"data"`
 }
 
-// NewPackFileRefWithOID initializes a new empty pack file ref with a given OID.
-func NewPackFileRefWithOID(oid string) *PackFileRef {
-	return &PackFileRef{
-		OID:   oid,
-		CTime: clock.Now(),
-		MTime: clock.Now(),
-	}
-}
-
-// NewPackFile initializes a new empty pack file.
-func NewPackFile() *PackFile {
+// NewPackFileFromFile initializes a new empty pack file.
+func NewPackFile(fileObject FileObject) *PackFile {
 	return &PackFile{
-		OID:   NewOID(),
-		CTime: clock.Now(),
-		MTime: clock.Now(),
-	}
-}
+		OID: fileObject.UniqueOID(),
 
-// NewPackFileWithOID initializes a new empty pack file with a given OID.
-func NewPackFileWithOID(oid string) *PackFile {
-	return &PackFile{
-		OID:   oid,
+		// Init file properties
+		FileRelativePath: fileObject.FileRelativePath(),
+		FileMTime:        fileObject.FileMTime(),
+		FileSize:         fileObject.FileSize(),
+
+		// Init pack file properties
 		CTime: clock.Now(),
 		MTime: clock.Now(),
 	}
 }
 
 // ReadObject recreates the core object from a commit object.
-func (p *PackObject) ReadObject() StatefulObject {
+func (p *PackObject) ReadObject() Object {
 	switch p.Kind {
 	case "file":
 		file := new(File)
@@ -179,13 +169,9 @@ func (p *PackObject) ReadObject() StatefulObject {
 	return nil
 }
 
-// NewPackFileFromPath reads a pack file file on disk or returns an empty instance.
+// NewPackFileFromPath reads a pack file file on disk.
 func NewPackFileFromPath(path string) (*PackFile, error) {
 	in, err := os.Open(path)
-	if errors.Is(err, os.ErrNotExist) {
-		// First use
-		return NewPackFile(), nil
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +186,7 @@ func NewPackFileFromPath(path string) (*PackFile, error) {
 // Ref returns a ref to the pack file.
 func (p *PackFile) Ref() PackFileRef {
 	return PackFileRef{
-		RelativePath: p.RelativePath,
+		RelativePath: p.FileRelativePath,
 		OID:          p.OID,
 		CTime:        p.CTime,
 		MTime:        p.MTime,
@@ -217,20 +203,20 @@ func (p *PackFile) GetPackObject(oid string) (*PackObject, bool) {
 	return nil, false
 }
 
-// AppendPackObject registers a new stateful object inside the pack file.
+// AppendPackObject registers a new object inside the pack file.
 func (p *PackFile) AppendPackObject(obj *PackObject) {
 	p.PackObjects = append(p.PackObjects, obj)
 }
 
 // MustAppendObject registers a new object inside the pack file or panic.
-func (p *PackFile) MustAppendObject(obj StatefulObject) {
+func (p *PackFile) MustAppendObject(obj Object) {
 	if err := p.AppendObject(obj); err != nil {
 		panic(err)
 	}
 }
 
 // AppendObject registers a new object inside the pack file.
-func (p *PackFile) AppendObject(obj StatefulObject) error {
+func (p *PackFile) AppendObject(obj Object) error {
 	data, err := NewObjectData(obj)
 	if err != nil {
 		return err
@@ -238,7 +224,6 @@ func (p *PackFile) AppendObject(obj StatefulObject) error {
 	p.PackObjects = append(p.PackObjects, &PackObject{
 		OID:         obj.UniqueOID(),
 		Kind:        obj.Kind(),
-		State:       obj.State(),
 		MTime:       obj.ModificationTime(),
 		Description: obj.String(),
 		Data:        data,
@@ -254,18 +239,6 @@ func (p *PackFile) UnmarshallObject(oid string, target interface{}) error {
 		}
 	}
 	return fmt.Errorf("no object with OID %q", oid)
-}
-
-// Merge tries to merge two pack files together by returning a new pack file
-// containing the concatenation of both pack files.
-func (p *PackFile) Merge(other *PackFile) (*PackFile, bool) {
-	if len(p.PackObjects)+len(other.PackObjects) > CurrentConfig().ConfigFile.Core.MaxObjectsPerPackFile {
-		return nil, false
-	}
-	result := NewPackFile()
-	result.PackObjects = append(result.PackObjects, p.PackObjects...)
-	result.PackObjects = append(result.PackObjects, other.PackObjects...)
-	return result, true
 }
 
 /* Object */
@@ -310,6 +283,26 @@ func (p *PackFile) SaveTo(path string) error {
 	}
 	defer f.Close()
 	return p.Write(f)
+}
+
+/* Interface Dumpable */
+
+func (p *PackFile) ToYAML() string {
+	return ToBeautifulYAML(p)
+}
+
+func (p *PackFile) ToJSON() string {
+	return ToBeautifulJSON(p)
+}
+
+func (p *PackFile) ToMarkdown() string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("# PackFile %s\n\n", p.OID))
+	sb.WriteString("## Objects\n\n")
+	for _, obj := range p.PackObjects {
+		sb.WriteString(fmt.Sprintf("* %s: %s `@oid: %s`\n", obj.Kind, obj.Description, obj.OID))
+	}
+	return sb.String()
 }
 
 /*

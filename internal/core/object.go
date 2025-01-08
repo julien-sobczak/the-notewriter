@@ -5,11 +5,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
 
 	"gopkg.in/yaml.v3"
+)
+
+// State describes an object status.
+type State string
+
+const (
+	None     State = "none"
+	Added    State = "added"
+	Modified State = "modified"
+	Deleted  State = "deleted"
 )
 
 // OIDToPath converts an oid to a file path.
@@ -89,6 +100,26 @@ type StatefulObject interface {
 	Save() error
 
 	// Update website/guides/devolopers/presentation.md
+}
+
+// FileObject represents an object present as a file in the repository.
+type FileObject interface {
+	// UniqueOID of the object representing the file
+	UniqueOID() string
+
+	// Relative path to repository
+	FileRelativePath() string
+	// Timestamp of last content modification
+	FileMTime() time.Time
+	// Size of the file
+	FileSize() int64
+	// MD5 Checksum
+	FileHash() string
+	// Permission of the file
+	FileMode() fs.FileMode
+
+	Objects() []Object
+	Blobs() []*BlobRef
 }
 
 type BlobFile struct {

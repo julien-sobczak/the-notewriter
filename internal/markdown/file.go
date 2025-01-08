@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/julien-sobczak/the-notewriter/pkg/filesystem"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
 
@@ -42,12 +43,12 @@ func (m Section) String() string {
 
 // ParseFile parses a Markdown file.
 func ParseFile(path string) (*File, error) {
-	lstat, err := os.Lstat(path)
+	lstat, err := filesystem.Lstat(path)
 	if err != nil {
 		return nil, err
 	}
 
-	stat, err := os.Stat(path)
+	stat, err := filesystem.Stat(path)
 	if err != nil {
 		return nil, err
 	}

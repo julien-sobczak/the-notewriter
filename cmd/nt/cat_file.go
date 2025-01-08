@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/julien-sobczak/the-notewriter/internal/core"
-	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/spf13/cobra"
 )
 
@@ -30,98 +30,72 @@ var catFileCmd = &cobra.Command{
 		if isOID(arg) {
 			oid := arg
 
-			// OIDs can represent a pack file, an object inside a pack file, or a blob.
-
-			blob, err := core.CurrentRepository().FindBlobFromOID(oid)
-			if err == nil && blob != nil {
-				dumpObject(blob)
-				return
-			}
-
-			commit, ok := core.CurrentDB().ReadCommit(oid)
-			if ok {
-				dumpObject(commit)
-				return
-			}
-
-			object, err := core.CurrentDB().ReadCommittedObject(oid)
-			if err == nil && object != nil {
-				dumpObject(object)
-				return
-			}
-
-			fmt.Fprintf(os.Stderr, "No object found with OID %s", oid)
-			os.Exit(1)
+			dumpOID(oid)
 		}
 
-		// Try wikilinks now
-		wikilinkText := args[0]
-		wikilink, err := markdown.NewWikilink("[[" + wikilinkText + "]]")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Argument %q doesn't match an OID and isn't a valid wikilink", wikilink)
-			os.Exit(1)
-		}
-
-		if wikilink.Section() != "" {
-			// Search a note
-			notes, err := core.CurrentRepository().FindNotesByWikilink(wikilink.Link)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-			if len(notes) > 1 {
-				fmt.Fprintf(os.Stderr, "Multiple notes found with same wikilink %q", wikilink)
-				os.Exit(1)
-			}
-
-			// Try to find a file containing a single note and matching the wikilink
-			if len(notes) == 0 {
-				file, err := core.CurrentRepository().FindFileByWikilink(wikilink.Link)
-				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
-				}
-				if file == nil {
-					fmt.Fprintf(os.Stderr, "No file or note matching wikilink %q", wikilink)
-					os.Exit(1)
-				}
-				notes, err = core.CurrentRepository().FindNotesByFileOID(file.OID)
-				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
-				}
-				if len(notes) == 0 {
-					fmt.Fprintf(os.Stderr, "No note found in file %s matching wikilink %q", file.RelativePath, wikilink)
-					os.Exit(1)
-				}
-				if len(notes) > 1 {
-					fmt.Fprintf(os.Stderr, "Multiple notes found in file %s matching wikilink %q", file.RelativePath, wikilink)
-					os.Exit(1)
-				}
-			}
-			note := notes[0]
-			dumpObject(note)
-
-		} else {
-			// Search for a single matching file
-			files, err := core.CurrentRepository().FindFilesByWikilink(wikilink.Link)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-			if len(files) == 0 {
-				fmt.Fprintf(os.Stderr, "No file matching wikilink %q", wikilink)
-				os.Exit(1)
-			}
-			if len(files) > 1 {
-				fmt.Fprintf(os.Stderr, "Multiple files matching wikilink %q", wikilink)
-				os.Exit(1)
-			}
-			file := files[0]
-			dumpObject(file)
-		}
-
+		// If the argument is not an OID, it must be a path
+		dumpPath(arg)
 	},
+}
+
+// dumpOID checks if the given OID exists and dumps it
+func dumpOID(oid string) {
+	// OIDs can represent a pack file, an object inside a pack file, or a blob.
+	packFile, err := core.CurrentDB().Index().ReadPackFile(oid)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to read pack file: %v", err)
+		os.Exit(1)
+	}
+	if packFile != nil {
+		dumpObject(packFile)
+		return
+	}
+	object, err := core.CurrentDB().Index().ReadObject(oid)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to read object: %v", err)
+		os.Exit(1)
+	}
+	if object != nil {
+		dumpObject(object)
+		return
+	}
+	blob, err := core.CurrentDB().Index().ReadBlob(oid)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to read blob: %v", err)
+		os.Exit(1)
+	}
+	if blob != nil {
+		dumpObject(blob)
+		return
+	}
+
+	fmt.Fprintf(os.Stderr, "Unknown OID %s", oid)
+	os.Exit(1)
+}
+
+// dumpPath checks if the given path exists and returns the filename if it does
+func dumpPath(path string) {
+	info, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		fmt.Fprintf(os.Stderr, "Path does not exist: %s", path)
+		os.Exit(1)
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to read file: %v", err)
+		os.Exit(1)
+	}
+	if info.IsDir() {
+		fmt.Fprintf(os.Stderr, "Path is a directory: %s", path)
+		os.Exit(1)
+	}
+	filename := filepath.Base(path)
+	if !isOID(filename) {
+		fmt.Fprintf(os.Stderr, "Path to an invalid file: %s", path)
+		os.Exit(1)
+	}
+
+	oid := filename
+	dumpOID(oid)
 }
 
 func dumpObject(object core.Dumpable) {
