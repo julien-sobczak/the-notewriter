@@ -335,3 +335,25 @@ func (i *Index) ReadBlob(oid string) (*BlobRef, error) {
 	}
 	return nil, nil
 }
+
+/* Walk */
+
+// Walk iterates over the index entries matching one of the path specs and applies the given function.
+func (i *Index) Walk(pathSpecs PathSpecs, fn func(entry *IndexEntry)) {
+	for _, entry := range i.Entries {
+		if pathSpecs.Match(entry.RelativePath) {
+			fn(entry)
+		}
+	}
+}
+
+/* Utilities */
+
+// Modified returns true if the file has been modified since last indexation.
+func (i *Index) Modified(relativePath string, mtime time.Time) bool {
+	entry := i.GetEntry(relativePath)
+	if entry == nil {
+		return true
+	}
+	return mtime.After(entry.MTime)
+}

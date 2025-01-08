@@ -184,7 +184,7 @@ func (f *ConfigFile) ConfigureS3Remote(bucketName, accessKey, secretKey string) 
 }
 
 type IgnoreFile struct {
-	Entries GlobPaths
+	Entries PathSpecs
 }
 
 func (i *IgnoreFile) MustExcludeFile(path string, dir bool) bool {
@@ -195,18 +195,21 @@ func (i *IgnoreFile) MustExcludeFile(path string, dir bool) bool {
 	return i.Entries.Match(path)
 }
 
-type GlobPath string
+// A pathspec is a pattern used to limit paths in "nt" commands ("nt add", "nt diff", etc.)
+// and thus limit the scope of operations to some subset of the tree or worktree.
+// Pathspecs are used in .ntignore and .nt/lint files and can be prefixed by !.
+type PathSpec string
 
-func (g GlobPath) Negate() bool {
-	return strings.HasPrefix(string(g), "!")
+func (p PathSpec) Negate() bool {
+	return strings.HasPrefix(string(p), "!")
 }
 
-func (g GlobPath) Expr() string {
-	return strings.TrimPrefix(string(g), "!")
+func (p PathSpec) Expr() string {
+	return strings.TrimPrefix(string(p), "!")
 }
 
 // Match tests a given path. NB: Directories must have a trailing /.
-func (g GlobPath) Match(path string) bool {
+func (p PathSpec) Match(path string) bool {
 	// The Go standard library doesn't support the same Git syntax (ex: ** is missing).
 	// Compare https://git-scm.com/docs/gitignore with https://go.dev/src/path/filepath/match.go
 	// We fallback to a custom implementation.
@@ -218,7 +221,7 @@ func (g GlobPath) Match(path string) bool {
 		path = "/" + path
 	}
 
-	expr := g.Expr()
+	expr := p.Expr()
 	leadingSlash := strings.HasPrefix(expr, "/")
 	trailingSlash := strings.HasSuffix(expr, "/")
 	// Adapt slightly the expression to have a correct regex (ex: "projects/" => `/projects/.*?` to match "projects/index.md" but not "myprojects/"")
@@ -243,19 +246,19 @@ func (g GlobPath) Match(path string) bool {
 
 	rePattern, err := regexp.Compile(pattern)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Invalid glob pattern %q: %v\n", g, err)
+		fmt.Fprintf(os.Stderr, "Invalid glob pattern %q: %v\n", p, err)
 		os.Exit(1)
 	}
 
 	return rePattern.MatchString(path)
 }
 
-type GlobPaths []GlobPath
+type PathSpecs []PathSpec
 
 // Match tests if a file path satisfies the conditions.
-func (g GlobPaths) Match(path string) bool {
+func (p PathSpecs) Match(path string) bool {
 	foundMatch := false
-	for _, entry := range g {
+	for _, entry := range p {
 		// Test all lines to find a match (if a line match = the path must be included)
 		if entry.Match(path) {
 			if entry.Negate() {
@@ -287,7 +290,7 @@ type ConfigLintRule struct {
 
 	// PathRestrictions returns on which paths to evaluate the rule.
 	// Glob expressions are supported and ! as prefix indicated to exclude.
-	Includes GlobPaths `yaml:"includes"`
+	Includes PathSpecs `yaml:"includes"`
 }
 
 type ConfigLintSchema struct {
@@ -696,7 +699,7 @@ func parseIgnoreFile(content string) (*IgnoreFile, error) {
 			// ignore comment
 			continue
 		}
-		var entry = GlobPath(line)
+		var entry = PathSpec(line)
 		result.Entries = append(result.Entries, entry)
 	}
 	return &result, nil

@@ -12,8 +12,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func TestGlobPaths(t *testing.T) {
-	var g GlobPaths = []GlobPath{
+func TestPathSpecs(t *testing.T) {
+	var g PathSpecs = []PathSpec{
 		"archives/",
 		"!archives/index.md",
 
@@ -91,14 +91,14 @@ Blablabla`,
 		c, err := ReadConfigFromDirectory(filepath.Join(dir, "journal"))
 		require.NoError(t, err)
 		require.NotNil(t, c)
-		assert.Contains(t, c.IgnoreFile.Entries, GlobPath("README.md"))
+		assert.Contains(t, c.IgnoreFile.Entries, PathSpec("README.md"))
 
 		c, err = ReadConfigFromDirectory(dir)
 		require.NoError(t, err)
 		require.NotNil(t, c)
 
 		// Check .ntignore
-		assert.Contains(t, c.IgnoreFile.Entries, GlobPath("README.md"))
+		assert.Contains(t, c.IgnoreFile.Entries, PathSpec("README.md"))
 
 		// Check .nt/lint rules
 		require.Len(t, c.LintFile.Rules, 2)
@@ -109,7 +109,7 @@ Blablabla`,
 		assert.EqualValues(t, []string{"2"}, rule1.Args)
 		assert.Equal(t, "no-dangling-media", rule2.Name)
 		assert.Equal(t, "", rule2.Severity)
-		assert.EqualValues(t, []GlobPath{"references/", "!references/misc"}, rule2.Includes)
+		assert.EqualValues(t, []PathSpec{"references/", "!references/misc"}, rule2.Includes)
 
 		// Check .nt/lint schemas
 		require.Len(t, c.LintFile.Schemas, 1)
