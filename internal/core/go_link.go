@@ -39,7 +39,7 @@ type GoLink struct {
 	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
 	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
 	DeletedAt     time.Time `yaml:"deleted_at,omitempty" json:"deleted_at,omitempty"`
-	LastCheckedAt time.Time `yaml:"-" json:"-"`
+	LastIndexedAt time.Time `yaml:"-" json:"-"`
 
 	new   bool
 	stale bool
@@ -210,13 +210,13 @@ func (l *GoLink) Updated() bool {
 
 func (l *GoLink) Check() error {
 	CurrentLogger().Debugf("Checking link %s...", l.GoName)
-	l.LastCheckedAt = clock.Now()
+	l.LastIndexedAt = clock.Now()
 	query := `
 		UPDATE link
-		SET last_checked_at = ?
+		SET last_indexed_at = ?
 		WHERE oid = ?;`
 	_, err := CurrentDB().Client().Exec(query,
-		timeToSQL(l.LastCheckedAt),
+		timeToSQL(l.LastIndexedAt),
 		l.OID,
 	)
 
@@ -226,7 +226,7 @@ func (l *GoLink) Check() error {
 func (l *GoLink) Save() error {
 	var err error
 	l.UpdatedAt = clock.Now()
-	l.LastCheckedAt = clock.Now()
+	l.LastIndexedAt = clock.Now()
 	switch l.State() {
 	case Added:
 		err = l.Insert()
@@ -259,7 +259,7 @@ func (l *GoLink) Insert() error {
 			go_name,
 			created_at,
 			updated_at,
-			last_checked_at
+			last_indexed_at
 		)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 		`
@@ -274,7 +274,7 @@ func (l *GoLink) Insert() error {
 		l.GoName,
 		timeToSQL(l.CreatedAt),
 		timeToSQL(l.UpdatedAt),
-		timeToSQL(l.LastCheckedAt),
+		timeToSQL(l.LastIndexedAt),
 	)
 	if err != nil {
 		return err
@@ -296,7 +296,7 @@ func (l *GoLink) Update() error {
 			title = ?,
 			go_name = ?,
 			updated_at = ?,
-			last_checked_at = ?
+			last_indexed_at = ?
 		WHERE oid = ?;
 		`
 	_, err := CurrentDB().Client().Exec(query,
@@ -308,7 +308,7 @@ func (l *GoLink) Update() error {
 		l.Title,
 		l.GoName,
 		timeToSQL(l.UpdatedAt),
-		timeToSQL(l.LastCheckedAt),
+		timeToSQL(l.LastIndexedAt),
 		l.OID,
 	)
 
@@ -349,7 +349,7 @@ func (r *Repository) FindGoLinksLastCheckedBefore(point time.Time, path string) 
 	if path == "." {
 		path = ""
 	}
-	return QueryGoLinks(CurrentDB().Client(), `WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
+	return QueryGoLinks(CurrentDB().Client(), `WHERE last_indexed_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 /* SQL Helpers */
@@ -358,7 +358,7 @@ func QueryGoLink(db SQLClient, whereClause string, args ...any) (*GoLink, error)
 	var l GoLink
 	var createdAt string
 	var updatedAt string
-	var lastCheckedAt string
+	var lastIndexedAt string
 
 	// Query for a value based on a single row.
 	if err := db.QueryRow(fmt.Sprintf(`
@@ -373,7 +373,7 @@ func QueryGoLink(db SQLClient, whereClause string, args ...any) (*GoLink, error)
 			go_name,
 			created_at,
 			updated_at,
-			last_checked_at
+			last_indexed_at
 		FROM link
 		%s;`, whereClause), args...).
 		Scan(
@@ -387,7 +387,7 @@ func QueryGoLink(db SQLClient, whereClause string, args ...any) (*GoLink, error)
 			&l.GoName,
 			&createdAt,
 			&updatedAt,
-			&lastCheckedAt,
+			&lastIndexedAt,
 		); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -397,7 +397,7 @@ func QueryGoLink(db SQLClient, whereClause string, args ...any) (*GoLink, error)
 
 	l.CreatedAt = timeFromSQL(createdAt)
 	l.UpdatedAt = timeFromSQL(updatedAt)
-	l.LastCheckedAt = timeFromSQL(lastCheckedAt)
+	l.LastIndexedAt = timeFromSQL(lastIndexedAt)
 
 	return &l, nil
 }
@@ -417,7 +417,7 @@ func QueryGoLinks(db SQLClient, whereClause string, args ...any) ([]*GoLink, err
 			go_name,
 			created_at,
 			updated_at,
-			last_checked_at
+			last_indexed_at
 		FROM link
 		%s;`, whereClause), args...)
 	if err != nil {
@@ -428,7 +428,7 @@ func QueryGoLinks(db SQLClient, whereClause string, args ...any) ([]*GoLink, err
 		var l GoLink
 		var createdAt string
 		var updatedAt string
-		var lastCheckedAt string
+		var lastIndexedAt string
 
 		err = rows.Scan(
 			&l.OID,
@@ -441,7 +441,7 @@ func QueryGoLinks(db SQLClient, whereClause string, args ...any) ([]*GoLink, err
 			&l.GoName,
 			&createdAt,
 			&updatedAt,
-			&lastCheckedAt,
+			&lastIndexedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -449,7 +449,7 @@ func QueryGoLinks(db SQLClient, whereClause string, args ...any) ([]*GoLink, err
 
 		l.CreatedAt = timeFromSQL(createdAt)
 		l.UpdatedAt = timeFromSQL(updatedAt)
-		l.LastCheckedAt = timeFromSQL(lastCheckedAt)
+		l.LastIndexedAt = timeFromSQL(lastIndexedAt)
 		links = append(links, &l)
 	}
 

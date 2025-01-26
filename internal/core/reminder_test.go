@@ -52,7 +52,7 @@ func TestReminder(t *testing.T) {
 	assert.Equal(t, clock.Now(), reminder.CreatedAt)
 	assert.Equal(t, clock.Now(), reminder.UpdatedAt)
 	assert.Empty(t, reminder.DeletedAt)
-	assert.Empty(t, reminder.LastCheckedAt)
+	assert.Empty(t, reminder.LastIndexedAt)
 
 	// Save
 	require.NoError(t, reminder.Save())
@@ -72,7 +72,7 @@ func TestReminder(t *testing.T) {
 	assert.Equal(t, HumanTime(t, "2085-09-01 00:00:00"), reminder.NextPerformedAt)
 	assert.WithinDuration(t, clock.Now(), actual.CreatedAt, 1*time.Second)
 	assert.WithinDuration(t, clock.Now(), actual.UpdatedAt, 1*time.Second)
-	assert.WithinDuration(t, clock.Now(), actual.LastCheckedAt, 1*time.Second)
+	assert.WithinDuration(t, clock.Now(), actual.LastIndexedAt, 1*time.Second)
 	assert.Empty(t, actual.DeletedAt)
 
 	// Force update
@@ -103,7 +103,7 @@ func TestReminder(t *testing.T) {
 	// Timestamps must have changed
 	assert.WithinDuration(t, createdAt, updatedReminder.CreatedAt, 1*time.Second)
 	assert.WithinDuration(t, updatedAt, updatedReminder.UpdatedAt, 1*time.Second)
-	assert.WithinDuration(t, updatedAt, updatedReminder.LastCheckedAt, 1*time.Second)
+	assert.WithinDuration(t, updatedAt, updatedReminder.LastIndexedAt, 1*time.Second)
 
 	// Delete
 	require.NoError(t, reminder.Delete())

@@ -73,7 +73,7 @@ type Flashcard struct {
 	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
 	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
 	DeletedAt     time.Time `yaml:"deleted_at,omitempty" json:"deleted_at,omitempty"`
-	LastCheckedAt time.Time `yaml:"-" json:"-"`
+	LastIndexedAt time.Time `yaml:"-" json:"-"`
 
 	// SRS
 	DueAt     time.Time      `yaml:"due_at,omitempty" json:"due_at,omitempty"`
@@ -332,13 +332,13 @@ func (f *Flashcard) Updated() bool {
 
 func (f *Flashcard) Check() error {
 	CurrentLogger().Debugf("Checking flashcard %s...", f.ShortTitle)
-	f.LastCheckedAt = clock.Now()
+	f.LastIndexedAt = clock.Now()
 	query := `
 		UPDATE flashcard
-		SET last_checked_at = ?
+		SET last_indexed_at = ?
 		WHERE oid = ?;`
 	_, err := CurrentDB().Client().Exec(query,
-		timeToSQL(f.LastCheckedAt),
+		timeToSQL(f.LastIndexedAt),
 		f.OID,
 	)
 
@@ -348,7 +348,7 @@ func (f *Flashcard) Check() error {
 func (f *Flashcard) Save() error {
 	var err error
 	f.UpdatedAt = clock.Now()
-	f.LastCheckedAt = clock.Now()
+	f.LastIndexedAt = clock.Now()
 	switch f.State() {
 	case Added:
 		err = f.Insert()
@@ -383,7 +383,7 @@ func (f *Flashcard) Insert() error {
 			back,
 			created_at,
 			updated_at,
-			last_checked_at
+			last_indexed_at
 		)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 		`
@@ -400,7 +400,7 @@ func (f *Flashcard) Insert() error {
 		f.Back,
 		timeToSQL(f.CreatedAt),
 		timeToSQL(f.UpdatedAt),
-		timeToSQL(f.LastCheckedAt))
+		timeToSQL(f.LastIndexedAt))
 	if err != nil {
 		return err
 	}
@@ -423,7 +423,7 @@ func (f *Flashcard) Update() error {
 			front = ?,
 			back = ?,
 			updated_at = ?,
-			last_checked_at = ?
+			last_indexed_at = ?
 		WHERE oid = ?;
 		`
 	_, err := CurrentDB().Client().Exec(query,
@@ -437,7 +437,7 @@ func (f *Flashcard) Update() error {
 		f.Front,
 		f.Back,
 		timeToSQL(f.UpdatedAt),
-		timeToSQL(f.LastCheckedAt),
+		timeToSQL(f.LastIndexedAt),
 		f.OID)
 
 	return err
@@ -519,7 +519,7 @@ func (r *Repository) FindFlashcardsLastCheckedBefore(point time.Time, path strin
 	if path == "." {
 		path = ""
 	}
-	return QueryFlashcards(CurrentDB().Client(), `WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
+	return QueryFlashcards(CurrentDB().Client(), `WHERE last_indexed_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 /* SQL Helpers */
@@ -532,7 +532,7 @@ func QueryFlashcard(db SQLClient, whereClause string, args ...any) (*Flashcard, 
 	var studiedAt sql.NullString
 	var createdAt string
 	var updatedAt string
-	var lastCheckedAt string
+	var lastIndexedAt string
 
 	// Query for a value based on a single row.
 	if err := db.QueryRow(fmt.Sprintf(`
@@ -552,7 +552,7 @@ func QueryFlashcard(db SQLClient, whereClause string, args ...any) (*Flashcard, 
 			settings,
 			created_at,
 			updated_at,
-			last_checked_at
+			last_indexed_at
 		FROM flashcard
 		%s;`, whereClause), args...).
 		Scan(
@@ -571,7 +571,7 @@ func QueryFlashcard(db SQLClient, whereClause string, args ...any) (*Flashcard, 
 			&settingsRaw,
 			&createdAt,
 			&updatedAt,
-			&lastCheckedAt,
+			&lastIndexedAt,
 		); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -595,7 +595,7 @@ func QueryFlashcard(db SQLClient, whereClause string, args ...any) (*Flashcard, 
 	f.StudiedAt = timeFromNullableSQL(studiedAt)
 	f.CreatedAt = timeFromSQL(createdAt)
 	f.UpdatedAt = timeFromSQL(updatedAt)
-	f.LastCheckedAt = timeFromSQL(lastCheckedAt)
+	f.LastIndexedAt = timeFromSQL(lastIndexedAt)
 
 	return &f, nil
 }
@@ -620,7 +620,7 @@ func QueryFlashcards(db SQLClient, whereClause string, args ...any) ([]*Flashcar
 			settings,
 			created_at,
 			updated_at,
-			last_checked_at
+			last_indexed_at
 		FROM flashcard
 		%s;`, whereClause), args...)
 	if err != nil {
@@ -635,7 +635,7 @@ func QueryFlashcards(db SQLClient, whereClause string, args ...any) ([]*Flashcar
 		var studiedAt sql.NullString
 		var createdAt string
 		var updatedAt string
-		var lastCheckedAt string
+		var lastIndexedAt string
 
 		err = rows.Scan(
 			&f.OID,
@@ -653,7 +653,7 @@ func QueryFlashcards(db SQLClient, whereClause string, args ...any) ([]*Flashcar
 			&settingsRaw,
 			&createdAt,
 			&updatedAt,
-			&lastCheckedAt,
+			&lastIndexedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -675,7 +675,7 @@ func QueryFlashcards(db SQLClient, whereClause string, args ...any) ([]*Flashcar
 		f.StudiedAt = timeFromNullableSQL(studiedAt)
 		f.CreatedAt = timeFromSQL(createdAt)
 		f.UpdatedAt = timeFromSQL(updatedAt)
-		f.LastCheckedAt = timeFromSQL(lastCheckedAt)
+		f.LastIndexedAt = timeFromSQL(lastIndexedAt)
 		flashcards = append(flashcards, &f)
 	}
 

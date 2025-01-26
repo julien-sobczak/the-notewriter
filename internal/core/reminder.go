@@ -47,7 +47,7 @@ type Reminder struct {
 	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
 	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
 	DeletedAt     time.Time `yaml:"deleted_at,omitempty" json:"deleted_at,omitempty"`
-	LastCheckedAt time.Time `yaml:"-" json:"-"`
+	LastIndexedAt time.Time `yaml:"-" json:"-"`
 
 	new   bool
 	stale bool
@@ -612,13 +612,13 @@ func generateDates(yearExpr, monthExpr, dayExpr string) []time.Time {
 
 func (r *Reminder) Check() error {
 	CurrentLogger().Debugf("Checking reminder %s...", r.Description)
-	r.LastCheckedAt = clock.Now()
+	r.LastIndexedAt = clock.Now()
 	query := `
 		UPDATE reminder
-		SET last_checked_at = ?
+		SET last_indexed_at = ?
 		WHERE oid = ?;`
 	_, err := CurrentDB().Client().Exec(query,
-		timeToSQL(r.LastCheckedAt),
+		timeToSQL(r.LastIndexedAt),
 		r.OID,
 	)
 
@@ -628,7 +628,7 @@ func (r *Reminder) Check() error {
 func (r *Reminder) Save() error {
 	var err error
 	r.UpdatedAt = clock.Now()
-	r.LastCheckedAt = clock.Now()
+	r.LastIndexedAt = clock.Now()
 	switch r.State() {
 	case Added:
 		err = r.Insert()
@@ -662,7 +662,7 @@ func (r *Reminder) Insert() error {
 			next_performed_at,
 			created_at,
 			updated_at,
-			last_checked_at
+			last_indexed_at
 		)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
@@ -678,7 +678,7 @@ func (r *Reminder) Insert() error {
 		timeToSQL(r.NextPerformedAt),
 		timeToSQL(r.CreatedAt),
 		timeToSQL(r.UpdatedAt),
-		timeToSQL(r.LastCheckedAt),
+		timeToSQL(r.LastIndexedAt),
 	)
 	if err != nil {
 		return err
@@ -701,7 +701,7 @@ func (r *Reminder) Update() error {
 			last_performed_at = ?,
 			next_performed_at = ?,
 			updated_at = ?,
-			last_checked_at = ?
+			last_indexed_at = ?
 		WHERE oid = ?;
 	`
 	_, err := CurrentDB().Client().Exec(query,
@@ -714,7 +714,7 @@ func (r *Reminder) Update() error {
 		timeToSQL(r.LastPerformedAt),
 		timeToSQL(r.NextPerformedAt),
 		timeToSQL(r.UpdatedAt),
-		timeToSQL(r.LastCheckedAt),
+		timeToSQL(r.LastIndexedAt),
 		r.OID,
 	)
 
@@ -762,7 +762,7 @@ func (r *Repository) FindRemindersLastCheckedBefore(point time.Time, path string
 	if path == "." {
 		path = ""
 	}
-	return QueryReminders(CurrentDB().Client(), `WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
+	return QueryReminders(CurrentDB().Client(), `WHERE last_indexed_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 /* SQL Helpers */
@@ -773,7 +773,7 @@ func QueryReminder(db SQLClient, whereClause string, args ...any) (*Reminder, er
 	var nextPerformedAt string
 	var createdAt string
 	var updatedAt string
-	var lastCheckedAt string
+	var lastIndexedAt string
 
 	// Query for a value based on a single row.
 	if err := db.QueryRow(fmt.Sprintf(`
@@ -789,7 +789,7 @@ func QueryReminder(db SQLClient, whereClause string, args ...any) (*Reminder, er
 			next_performed_at,
 			created_at,
 			updated_at,
-			last_checked_at
+			last_indexed_at
 		FROM reminder
 		%s;`, whereClause), args...).
 		Scan(
@@ -804,7 +804,7 @@ func QueryReminder(db SQLClient, whereClause string, args ...any) (*Reminder, er
 			&nextPerformedAt,
 			&createdAt,
 			&updatedAt,
-			&lastCheckedAt,
+			&lastIndexedAt,
 		); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -816,7 +816,7 @@ func QueryReminder(db SQLClient, whereClause string, args ...any) (*Reminder, er
 	r.NextPerformedAt = timeFromSQL(nextPerformedAt)
 	r.CreatedAt = timeFromSQL(createdAt)
 	r.UpdatedAt = timeFromSQL(updatedAt)
-	r.LastCheckedAt = timeFromSQL(lastCheckedAt)
+	r.LastIndexedAt = timeFromSQL(lastIndexedAt)
 
 	return &r, nil
 }
@@ -837,7 +837,7 @@ func QueryReminders(db SQLClient, whereClause string, args ...any) ([]*Reminder,
 			next_performed_at,
 			created_at,
 			updated_at,
-			last_checked_at
+			last_indexed_at
 		FROM reminder
 		%s;`, whereClause), args...)
 	if err != nil {
@@ -850,7 +850,7 @@ func QueryReminders(db SQLClient, whereClause string, args ...any) ([]*Reminder,
 		var nextPerformedAt string
 		var createdAt string
 		var updatedAt string
-		var lastCheckedAt string
+		var lastIndexedAt string
 
 		err = rows.Scan(
 			&r.OID,
@@ -864,7 +864,7 @@ func QueryReminders(db SQLClient, whereClause string, args ...any) ([]*Reminder,
 			&nextPerformedAt,
 			&createdAt,
 			&updatedAt,
-			&lastCheckedAt,
+			&lastIndexedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -874,7 +874,7 @@ func QueryReminders(db SQLClient, whereClause string, args ...any) ([]*Reminder,
 		r.NextPerformedAt = timeFromSQL(nextPerformedAt)
 		r.CreatedAt = timeFromSQL(createdAt)
 		r.UpdatedAt = timeFromSQL(updatedAt)
-		r.LastCheckedAt = timeFromSQL(lastCheckedAt)
+		r.LastIndexedAt = timeFromSQL(lastIndexedAt)
 		reminders = append(reminders, &r)
 	}
 

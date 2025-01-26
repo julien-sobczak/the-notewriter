@@ -77,7 +77,7 @@ tags:
 	assert.Equal(t, clock.Now(), note.CreatedAt)
 	assert.Equal(t, clock.Now(), note.UpdatedAt)
 	assert.Empty(t, note.DeletedAt)
-	assert.Empty(t, note.LastCheckedAt)
+	assert.Empty(t, note.LastIndexedAt)
 
 	// Save
 	require.NoError(t, note.Save())
@@ -105,7 +105,7 @@ tags:
 	assert.Equal(t, note.Comment, actual.Comment)
 	assert.WithinDuration(t, clock.Now(), actual.CreatedAt, 1*time.Second)
 	assert.WithinDuration(t, clock.Now(), actual.UpdatedAt, 1*time.Second)
-	assert.WithinDuration(t, clock.Now(), actual.LastCheckedAt, 1*time.Second)
+	assert.WithinDuration(t, clock.Now(), actual.LastIndexedAt, 1*time.Second)
 	assert.Empty(t, actual.DeletedAt)
 
 	// Force update
@@ -132,7 +132,7 @@ tags:
 	// Timestamps must have changed
 	assert.WithinDuration(t, createdAt, updatedNote.CreatedAt, 1*time.Second)
 	assert.WithinDuration(t, updatedAt, updatedNote.UpdatedAt, 1*time.Second)
-	assert.WithinDuration(t, updatedAt, updatedNote.LastCheckedAt, 1*time.Second)
+	assert.WithinDuration(t, updatedAt, updatedNote.LastIndexedAt, 1*time.Second)
 
 	// Delete
 	require.NoError(t, note.Delete())

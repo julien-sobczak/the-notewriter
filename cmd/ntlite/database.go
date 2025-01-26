@@ -20,7 +20,7 @@ CREATE TABLE file (
 	body TEXT NOT NULL,
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL,
-	last_checked_at TEXT,
+	last_indexed_at TEXT,
 	mtime TEXT NOT NULL,
 	size INTEGER NOT NULL,
 	hashsum TEXT NOT NULL
@@ -35,7 +35,7 @@ CREATE TABLE note (
 	hashsum TEXT NOT NULL,
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL,
-	last_checked_at TEXT
+	last_indexed_at TEXT
 );
 `
 

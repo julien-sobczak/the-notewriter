@@ -71,7 +71,7 @@ type Note struct {
 	CreatedAt     time.Time `yaml:"created_at"`
 	UpdatedAt     time.Time `yaml:"updated_at"`
 	DeletedAt     time.Time `yaml:"deleted_at,omitempty"`
-	LastCheckedAt time.Time `yaml:"-"`
+	LastIndexedAt time.Time `yaml:"-"`
 
 	new   bool
 	stale bool
@@ -166,7 +166,7 @@ func (n *Note) SubObjects() []StatefulObject {
 func (n *Note) Save() error {
 	var err error
 	n.UpdatedAt = time.Now()
-	n.LastCheckedAt = time.Now()
+	n.LastIndexedAt = time.Now()
 	switch n.State() {
 	case Added:
 		err = n.Insert()
@@ -196,7 +196,7 @@ func (n *Note) Insert() error {
 			hashsum,
 			created_at,
 			updated_at,
-			last_checked_at)
+			last_indexed_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 	_, err := CurrentDB().Client().Exec(query,
@@ -208,7 +208,7 @@ func (n *Note) Insert() error {
 		n.Hash,
 		timeToSQL(n.CreatedAt),
 		timeToSQL(n.UpdatedAt),
-		timeToSQL(n.LastCheckedAt),
+		timeToSQL(n.LastIndexedAt),
 	)
 	if err != nil {
 		return err
@@ -227,7 +227,7 @@ func (n *Note) Update() error {
 			content_raw = ?,
 			hashsum = ?,
 			updated_at = ?,
-			last_checked_at = ?
+			last_indexed_at = ?
 		WHERE oid = ?;
 	`
 
@@ -238,7 +238,7 @@ func (n *Note) Update() error {
 		n.Content,
 		n.Hash,
 		timeToSQL(n.UpdatedAt),
-		timeToSQL(n.LastCheckedAt),
+		timeToSQL(n.LastIndexedAt),
 		n.OID,
 	)
 
@@ -252,12 +252,12 @@ func (n *Note) Delete() error {
 }
 
 func (n *Note) Check() error {
-	n.LastCheckedAt = time.Now()
+	n.LastIndexedAt = time.Now()
 	query := `
 		UPDATE note
-		SET last_checked_at = ?
+		SET last_indexed_at = ?
 		WHERE oid = ?;`
-	if _, err := CurrentDB().Client().Exec(query, timeToSQL(n.LastCheckedAt), n.OID); err != nil {
+	if _, err := CurrentDB().Client().Exec(query, timeToSQL(n.LastIndexedAt), n.OID); err != nil {
 		return err
 	}
 	// Mark all sub-objects as checked too
@@ -268,7 +268,7 @@ func (r *Repository) FindNoteByTitle(relativePath, title string) (*Note, error) 
 	var n Note
 	var createdAt string
 	var updatedAt string
-	var lastCheckedAt string
+	var lastIndexedAt string
 
 	// Query for a value based on a single row.
 	if err := CurrentDB().Client().QueryRow(`
@@ -281,7 +281,7 @@ func (r *Repository) FindNoteByTitle(relativePath, title string) (*Note, error) 
 			hashsum,
 			created_at,
 			updated_at,
-			last_checked_at
+			last_indexed_at
 		FROM note
 		WHERE relative_path = ? and title = ?;`, relativePath, title).
 		Scan(
@@ -293,7 +293,7 @@ func (r *Repository) FindNoteByTitle(relativePath, title string) (*Note, error) 
 			&n.Hash,
 			&createdAt,
 			&updatedAt,
-			&lastCheckedAt,
+			&lastIndexedAt,
 		); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -303,7 +303,7 @@ func (r *Repository) FindNoteByTitle(relativePath, title string) (*Note, error) 
 
 	n.CreatedAt = timeFromSQL(createdAt)
 	n.UpdatedAt = timeFromSQL(updatedAt)
-	n.LastCheckedAt = timeFromSQL(lastCheckedAt)
+	n.LastIndexedAt = timeFromSQL(lastIndexedAt)
 
 	return &n, nil
 }

@@ -34,7 +34,7 @@ type File struct {
 	CreatedAt     time.Time `yaml:"created_at"`
 	UpdatedAt     time.Time `yaml:"updated_at"`
 	DeletedAt     time.Time `yaml:"deleted_at,omitempty"`
-	LastCheckedAt time.Time `yaml:"-"`
+	LastIndexedAt time.Time `yaml:"-"`
 
 	new   bool
 	stale bool
@@ -201,7 +201,7 @@ func (f *File) SubObjects() []StatefulObject {
 func (f *File) Save() error {
 	var err error
 	f.UpdatedAt = time.Now()
-	f.LastCheckedAt = time.Now()
+	f.LastIndexedAt = time.Now()
 	switch f.State() {
 	case Added:
 		err = f.Insert()
@@ -228,7 +228,7 @@ func (f *File) Insert() error {
 			body,
 			created_at,
 			updated_at,
-			last_checked_at,
+			last_indexed_at,
 			mtime,
 			size,
 			hashsum
@@ -241,7 +241,7 @@ func (f *File) Insert() error {
 		f.Body,
 		timeToSQL(f.CreatedAt),
 		timeToSQL(f.UpdatedAt),
-		timeToSQL(f.LastCheckedAt),
+		timeToSQL(f.LastIndexedAt),
 		timeToSQL(f.MTime),
 		f.Size,
 		f.Hash,
@@ -260,7 +260,7 @@ func (f *File) Update() error {
 			relative_path = ?,
 			body = ?,
 			updated_at = ?,
-			last_checked_at = ?,
+			last_indexed_at = ?,
 			mtime = ?,
 			size = ?,
 			hashsum = ?
@@ -270,7 +270,7 @@ func (f *File) Update() error {
 		f.RelativePath,
 		f.Body,
 		timeToSQL(f.UpdatedAt),
-		timeToSQL(f.LastCheckedAt),
+		timeToSQL(f.LastIndexedAt),
 		timeToSQL(f.MTime),
 		f.Size,
 		f.Hash,
@@ -287,19 +287,19 @@ func (f *File) Delete() error {
 
 func (f *File) Check() error {
 	client := CurrentDB().Client()
-	f.LastCheckedAt = time.Now()
+	f.LastIndexedAt = time.Now()
 	query := `
 		UPDATE file
-		SET last_checked_at = ?
+		SET last_indexed_at = ?
 		WHERE oid = ?;`
-	if _, err := client.Exec(query, timeToSQL(f.LastCheckedAt), f.OID); err != nil {
+	if _, err := client.Exec(query, timeToSQL(f.LastIndexedAt), f.OID); err != nil {
 		return err
 	}
 	query = `
 		UPDATE note
-		SET last_checked_at = ?
+		SET last_indexed_at = ?
 		WHERE file_oid = ?;`
-	if _, err := client.Exec(query, timeToSQL(f.LastCheckedAt), f.OID); err != nil {
+	if _, err := client.Exec(query, timeToSQL(f.LastIndexedAt), f.OID); err != nil {
 		return err
 	}
 	return nil
@@ -309,7 +309,7 @@ func (r *Repository) LoadFileByPath(relativePath string) (*File, error) {
 	var f File
 	var createdAt string
 	var updatedAt string
-	var lastCheckedAt string
+	var lastIndexedAt string
 	var mTime string
 
 	// Query for a value based on a single row.
@@ -320,7 +320,7 @@ func (r *Repository) LoadFileByPath(relativePath string) (*File, error) {
 			body,
 			created_at,
 			updated_at,
-			last_checked_at,
+			last_indexed_at,
 			mtime,
 			size,
 			hashsum
@@ -332,7 +332,7 @@ func (r *Repository) LoadFileByPath(relativePath string) (*File, error) {
 			&f.Body,
 			&createdAt,
 			&updatedAt,
-			&lastCheckedAt,
+			&lastIndexedAt,
 			&mTime,
 			&f.Size,
 			&f.Hash,
@@ -345,7 +345,7 @@ func (r *Repository) LoadFileByPath(relativePath string) (*File, error) {
 
 	f.CreatedAt = timeFromSQL(createdAt)
 	f.UpdatedAt = timeFromSQL(updatedAt)
-	f.LastCheckedAt = timeFromSQL(lastCheckedAt)
+	f.LastIndexedAt = timeFromSQL(lastIndexedAt)
 	f.MTime = timeFromSQL(mTime)
 
 	return &f, nil

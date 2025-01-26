@@ -55,7 +55,7 @@ func TestGoLink(t *testing.T) {
 	assert.Equal(t, clock.Now(), goLink.CreatedAt)
 	assert.Equal(t, clock.Now(), goLink.UpdatedAt)
 	assert.Empty(t, goLink.DeletedAt)
-	assert.Empty(t, goLink.LastCheckedAt)
+	assert.Empty(t, goLink.LastIndexedAt)
 
 	// Save
 	require.NoError(t, goLink.Save())
@@ -74,7 +74,7 @@ func TestGoLink(t *testing.T) {
 	assert.Equal(t, goLink.GoName, actual.GoName)
 	assert.WithinDuration(t, clock.Now(), actual.CreatedAt, 1*time.Second)
 	assert.WithinDuration(t, clock.Now(), actual.UpdatedAt, 1*time.Second)
-	assert.WithinDuration(t, clock.Now(), actual.LastCheckedAt, 1*time.Second)
+	assert.WithinDuration(t, clock.Now(), actual.LastIndexedAt, 1*time.Second)
 	assert.Empty(t, actual.DeletedAt)
 
 	// Force update
@@ -104,7 +104,7 @@ func TestGoLink(t *testing.T) {
 	// Timestamps must have changed
 	assert.WithinDuration(t, createdAt, updatedGoLink.CreatedAt, 1*time.Second)
 	assert.WithinDuration(t, updatedAt, updatedGoLink.UpdatedAt, 1*time.Second)
-	assert.WithinDuration(t, updatedAt, updatedGoLink.LastCheckedAt, 1*time.Second)
+	assert.WithinDuration(t, updatedAt, updatedGoLink.LastIndexedAt, 1*time.Second)
 
 	// Delete
 	require.NoError(t, goLink.Delete())

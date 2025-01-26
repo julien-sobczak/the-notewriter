@@ -82,7 +82,7 @@ A **gopher**.
 	assert.Equal(t, clock.Now(), file.CreatedAt)
 	assert.Equal(t, clock.Now(), file.UpdatedAt)
 	assert.Empty(t, file.DeletedAt)
-	assert.Empty(t, file.LastCheckedAt)
+	assert.Empty(t, file.LastIndexedAt)
 
 	// Save
 	require.NoError(t, file.Save())
@@ -108,7 +108,7 @@ A **gopher**.
 	assert.Equal(t, file.MTime, actual.MTime)
 	assert.WithinDuration(t, clock.Now(), actual.CreatedAt, 1*time.Second)
 	assert.WithinDuration(t, clock.Now(), actual.UpdatedAt, 1*time.Second)
-	assert.WithinDuration(t, clock.Now(), actual.LastCheckedAt, 1*time.Second)
+	assert.WithinDuration(t, clock.Now(), actual.LastIndexedAt, 1*time.Second)
 	assert.Empty(t, actual.DeletedAt)
 
 	// Force update
@@ -133,7 +133,7 @@ A **gopher**.
 	// Timestamps must have changed
 	assert.WithinDuration(t, createdAt, updatedFile.CreatedAt, 1*time.Second)
 	assert.WithinDuration(t, updatedAt, updatedFile.UpdatedAt, 1*time.Second)
-	assert.WithinDuration(t, updatedAt, updatedFile.LastCheckedAt, 1*time.Second)
+	assert.WithinDuration(t, updatedAt, updatedFile.LastIndexedAt, 1*time.Second)
 
 	// Delete
 	require.NoError(t, file.Delete())

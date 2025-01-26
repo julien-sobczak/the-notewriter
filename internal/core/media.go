@@ -74,7 +74,7 @@ type Media struct {
 	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
 	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
 	DeletedAt     time.Time `yaml:"deleted_at,omitempty" json:"deleted_at,omitempty"`
-	LastCheckedAt time.Time `yaml:"-" json:"-"`
+	LastIndexedAt time.Time `yaml:"-" json:"-"`
 
 	new   bool
 	stale bool
@@ -402,13 +402,13 @@ func (m *Media) Updated() bool {
 
 func (m *Media) Check() error {
 	CurrentLogger().Debugf("Checking media %s...", m.RelativePath)
-	m.LastCheckedAt = clock.Now()
+	m.LastIndexedAt = clock.Now()
 	query := `
 		UPDATE media
-		SET last_checked_at = ?
+		SET last_indexed_at = ?
 		WHERE oid = ?;`
 	_, err := CurrentDB().Client().Exec(query,
-		timeToSQL(m.LastCheckedAt),
+		timeToSQL(m.LastIndexedAt),
 		m.OID,
 	)
 
@@ -418,7 +418,7 @@ func (m *Media) Check() error {
 func (m *Media) Save() error {
 	var err error
 	m.UpdatedAt = clock.Now()
-	m.LastCheckedAt = clock.Now()
+	m.LastIndexedAt = clock.Now()
 	switch m.State() {
 	case Added:
 		err = m.Insert()
@@ -461,7 +461,7 @@ func (m *Media) Insert() error {
 			size,
 			created_at,
 			updated_at,
-			last_checked_at
+			last_indexed_at
 		)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
@@ -477,7 +477,7 @@ func (m *Media) Insert() error {
 		m.Size,
 		timeToSQL(m.CreatedAt),
 		timeToSQL(m.UpdatedAt),
-		timeToSQL(m.LastCheckedAt),
+		timeToSQL(m.LastIndexedAt),
 	)
 	if err != nil {
 		return err
@@ -548,7 +548,7 @@ func (m *Media) Update() error {
 			size = ?,
 			created_at = ?,
 			updated_at = ?,
-			last_checked_at = ?
+			last_indexed_at = ?
 		WHERE oid = ?;
 	`
 	_, err := CurrentDB().Client().Exec(query,
@@ -562,7 +562,7 @@ func (m *Media) Update() error {
 		m.Size,
 		timeToSQL(m.CreatedAt),
 		timeToSQL(m.UpdatedAt),
-		timeToSQL(m.LastCheckedAt),
+		timeToSQL(m.LastIndexedAt),
 		m.OID,
 	)
 
@@ -624,7 +624,7 @@ func (r *Repository) FindMediaByHash(hash string) (*Media, error) {
 }
 
 func (r *Repository) FindMediasLastCheckedBefore(point time.Time) ([]*Media, error) {
-	return QueryMedias(CurrentDB().Client(), `WHERE last_checked_at < ?`, timeToSQL(point))
+	return QueryMedias(CurrentDB().Client(), `WHERE last_indexed_at < ?`, timeToSQL(point))
 }
 
 func (r *Repository) FindBlobsFromMedia(mediaOID OID) ([]*BlobRef, error) {
@@ -641,7 +641,7 @@ func QueryMedia(db SQLClient, whereClause string, args ...any) (*Media, error) {
 	var m Media
 	var createdAt string
 	var updatedAt string
-	var lastCheckedAt string
+	var lastIndexedAt string
 	var mTime string
 
 	// Query for a value based on a single row.
@@ -658,7 +658,7 @@ func QueryMedia(db SQLClient, whereClause string, args ...any) (*Media, error) {
 			size,
 			created_at,
 			updated_at,
-			last_checked_at
+			last_indexed_at
 		FROM media
 		%s;`, whereClause), args...).
 		Scan(
@@ -673,7 +673,7 @@ func QueryMedia(db SQLClient, whereClause string, args ...any) (*Media, error) {
 			&m.Size,
 			&createdAt,
 			&updatedAt,
-			&lastCheckedAt,
+			&lastIndexedAt,
 		); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -683,7 +683,7 @@ func QueryMedia(db SQLClient, whereClause string, args ...any) (*Media, error) {
 
 	m.CreatedAt = timeFromSQL(createdAt)
 	m.UpdatedAt = timeFromSQL(updatedAt)
-	m.LastCheckedAt = timeFromSQL(lastCheckedAt)
+	m.LastIndexedAt = timeFromSQL(lastIndexedAt)
 	m.MTime = timeFromSQL(mTime)
 
 	// Load blobs
@@ -712,7 +712,7 @@ func QueryMedias(db SQLClient, whereClause string, args ...any) ([]*Media, error
 			size,
 			created_at,
 			updated_at,
-			last_checked_at
+			last_indexed_at
 		FROM media
 		%s;`, whereClause), args...)
 	if err != nil {
@@ -723,7 +723,7 @@ func QueryMedias(db SQLClient, whereClause string, args ...any) ([]*Media, error
 		var m Media
 		var createdAt string
 		var updatedAt string
-		var lastCheckedAt string
+		var lastIndexedAt string
 		var mTime string
 
 		err = rows.Scan(
@@ -738,7 +738,7 @@ func QueryMedias(db SQLClient, whereClause string, args ...any) ([]*Media, error
 			&m.Size,
 			&createdAt,
 			&updatedAt,
-			&lastCheckedAt,
+			&lastIndexedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -746,7 +746,7 @@ func QueryMedias(db SQLClient, whereClause string, args ...any) ([]*Media, error
 
 		m.CreatedAt = timeFromSQL(createdAt)
 		m.UpdatedAt = timeFromSQL(updatedAt)
-		m.LastCheckedAt = timeFromSQL(lastCheckedAt)
+		m.LastIndexedAt = timeFromSQL(lastIndexedAt)
 		m.MTime = timeFromSQL(mTime)
 
 		// Load blobs

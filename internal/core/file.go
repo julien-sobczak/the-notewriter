@@ -71,7 +71,7 @@ type File struct {
 	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
 	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
 	DeletedAt     time.Time `yaml:"deleted_at,omitempty" json:"deleted_at,omitempty"`
-	LastCheckedAt time.Time `yaml:"-" json:"-"`
+	LastIndexedAt time.Time `yaml:"-" json:"-"`
 
 	new   bool
 	stale bool
@@ -320,33 +320,33 @@ func (f *File) FindFlashcardByTitle(shortTitle string) *Flashcard {
 func (f *File) Check() error {
 	client := CurrentDB().Client()
 	CurrentLogger().Debugf("Checking file %s...", f.RelativePath)
-	f.LastCheckedAt = clock.Now()
+	f.LastIndexedAt = clock.Now()
 	query := `
 		UPDATE file
-		SET last_checked_at = ?
+		SET last_indexed_at = ?
 		WHERE oid = ?;`
-	if _, err := client.Exec(query, timeToSQL(f.LastCheckedAt), f.OID); err != nil {
+	if _, err := client.Exec(query, timeToSQL(f.LastIndexedAt), f.OID); err != nil {
 		return err
 	}
 	query = `
 		UPDATE note
-		SET last_checked_at = ?
+		SET last_indexed_at = ?
 		WHERE file_oid = ?;`
-	if _, err := client.Exec(query, timeToSQL(f.LastCheckedAt), f.OID); err != nil {
+	if _, err := client.Exec(query, timeToSQL(f.LastIndexedAt), f.OID); err != nil {
 		return err
 	}
 	query = `
 		UPDATE flashcard
-		SET last_checked_at = ?
+		SET last_indexed_at = ?
 		WHERE file_oid = ?;`
-	if _, err := client.Exec(query, timeToSQL(f.LastCheckedAt), f.OID); err != nil {
+	if _, err := client.Exec(query, timeToSQL(f.LastIndexedAt), f.OID); err != nil {
 		return err
 	}
 	query = `
 		UPDATE reminder
-		SET last_checked_at = ?
+		SET last_indexed_at = ?
 		WHERE file_oid = ?;`
-	if _, err := client.Exec(query, timeToSQL(f.LastCheckedAt), f.OID); err != nil {
+	if _, err := client.Exec(query, timeToSQL(f.LastIndexedAt), f.OID); err != nil {
 		return err
 	}
 
@@ -356,7 +356,7 @@ func (f *File) Check() error {
 func (f *File) Save() error {
 	var err error
 	f.UpdatedAt = clock.Now()
-	f.LastCheckedAt = clock.Now()
+	f.LastIndexedAt = clock.Now()
 	switch f.State() {
 	case Added:
 		err = f.Insert()
@@ -392,7 +392,7 @@ func (f *File) Insert() error {
 			body_line,
 			created_at,
 			updated_at,
-			last_checked_at,
+			last_indexed_at,
 			mtime,
 			size,
 			hashsum,
@@ -422,7 +422,7 @@ func (f *File) Insert() error {
 		f.BodyLine,
 		timeToSQL(f.CreatedAt),
 		timeToSQL(f.UpdatedAt),
-		timeToSQL(f.LastCheckedAt),
+		timeToSQL(f.LastIndexedAt),
 		timeToSQL(f.MTime),
 		f.Size,
 		f.Hash,
@@ -450,7 +450,7 @@ func (f *File) Update() error {
 			body = ?,
 			body_line = ?,
 			updated_at = ?,
-			last_checked_at = ?,
+			last_indexed_at = ?,
 			mtime = ?,
 			size = ?,
 			hashsum = ?,
@@ -476,7 +476,7 @@ func (f *File) Update() error {
 		f.Body,
 		f.BodyLine,
 		timeToSQL(f.UpdatedAt),
-		timeToSQL(f.LastCheckedAt),
+		timeToSQL(f.LastIndexedAt),
 		timeToSQL(f.MTime),
 		f.Size,
 		f.Hash,
@@ -529,7 +529,7 @@ func (r *Repository) FindFilesLastCheckedBefore(point time.Time, path string) ([
 	if path == "." {
 		path = ""
 	}
-	return QueryFiles(CurrentDB().Client(), `WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
+	return QueryFiles(CurrentDB().Client(), `WHERE last_indexed_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 // CountFiles returns the total number of files.
@@ -550,7 +550,7 @@ func QueryFile(db SQLClient, whereClause string, args ...any) (*File, error) {
 	var f File
 	var createdAt string
 	var updatedAt string
-	var lastCheckedAt string
+	var lastIndexedAt string
 	var mTime string
 	var attributesRaw string
 
@@ -570,7 +570,7 @@ func QueryFile(db SQLClient, whereClause string, args ...any) (*File, error) {
 			body_line,
 			created_at,
 			updated_at,
-			last_checked_at,
+			last_indexed_at,
 			mtime,
 			size,
 			hashsum
@@ -590,7 +590,7 @@ func QueryFile(db SQLClient, whereClause string, args ...any) (*File, error) {
 			&f.BodyLine,
 			&createdAt,
 			&updatedAt,
-			&lastCheckedAt,
+			&lastIndexedAt,
 			&mTime,
 			&f.Size,
 			&f.Hash,
@@ -609,7 +609,7 @@ func QueryFile(db SQLClient, whereClause string, args ...any) (*File, error) {
 	f.Attributes = attributes.Cast(GetSchemaAttributeTypes())
 	f.CreatedAt = timeFromSQL(createdAt)
 	f.UpdatedAt = timeFromSQL(updatedAt)
-	f.LastCheckedAt = timeFromSQL(lastCheckedAt)
+	f.LastIndexedAt = timeFromSQL(lastIndexedAt)
 	f.MTime = timeFromSQL(mTime)
 
 	return &f, nil
@@ -633,7 +633,7 @@ func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) 
 			body_line,
 			created_at,
 			updated_at,
-			last_checked_at,
+			last_indexed_at,
 			mtime,
 			size,
 			hashsum
@@ -647,7 +647,7 @@ func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) 
 		var f File
 		var createdAt string
 		var updatedAt string
-		var lastCheckedAt string
+		var lastIndexedAt string
 		var mTime string
 		var attributesRaw string
 
@@ -665,7 +665,7 @@ func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) 
 			&f.BodyLine,
 			&createdAt,
 			&updatedAt,
-			&lastCheckedAt,
+			&lastIndexedAt,
 			&mTime,
 			&f.Size,
 			&f.Hash,
@@ -682,7 +682,7 @@ func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) 
 		f.Attributes = attributes.Cast(GetSchemaAttributeTypes())
 		f.CreatedAt = timeFromSQL(createdAt)
 		f.UpdatedAt = timeFromSQL(updatedAt)
-		f.LastCheckedAt = timeFromSQL(lastCheckedAt)
+		f.LastIndexedAt = timeFromSQL(lastIndexedAt)
 		f.MTime = timeFromSQL(mTime)
 
 		files = append(files, &f)

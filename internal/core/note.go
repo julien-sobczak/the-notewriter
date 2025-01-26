@@ -100,7 +100,7 @@ type Note struct {
 	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
 	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
 	DeletedAt     time.Time `yaml:"deleted_at,omitempty" json:"deleted_at,omitempty"`
-	LastCheckedAt time.Time `yaml:"-" json:"-"`
+	LastIndexedAt time.Time `yaml:"-" json:"-"`
 
 	new   bool
 	stale bool
@@ -565,33 +565,33 @@ func isSupportedNote(text string) (bool, NoteKind, string) {
 
 func (n *Note) Check() error {
 	CurrentLogger().Debugf("Checking note %s...", n.Wikilink)
-	n.LastCheckedAt = clock.Now()
+	n.LastIndexedAt = clock.Now()
 	query := `
 		UPDATE note
-		SET last_checked_at = ?
+		SET last_indexed_at = ?
 		WHERE oid = ?;`
-	if _, err := CurrentDB().Client().Exec(query, timeToSQL(n.LastCheckedAt), n.OID); err != nil {
+	if _, err := CurrentDB().Client().Exec(query, timeToSQL(n.LastIndexedAt), n.OID); err != nil {
 		return err
 	}
 	query = `
 		UPDATE flashcard
-		SET last_checked_at = ?
+		SET last_indexed_at = ?
 		WHERE note_oid = ?;`
-	if _, err := CurrentDB().Client().Exec(query, timeToSQL(n.LastCheckedAt), n.OID); err != nil {
+	if _, err := CurrentDB().Client().Exec(query, timeToSQL(n.LastIndexedAt), n.OID); err != nil {
 		return err
 	}
 	query = `
 		UPDATE link
-		SET last_checked_at = ?
+		SET last_indexed_at = ?
 		WHERE note_oid = ?;`
-	if _, err := CurrentDB().Client().Exec(query, timeToSQL(n.LastCheckedAt), n.OID); err != nil {
+	if _, err := CurrentDB().Client().Exec(query, timeToSQL(n.LastIndexedAt), n.OID); err != nil {
 		return err
 	}
 	query = `
 		UPDATE reminder
-		SET last_checked_at = ?
+		SET last_indexed_at = ?
 		WHERE note_oid = ?;`
-	if _, err := CurrentDB().Client().Exec(query, timeToSQL(n.LastCheckedAt), n.OID); err != nil {
+	if _, err := CurrentDB().Client().Exec(query, timeToSQL(n.LastIndexedAt), n.OID); err != nil {
 		return err
 	}
 
@@ -601,7 +601,7 @@ func (n *Note) Check() error {
 func (n *Note) Save() error {
 	var err error
 	n.UpdatedAt = clock.Now()
-	n.LastCheckedAt = clock.Now()
+	n.LastIndexedAt = clock.Now()
 	switch n.State() {
 	case Added:
 		err = n.Insert()
@@ -643,7 +643,7 @@ func (n *Note) Insert() error {
 			comment,
 			created_at,
 			updated_at,
-			last_checked_at)
+			last_indexed_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 
@@ -672,7 +672,7 @@ func (n *Note) Insert() error {
 		n.Comment,
 		timeToSQL(n.CreatedAt),
 		timeToSQL(n.UpdatedAt),
-		timeToSQL(n.LastCheckedAt),
+		timeToSQL(n.LastIndexedAt),
 	)
 	if err != nil {
 		return err
@@ -703,7 +703,7 @@ func (n *Note) Update() error {
 			body = ?,
 			comment = ?,
 			updated_at = ?,
-			last_checked_at = ?
+			last_indexed_at = ?
 		WHERE oid = ?;
 	`
 
@@ -730,7 +730,7 @@ func (n *Note) Update() error {
 		n.Body,
 		n.Comment,
 		timeToSQL(n.UpdatedAt),
-		timeToSQL(n.LastCheckedAt),
+		timeToSQL(n.LastIndexedAt),
 		n.OID,
 	)
 
@@ -946,7 +946,7 @@ func (r *Repository) FindNotesLastCheckedBefore(point time.Time, path string) ([
 	if path == "." {
 		path = ""
 	}
-	return QueryNotes(CurrentDB().Client(), `WHERE last_checked_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
+	return QueryNotes(CurrentDB().Client(), `WHERE last_indexed_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 // SearchNotes query notes to find the ones matching a list of criteria.
@@ -1024,7 +1024,7 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 	var n Note
 	var createdAt string
 	var updatedAt string
-	var lastCheckedAt string
+	var lastIndexedAt string
 	var tagsRaw string
 	var attributesRaw string
 
@@ -1050,7 +1050,7 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 			comment,
 			created_at,
 			updated_at,
-			last_checked_at
+			last_indexed_at
 		FROM note
 		%s;`, whereClause), args...).
 		Scan(
@@ -1073,7 +1073,7 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 			&n.Comment,
 			&createdAt,
 			&updatedAt,
-			&lastCheckedAt,
+			&lastIndexedAt,
 		); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -1090,7 +1090,7 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 	n.Tags = strings.Split(tagsRaw, ",")
 	n.CreatedAt = timeFromSQL(createdAt)
 	n.UpdatedAt = timeFromSQL(updatedAt)
-	n.LastCheckedAt = timeFromSQL(lastCheckedAt)
+	n.LastIndexedAt = timeFromSQL(lastIndexedAt)
 
 	return &n, nil
 }
@@ -1119,7 +1119,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			comment,
 			created_at,
 			updated_at,
-			last_checked_at
+			last_indexed_at
 		FROM note
 		%s;`, whereClause), args...)
 	if err != nil {
@@ -1130,7 +1130,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 		var n Note
 		var createdAt string
 		var updatedAt string
-		var lastCheckedAt string
+		var lastIndexedAt string
 		var tagsRaw string
 		var attributesRaw string
 
@@ -1154,7 +1154,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			&n.Comment,
 			&createdAt,
 			&updatedAt,
-			&lastCheckedAt,
+			&lastIndexedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -1169,7 +1169,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 		n.Tags = strings.Split(tagsRaw, ",")
 		n.CreatedAt = timeFromSQL(createdAt)
 		n.UpdatedAt = timeFromSQL(updatedAt)
-		n.LastCheckedAt = timeFromSQL(lastCheckedAt)
+		n.LastIndexedAt = timeFromSQL(lastIndexedAt)
 		notes = append(notes, &n)
 	}
 

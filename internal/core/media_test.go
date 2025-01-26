@@ -55,7 +55,7 @@ A **gopher**.
 	assert.Equal(t, clock.Now(), media.CreatedAt)
 	assert.Equal(t, clock.Now(), media.UpdatedAt)
 	assert.Empty(t, media.DeletedAt)
-	assert.Empty(t, media.LastCheckedAt)
+	assert.Empty(t, media.LastIndexedAt)
 
 	// Save
 	require.NoError(t, media.Save())
@@ -75,7 +75,7 @@ A **gopher**.
 	assert.Equal(t, media.Size, actual.Size)
 	assert.WithinDuration(t, clock.Now(), actual.CreatedAt, 1*time.Second)
 	assert.WithinDuration(t, clock.Now(), actual.UpdatedAt, 1*time.Second)
-	assert.WithinDuration(t, clock.Now(), actual.LastCheckedAt, 1*time.Second)
+	assert.WithinDuration(t, clock.Now(), actual.LastIndexedAt, 1*time.Second)
 	assert.Empty(t, actual.DeletedAt)
 
 	// Force update
@@ -103,7 +103,7 @@ A **gopher**.
 	// Timestamps must have changed
 	assert.WithinDuration(t, createdAt, updatedMedia.CreatedAt, 1*time.Second)
 	assert.WithinDuration(t, updatedAt, updatedMedia.UpdatedAt, 1*time.Second)
-	assert.WithinDuration(t, updatedAt, updatedMedia.LastCheckedAt, 1*time.Second)
+	assert.WithinDuration(t, updatedAt, updatedMedia.LastIndexedAt, 1*time.Second)
 
 	// Delete
 	require.NoError(t, media.Delete())

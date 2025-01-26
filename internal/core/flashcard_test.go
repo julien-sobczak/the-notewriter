@@ -60,7 +60,7 @@ A **gopher**.
 	assert.Equal(t, clock.Now(), flashcard.CreatedAt)
 	assert.Equal(t, clock.Now(), flashcard.UpdatedAt)
 	assert.Empty(t, flashcard.DeletedAt)
-	assert.Empty(t, flashcard.LastCheckedAt)
+	assert.Empty(t, flashcard.LastIndexedAt)
 
 	// Save
 	require.NoError(t, flashcard.Save())
@@ -82,7 +82,7 @@ A **gopher**.
 	assert.Equal(t, flashcard.Back, actual.Back)
 	assert.WithinDuration(t, clock.Now(), actual.CreatedAt, 1*time.Second)
 	assert.WithinDuration(t, clock.Now(), actual.UpdatedAt, 1*time.Second)
-	assert.WithinDuration(t, clock.Now(), actual.LastCheckedAt, 1*time.Second)
+	assert.WithinDuration(t, clock.Now(), actual.LastIndexedAt, 1*time.Second)
 	assert.Empty(t, flashcard.DeletedAt)
 
 	// Force update
@@ -110,7 +110,7 @@ A **gopher**.
 	// Timestamps must have changed
 	assert.WithinDuration(t, createdAt, updatedFlashcard.CreatedAt, 1*time.Second)
 	assert.WithinDuration(t, updatedAt, updatedFlashcard.UpdatedAt, 1*time.Second)
-	assert.WithinDuration(t, updatedAt, updatedFlashcard.LastCheckedAt, 1*time.Second)
+	assert.WithinDuration(t, updatedAt, updatedFlashcard.LastIndexedAt, 1*time.Second)
 
 	// Delete
 	require.NoError(t, flashcard.Delete())
