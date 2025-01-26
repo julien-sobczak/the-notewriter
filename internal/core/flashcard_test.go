@@ -34,17 +34,17 @@ A **gopher**.
 	// Init the file
 	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
-	file, err := NewFile(nil, parsedFile)
+	file, err := NewFile(NilOID, parsedFile)
 	require.NoError(t, err)
 	require.NoError(t, file.Save())
 	parsedNote, ok := parsedFile.FindNoteByTitle("Flashcard: Golang Logo")
 	require.True(t, ok)
-	note, err := NewNote(file, nil, parsedNote)
+	note, err := NewNote(NilOID, file, parsedNote)
 	require.NoError(t, err)
 	require.NoError(t, note.Save())
 
 	// Create
-	flashcard, err := NewFlashcard(file, note, parsedNote.Flashcard)
+	flashcard, err := NewFlashcard(NilOID, file, note, parsedNote.Flashcard)
 	require.NoError(t, err)
 
 	// Check all fields
@@ -94,10 +94,10 @@ A **gopher**.
 	require.NoError(t, err)
 	parsedNote, ok = parsedFile.FindNoteByShortTitle("Golang Logo")
 	require.True(t, ok)
-	newNote, err := NewOrExistingNote(file, nil, parsedNote)
+	newNote, err := NewOrExistingNote(NilOID, file, parsedNote)
 	require.NoError(t, err)
 	require.NoError(t, newNote.Save())
-	newFlashcard, err := NewOrExistingFlashcard(file, newNote, parsedNote.Flashcard)
+	newFlashcard, err := NewOrExistingFlashcard(NilOID, file, newNote, parsedNote.Flashcard)
 	require.NoError(t, err)
 	require.NoError(t, newFlashcard.Save())
 	// ... and compare
@@ -138,16 +138,16 @@ A **gopher**.
 	// Init the file
 	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
-	file, err := NewFile(nil, parsedFile)
+	file, err := NewFile(NilOID, parsedFile)
 	require.NoError(t, err)
 
 	// Init the flashcard
 	parsedNote, ok := parsedFile.FindNoteByTitle("Flashcard: Golang Logo")
 	require.True(t, ok)
-	note, err := NewNote(file, nil, parsedNote)
+	note, err := NewNote(NilOID, file, parsedNote)
 	require.NoError(t, err)
 	require.NotNil(t, parsedNote.Flashcard)
-	flashcard, err := NewFlashcard(file, note, parsedNote.Flashcard)
+	flashcard, err := NewFlashcard(NilOID, file, note, parsedNote.Flashcard)
 	require.NoError(t, err)
 
 	t.Run("ToYAML", func(t *testing.T) {

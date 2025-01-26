@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -23,16 +22,9 @@ const (
 	Deleted  State = "deleted"
 )
 
-// OIDToPath converts an oid to a file path.
-func OIDToPath(oid string) string {
-	// We use the first two characters to spread objects into different directories
-	// (same as .git/objects/) to avoid having a large unpractical directory.
-	return oid[0:2] + "/" + oid
-}
-
 type BlobRef struct {
 	// OID to locate the blob file in .nt/objects
-	OID        string       `yaml:"oid" json:"oid"`
+	OID        OID          `yaml:"oid" json:"oid"`
 	MimeType   string       `yaml:"mime" json:"mime"`
 	Attributes AttributeSet `yaml:"attributes" json:"attributes"`
 	Tags       TagSet       `yaml:"tags" json:"tags"`
@@ -65,7 +57,7 @@ type Object interface {
 	// Kind returns the object kind to determine which kind of object to create.
 	Kind() string
 	// UniqueOID returns the OID of the object.
-	UniqueOID() string
+	UniqueOID() OID
 	// ModificationTime returns the last modification time.
 	ModificationTime() time.Time
 
@@ -105,7 +97,7 @@ type StatefulObject interface {
 // FileObject represents an object present as a file in the repository.
 type FileObject interface {
 	// UniqueOID of the object representing the file
-	UniqueOID() string
+	UniqueOID() OID
 
 	// Relative path to repository
 	FileRelativePath() string
@@ -115,10 +107,7 @@ type FileObject interface {
 	FileSize() int64
 	// MD5 Checksum
 	FileHash() string
-	// Permission of the file
-	FileMode() fs.FileMode
 
-	Objects() []Object
 	Blobs() []*BlobRef
 }
 
@@ -155,7 +144,7 @@ func (c *BlobFile) Write(w io.Writer) error {
 
 // Save writes a new file inside .nt/objects.
 func (c *BlobFile) Save() error {
-	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", OIDToPath(c.Ref.OID))
+	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", c.Ref.OID.RelativePath())
 	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
 		return err
 	}
@@ -170,8 +159,8 @@ func (c *BlobFile) Save() error {
 // Convenient type to add methods
 type BlobRefs []BlobRef
 
-func (r BlobRefs) OIDs() []string {
-	var results []string
+func (r BlobRefs) OIDs() []OID {
+	var results []OID
 	for _, ref := range r {
 		results = append(results, ref.OID)
 	}

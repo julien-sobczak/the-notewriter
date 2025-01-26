@@ -57,16 +57,15 @@ A **gopher**.
 	require.NoError(t, err)
 
 	// Create
-	file, err := NewFile(nil, parsedFile)
+	file, err := NewFile(NilOID, parsedFile)
 	require.NoError(t, err)
-	fileCopy, err := NewFile(nil, parsedFile)
+	fileCopy, err := NewFile(NilOID, parsedFile)
 	require.NoError(t, err)
 	require.NotEqual(t, file.OID, fileCopy.OID)
 
 	// Check all fields
 	assert.NotNil(t, file.OID)
 	assert.Equal(t, "go", file.Slug)
-	assert.Empty(t, file.ParentFileOID)
 	assert.Equal(t, "go.md", file.RelativePath)
 	assert.Equal(t, "go", file.Wikilink)
 	assert.Equal(t, markdown.FrontMatter("tags:\n- go\n"), file.FrontMatter)
@@ -77,9 +76,8 @@ A **gopher**.
 	assert.Equal(t, markdown.Document("Go"), file.ShortTitle)
 	assert.True(t, strings.HasPrefix(file.Body.String(), "# Go"))
 	assert.Equal(t, 6, file.BodyLine)
-	assert.Equal(t, parsedFile.Markdown.LStat.Mode(), file.Mode)
-	assert.Equal(t, parsedFile.Markdown.Stat.Size(), file.Size)
-	assert.Equal(t, parsedFile.Markdown.Stat.ModTime(), file.MTime)
+	assert.Equal(t, parsedFile.Markdown.Size, file.Size)
+	assert.Equal(t, parsedFile.Markdown.MTime, file.MTime)
 	assert.NotEqual(t, parsedFile.Markdown.Body.Hash(), file.Hash) // Must use whole content to determine the hash (including the front matter)
 	assert.Equal(t, clock.Now(), file.CreatedAt)
 	assert.Equal(t, clock.Now(), file.UpdatedAt)
@@ -102,10 +100,9 @@ A **gopher**.
 	actualFrontMatter, err := actual.FrontMatter.AsBeautifulYAML()
 	assert.NoError(t, err)
 	assert.Equal(t, expectedFrontMatter, actualFrontMatter)
-	assert.Equal(t, file.Attributes.GetTags(), actual.Attributes.GetTags())
+	assert.Equal(t, file.Attributes.Tags(), actual.Attributes.Tags())
 	assert.Equal(t, file.Body, actual.Body)
 	assert.Equal(t, file.BodyLine, actual.BodyLine)
-	assert.Equal(t, file.Mode, actual.Mode)
 	assert.Equal(t, file.Size, actual.Size)
 	assert.Equal(t, file.Hash, actual.Hash)
 	assert.Equal(t, file.MTime, actual.MTime)
@@ -123,7 +120,7 @@ A **gopher**.
 	// Recreate...
 	parsedFile, err = ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
-	newFile, err := NewOrExistingFile(parsedFile)
+	newFile, err := NewOrExistingFile(NilOID, parsedFile)
 	require.NoError(t, err)
 	require.NoError(t, newFile.Save())
 	// ...and compare
@@ -168,23 +165,15 @@ tags: [programming]
 	require.NoError(t, err)
 
 	// Init the parent
-	parsedFile, err := ParseFileFromRelativePath(root, "index.md")
+	mdParent := markdown.MustParseFile(filepath.Join(root, "index.md"))
+	mdChild := markdown.MustParseFile(filepath.Join(root, "go.md"))
+
+	parsedFile, err := ParseFile(root, mdChild, mdParent)
 	require.NoError(t, err)
-	parentFile, err := NewFile(nil, parsedFile)
-	require.NoError(t, err)
-	err = parentFile.Save()
+	childFile, err := NewFile(NilOID, parsedFile)
 	require.NoError(t, err)
 
-	// Init the child
-	parsedFile, err = ParseFileFromRelativePath(root, "go.md")
-	require.NoError(t, err)
-	childFile, err := NewFile(parentFile, parsedFile)
-	require.NoError(t, err)
-	err = childFile.Save()
-	require.NoError(t, err)
-
-	assert.Equal(t, parentFile.OID, childFile.ParentFileOID)
-	assert.Equal(t, []string{"go", "programming"}, childFile.Attributes.GetTags())
+	assert.Equal(t, []string{"go", "programming"}, childFile.Attributes.Tags())
 }
 
 func TestFileFormats(t *testing.T) {
@@ -208,7 +197,7 @@ tags:
 	// Init the file
 	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
-	file, err := NewFile(nil, parsedFile)
+	file, err := NewFile(NilOID, parsedFile)
 	require.NoError(t, err)
 	file.MTime = clock.Now() // make tests reproductible
 

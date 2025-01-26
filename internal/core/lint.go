@@ -222,6 +222,7 @@ func GetSchemaAttributes(relativePath string, kind NoteKind) []*ConfigLintSchema
 }
 
 // NonInheritableAttributes returns the attributes that must not be inherited.
+// FIXME rework to introduce a Schema per object type
 func NonInheritableAttributes(relativePath string, kind NoteKind) []string {
 	var results []string
 	definitions := GetSchemaAttributes(relativePath, kind)
@@ -234,7 +235,8 @@ func NonInheritableAttributes(relativePath string, kind NoteKind) []string {
 }
 
 // FilterNonInheritableAttributes removes from the list all non-inheritable attributes.
-func FilterNonInheritableAttributes(attributes map[string]interface{}, relativePath string, kind NoteKind) map[string]interface{} {
+// FIXME rework to introduce a Schema per object type
+func FilterNonInheritableAttributes(attributes map[string]interface{}, relativePath string, kind NoteKind) AttributeSet {
 	nonInheritableAttributes := NonInheritableAttributes(relativePath, kind)
 	result := make(map[string]interface{})
 	for key, value := range attributes {
@@ -444,8 +446,8 @@ var sectionsInventoryOnce resync.Once     // Build the inventory on first occurr
 
 func buildSectionsInventory() {
 	sectionsInventory = make(map[string][]string)
-	paths := []string{CurrentConfig().RootDirectory}
-	err := CurrentRepository().walkNew(paths, func(md *markdown.File) error {
+	pathSpecs := []PathSpec{"."}
+	err := CurrentRepository().Walk(pathSpecs, func(md *markdown.File) error {
 		relativePath := CurrentRepository().GetFileRelativePath(md.AbsolutePath)
 
 		// Extract all sections
@@ -582,20 +584,8 @@ func RequireQuoteTag(file *ParsedFile, args []string) ([]*Violation, error) {
 			continue
 		}
 
-		attributes := file.FileAttributes.Merge(note.NoteAttributes)
-		tags := note.NoteTags
-		if attributeValue, ok := attributes["tags"]; ok {
-			if attributeTags, ok := attributeValue.([]interface{}); ok {
-				for _, attributeTag := range attributeTags {
-					if attributeTagStr, ok := attributeTag.(string); ok {
-						tags = append(tags, attributeTagStr)
-					}
-				}
-			}
-		}
-
 		atLeastOneTagMatch := false
-		for _, tag := range tags {
+		for _, tag := range note.Attributes.Tags() {
 			if regexPattern.MatchString(tag) {
 				atLeastOneTagMatch = true
 				break
@@ -631,62 +621,35 @@ func CheckAttribute(file *ParsedFile, args []string) ([]*Violation, error) {
 
 			for _, name := range allowedNames {
 
-				fileValue, presentOnFile := file.FileAttributes[name]
-				noteValue, presentOnNote := note.NoteAttributes[name]
+				value, ok := note.Attributes[name]
 
 				// Check type
-				if presentOnFile {
+				if ok {
 					found = true
 
 					line := text.LineNumber(string(file.Markdown.Content), name+":")
-					if _, ok := CastAttribute(fileValue, definition.Type); !ok {
+					if _, ok := CastAttribute(value, definition.Type); !ok {
 						violations = append(violations, &Violation{
 							Name:         "check-attribute",
 							RelativePath: file.RelativePath,
-							Message:      fmt.Sprintf("attribute %q in file %q is not a valid %s or cannot be converted", name, file.RelativePath, definition.Type),
+							Message:      fmt.Sprintf("attribute %q on note %q is not a valid %s or cannot be converted", name, file.RelativePath, definition.Type),
 							Line:         line,
 						})
 					} else if definition.Pattern != "" {
 						// Check pattern
 						regexAttribute := regexp.MustCompile(definition.Pattern)
 						// Convert value to string
-						fileStringValue := fmt.Sprintf("%s", fileValue)
-						if !regexAttribute.MatchString(fileStringValue) {
+						stringValue := fmt.Sprintf("%s", value)
+						if !regexAttribute.MatchString(stringValue) {
 							violations = append(violations, &Violation{
 								Name:         "check-attribute",
 								RelativePath: file.RelativePath,
-								Message:      fmt.Sprintf("attribute %q in file %q does not match pattern %q", name, file.RelativePath, definition.Pattern),
+								Message:      fmt.Sprintf("attribute %q on note %q does not match pattern %q", name, file.RelativePath, definition.Pattern),
 								Line:         line,
 							})
 						}
 					}
 				}
-				if presentOnNote {
-					found = true
-					line := note.Line - 1 + text.LineNumber(note.Content.String(), "@"+name)
-					if _, ok := CastAttribute(noteValue, definition.Type); !ok {
-						violations = append(violations, &Violation{
-							Name:         "check-attribute",
-							RelativePath: file.RelativePath,
-							Message:      fmt.Sprintf("attribute %q in file %q is not a valid %s or cannot be converted", name, file.RelativePath, definition.Type),
-							Line:         line,
-						})
-					} else if definition.Pattern != "" {
-						// Check pattern
-						regexAttribute := regexp.MustCompile(definition.Pattern)
-						// Convert value to string
-						noteStringValue := fmt.Sprintf("%s", noteValue)
-						if !regexAttribute.MatchString(noteStringValue) {
-							violations = append(violations, &Violation{
-								Name:         "check-attribute",
-								RelativePath: file.RelativePath,
-								Message:      fmt.Sprintf("attribute %q in note %q in file %q does not match pattern %q", name, note.Title, file.RelativePath, definition.Pattern),
-								Line:         line,
-							})
-						}
-					}
-				}
-
 			}
 
 			// Check required

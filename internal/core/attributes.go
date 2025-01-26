@@ -55,6 +55,10 @@ func (t TagSet) AsList() []string {
 	return t
 }
 
+func (t TagSet) Includes(tag string) bool {
+	return slices.Contains(t, tag)
+}
+
 /*
  * AttributeSet
  */
@@ -217,23 +221,8 @@ func (a AttributeSet) Merge(attributes ...AttributeSet) AttributeSet {
 	return result
 }
 
-func (a AttributeSet) AddTag(newTag string) {
-	// IMPROVEMENT Avoid side-effect methods
-	if _, ok := a["tags"]; !ok {
-		// Not tag currently present
-		a["tags"] = []string{newTag}
-		return
-	}
-	if tags, ok := a["tags"].([]string); ok {
-		for _, tag := range tags {
-			if tag == newTag {
-				// Already present
-				return
-			}
-		}
-		a["tags"] = append(tags, newTag)
-		return
-	}
+func (a AttributeSet) AsMap() map[string]any {
+	return a
 }
 
 func (a AttributeSet) SetAttribute(name string, value any) {
@@ -267,17 +256,40 @@ func (a AttributeSet) SetAttribute(name string, value any) {
 	}
 }
 
-func (a AttributeSet) AsMap() map[string]any {
-	return a
-}
+/* Special attributes */
 
-/* Utility */
-
-func (a AttributeSet) GetTags() []string {
+func (a AttributeSet) Tags() TagSet {
 	if v, ok := a["tags"].([]string); ok {
 		return v
 	}
 	return nil
+}
+
+func (a AttributeSet) AddTag(newTag string) {
+	// IMPROVEMENT Avoid side-effect methods
+	if _, ok := a["tags"]; !ok {
+		// Not tag currently present
+		a["tags"] = []string{newTag}
+		return
+	}
+	if tags, ok := a["tags"].([]string); ok {
+		for _, tag := range tags {
+			if tag == newTag {
+				// Already present
+				return
+			}
+		}
+		a["tags"] = append(tags, newTag)
+		return
+	}
+}
+
+func (a AttributeSet) Slug() (string, bool) {
+	v, ok := a["tags"]
+	if !ok {
+		return "", false
+	}
+	return v.(string), true
 }
 
 /* Format */
@@ -302,6 +314,16 @@ func (a AttributeSet) ToYAML() (string, error) {
 		return "", err
 	}
 	return buf.String(), nil
+}
+
+func (a AttributeSet) CastValueAsString(name string) string { // FIXME really useful?
+	if v, ok := a[name]; ok {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	// Conversion errors are ignored (we consider the requested attribute doesn't exist)
+	return ""
 }
 
 // CastAttributes enforces the types declared in linter schemas.
@@ -385,7 +407,7 @@ func CastAttribute(value any, declaredType string) (any, bool) {
 
 // ExtractBlockTagsAndAttributes searches for all tags and attributes declared on standalone lines
 // (in comparison with tags/attributes defined, for example, on To-Do list items).
-func ExtractBlockTagsAndAttributes(content markdown.Document, types map[string]string) (TagSet, AttributeSet) {
+func ExtractBlockTagsAndAttributes(content markdown.Document, types map[string]string) (TagSet, AttributeSet) { // FIXME returns only AttributeSet and uses Tags() instead
 
 	// Collect tags and attributes
 	var tags TagSet
@@ -418,7 +440,7 @@ func ExtractBlockTagsAndAttributes(content markdown.Document, types map[string]s
 	// Cast (ensure the tags attribute is an array too)
 	attributes = attributes.Cast(types)
 
-	tagsInAttributes := attributes.GetTags()
+	tagsInAttributes := attributes.Tags()
 
 	// The tag syntax is only syntax sugar. Tags must be added in attributes too.
 	for _, tag := range tags {
@@ -426,9 +448,7 @@ func ExtractBlockTagsAndAttributes(content markdown.Document, types map[string]s
 	}
 
 	// Add tags declared using `@tags` attributes
-	for _, tagInAttribute := range tagsInAttributes {
-		tags = append(tags, tagInAttribute)
-	}
+	tags = append(tags, tagsInAttributes...)
 
 	return tags, attributes
 }

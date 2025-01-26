@@ -42,21 +42,20 @@ tags:
 	require.NoError(t, err)
 
 	// Create
-	file, err := NewFile(nil, parsedFile)
+	file, err := NewFile(NilOID, parsedFile)
 	require.NoError(t, err)
 	require.NoError(t, file.Save())
 	parsedNote, ok := parsedFile.FindNoteByTitle("Reference: Golang History")
 	require.True(t, ok)
-	note, err := NewNote(file, nil, parsedNote)
+	note, err := NewNote(NilOID, file, parsedNote)
 	require.NoError(t, err)
-	noteCopy, err := NewNote(file, nil, parsedNote)
+	noteCopy, err := NewNote(NilOID, file, parsedNote)
 	require.NoError(t, err)
 	require.NotEqual(t, note.OID, noteCopy.OID)
 
 	// Check all fields
 	assert.Equal(t, "0000000000000000000000000000000000000002", note.OID)
 	assert.Equal(t, file.OID, note.FileOID)
-	assert.Empty(t, note.ParentNoteOID)
 	assert.Equal(t, KindReference, note.NoteKind)
 	assert.Equal(t, "go-reference-golang-history", note.Slug)
 	assert.Equal(t, markdown.Document("Reference: Golang History"), note.Title)
@@ -90,7 +89,6 @@ tags:
 	require.NotNil(t, actual)
 	assert.Equal(t, note.OID, actual.OID)
 	assert.Equal(t, note.FileOID, actual.FileOID)
-	assert.Equal(t, note.ParentNoteOID, actual.ParentNoteOID)
 	assert.Equal(t, note.NoteKind, actual.NoteKind)
 	assert.Equal(t, note.Slug, actual.Slug)
 	assert.Equal(t, note.Title, actual.Title)
@@ -121,7 +119,7 @@ tags:
 	require.NoError(t, err)
 	parsedNote, ok = parsedFile.FindNoteByTitle("Reference: Golang History")
 	require.True(t, ok)
-	newNote, err := NewOrExistingNote(file, nil, parsedNote)
+	newNote, err := NewOrExistingNote(NilOID, file, parsedNote)
 	require.NoError(t, err)
 	require.NoError(t, newNote.Save())
 	// ...and compare
@@ -171,22 +169,17 @@ func TestNoteWithParent(t *testing.T) {
 	// Init the file
 	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
-	file, err := NewFile(nil, parsedFile)
+	file, err := NewFile(NilOID, parsedFile)
 	require.NoError(t, err)
 	require.NoError(t, file.Save())
 
 	// Init the notes
-	parentParsedFile, ok := parsedFile.FindNoteByTitle("Reference: Golang History")
-	require.True(t, ok)
-	parentNote, err := NewNote(file, nil, parentParsedFile)
-	require.NoError(t, err)
 	childParsedFile, ok := parsedFile.FindNoteByTitle("Flashcard: Golang History")
 	require.True(t, ok)
-	childNote, err := NewNote(file, parentNote, childParsedFile)
+	childNote, err := NewNote(NilOID, file, childParsedFile)
 	require.NoError(t, err)
 
 	// Check attributes
-	assert.Equal(t, parentNote.OID, childNote.ParentNoteOID)
 	assert.Equal(t, AttributeSet(map[string]any{
 		"tags":  []string{"go", "study"},
 		"title": "Golang History",
@@ -215,13 +208,13 @@ Golang was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in
 	// Init the file
 	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
-	file, err := NewFile(nil, parsedFile)
+	file, err := NewFile(NilOID, parsedFile)
 	require.NoError(t, err)
 
 	// Init the note
 	parsedNote, ok := parsedFile.FindNoteByTitle("Reference: Golang History")
 	require.True(t, ok)
-	note, err := NewNote(file, nil, parsedNote)
+	note, err := NewNote(NilOID, file, parsedNote)
 	require.NoError(t, err)
 
 	t.Run("ToYAML", func(t *testing.T) {
@@ -321,12 +314,12 @@ func TestSearchNotes(t *testing.T) {
 	// Insert the note
 	parsedFile, err := ParseFileFromRelativePath(root, "note.md")
 	require.NoError(t, err)
-	file, err := NewFile(nil, parsedFile)
+	file, err := NewFile(NilOID, parsedFile)
 	require.NoError(t, err)
 	require.NoError(t, file.Save())
 	parsedNote, ok := parsedFile.FindNoteByTitle("Reference: FTS5")
 	require.True(t, ok)
-	note, err := NewNote(file, nil, parsedNote)
+	note, err := NewNote(NilOID, file, parsedNote)
 	require.NoError(t, err)
 	require.NoError(t, note.Insert())
 

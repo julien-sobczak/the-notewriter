@@ -1,7 +1,6 @@
 package core
 
 import (
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -38,9 +37,9 @@ A **gopher**.
 	// Create
 	parsedMedia, ok := parsedFile.FindMediaByFilename("go.svg")
 	require.True(t, ok)
-	media, err := NewMedia(parsedMedia)
+	media, err := NewMedia(NilOID, parsedMedia)
 	require.NoError(t, err)
-	mediaCopy, err := NewMedia(parsedMedia)
+	mediaCopy, err := NewMedia(NilOID, parsedMedia)
 	require.NoError(t, err)
 	require.NotEqual(t, media.OID, mediaCopy.OID)
 
@@ -53,7 +52,6 @@ A **gopher**.
 	assert.Empty(t, "", media.MTime)
 	assert.Equal(t, "", media.Hash)
 	assert.Equal(t, int64(0), media.Size)
-	assert.Equal(t, fs.FileMode(0x0), media.Mode)
 	assert.Equal(t, clock.Now(), media.CreatedAt)
 	assert.Equal(t, clock.Now(), media.UpdatedAt)
 	assert.Empty(t, media.DeletedAt)
@@ -75,7 +73,6 @@ A **gopher**.
 	assert.Equal(t, media.MTime, actual.MTime)
 	assert.Equal(t, media.Hash, actual.Hash)
 	assert.Equal(t, media.Size, actual.Size)
-	assert.Equal(t, media.Mode, actual.Mode)
 	assert.WithinDuration(t, clock.Now(), actual.CreatedAt, 1*time.Second)
 	assert.WithinDuration(t, clock.Now(), actual.UpdatedAt, 1*time.Second)
 	assert.WithinDuration(t, clock.Now(), actual.LastCheckedAt, 1*time.Second)
@@ -90,7 +87,7 @@ A **gopher**.
 	require.NoError(t, err)
 	parsedMedia, ok = parsedFile.FindMediaByFilename("go.svg")
 	require.True(t, ok)
-	newMedia, err := NewOrExistingMedia(parsedMedia)
+	newMedia, err := NewOrExistingMedia(NilOID, parsedMedia)
 	require.NoError(t, err)
 	require.Equal(t, media.OID, newMedia.OID)
 	require.NoError(t, newMedia.Save())
@@ -99,7 +96,6 @@ A **gopher**.
 	assert.False(t, newMedia.Dangling)
 	assert.NotEqual(t, media.MTime, newMedia.MTime)
 	assert.NotEqual(t, media.Hash, newMedia.Hash)
-	assert.NotEqual(t, media.Mode, newMedia.Mode)
 
 	// Retrieve
 	updatedMedia, err := CurrentRepository().LoadMediaByOID(newMedia.OID)
@@ -138,7 +134,7 @@ A **gopher**.
 	require.NoError(t, err)
 	parsedMedia, ok := parsedFile.FindMediaByFilename("go.svg")
 	require.True(t, ok)
-	media, err := NewMedia(parsedMedia)
+	media, err := NewMedia(NilOID, parsedMedia)
 	require.NoError(t, err)
 
 	// Force blobs generation to check the whole model

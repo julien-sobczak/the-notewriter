@@ -28,20 +28,20 @@ func TestGoLink(t *testing.T) {
 	// Init the file
 	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
-	file, err := NewFile(nil, parsedFile)
+	file, err := NewFile(NilOID, parsedFile)
 	require.NoError(t, err)
 	require.NoError(t, file.Save())
 	parsedNote, ok := parsedFile.FindNoteByTitle("Reference: Golang History")
 	require.True(t, ok)
-	note, err := NewNote(file, nil, parsedNote)
+	note, err := NewNote(NilOID, file, parsedNote)
 	require.NoError(t, err)
 	require.NoError(t, note.Save())
 
 	// Create
 	parsedGoLink, ok := parsedNote.FindGoLinkByGoName("go")
 	require.True(t, ok)
-	goLink := NewGoLink(note, parsedGoLink)
-	goLinkCopy := NewGoLink(note, parsedGoLink)
+	goLink := NewGoLink(NilOID, note, parsedGoLink)
+	goLinkCopy := NewGoLink(NilOID, note, parsedGoLink)
 	require.NotEqual(t, goLink.OID, goLinkCopy.OID)
 
 	// Check all fields
@@ -86,12 +86,12 @@ func TestGoLink(t *testing.T) {
 	require.NoError(t, err)
 	parsedNote, ok = parsedFile.FindNoteByShortTitle("Golang History")
 	require.True(t, ok)
-	newNote, err := NewOrExistingNote(file, nil, parsedNote)
+	newNote, err := NewOrExistingNote(NilOID, file, parsedNote)
 	require.NoError(t, err)
 	require.NoError(t, newNote.Save())
 	parsedGoLink, ok = parsedNote.FindGoLinkByGoName("go")
 	require.True(t, ok)
-	newGoLink, err := NewOrExistingGoLink(newNote, parsedGoLink)
+	newGoLink, err := NewOrExistingGoLink(NilOID, newNote, parsedGoLink)
 	require.NoError(t, err)
 	require.NoError(t, newGoLink.Save())
 	// ...and compare
@@ -128,17 +128,17 @@ func TestGoLinkFormats(t *testing.T) {
 	// Init the file
 	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
-	file, err := NewFile(nil, parsedFile)
+	file, err := NewFile(NilOID, parsedFile)
 	require.NoError(t, err)
 
 	// Init the go link
 	parsedNote, ok := parsedFile.FindNoteByTitle("Reference: Golang History")
 	require.True(t, ok)
-	note, err := NewNote(file, nil, parsedNote)
+	note, err := NewNote(NilOID, file, parsedNote)
 	require.NoError(t, err)
 	parsedGoLink, ok := parsedNote.FindGoLinkByGoName("go")
 	require.True(t, ok)
-	goLink := NewGoLink(note, parsedGoLink)
+	goLink := NewGoLink(NilOID, note, parsedGoLink)
 
 	t.Run("ToYAML", func(t *testing.T) {
 		actual := goLink.ToYAML()

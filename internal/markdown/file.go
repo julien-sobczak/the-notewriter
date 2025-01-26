@@ -3,7 +3,6 @@ package markdown
 import (
 	"bytes"
 	"fmt"
-	"io/fs"
 	"os"
 	"strings"
 	"time"
@@ -15,11 +14,19 @@ import (
 type File struct {
 	AbsolutePath string
 	Content      []byte
-	LStat        fs.FileInfo
-	Stat         fs.FileInfo
+	MTime        time.Time
+	Size         int64
 	FrontMatter  FrontMatter
 	Body         Document
 	BodyLine     int
+}
+
+// Null object pattern
+var EmptyFile = &File{
+	AbsolutePath: "",
+	Content:      []byte(""),
+	Body:         EmptyDocument,
+	BodyLine:     1,
 }
 
 func (m File) String() string {
@@ -41,14 +48,18 @@ func (m Section) String() string {
 	return fmt.Sprintf("%s %s", strings.Repeat("#", m.HeadingLevel), m.HeadingText)
 }
 
+// MustParseFile parses a Markdown file and panics if an error occurs.
+func MustParseFile(path string) *File {
+	file, err := ParseFile(path)
+	if err != nil {
+		panic(err)
+	}
+	return file
+}
+
 // ParseFile parses a Markdown file.
 func ParseFile(path string) (*File, error) {
 	lstat, err := filesystem.Lstat(path)
-	if err != nil {
-		return nil, err
-	}
-
-	stat, err := filesystem.Stat(path)
 	if err != nil {
 		return nil, err
 	}
@@ -58,13 +69,18 @@ func ParseFile(path string) (*File, error) {
 		return nil, err
 	}
 
+	return ParseFileFromBytes(path, contentAsBytes, lstat.ModTime(), lstat.Size())
+}
+
+// ParseFileFromBytes parses a Markdown file.
+func ParseFileFromBytes(path string, content []byte, mtime time.Time, size int64) (*File, error) {
 	var rawFrontMatter bytes.Buffer
 	var rawBody bytes.Buffer
 	frontMatterStarted := false
 	frontMatterEnded := false
 	bodyStarted := false
 	bodyLine := 0
-	for i, line := range strings.Split(strings.TrimSuffix(string(contentAsBytes), "\n"), "\n") {
+	for i, line := range strings.Split(strings.TrimSuffix(string(content), "\n"), "\n") {
 		if strings.HasPrefix(line, "---") {
 			if bodyStarted {
 				// Flashcard Front/Back line separator
@@ -95,9 +111,9 @@ func ParseFile(path string) (*File, error) {
 
 	return &File{
 		AbsolutePath: path,
-		Content:      contentAsBytes,
-		LStat:        lstat,
-		Stat:         stat,
+		Content:      content,
+		MTime:        mtime,
+		Size:         size,
 		FrontMatter:  FrontMatter(rawFrontMatter.String()),
 		Body:         Document(rawBody.String()),
 		BodyLine:     bodyLine,
@@ -105,7 +121,7 @@ func ParseFile(path string) (*File, error) {
 }
 
 func (m *File) LastUpdateDate() time.Time {
-	return m.LStat.ModTime()
+	return m.MTime
 }
 
 func (m *File) WalkSections(walkFn func(parent *Section, current *Section, children []*Section) error) error {

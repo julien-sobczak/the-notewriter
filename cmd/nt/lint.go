@@ -29,7 +29,12 @@ var lintCmd = &cobra.Command{
 			rules = []string{}
 		}
 
-		result, err := core.CurrentRepository().Lint(rules, args...)
+		var pathSpecs []core.PathSpec
+		for _, arg := range args {
+			pathSpecs = append(pathSpecs, core.PathSpec(arg))
+		}
+
+		result, err := core.CurrentRepository().Lint(rules, pathSpecs...)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

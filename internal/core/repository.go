@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"log"
@@ -109,64 +110,59 @@ var IndexFilesFirst = func(a, b string) bool {
 	return a < b // os.WalkDir already returns file in lexical order
 }
 
-func (r *Repository) walkNew(paths []string, fn func(md *markdown.File) error) error {
+func (r *Repository) Walk(pathSpecs PathSpecs, fn func(md *markdown.File) error) error {
 	config := CurrentConfig()
 
 	var matchedFiles []string
 	var fileInfos = make(map[string]*fs.FileInfo)
 	var filePaths = make(map[string]string)
 
-	for _, path := range paths {
-		CurrentLogger().Infof("Reading %s...\n", path)
-		filepath.WalkDir(path, func(path string, info fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
+	filepath.WalkDir(".", func(path string, info fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
 
-			dirname := filepath.Base(path)
-			if dirname == ".nt" {
-				return fs.SkipDir // NB fs.SkipDir skip the parent dir when path is a file
-			}
-			if dirname == ".git" {
-				return fs.SkipDir
-			}
+		dirname := filepath.Base(path)
+		if dirname == ".nt" {
+			return fs.SkipDir // NB fs.SkipDir skip the parent dir when path is a file
+		}
+		if dirname == ".git" {
+			return fs.SkipDir
+		}
 
-			relativePath := CurrentRepository().GetFileRelativePath(path)
+		relativePath := CurrentRepository().GetFileRelativePath(path)
 
-			if config.IgnoreFile.MustExcludeFile(relativePath, info.IsDir()) {
-				return nil
-			}
-
-			// We look for only specific extension
-			if !info.IsDir() && !config.ConfigFile.SupportExtension(relativePath) {
-				// Nothing to do
-				return nil
-			}
-
-			// Ignore certain file modes like symlinks
-			fileInfo, err := os.Lstat(path) // NB: os.Stat follows symlinks
-			if err != nil {
-				// Ignore the file
-				return nil
-			}
-			if !fileInfo.Mode().IsRegular() {
-				// Exclude any file with a mode bit set (device, socket, named pipe, ...)
-				// See https://pkg.go.dev/io/fs#FileMode
-				return nil
-			}
-
-			// A file found to process!
-			fileInfos[relativePath] = &fileInfo
-			filePaths[relativePath] = path
-			matchedFiles = append(matchedFiles, relativePath)
-
+		if config.IgnoreFile.MustExcludeFile(relativePath, info.IsDir()) {
 			return nil
-		})
-	}
+		}
 
-	// Process the file in a given order:
+		// We look for only specific extension
+		if !info.IsDir() && !config.ConfigFile.SupportExtension(relativePath) {
+			// Nothing to do
+			return nil
+		}
 
-	// Constraint 1: index.md must be processed before other notes under this directory
+		// Ignore certain file modes like symlinks
+		fileInfo, err := os.Lstat(path) // NB: os.Stat follows symlinks
+		if err != nil {
+			// Ignore the file
+			return nil
+		}
+		if !fileInfo.Mode().IsRegular() {
+			// Exclude any file with a mode bit set (device, socket, named pipe, ...)
+			// See https://pkg.go.dev/io/fs#FileMode
+			return nil
+		}
+
+		// A file found to process!
+		fileInfos[relativePath] = &fileInfo
+		filePaths[relativePath] = path
+		matchedFiles = append(matchedFiles, relativePath)
+
+		return nil
+	})
+
+	// Process the files but ensure index.md are processed before other files under this directory
 	slices.SortFunc(matchedFiles, IndexFilesFirst)
 
 	// Execute callbacks
@@ -175,79 +171,23 @@ func (r *Repository) walkNew(paths []string, fn func(md *markdown.File) error) e
 		if err != nil {
 			return err
 		}
-		// FIX check tag ignore
-		if err := fn(md); err != nil {
+
+		// TODO refactor markdown.FrontMatter.AsAttributeSet(BaseSchema).Tags().Include("ignore")
+		// TODO refactor AttributeSet(markdown.FrontMatter).Tags().Include("ignore")
+		// -> return AttributeSet() range markdown.FrontMatter) + Cast(ReservedAttributesDefinition)
+		frontMatter, err := markdown.FrontMatter.AsMap() // Add methods for requires attributes
+		if err != nil {
 			return err
 		}
-	}
-
-	return nil
-}
-
-func (r *Repository) walk(paths []string, fn func(path string, stat fs.FileInfo) error) error {
-	config := CurrentConfig()
-
-	var matchedFiles []string
-	var fileInfos = make(map[string]*fs.FileInfo)
-	var filePaths = make(map[string]string)
-
-	for _, path := range paths {
-		CurrentLogger().Infof("Reading %s...\n", path)
-		filepath.WalkDir(path, func(path string, info fs.DirEntry, err error) error {
-			if err != nil {
-				return err
+		if value, ok := frontMatter["tags"]; ok {
+			if typedValue, ok := CastAttribute(value, "[]string"); ok {
+				if slices.Contains(typedValue.([]string), "ignore") {
+					continue
+				}
 			}
+		}
 
-			dirname := filepath.Base(path)
-			if dirname == ".nt" {
-				return fs.SkipDir // NB fs.SkipDir skip the parent dir when path is a file
-			}
-			if dirname == ".git" {
-				return fs.SkipDir
-			}
-
-			relpath := CurrentRepository().GetFileRelativePath(path)
-
-			if config.IgnoreFile.MustExcludeFile(relpath, info.IsDir()) {
-				return nil
-			}
-
-			// We look for only specific extension
-			if !info.IsDir() && !config.ConfigFile.SupportExtension(relpath) {
-				// Nothing to do
-				return nil
-			}
-
-			// Ignore certain file modes like symlinks
-			fileInfo, err := os.Lstat(path) // NB: os.Stat follows symlinks
-			if err != nil {
-				// Ignore the file
-				return nil
-			}
-			if !fileInfo.Mode().IsRegular() {
-				// Exclude any file with a mode bit set (device, socket, named pipe, ...)
-				// See https://pkg.go.dev/io/fs#FileMode
-				return nil
-			}
-
-			// A file found to process!
-			fileInfos[relpath] = &fileInfo
-			filePaths[relpath] = path
-			matchedFiles = append(matchedFiles, relpath)
-
-			return nil
-		})
-	}
-
-	// Process the file in a given order:
-
-	// Constraint 1: index.md must be processed before other notes under this directory
-	slices.SortFunc(matchedFiles, IndexFilesFirst)
-
-	// Execute callbacks
-	for _, relpath := range matchedFiles {
-		err := fn(filePaths[relpath], *fileInfos[relpath])
-		if err != nil {
+		if err := fn(md); err != nil {
 			return err
 		}
 	}
@@ -279,19 +219,93 @@ func (r *Repository) Commit(msg string) error {
 }
 
 // Add implements the command `nt add`
-func (r *Repository) Add(paths ...string) error {
+func (r *Repository) Add(paths ...PathSpec) error {
 	r.MustLint(paths...)
 
 	// Any object not updated after this date will be considered as deletions
 	buildTime := clock.Now()
 	db := CurrentDB()
-	paths = r.normalizePaths(paths...)
+
+	var traversedPaths []string
+	var packFilesToUpsert []*PackFile
+	var packFilesToDelete []*PackFile
 
 	// Traverse all given paths to detected updated medias/files
-	err := r.walkNew(paths, func(mdFile *markdown.File) error {
+	err := r.Walk(paths, func(mdFile *markdown.File) error {
 		CurrentLogger().Debugf("Processing %s...\n", mdFile.AbsolutePath)
 
-		// TODO
+		relativePath := RelativePath(CurrentConfig().RootDirectory, mdFile.AbsolutePath)
+
+		traversedPaths = append(traversedPaths, relativePath)
+
+		// A Markdown file must be parsed again if
+		// - The file was modified since the last known timestamp
+		// - The parent file was modified since the last known timestamp (ex: new attribute to propagate)
+
+		var mdParentFile *markdown.File
+		parentEntry := CurrentDB().Index().GetParentEntry(relativePath)
+		if parentEntry != nil {
+			packFile, err := parentEntry.ReadPackFile()
+			if err != nil {
+				return err
+			}
+			blobRef := packFile.FindFirstBlobWithMimeType("text/markdown")
+			if blobRef != nil {
+				blobData, err := CurrentDB().Index().ReadBlobData(blobRef.OID)
+				if err != nil {
+					return err
+				}
+				if mdFile, err := markdown.ParseFileFromBytes(parentEntry.RelativePath, blobData, parentEntry.MTime, parentEntry.Size); err != nil {
+					return err
+				} else {
+					mdParentFile = mdFile
+				}
+			}
+		}
+
+		mdFileModified := CurrentDB().Index().Modified(relativePath, mdFile.MTime)
+		mdParentFileModified := false
+		if parentEntry != nil {
+			mdParentFileModified = CurrentDB().Index().Modified(parentEntry.RelativePath, mdFile.MTime)
+		}
+		if !mdFileModified && !mdParentFileModified {
+			// Nothing changed = Nothing to parse
+			return nil
+		}
+
+		// Reparse the new version
+		parsedFile, err := ParseFile(CurrentConfig().RootDirectory, mdFile, mdParentFile)
+		if err != nil {
+			return err
+		}
+
+		packFile, err := r.NewPackFileFromParsedFile(parsedFile)
+		if err != nil {
+			return err
+		}
+		packFilesToUpsert = append(packFilesToUpsert, packFile)
+
+		for _, parsedMedia := range parsedFile.Medias {
+			// Check if media has already been processed
+			if slices.Contains(traversedPaths, parsedMedia.RelativePath) {
+				// Already referenced by another file
+				continue
+			}
+			traversedPaths = append(traversedPaths, parsedMedia.RelativePath)
+
+			// Check if media has changed since last indexation
+			mediaFileModified := CurrentDB().Index().Modified(parsedMedia.RelativePath, parsedMedia.MTime)
+			if !mediaFileModified {
+				// Media has not changed
+				continue
+			}
+
+			packMedia, err := r.NewPackFileFromParsedMedia(parsedMedia)
+			if err != nil {
+				return err
+			}
+			packFilesToUpsert = append(packFilesToUpsert, packMedia)
+		}
 
 		return nil
 	})
@@ -301,20 +315,197 @@ func (r *Repository) Add(paths ...string) error {
 
 	fmt.Println(buildTime)
 
+	// Walk the index to identify old files
+	err = db.Index().Walk(paths, func(entry *IndexEntry) error {
+		// Ignore medias.
+		if !strings.HasSuffix(entry.RelativePath, ".md") {
+			// We may not have found reference to a media in the processed markdown files
+			// but some markdown files outside the path specs may still reference it.
+			// The command `nt gc` is used to reclaim orphan medias instead.
+			return nil
+		}
+
+		if !slices.Contains(traversedPaths, entry.RelativePath) {
+			packFile, err := entry.ReadPackFile()
+			if err != nil {
+				return err
+			}
+			packFilesToDelete = append(packFilesToDelete, packFile)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	// We saved pack files on disk before starting a new transaction to keep it short
+	if err := db.BeginTransaction(); err != nil {
+		return err
+	}
+	db.UpsertPackFiles(packFilesToUpsert...)
+	db.DeletePackFiles(packFilesToDelete...)
+	// TODO Create .bak if Commit fails?
+	db.Index().Stage(packFilesToUpsert...)
+	db.Index().Stage(packFilesToDelete...)
+
 	// Don't forget to commit
 	if err := db.CommitTransaction(); err != nil {
 		return err
 	}
-
 	// And to persist the index
-	if err := db.index.Save(); err != nil {
+	if err := db.Index().Save(); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (r *Repository) MustLint(paths ...string) {
+func (r *Repository) NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFile, error) {
+	// Use the hash of the parsed file as OID (if the file changes = new OID)
+	oid := MustParseOID(parsedFile.Hash())
+
+	// Check first if a previous execution already created the pack file
+	// (ex: the command was aborted with Ctrl+C and restarted)
+	existingPackFile, err := CurrentDB().ReadPackFileOnDisk(oid)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	if existingPackFile != nil {
+		return existingPackFile, nil
+	}
+
+	packFile := &PackFile{
+		OID: oid,
+
+		// Init file properties
+		FileRelativePath: parsedFile.RelativePath,
+		FileMTime:        parsedFile.Markdown.MTime,
+		FileSize:         parsedFile.Markdown.Size,
+
+		// Init pack file properties
+		CTime: clock.Now(),
+		MTime: clock.Now(),
+	}
+
+	// Create objects
+	var objects []Object
+
+	// Process the File
+	file, err := NewOrExistingFile(NilOID, parsedFile)
+	if err != nil {
+		return nil, err
+	}
+	objects = append(objects, file)
+
+	// Process the Note(s)
+	for _, parsedNote := range parsedFile.Notes {
+		note, err := NewOrExistingNote(packFile.OID, file, parsedNote)
+		if err != nil {
+			return nil, err
+		}
+		objects = append(objects, note)
+
+		// Process the Flashcard
+		if parsedNote.Flashcard != nil {
+			parsedFlashcard := parsedNote.Flashcard
+			flashcard, err := NewOrExistingFlashcard(packFile.OID, file, note, parsedFlashcard)
+			if err != nil {
+				return nil, err
+			}
+			objects = append(objects, flashcard)
+		}
+
+		// Process the Reminder(s)
+		for _, parsedReminder := range parsedNote.Reminders {
+			reminder, err := NewOrExistingReminder(packFile.OID, note, parsedReminder)
+			if err != nil {
+				return nil, err
+			}
+			objects = append(objects, reminder)
+		}
+
+		// Process the Golink(s)
+		for _, parsedGoLink := range parsedNote.GoLinks {
+			goLink, err := NewOrExistingGoLink(packFile.OID, note, parsedGoLink)
+			if err != nil {
+				return nil, err
+			}
+			objects = append(objects, goLink)
+		}
+	}
+
+	// Fill the pack file
+	for _, obj := range objects {
+		if statefulObj, ok := obj.(StatefulObject); ok {
+			if err := packFile.AppendObject(statefulObj); err != nil {
+				return nil, err
+			}
+		}
+		if fileObj, ok := obj.(FileObject); ok {
+			if err := packFile.AppendBlobs(fileObj.Blobs()); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	// Save the pack file on disk
+	if err := packFile.Save(); err != nil {
+		return nil, err
+	}
+
+	return packFile, nil
+}
+
+func (r *Repository) NewPackFileFromParsedMedia(parsedMedia *ParsedMedia) (*PackFile, error) {
+	// Use the hash of the raw original media as OID (if the media is even slightly edited = new OID)
+	oid := MustParseOID(parsedMedia.FileHash())
+
+	// Check first if a previous execution already created the pack file
+	// (ex: the command was aborted with Ctrl+C and restarted)
+	existingPackFile, err := CurrentDB().ReadPackFileOnDisk(oid)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	if existingPackFile != nil {
+		return existingPackFile, nil
+	}
+
+	packFile := &PackFile{
+		OID: oid,
+
+		// Init file properties
+		FileRelativePath: parsedMedia.RelativePath,
+		FileMTime:        parsedMedia.MTime,
+		FileSize:         parsedMedia.Size,
+
+		// Init pack file properties
+		CTime: clock.Now(),
+		MTime: clock.Now(),
+	}
+
+	// Process the Media
+	media, err := NewOrExistingMedia(packFile.OID, parsedMedia)
+	if err != nil {
+		return nil, err
+	}
+
+	// Fill the pack file
+	if err := packFile.AppendObject(media); err != nil {
+		return nil, err
+	}
+	if err := packFile.AppendBlobs(media.Blobs()); err != nil {
+		return nil, err
+	}
+
+	// Save the pack file on disk
+	if err := packFile.Save(); err != nil {
+		return nil, err
+	}
+
+	return packFile, nil
+}
+
+func (r *Repository) MustLint(paths ...PathSpec) {
 	// Start with command linter (do not stage invalid file)
 	linterResult, err := r.Lint(nil, paths...)
 	if err != nil {
@@ -339,7 +530,7 @@ func (r *Repository) Status() (string, error) {
 }
 
 // Lint run linter rules on all files under the given paths.
-func (r *Repository) Lint(ruleNames []string, paths ...string) (*LintResult, error) {
+func (r *Repository) Lint(ruleNames []string, paths ...PathSpec) (*LintResult, error) {
 	/*
 	 * Implementation: The linter must only considering local files and
 	 * ignore commits or the staging area completely.
@@ -351,12 +542,11 @@ func (r *Repository) Lint(ruleNames []string, paths ...string) (*LintResult, err
 	 */
 	var result LintResult
 
-	paths = r.normalizePaths(paths...)
-	err := r.walkNew(paths, func(mdFile *markdown.File) error {
+	err := r.Walk(paths, func(mdFile *markdown.File) error {
 		CurrentLogger().Debugf("Processing %s...\n", mdFile.AbsolutePath)
 
 		// Work without the database
-		file, err := ParseFile(CurrentConfig().RootDirectory, mdFile)
+		file, err := ParseFile(CurrentConfig().RootDirectory, mdFile, nil)
 		if err != nil {
 			return err
 		}

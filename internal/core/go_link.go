@@ -13,9 +13,12 @@ import (
 )
 
 type GoLink struct {
-	OID string `yaml:"oid" json:"oid"`
+	OID OID `yaml:"oid" json:"oid"`
 
-	NoteOID string `yaml:"note_oid" json:"note_oid"`
+	// Pack file where this object belongs
+	PackFileOID OID `yaml:"packfile_oid" json:"packfile_oid"`
+
+	NoteOID OID `yaml:"note_oid" json:"note_oid"`
 
 	// The filepath of the file containing the note (denormalized field)
 	RelativePath string `yaml:"relative_path" json:"relative_path"`
@@ -42,21 +45,22 @@ type GoLink struct {
 	stale bool
 }
 
-func NewOrExistingGoLink(note *Note, parsedGoLink *ParsedGoLink) (*GoLink, error) {
+func NewOrExistingGoLink(packFileOID OID, note *Note, parsedGoLink *ParsedGoLink) (*GoLink, error) {
 	existingGoLink, err := CurrentRepository().FindGoLinkByGoName(string(parsedGoLink.GoName))
 	if err != nil {
 		return nil, err
 	}
 	if existingGoLink != nil {
-		existingGoLink.update(note, parsedGoLink)
+		existingGoLink.update(packFileOID, note, parsedGoLink)
 		return existingGoLink, nil
 	}
-	return NewGoLink(note, parsedGoLink), nil
+	return NewGoLink(packFileOID, note, parsedGoLink), nil
 }
 
-func NewGoLink(note *Note, parsedLink *ParsedGoLink) *GoLink {
+func NewGoLink(packFileOID OID, note *Note, parsedLink *ParsedGoLink) *GoLink {
 	return &GoLink{
 		OID:          NewOID(),
+		PackFileOID:  packFileOID,
 		NoteOID:      note.OID,
 		RelativePath: note.RelativePath,
 		Text:         parsedLink.Text,
@@ -78,7 +82,7 @@ func (l *GoLink) Kind() string {
 	return "link"
 }
 
-func (l *GoLink) UniqueOID() string {
+func (l *GoLink) UniqueOID() OID {
 	return l.OID
 }
 
@@ -165,7 +169,7 @@ func (l *GoLink) ToMarkdown() string {
 
 /* Update */
 
-func (l *GoLink) update(note *Note, parsedLink *ParsedGoLink) {
+func (l *GoLink) update(packFileOID OID, note *Note, parsedLink *ParsedGoLink) {
 	if l.NoteOID != note.OID {
 		l.NoteOID = note.OID
 		l.stale = true
@@ -186,6 +190,10 @@ func (l *GoLink) update(note *Note, parsedLink *ParsedGoLink) {
 		l.GoName = parsedLink.GoName
 		l.stale = true
 	}
+
+	l.PackFileOID = packFileOID
+	// Do not set the stale flag. An object can be unchanged when a new pack file is created (ex: new note appended at the end)
+	// FIXME always update and marks as stale? If we end up here, it means the Markdown file has been modified
 }
 
 /* State Management */
@@ -242,6 +250,7 @@ func (l *GoLink) Insert() error {
 	query := `
 		INSERT INTO link(
 			oid,
+			packfile_oid,
 			note_oid,
 			relative_path,
 			"text",
@@ -252,10 +261,11 @@ func (l *GoLink) Insert() error {
 			updated_at,
 			last_checked_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 		`
 	_, err := CurrentDB().Client().Exec(query,
 		l.OID,
+		l.PackFileOID,
 		l.NoteOID,
 		l.RelativePath,
 		l.Text,
@@ -278,6 +288,7 @@ func (l *GoLink) Update() error {
 	query := `
 		UPDATE link
 		SET
+			packfile_oid = ?,
 			note_oid = ?,
 			relative_path = ?,
 			"text" = ?,
@@ -289,6 +300,7 @@ func (l *GoLink) Update() error {
 		WHERE oid = ?;
 		`
 	_, err := CurrentDB().Client().Exec(query,
+		l.PackFileOID,
 		l.NoteOID,
 		l.RelativePath,
 		l.Text,
@@ -321,7 +333,7 @@ func (r *Repository) CountGoLinks() (int, error) {
 	return count, nil
 }
 
-func (r *Repository) LoadGoLinkByOID(oid string) (*GoLink, error) {
+func (r *Repository) LoadGoLinkByOID(oid OID) (*GoLink, error) {
 	return QueryGoLink(CurrentDB().Client(), "WHERE oid = ?", oid)
 }
 
@@ -352,6 +364,7 @@ func QueryGoLink(db SQLClient, whereClause string, args ...any) (*GoLink, error)
 	if err := db.QueryRow(fmt.Sprintf(`
 		SELECT
 			oid,
+			packfile_oid,
 			note_oid,
 			relative_path,
 			"text",
@@ -365,6 +378,7 @@ func QueryGoLink(db SQLClient, whereClause string, args ...any) (*GoLink, error)
 		%s;`, whereClause), args...).
 		Scan(
 			&l.OID,
+			&l.PackFileOID,
 			&l.NoteOID,
 			&l.RelativePath,
 			&l.Text,
@@ -394,6 +408,7 @@ func QueryGoLinks(db SQLClient, whereClause string, args ...any) ([]*GoLink, err
 	rows, err := db.Query(fmt.Sprintf(`
 		SELECT
 			oid,
+			packfile_oid,
 			note_oid,
 			relative_path,
 			"text",
@@ -417,6 +432,7 @@ func QueryGoLinks(db SQLClient, whereClause string, args ...any) ([]*GoLink, err
 
 		err = rows.Scan(
 			&l.OID,
+			&l.PackFileOID,
 			&l.NoteOID,
 			&l.RelativePath,
 			&l.Text,

@@ -18,15 +18,17 @@ import (
 )
 
 type Reminder struct {
-	OID string `yaml:"oid" json:"oid"`
+	OID OID `yaml:"oid" json:"oid"`
+
+	// Pack file where this object belongs
+	PackFileOID OID `yaml:"packfile_oid" json:"packfile_oid"`
 
 	// File
-	FileOID string `yaml:"file_oid" json:"file_oid"`
-	File    *File  `yaml:"-" json:"-"` // Lazy-loaded
+	FileOID OID `yaml:"file_oid" json:"file_oid"`
 
 	// Note representing the flashcard
-	NoteOID string `yaml:"note_oid" json:"note_oid"`
-	Note    *Note  `yaml:"-" json:"-"` // Lazy-loaded
+	NoteOID OID   `yaml:"note_oid" json:"note_oid"`
+	Note    *Note `yaml:"-" json:"-"` // Lazy-loaded
 
 	// The filepath of the file containing the note (denormalized field)
 	RelativePath string `yaml:"relative_path" json:"relative_path"`
@@ -51,7 +53,7 @@ type Reminder struct {
 	stale bool
 }
 
-func NewOrExistingReminder(note *Note, parsedReminder *ParsedReminder) (*Reminder, error) {
+func NewOrExistingReminder(packFileOID OID, note *Note, parsedReminder *ParsedReminder) (*Reminder, error) {
 	// Try to find an existing note (instead of recreating it from scratch after every change)
 	existingReminder, err := CurrentRepository().FindMatchingReminder(note, parsedReminder)
 	if err != nil {
@@ -59,17 +61,18 @@ func NewOrExistingReminder(note *Note, parsedReminder *ParsedReminder) (*Reminde
 	}
 
 	if existingReminder != nil {
-		existingReminder.update(note, parsedReminder)
+		existingReminder.update(packFileOID, note, parsedReminder)
 		return existingReminder, nil
 	}
 
-	return NewReminder(note, parsedReminder)
+	return NewReminder(packFileOID, note, parsedReminder)
 }
 
 // NewReminder instantiates a new reminder.
-func NewReminder(note *Note, parsedReminder *ParsedReminder) (*Reminder, error) {
+func NewReminder(packFileOID OID, note *Note, parsedReminder *ParsedReminder) (*Reminder, error) {
 	r := &Reminder{
 		OID:          NewOID(),
+		PackFileOID:  packFileOID,
 		FileOID:      note.FileOID,
 		NoteOID:      note.OID,
 		RelativePath: note.RelativePath,
@@ -95,7 +98,7 @@ func (r *Reminder) Kind() string {
 	return "reminder"
 }
 
-func (r *Reminder) UniqueOID() string {
+func (r *Reminder) UniqueOID() OID {
 	return r.OID
 }
 
@@ -162,10 +165,9 @@ func (r Reminder) String() string {
 
 /* Update */
 
-func (r *Reminder) update(note *Note, parsedReminder *ParsedReminder) error {
+func (r *Reminder) update(packFileOID OID, note *Note, parsedReminder *ParsedReminder) error {
 	if r.FileOID != note.FileOID {
 		r.FileOID = note.FileOID
-		r.File = note.File
 		r.stale = true
 	}
 	if r.NoteOID != note.OID {
@@ -185,6 +187,7 @@ func (r *Reminder) update(note *Note, parsedReminder *ParsedReminder) error {
 			return err
 		}
 	}
+	r.PackFileOID = packFileOID // FIXME
 	return nil
 }
 
@@ -649,6 +652,7 @@ func (r *Reminder) Insert() error {
 	query := `
 		INSERT INTO reminder(
 			oid,
+			packfile_oid,
 			file_oid,
 			note_oid,
 			relative_path,
@@ -660,10 +664,11 @@ func (r *Reminder) Insert() error {
 			updated_at,
 			last_checked_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 	_, err := CurrentDB().Client().Exec(query,
 		r.OID,
+		r.PackFileOID,
 		r.FileOID,
 		r.NoteOID,
 		r.RelativePath,
@@ -687,6 +692,7 @@ func (r *Reminder) Update() error {
 	query := `
 		UPDATE reminder
 		SET
+			packfile_oid = ?,
 			file_oid = ?,
 			note_oid = ?,
 			relative_path = ?,
@@ -699,6 +705,7 @@ func (r *Reminder) Update() error {
 		WHERE oid = ?;
 	`
 	_, err := CurrentDB().Client().Exec(query,
+		r.PackFileOID,
 		r.FileOID,
 		r.NoteOID,
 		r.RelativePath,
@@ -739,11 +746,11 @@ func (r *Repository) FindMatchingReminder(note *Note, parsedReminder *ParsedRemi
 	return QueryReminder(CurrentDB().Client(), `WHERE note_oid = ? and description = ?`, note.OID, parsedReminder.Description)
 }
 
-func (r *Repository) FindMatchingReminders(noteOID string, descriptionRaw string) ([]*Reminder, error) {
+func (r *Repository) FindMatchingReminders(noteOID OID, descriptionRaw string) ([]*Reminder, error) {
 	return QueryReminders(CurrentDB().Client(), `WHERE note_oid = ? and description = ?`, noteOID, descriptionRaw)
 }
 
-func (r *Repository) LoadReminderByOID(oid string) (*Reminder, error) {
+func (r *Repository) LoadReminderByOID(oid OID) (*Reminder, error) {
 	return QueryReminder(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
@@ -772,6 +779,7 @@ func QueryReminder(db SQLClient, whereClause string, args ...any) (*Reminder, er
 	if err := db.QueryRow(fmt.Sprintf(`
 		SELECT
 			oid,
+			packfile_oid,
 			file_oid,
 			note_oid,
 			relative_path,
@@ -786,6 +794,7 @@ func QueryReminder(db SQLClient, whereClause string, args ...any) (*Reminder, er
 		%s;`, whereClause), args...).
 		Scan(
 			&r.OID,
+			&r.PackFileOID,
 			&r.FileOID,
 			&r.NoteOID,
 			&r.RelativePath,
@@ -818,6 +827,7 @@ func QueryReminders(db SQLClient, whereClause string, args ...any) ([]*Reminder,
 	rows, err := db.Query(fmt.Sprintf(`
 		SELECT
 			oid,
+			packfile_oid,
 			file_oid,
 			note_oid,
 			relative_path,
@@ -844,6 +854,7 @@ func QueryReminders(db SQLClient, whereClause string, args ...any) ([]*Reminder,
 
 		err = rows.Scan(
 			&r.OID,
+			&r.PackFileOID,
 			&r.FileOID,
 			&r.NoteOID,
 			&r.RelativePath,

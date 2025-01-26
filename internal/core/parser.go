@@ -4,13 +4,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/fs"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strings"
 	"time"
 
@@ -26,8 +24,8 @@ type Tag string // TODO see if useful in practice (mainly when working with remi
 type ParsedFile struct {
 	Markdown *markdown.File
 
-	RepositoryPath string
-	AbsolutePath   string
+	RepositoryPath string // FIXME remove
+	AbsolutePath   string // FIXME remove
 	// The relative path inside the repository
 	RelativePath string
 
@@ -62,12 +60,11 @@ type ParsedNote struct {
 	Title      markdown.Document
 	ShortTitle markdown.Document
 
-	Line           int
-	Content        markdown.Document
-	Body           markdown.Document
-	Comment        markdown.Document
-	NoteAttributes AttributeSet
-	NoteTags       TagSet
+	Line       int
+	Content    markdown.Document
+	Body       markdown.Document
+	Comment    markdown.Document
+	Attributes AttributeSet
 
 	// Extracted objects
 	Flashcard *ParsedFlashcard
@@ -125,52 +122,58 @@ type ParsedMedia struct {
 	// Media exists on disk
 	Dangling bool
 	// Content last modification date
-	mtime time.Time
+	MTime time.Time
 	// Size of the file
-	size int64
-	// Permission of the file
-	mode fs.FileMode
+	Size int64
 
 	// Line number where the link present.
 	Line int
 }
 
-func (p *ParsedMedia) MTime() time.Time {
-	return p.mtime
+func (p *ParsedMedia) FileMTime() time.Time {
+	return p.MTime
 }
-func (p *ParsedMedia) Size() int64 {
-	return p.size
+func (p *ParsedMedia) FileSize() int64 {
+	return p.Size
 }
-func (p *ParsedMedia) Mode() fs.FileMode {
-	return p.mode
+func (p *ParsedMedia) FileHash() string {
+	// Implementation: We do not store the hash to avoid calculating
+	// the hash if not needed as medias can be large.
+	hash, _ := helpers.HashFromFile(p.AbsolutePath)
+	// TODO handle error
+	return hash
 }
 
+// FIXME delete this method => Move as test helper instead
 func ParseFileFromRelativePath(repositoryAbsolutePath, fileRelativePath string) (*ParsedFile, error) {
 	fileAbsolutePath := filepath.Join(repositoryAbsolutePath, fileRelativePath)
 	markdownFile, err := markdown.ParseFile(fileAbsolutePath)
 	if err != nil {
 		return nil, err
 	}
-	return ParseFile(repositoryAbsolutePath, markdownFile)
+	return ParseFile(repositoryAbsolutePath, markdownFile, nil)
 }
 
-func ParseFile(repositoryAbsolutePath string, md *markdown.File) (*ParsedFile, error) {
-	// Extract file attributes
-	frontMatter, err := md.FrontMatter.AsMap()
+func ParseFile(repositoryAbsolutePath string, md *markdown.File, mdParent *markdown.File) (*ParsedFile, error) {
+	if mdParent == nil {
+		mdParent = markdown.EmptyFile
+	}
+
+	// Extract attributes
+	parentFrontMatter, err := mdParent.FrontMatter.AsMap()
 	if err != nil {
 		return nil, err
 	}
-	fileAttributes := AttributeSet(frontMatter)
+	fileFrontMatter, err := md.FrontMatter.AsMap()
+	if err != nil {
+		return nil, err
+	}
+	parentAttributes := AttributeSet(parentFrontMatter).Cast(GetSchemaAttributeTypes())
+	fileAttributes := parentAttributes.Merge(AttributeSet(fileFrontMatter))
 
 	// Check if file must be ignored
-	// FIXME if fileAttributes.Tags().Includes("ignore") {
-	if value, ok := fileAttributes["tags"]; ok {
-		if v, ok := value.(string); ok && v == "ignore" {
-			return nil, nil
-		}
-		if v, ok := value.([]string); ok && slices.Contains(v, "ignore") {
-			return nil, nil
-		}
+	if fileAttributes.Tags().Includes("ignore") {
+		return nil, nil
 	}
 
 	// Extract titles
@@ -251,7 +254,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		}
 
 		// Determine the attributes
-		tags, attributes := ExtractBlockTagsAndAttributes(noteBody, nil)
+		noteTags, noteAttributes := ExtractBlockTagsAndAttributes(noteBody, GetSchemaAttributeTypes())
 
 		// Determine the titles
 		title := section.HeadingText
@@ -263,16 +266,14 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		}
 
 		// Ignore ignorabled notes
-		if slices.Contains(tags, "ignore") {
+		if noteTags.Includes("ignore") {
 			continue
 		}
 
 		// Determine slug from attribute or define a default one otherwise
 		slug := markdown.Slug(p.Slug, string(kind), shortTitle)
-		if value, ok := attributes["slug"]; ok {
-			if v, ok := value.(string); ok {
-				slug = v
-			}
+		if attributeSlug, ok := noteAttributes.Slug(); ok {
+			slug = attributeSlug
 		}
 
 		// Apply post-processing on note body
@@ -301,21 +302,27 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 
 		body, comment := postProcessedNoteBody.ExtractComment()
 
+		attributes := FilterNonInheritableAttributes(p.FileAttributes, p.RelativePath, kind)
+		if parentNote != nil {
+			parentAttributes := FilterNonInheritableAttributes(parentNote.Attributes, p.RelativePath, kind)
+			attributes = attributes.Merge(parentAttributes)
+		}
+		attributes = attributes.Merge(noteAttributes)
+
 		parsedNote := &ParsedNote{
-			Parent:         parentNote,
-			Level:          section.HeadingLevel,
-			Kind:           kind,
-			AbsolutePath:   p.AbsolutePath,
-			RelativePath:   p.RelativePath,
-			Slug:           slug,
-			Title:          title,
-			ShortTitle:     markdown.Document(shortTitle),
-			Line:           section.FileLineStart,
-			NoteAttributes: attributes,
-			NoteTags:       tags,
-			Content:        noteContent,
-			Body:           body,
-			Comment:        comment,
+			Parent:       parentNote,
+			Level:        section.HeadingLevel,
+			Kind:         kind,
+			AbsolutePath: p.AbsolutePath,
+			RelativePath: p.RelativePath,
+			Slug:         slug,
+			Title:        title,
+			ShortTitle:   markdown.Document(shortTitle),
+			Line:         section.FileLineStart,
+			Attributes:   attributes,
+			Content:      noteContent,
+			Body:         body,
+			Comment:      comment,
 		}
 
 		if parsedNote.Kind == KindGenerator {
@@ -358,8 +365,8 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 
 func (p *ParsedFile) GenerateNotes(generator *ParsedNote) ([]*ParsedNote, []*ParsedMedia, error) {
 	// Inline or external?
-	filename := generator.GetAttributeAsString("file")
-	interpreter := generator.GetAttributeAsString("interpreter")
+	filename := generator.Attributes.CastValueAsString("file")
+	interpreter := generator.Attributes.CastValueAsString("interpreter")
 
 	var cmdArgs []string
 
@@ -445,7 +452,7 @@ func (p *ParsedFile) GenerateNotes(generator *ParsedNote) ([]*ParsedNote, []*Par
 	if err != nil {
 		return nil, nil, err
 	}
-	generatedFile, err := ParseFile(p.RepositoryPath, mdFile)
+	generatedFile, err := ParseFile(p.RepositoryPath, mdFile, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -538,9 +545,8 @@ func (p *ParsedFile) extractMedias() ([]*ParsedMedia, error) {
 			media.Dangling = true
 		} else {
 			media.Dangling = false
-			media.size = stat.Size()
-			media.mtime = stat.ModTime()
-			media.mode = stat.Mode()
+			media.Size = stat.Size()
+			media.MTime = stat.ModTime()
 		}
 	}
 
@@ -642,16 +648,6 @@ func (p *ParsedNote) extractReminders() ([]*ParsedReminder, error) {
 // Hash returns a hash based on the Markdown content.
 func (p *ParsedNote) Hash() string {
 	return p.Content.Hash()
-}
-
-func (p *ParsedNote) GetAttributeAsString(name string) string {
-	if v, ok := p.NoteAttributes[name]; ok {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-	// Conversion errors are ignored (we consider the requested attribute doesn't exist)
-	return ""
 }
 
 // FindMediaByFilename searches for a media based on the filename.

@@ -1,8 +1,8 @@
 CREATE TABLE file (
   oid TEXT PRIMARY KEY,
 
-  -- Parent file
-  file_oid TEXT,
+  -- Last known pack file containing this file
+  packfile_oid TEXT PRIMARY KEY,
 
   -- Slug
   slug TEXT,
@@ -35,18 +35,17 @@ CREATE TABLE file (
   -- Last modification of local file on disk
   mtime TEXT NOT NULL,
   size INTEGER NOT NULL,
-  hashsum TEXT NOT NULL,
-  mode INTEGER NOT NULL
+  hashsum TEXT NOT NULL
 );
 
 CREATE TABLE note (
   oid TEXT PRIMARY KEY,
 
+  -- Last known pack file containing this note
+  packfile_oid TEXT PRIMARY KEY,
+
   -- File containing the note
   file_oid TEXT NOT NULL,
-
-  -- Optional parent note containing the note
-  note_oid TEXT,
 
   -- Slug
   slug TEXT,
@@ -108,6 +107,9 @@ end;
 CREATE TABLE media (
   oid TEXT PRIMARY KEY,
 
+  -- Last known pack file containing this media
+  packfile_oid TEXT PRIMARY KEY,
+
   -- Relative path
   relative_path TEXT NOT NULL,
 
@@ -129,9 +131,6 @@ CREATE TABLE media (
   -- Size of the file
   size INTEGER NOT NULL,
   -- These attributes can be used to find unused and/or large files
-
-  -- Permission of the file
-  mode INTEGER NOT NULL,
 
   -- Timestamps to track changes
   created_at TEXT NOT NULL,
@@ -158,6 +157,9 @@ CREATE TABLE blob (
 CREATE TABLE link (
   oid TEXT PRIMARY KEY,
 
+  -- Last known pack file containing this link
+  packfile_oid TEXT PRIMARY KEY,
+
   -- Note representing the link
   note_oid TEXT NOT NULL,
 
@@ -182,6 +184,9 @@ CREATE TABLE link (
 
 CREATE TABLE flashcard (
   oid TEXT PRIMARY KEY,
+
+  -- Last known pack file containing this flashcard
+  packfile_oid TEXT PRIMARY KEY,
 
   -- File representing the flashcard
   file_oid TEXT NOT NULL,
@@ -219,6 +224,9 @@ CREATE TABLE flashcard (
 
 CREATE TABLE reminder (
   oid TEXT PRIMARY KEY,
+
+  -- Last known pack file containing this reminder
+  packfile_oid TEXT PRIMARY KEY,
 
   -- File representing the flashcard
   file_oid TEXT NOT NULL,

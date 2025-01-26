@@ -27,9 +27,7 @@ var catFileCmd = &cobra.Command{
 
 		arg := args[0]
 
-		if isOID(arg) {
-			oid := arg
-
+		if oid := core.ParseOIDOrNil(arg); !oid.IsNil() {
 			dumpOID(oid)
 		}
 
@@ -39,7 +37,7 @@ var catFileCmd = &cobra.Command{
 }
 
 // dumpOID checks if the given OID exists and dumps it
-func dumpOID(oid string) {
+func dumpOID(oid core.OID) {
 	// OIDs can represent a pack file, an object inside a pack file, or a blob.
 	packFile, err := core.CurrentDB().Index().ReadPackFile(oid)
 	if err != nil {
@@ -95,7 +93,7 @@ func dumpPath(path string) {
 	}
 
 	oid := filename
-	dumpOID(oid)
+	dumpOID(core.MustParseOID(oid))
 }
 
 func dumpObject(object core.Dumpable) {

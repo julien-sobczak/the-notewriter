@@ -8,27 +8,78 @@ import (
 	"github.com/google/uuid"
 )
 
-var oidGenerator OIDGenerator = &uniqueOIDGenerator{}
+type OID string
 
-func NewOID() string {
+const NilOID = OID("")
+const MissingOID string = "4044044044044044044044044044044044044040"
+
+func (o OID) IsNil() bool {
+	return string(o) == ""
+}
+
+// Prefix returns the first two characters of the OID as used in .nt/objects.
+func (o OID) Prefix() string {
+	if o.IsNil() {
+		return ""
+	}
+	return string(o)[0:2]
+}
+
+// RelativePath returns the relative path inside .nt/objects.
+func (o OID) RelativePath() string {
+	// We use the first two characters to spread objects into different directories
+	// (same as .git/objects/) to avoid having a large unpractical directory.
+	return fmt.Sprintf("%s/%s", o.Prefix(), o)
+}
+
+// String returns the OID as a string.
+func (o OID) String() string {
+	return string(o)
+}
+
+/* Constructors */
+
+func NewOID() OID {
 	return oidGenerator.NewOID()
 }
-func NewOIDFromBytes(b []byte) string {
+func NewOIDFromBytes(b []byte) OID {
 	return oidGenerator.NewOIDFromBytes(b)
 }
 
-/* Test */
+/* Parser */
+
+// MustParseOID parses an OID or panic if the OID format is not valid.
+func MustParseOID(s string) OID {
+	if len(s) != 40 {
+		panic("Invalid OID")
+	}
+	return OID(s)
+}
+
+// ParseOIDOrNil parses an OID or returns NilOID.
+func ParseOIDOrNil(s string) OID {
+	if len(s) != 40 {
+		return NilOID
+	}
+	return OID(s)
+}
+
+/* Generator */
 
 type OIDGenerator interface {
-	NewOID() string
-	NewOIDFromBytes(b []byte) string
+	NewOID() OID
+	NewOIDFromBytes(b []byte) OID
 }
+
+var oidGenerator OIDGenerator = &uniqueOIDGenerator{}
+
+/* Test Generator */
 
 type uniqueOIDGenerator struct{}
 
 // NewOID generates an OID.
 // Every call generates a new unique OID.
-func (g *uniqueOIDGenerator) NewOID() string {
+func (g *uniqueOIDGenerator) NewOID() OID {
 	// We use the same "format" as Git (=40-length string) but use a content hash only for blob objects.
 	// We use a randomly generated ID for other objects that is fixed even if objects are updated.
 
@@ -38,12 +89,12 @@ func (g *uniqueOIDGenerator) NewOID() string {
 	// Algorithm:
 	// Remove `-` + add 8 random characters
 	oid := strings.ReplaceAll(uuid.New().String()+uuid.New().String(), "-", "")[0:40]
-	return oid
+	return OID(oid)
 }
 
 // NewOIDFromBytes generates an OID based on bytes.
 // The same bytes will generate the same OID.
-func (g *uniqueOIDGenerator) NewOIDFromBytes(b []byte) string {
+func (g *uniqueOIDGenerator) NewOIDFromBytes(b []byte) OID {
 	h := sha1.New()
 	h.Write(b)
 
@@ -55,39 +106,39 @@ func (g *uniqueOIDGenerator) NewOIDFromBytes(b []byte) string {
 	// SHA1 values are often printed in hex, for example
 	// in git commits. Use the `%x` format verb to convert
 	// a hash results to a hex string.
-	return fmt.Sprintf("%x\n", bs)
+	return OID(fmt.Sprintf("%x\n", bs))
 }
 
 type suiteOIDGenerator struct {
 	nextOIDs []string
 }
 
-func (g *suiteOIDGenerator) NewOID() string {
+func (g *suiteOIDGenerator) NewOID() OID {
 	return g.nextOID()
 }
 
-func (g *suiteOIDGenerator) NewOIDFromBytes(b []byte) string {
+func (g *suiteOIDGenerator) NewOIDFromBytes(b []byte) OID {
 	return g.nextOID()
 }
 
-func (g *suiteOIDGenerator) nextOID() string {
+func (g *suiteOIDGenerator) nextOID() OID {
 	if len(g.nextOIDs) > 0 {
 		oid, nextOIDs := g.nextOIDs[0], g.nextOIDs[1:]
 		g.nextOIDs = nextOIDs
-		return oid
+		return OID(oid)
 	}
 	panic("No more OIDs")
 }
 
 type fixedOIDGenerator struct {
-	oid string
+	oid OID
 }
 
-func (g *fixedOIDGenerator) NewOID() string {
+func (g *fixedOIDGenerator) NewOID() OID {
 	return g.oid
 }
 
-func (g *fixedOIDGenerator) NewOIDFromBytes(b []byte) string {
+func (g *fixedOIDGenerator) NewOIDFromBytes(b []byte) OID {
 	return g.oid
 }
 
@@ -95,12 +146,12 @@ type sequenceOIDGenerator struct {
 	count int
 }
 
-func (g *sequenceOIDGenerator) NewOID() string {
+func (g *sequenceOIDGenerator) NewOID() OID {
 	g.count++
-	return fmt.Sprintf("%040d", g.count)
+	return OID(fmt.Sprintf("%040d", g.count))
 }
 
-func (g *sequenceOIDGenerator) NewOIDFromBytes(b []byte) string {
+func (g *sequenceOIDGenerator) NewOIDFromBytes(b []byte) OID {
 	return NewOID()
 }
 

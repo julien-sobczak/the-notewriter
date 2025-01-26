@@ -1,10 +1,12 @@
 package core
 
 import (
+	"compress/gzip"
 	"database/sql"
 	"fmt"
 	"io"
-	"io/fs"
+	"log"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -12,6 +14,7 @@ import (
 
 	"github.com/julien-sobczak/the-notewriter/internal/helpers"
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
+	"github.com/julien-sobczak/the-notewriter/internal/medias"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"golang.org/x/exp/slices"
@@ -25,13 +28,12 @@ type Attribute struct { // TODO remove
 
 type File struct {
 	// A unique identifier among all files
-	OID string `yaml:"oid" json:"oid"`
+	OID OID `yaml:"oid" json:"oid"`
 	// A unique human-friendly slug
 	Slug string `yaml:"slug" json:"slug"`
 
-	// Optional parent file (= index.md)
-	ParentFileOID string `yaml:"file_oid,omitempty" json:"file_oid,omitempty"`
-	ParentFile    *File  `yaml:"-" json:"-"` // Lazy-loaded
+	// Pack file where this object belongs
+	PackFileOID OID `yaml:"packfile_oid" json:"packfile_oid"`
 
 	// A relative path to the repository directory
 	RelativePath string `yaml:"relative_path" json:"relative_path"`
@@ -53,17 +55,18 @@ type File struct {
 	BodyLine int               `yaml:"body_line" json:"body_line"`
 
 	// Subobjects (lazy-loaded)
-	notes      []*Note      `yaml:"-" json:"-"`
-	flashcards []*Flashcard `yaml:"-" json:"-"`
+	notes      []*Note      `yaml:"-" json:"-"` // TODO still useful?
+	flashcards []*Flashcard `yaml:"-" json:"-"` // TODO still useful?
 
-	// Permission of the file (required to save back)
-	Mode fs.FileMode `yaml:"mode" json:"mode"`
 	// Size of the file (can be useful to detect changes)
 	Size int64 `yaml:"size" json:"size"`
 	// Hash of the content (can be useful to detect changes too)
 	Hash string `yaml:"hash" json:"hash"`
 	// Content last modification date
 	MTime time.Time `yaml:"mtime" json:"mtime"`
+
+	// Eager-loaded list of blobs
+	BlobRefs []*BlobRef `yaml:"blobs" json:"blobs"`
 
 	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
 	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
@@ -88,18 +91,8 @@ func NewEmptyFile(name string) *File { // TODO still useful?
 	}
 }
 
-func NewOrExistingFile(parsedFile *ParsedFile) (*File, error) {
-	var existingParent *File
+func NewOrExistingFile(packFileOID OID, parsedFile *ParsedFile) (*File, error) {
 	var existingFile *File
-
-	// Look for the parent file
-	if parsedFile.Filename() != "index.md" {
-		file, err := CurrentRepository().FindMatchingParentFile(parsedFile)
-		if err != nil {
-			return nil, err
-		}
-		existingParent = file
-	}
 
 	file, err := CurrentRepository().FindMatchingFile(parsedFile)
 	if err != nil {
@@ -108,24 +101,24 @@ func NewOrExistingFile(parsedFile *ParsedFile) (*File, error) {
 	existingFile = file
 
 	if existingFile != nil {
-		err := existingFile.update(existingParent, parsedFile)
+		err := existingFile.update(packFileOID, parsedFile)
 		return existingFile, err
 	} else {
-		return NewFile(existingParent, parsedFile)
+		return NewFile(packFileOID, parsedFile)
 	}
 }
 
-func NewFile(parent *File, parsedFile *ParsedFile) (*File, error) {
+func NewFile(packFIleOID OID, parsedFile *ParsedFile) (*File, error) {
 	file := &File{
 		OID:          NewOID(),
+		PackFileOID:  packFIleOID,
 		Slug:         parsedFile.Slug,
 		RelativePath: parsedFile.RelativePath,
 		Wikilink:     text.TrimExtension(parsedFile.RelativePath),
-		Mode:         parsedFile.Markdown.LStat.Mode(),
-		Size:         parsedFile.Markdown.LStat.Size(),
+		Size:         parsedFile.Markdown.Size,
+		MTime:        parsedFile.Markdown.MTime,
 		Hash:         helpers.Hash(parsedFile.Markdown.Content),
-		MTime:        parsedFile.Markdown.LStat.ModTime(),
-		Attributes:   make(map[string]any),
+		Attributes:   parsedFile.FileAttributes,
 		FrontMatter:  parsedFile.Markdown.FrontMatter,
 		Title:        parsedFile.Title,
 		ShortTitle:   parsedFile.ShortTitle,
@@ -136,15 +129,6 @@ func NewFile(parent *File, parsedFile *ParsedFile) (*File, error) {
 		stale:        true,
 		new:          true,
 	}
-	if parent != nil {
-		file.ParentFileOID = parent.OID
-		file.ParentFile = parent
-	}
-	newAttributes := parsedFile.FileAttributes.Cast(GetSchemaAttributeTypes())
-	if parent != nil {
-		newAttributes = parent.Attributes.Merge(newAttributes)
-	}
-	file.Attributes = newAttributes
 
 	return file, nil
 }
@@ -155,7 +139,7 @@ func (f *File) Kind() string {
 	return "file"
 }
 
-func (f *File) UniqueOID() string {
+func (f *File) UniqueOID() OID {
 	return f.OID
 }
 
@@ -228,11 +212,8 @@ func (f File) String() string {
 
 /* Update */
 
-func (f *File) update(parent *File, parsedFile *ParsedFile) error {
-	newAttributes := parsedFile.FileAttributes.Cast(GetSchemaAttributeTypes())
-	if parent != nil {
-		newAttributes = parent.Attributes.Merge(newAttributes)
-	}
+func (f *File) update(packFileOID OID, parsedFile *ParsedFile) error {
+	newAttributes := parsedFile.FileAttributes
 
 	// Check if attributes have changed
 	if !reflect.DeepEqual(newAttributes, f.Attributes) {
@@ -243,22 +224,26 @@ func (f *File) update(parent *File, parsedFile *ParsedFile) error {
 	md := parsedFile.Markdown
 
 	// Check if local file has changed
-	if f.MTime != md.LStat.ModTime() || f.Size != md.LStat.Size() {
+	if f.MTime != md.MTime || f.Size != md.Size {
 		// file change
 		f.stale = true
 
-		f.Mode = md.LStat.Mode()
-		f.Size = md.LStat.Size()
+		f.Size = md.Size
+		f.MTime = md.MTime
 		f.Hash = helpers.Hash(md.Content)
 		f.FrontMatter = md.FrontMatter
-		f.Attributes = parsedFile.FileAttributes.Cast(GetSchemaAttributeTypes())
-		if parent != nil {
-			f.Attributes = parent.Attributes.Merge(f.Attributes)
-		}
-		f.MTime = md.LStat.ModTime()
+		f.Attributes = parsedFile.FileAttributes
+		// FIXME remove comment
+		// f.Attributes = parsedFile.FileAttributes.Cast(GetSchemaAttributeTypes())
+		// if parent != nil {
+		// 	f.Attributes = parent.Attributes.Merge(f.Attributes)
+		// }
 		f.Body = md.Body
 		f.BodyLine = md.BodyLine
 	}
+
+	f.PackFileOID = packFileOID
+	// Do not set the stale flag. An object can be unchanged when a new pack file is created (ex: new note appended at the end)
 
 	return nil
 }
@@ -282,12 +267,12 @@ func (f *File) AbsoluteBodyLine(bodyLine int) int {
 
 // GetTags returns the tags defined in attributes.
 func (f *File) GetTags() []string {
-	return f.Attributes.GetTags()
+	return f.Attributes.Tags()
 }
 
 // HasTag returns if a file has a given tag.
 func (f *File) HasTag(name string) bool {
-	return slices.Contains(f.Attributes.GetTags(), name)
+	return slices.Contains(f.Attributes.Tags(), name)
 }
 
 /* Content */
@@ -395,7 +380,7 @@ func (f *File) Insert() error {
 	query := `
 		INSERT INTO file(
 			oid,
-			file_oid,
+			packfile_oid,
 			slug,
 			relative_path,
 			wikilink,
@@ -411,9 +396,8 @@ func (f *File) Insert() error {
 			mtime,
 			size,
 			hashsum,
-			mode
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 	`
 	frontMatter, err := f.FrontMatter.AsBeautifulYAML()
 	if err != nil {
@@ -426,7 +410,7 @@ func (f *File) Insert() error {
 
 	_, err = CurrentDB().Client().Exec(query,
 		f.OID,
-		f.ParentFileOID,
+		f.PackFileOID,
 		f.Slug,
 		f.RelativePath,
 		f.Wikilink,
@@ -442,7 +426,6 @@ func (f *File) Insert() error {
 		timeToSQL(f.MTime),
 		f.Size,
 		f.Hash,
-		f.Mode,
 	)
 	if err != nil {
 		return err
@@ -456,7 +439,7 @@ func (f *File) Update() error {
 	query := `
 		UPDATE file
 		SET
-		    file_oid = ?,
+			packfile_oid = ?,
 		    slug = ?,
 			relative_path = ?,
 			wikilink = ?,
@@ -471,7 +454,6 @@ func (f *File) Update() error {
 			mtime = ?,
 			size = ?,
 			hashsum = ?,
-			mode = ?
 		WHERE oid = ?;
 	`
 	frontMatter, err := f.FrontMatter.AsBeautifulYAML()
@@ -483,7 +465,7 @@ func (f *File) Update() error {
 		return err
 	}
 	_, err = CurrentDB().Client().Exec(query,
-		f.ParentFileOID,
+		f.PackFileOID,
 		f.Slug,
 		f.RelativePath,
 		f.Wikilink,
@@ -498,7 +480,6 @@ func (f *File) Update() error {
 		timeToSQL(f.MTime),
 		f.Size,
 		f.Hash,
-		f.Mode,
 		f.OID,
 	)
 	return err
@@ -512,7 +493,7 @@ func (f *File) Delete() error {
 	return err
 }
 
-func (r *Repository) LoadFileByOID(oid string) (*File, error) {
+func (r *Repository) LoadFileByOID(oid OID) (*File, error) {
 	return QueryFile(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
@@ -577,7 +558,7 @@ func QueryFile(db SQLClient, whereClause string, args ...any) (*File, error) {
 	if err := db.QueryRow(fmt.Sprintf(`
 		SELECT
 			oid,
-			file_oid,
+			packfile_oid,
 			slug,
 			relative_path,
 			wikilink,
@@ -592,13 +573,12 @@ func QueryFile(db SQLClient, whereClause string, args ...any) (*File, error) {
 			last_checked_at,
 			mtime,
 			size,
-			hashsum,
-			mode
+			hashsum
 		FROM file
 		%s;`, whereClause), args...).
 		Scan(
 			&f.OID,
-			&f.ParentFileOID,
+			&f.PackFileOID,
 			&f.Slug,
 			&f.RelativePath,
 			&f.Wikilink,
@@ -614,7 +594,6 @@ func QueryFile(db SQLClient, whereClause string, args ...any) (*File, error) {
 			&mTime,
 			&f.Size,
 			&f.Hash,
-			&f.Mode,
 		); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -642,7 +621,7 @@ func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) 
 	rows, err := db.Query(fmt.Sprintf(`
 		SELECT
 			oid,
-			file_oid,
+			packfile_oid,
 			slug,
 			relative_path,
 			wikilink,
@@ -657,8 +636,7 @@ func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) 
 			last_checked_at,
 			mtime,
 			size,
-			hashsum,
-			mode
+			hashsum
 		FROM file
 		%s;`, whereClause), args...)
 	if err != nil {
@@ -675,7 +653,7 @@ func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) 
 
 		err = rows.Scan(
 			&f.OID,
-			&f.ParentFileOID,
+			&f.PackFileOID,
 			&f.Slug,
 			&f.RelativePath,
 			&f.Wikilink,
@@ -691,7 +669,6 @@ func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) 
 			&mTime,
 			&f.Size,
 			&f.Hash,
-			&f.Mode,
 		)
 		if err != nil {
 			return nil, err
@@ -743,6 +720,45 @@ func (f *File) ToMarkdown() string {
 	return sb.String()
 }
 
+/* Blob management */
+
+func (f *File) GenerateBlobs() {
+	if CurrentConfig().DryRun {
+		return
+	}
+
+	src := CurrentRepository().GetAbsolutePath(f.RelativePath)
+	data, err := os.ReadFile(src)
+	if err != nil {
+		log.Fatalf("Error reading Markdown file %s: %v", f.RelativePath, err)
+	}
+
+	oid := NewOIDFromBytes(data)
+	blob := &BlobRef{
+		OID:      oid,
+		MimeType: medias.MimeType(".gz"),
+		Tags:     []string{"original", "markdown"},
+	}
+	if err := CurrentDB().WriteBlobOnDisk(blob.OID, data); err != nil {
+		log.Fatalf("Unable to write blob from file %q: %v", f.RelativePath, err)
+	}
+	f.BlobRefs = append(f.BlobRefs, blob)
+}
+
+func createGzipFile(filename string, data []byte) error {
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	writer := gzip.NewWriter(file)
+	defer writer.Close()
+
+	_, err = writer.Write(data)
+	return err
+}
+
 /* FileObject interface */
 
 func (f *File) FileRelativePath() string {
@@ -757,26 +773,15 @@ func (f *File) FileSize() int64 {
 func (f *File) FileHash() string {
 	return f.Hash
 }
-func (f *File) FileMode() fs.FileMode {
-	return f.Mode
-}
-
 func (f *File) Blobs() []*BlobRef {
-	// No blobs. Medias are managed separately.
-	return nil
-}
-func (f *File) Objects() []Object {
-	// FIXME implement
-	return nil
+	if f.new && len(f.BlobRefs) == 0 {
+		f.GenerateBlobs()
+	}
+	return f.BlobRefs
 }
 
-/* PackFile Management */
+/* ParsedFile */
 
-func (f *File) ToPackFile() *PackFile {
-	return NewPackFile(f)
-}
-
-func (f *File) SaveToPackFile() error {
-	pf := f.ToPackFile()
-	return pf.Save()
+func NewFileFromParsedFile(packFileOID OID, parsedFile *ParsedFile) (*File, error) {
+	return NewFile(packFileOID, parsedFile)
 }

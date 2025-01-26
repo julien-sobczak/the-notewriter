@@ -143,10 +143,45 @@ func (db *DB) Client() SQLClient {
 
 /* File Management */
 
+func (db *DB) UpsertPackFiles(packFiles ...*PackFile) error {
+	// Run all queries inside the same transaction
+	err := db.BeginTransaction()
+	if err != nil {
+		return err
+	}
+	defer db.RollbackTransaction()
+
+	for _, packFile := range packFiles {
+		// TODO implement
+	}
+
+	return db.CommitTransaction()
+}
+
+func (db *DB) DeletePackFiles(packFiles ...*PackFile) error {
+	// Run all queries inside the same transaction
+	err := db.BeginTransaction()
+	if err != nil {
+		return err
+	}
+	defer db.RollbackTransaction()
+
+	for _, packFile := range packFiles {
+		// TODO implement
+		packFile.
+	}
+
+	return db.CommitTransaction()
+}
+
+// FIXME methods below still useful?
+// The objective is to have methods that hide the fact that we are
+// persisting in .nt/objects and in .nt/database.sqlite
+
 // ReadPackFile reads a pack file on disk.
-func (db *DB) ReadPackFile(oid string) (*PackFile, error) {
+func (db *DB) ReadPackFileOnDisk(oid OID) (*PackFile, error) {
 	result := new(PackFile)
-	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", OIDToPath(oid))
+	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", oid.RelativePath+".pack")
 	in, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -159,8 +194,8 @@ func (db *DB) ReadPackFile(oid string) (*PackFile, error) {
 }
 
 // DeletePackFile removes a single pack file on disk
-func (db *DB) DeletePackFile(packFile *PackFile) error {
-	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", OIDToPath(packFile.OID))
+func (db *DB) DeletePackFileOnDisk(packFile *PackFile) error {
+	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", OIDToPath(packFile.OID)+".pack")
 	err := os.Remove(path)
 	if err != nil {
 		return err
@@ -170,14 +205,14 @@ func (db *DB) DeletePackFile(packFile *PackFile) error {
 }
 
 // ReadBlob reads a blob file on disk.
-func (db *DB) ReadBlob(oid string) ([]byte, error) {
-	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", OIDToPath(oid))
+func (db *DB) ReadBlobOnDisk(oid OID) ([]byte, error) {
+	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", oid.RelativePath()+".blob")
 	return os.ReadFile(path)
 }
 
 // WriteBlob writes a blob file on disk
-func (db *DB) WriteBlob(oid string, data []byte) error {
-	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", OIDToPath(oid))
+func (db *DB) WriteBlobOnDisk(oid OID, data []byte) error {
+	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", oid.RelativePath()+".blob")
 	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
 		return err
 	}
@@ -189,9 +224,9 @@ func (db *DB) WriteBlob(oid string, data []byte) error {
 }
 
 // DeleteBlobs removes all blobs on disk from a media
-func (db *DB) DeleteBlobs(media *Media) error {
+func (db *DB) DeleteBlobsOnDisk(media *Media) error {
 	for _, blob := range media.BlobRefs {
-		if err := db.DeleteBlob(media, blob); err != nil {
+		if err := db.DeleteBlobOnDisk(media, blob); err != nil {
 			return err
 		}
 	}
@@ -199,8 +234,8 @@ func (db *DB) DeleteBlobs(media *Media) error {
 }
 
 // DeleteBlob removes a single blob on disk
-func (db *DB) DeleteBlob(media *Media, blob *BlobRef) error {
-	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", OIDToPath(blob.OID))
+func (db *DB) DeleteBlobOnDisk(media *Media, blob *BlobRef) error {
+	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", OIDToPath(blob.OID)+".blob")
 	err := os.Remove(path)
 	if err != nil {
 		return err
@@ -362,18 +397,15 @@ func (db *DB) Ref(name string) (string, bool) {
 }
 
 // BlobExists checks if a blob exists locally.
-func (db *DB) BlobExists(oid string) bool {
-	return db.fileExists(oid)
+func (db *DB) BlobExists(oid OID) bool {
+	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", oid.RelativePath()+".blob")
+	_, err := os.Stat(path)
+	return !os.IsNotExist(err)
 }
 
-// ObjectExists checks if a blob exists locally.
-func (db *DB) ObjectExists(oid string) bool {
-	return db.fileExists(oid)
-}
-
-// BlobExists checks if a blob exists locally.
-func (db *DB) fileExists(oid string) bool {
-	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", OIDToPath(oid))
+// PackFileExists checks if a blob exists locally.
+func (db *DB) PackFileExists(oid OID) bool {
+	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", oid.RelativePath()+".pack")
 	_, err := os.Stat(path)
 	return !os.IsNotExist(err)
 }

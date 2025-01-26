@@ -108,7 +108,7 @@ type ParsedFile struct {
 }
 
 // ParseFile contains the main logic to parse a raw note file.
-func -ParseFile(relativePath string) (*ParsedFile, error) {
+func ParseFile(relativePath string) (*ParsedFile, error) {
 	absolutePath := filepath.Join(CurrentRepository().Path, relativePath)
 
 	lstat, err := os.Lstat(absolutePath)

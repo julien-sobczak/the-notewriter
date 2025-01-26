@@ -64,8 +64,8 @@ func TestParseFile(t *testing.T) {
 					Dangling: false,
 				}
 				require.EqualExportedValues(t, *expectedDaVinci, *mediaDaVinci)
-				assert.WithinDuration(t, time.Now(), mediaDaVinci.MTime(), 1*time.Minute) // test cases are copied in a temp directory
-				assert.Greater(t, mediaDaVinci.Size(), int64(0))
+				assert.WithinDuration(t, time.Now(), mediaDaVinci.FileMTime(), 1*time.Minute) // test cases are copied in a temp directory
+				assert.Greater(t, mediaDaVinci.FileSize(), int64(0))
 
 				// Check "Note: A Note"
 				noteNote, ok := file.FindNoteByShortTitle("A Note")
@@ -78,8 +78,7 @@ func TestParseFile(t *testing.T) {
 				assert.Equal(t, 11, noteNote.Line)
 				assert.Equal(t, "## Note: A Note\n\nNotes has many uses:\n\n* Journaling\n* To-Do list\n* Drawing\n* Diary\n* Flashcard\n* Reminder", noteNote.Content.String())
 				assert.Equal(t, "Notes has many uses:\n\n* Journaling\n* To-Do list\n* Drawing\n* Diary\n* Flashcard\n* Reminder", noteNote.Body.String())
-				assert.Empty(t, nil, noteNote.NoteAttributes)
-				assert.Empty(t, nil, noteNote.NoteTags)
+				assert.Empty(t, nil, noteNote.Attributes)
 				// No subobjects
 				assert.Nil(t, noteNote.Flashcard)
 				assert.Len(t, noteNote.GoLinks, 0)
@@ -90,7 +89,7 @@ func TestParseFile(t *testing.T) {
 				require.True(t, ok)
 				require.Equal(t, core.AttributeSet(map[string]any{
 					"author": "Tim Ferris",
-				}), noteTimFerris.NoteAttributes)
+				}), noteTimFerris.Attributes)
 
 				// Check "Flashcard: Commonplace Book"
 				noteCommomplace, ok := file.FindNoteByShortTitle("Commonplace Book")
@@ -107,7 +106,7 @@ func TestParseFile(t *testing.T) {
 				require.Equal(t, core.AttributeSet(map[string]any{
 					"author": "Leonardo da Vinci",
 					"year":   "~1510",
-				}), noteDaVinci.NoteAttributes)
+				}), noteDaVinci.Attributes)
 			},
 		},
 
@@ -204,7 +203,7 @@ func TestParseFile(t *testing.T) {
 			dirname := testutil.SetUpFromGoldenDirNamed(t, "TestParser")
 			md, err := markdown.ParseFile(filepath.Join(dirname, testcase.golden+".md"))
 			require.NoError(t, err)
-			file, err := core.ParseFile(dirname, md)
+			file, err := core.ParseFile(dirname, md, nil)
 			require.NoError(t, err)
 			testcase.test(t, file)
 		})
@@ -309,7 +308,6 @@ Some more text
 A simple note
 `,
 			},
-
 		}
 
 		for _, tt := range tests {

@@ -27,3 +27,31 @@ func TestNewOIDFromBytes(t *testing.T) {
 	require.Equal(t, oid1, NewOIDFromBytes(bytes1)) // Does not change
 	assert.Regexp(t, reOID, oid1)
 }
+
+func TestOID(t *testing.T) {
+	t.Run("RelativePath", func(t *testing.T) {
+		var tests = []struct {
+			name string // name
+			oid  OID    // input
+			path string // output
+		}{
+			{
+				"Example 1",
+				"f3aaf5433ec0357844d88f860c42e044fe44ee61",
+				"f3/f3aaf5433ec0357844d88f860c42e044fe44ee61",
+			},
+			{
+				"Example 2",
+				"5bb55dad2b3157a81893bc25f809d85a1fab2911",
+				"5b/5bb55dad2b3157a81893bc25f809d85a1fab2911",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				assert.Equal(t, tt.path, tt.oid.RelativePath())
+			})
+		}
+	})
+
+}

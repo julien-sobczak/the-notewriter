@@ -41,7 +41,7 @@ type IndexEntry struct {
 	RelativePath string `yaml:"relative_path"`
 
 	// Pack file OID representing this file under .nt/objects
-	PackFileOID string `yaml:"packfile_oid"`
+	PackFileOID OID `yaml:"packfile_oid"`
 	// File last modification date
 	MTime time.Time `yaml:"mtime"`
 	// Size of the file (can be useful to detect changes)
@@ -50,7 +50,7 @@ type IndexEntry struct {
 	// True when a file has been staged
 	Staged bool `yaml:"staged"`
 	// Save but when the file has been staged (= different object under .nt/objects)
-	StagedPackFileOID string `yaml:"staged_packfile_oid"`
+	StagedPackFileOID OID `yaml:"staged_packfile_oid"`
 	// Timestamp when the file has been detected as deleted
 	StagedTombstone time.Time `yaml:"staged_tombstone"`
 	StagedMTime     time.Time `yaml:"staged_mtime"`
@@ -126,18 +126,23 @@ func (i *IndexEntry) MatchPathSpecs(pathSpecs []string) bool {
 	return false
 }
 
+func (i *IndexEntry) ReadPackFile() (*PackFile, error) {
+	objectPath := filepath.Join(CurrentRepository().Path, ".nt/objects", i.PackFileOID.RelativePath()+".pack")
+	return NewPackFileFromPath(objectPath)
+}
+
 // IndexObject represents a single object present in a pack file.
 type IndexObject struct {
-	OID         string `yaml:"oid"`
+	OID         OID    `yaml:"oid"`
 	Kind        string `yaml:"kind"`
-	PackFileOID string `yaml:"packfile_oid"`
+	PackFileOID OID    `yaml:"packfile_oid"`
 }
 
 // IndexBlob represents a single blob.
 type IndexBlob struct {
-	OID         string `yaml:"oid"`
+	OID         OID    `yaml:"oid"`
 	MimeType    string `yaml:"mime" json:"mime"`
-	PackFileOID string `yaml:"packfile_oid"`
+	PackFileOID OID    `yaml:"packfile_oid"`
 }
 
 // ReadIndex reads the index file from the current repository.
@@ -206,7 +211,7 @@ func (i *Index) Save() error {
 	return i.Write(f)
 }
 
-func (i *Index) GetEntryByPackFileOID(oid string) (*IndexEntry, bool) {
+func (i *Index) GetEntryByPackFileOID(oid OID) (*IndexEntry, bool) {
 	for _, entry := range i.Entries {
 		if entry.PackFileOID == oid {
 			return entry, true
@@ -224,16 +229,36 @@ func (i *Index) GetEntry(path string) *IndexEntry {
 	return nil
 }
 
-// Stage indexes a new pack file.
-// The pack file can match a file already indexed by a previous pack file.
-func (i *Index) Stage(packFile *PackFile) error {
-	entry := i.GetEntry(packFile.FileRelativePath)
-	if entry == nil {
-		entry = NewIndexEntry(packFile)
-		i.Entries = append(i.Entries, entry)
+// GetParentEntry returns the parent entry of a file (
+// (which may still not exist in the index).
+// For example, when adding a new file, we need to locate the parent file to inherit attributes.
+func (i *Index) GetParentEntry(path string) *IndexEntry {
+	// Search for a index.md in the same directory
+	currentDir := filepath.Dir(path)
+	rootDir := CurrentConfig().RootDirectory
+	for {
+		if !strings.HasPrefix(currentDir, rootDir) {
+			return nil
+		}
+		if entry := i.GetEntry(filepath.Join(currentDir, "index.md")); entry != nil {
+			return entry
+		}
+		currentDir = filepath.Dir(currentDir)
 	}
-	entry.Stage(packFile)
-	return i.Save()
+}
+
+// Stage indexes new pack files.
+// The pack files can match files already indexed by a previous pack file.
+func (i *Index) Stage(packFiles ...*PackFile) error {
+	for _, packFile := range packFiles {
+		entry := i.GetEntry(packFile.FileRelativePath)
+		if entry == nil {
+			entry = NewIndexEntry(packFile)
+			i.Entries = append(i.Entries, entry)
+		}
+		entry.Stage(packFile)
+	}
+	return nil
 }
 
 // SetTombstone marks an entry as deleted.
@@ -278,20 +303,21 @@ func (i *Index) Reset(pathSpecs ...string) error {
 /* Extracting objects */
 
 // ReadPackFile reads a pack file from the index.
-func (i *Index) ReadPackFile(oid string) (*PackFile, error) {
+func (i *Index) ReadPackFile(oid OID) (*PackFile, error) {
 	for _, entry := range i.Entries {
 		if entry.PackFileOID == oid {
-			return NewPackFileFromPath(entry.RelativePath)
+			objectPath := filepath.Join(CurrentRepository().Path, ".nt/objects", oid.RelativePath()+".pack")
+			return NewPackFileFromPath(objectPath)
 		}
 	}
 	return nil, nil
 }
 
 // ReadPackObject reads a pack object from the index.
-func (i *Index) ReadPackObject(oid string) (*PackObject, error) {
+func (i *Index) ReadPackObject(oid OID) (*PackObject, error) {
 	for _, object := range i.Objects {
 		if object.OID == oid {
-			packFile, err := NewPackFileFromPath(object.PackFileOID)
+			packFile, err := NewPackFileFromPath(object.PackFileOID.RelativePath() + ".pack")
 			if err != nil {
 				return nil, err
 			}
@@ -306,7 +332,7 @@ func (i *Index) ReadPackObject(oid string) (*PackObject, error) {
 }
 
 // ReadObject reads an object from the index.
-func (i *Index) ReadObject(oid string) (Object, error) {
+func (i *Index) ReadObject(oid OID) (Object, error) {
 	packObject, err := i.ReadPackObject(oid)
 	if err != nil {
 		return nil, err
@@ -315,19 +341,16 @@ func (i *Index) ReadObject(oid string) (Object, error) {
 }
 
 // ReadBlob reads a blob from the index.
-func (i *Index) ReadBlob(oid string) (*BlobRef, error) {
+func (i *Index) ReadBlob(oid OID) (*BlobRef, error) {
 	for _, blob := range i.Blobs {
 		if blob.OID == oid {
-			packFile, err := NewPackFileFromPath(blob.PackFileOID)
+			packFile, err := NewPackFileFromPath(blob.PackFileOID.RelativePath() + ".blob")
 			if err != nil {
 				return nil, err
 			}
-			for _, packObject := range packFile.PackObjects {
-				media := packObject.ReadObject().(*Media)
-				for _, blob := range media.BlobRefs {
-					if blob.OID == oid {
-						return blob, nil
-					}
+			for _, blob := range packFile.BlobRefs {
+				if blob.OID == oid {
+					return blob, nil
 				}
 			}
 			return nil, fmt.Errorf("missing blob %q in pack file %q", oid, packFile.FileRelativePath)
@@ -336,15 +359,33 @@ func (i *Index) ReadBlob(oid string) (*BlobRef, error) {
 	return nil, nil
 }
 
+// ReadBlobData reads a blob from the index.
+func (i *Index) ReadBlobData(oid OID) ([]byte, error) {
+	ref, err := i.ReadBlob(oid)
+	if err != nil {
+		return nil, err
+	}
+	blobPath := filepath.Join(CurrentRepository().Path, ".nt/objects", ref.OID.RelativePath()+".blob")
+	data, err := os.ReadFile(blobPath)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
 /* Walk */
 
 // Walk iterates over the index entries matching one of the path specs and applies the given function.
-func (i *Index) Walk(pathSpecs PathSpecs, fn func(entry *IndexEntry)) {
+func (i *Index) Walk(pathSpecs PathSpecs, fn func(entry *IndexEntry) error) error {
 	for _, entry := range i.Entries {
 		if pathSpecs.Match(entry.RelativePath) {
-			fn(entry)
+			err := fn(entry)
+			if err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
 /* Utilities */

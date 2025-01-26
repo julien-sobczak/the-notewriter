@@ -22,8 +22,6 @@ import (
 // NoteLongTitleSeparator represents the separator when determine the long title of a note.
 const NoteLongTitleSeparator string = " / "
 
-const missingMediaOID string = "4044044044044044044044044044044044044040"
-
 type NoteKind string
 
 const (
@@ -58,17 +56,15 @@ var (
 // FIXME add json field tag + sql field tag
 type Note struct {
 	// A unique identifier among all files
-	OID string `yaml:"oid" json:"oid"`
+	OID OID `yaml:"oid" json:"oid"`
 	// A unique human-friendly slug
 	Slug string `yaml:"slug" json:"slug"`
 
-	// File containing the note
-	FileOID string `yaml:"file_oid" json:"file_oid"`
-	File    *File  `yaml:"-" json:"-"` // Lazy-loaded
+	// Pack file where this object belongs
+	PackFileOID OID `yaml:"packfile_oid" json:"packfile_oid"`
 
-	// Parent Note surrounding the note
-	ParentNoteOID string `yaml:"parent_note_oid" json:"parent_note_oid"`
-	ParentNote    *Note  `yaml:"-" json:"-"` // Lazy-loaded
+	// File containing the note
+	FileOID OID `yaml:"file_oid" json:"file_oid"`
 
 	// Type of note
 	NoteKind NoteKind `yaml:"kind" json:"kind"`
@@ -111,17 +107,18 @@ type Note struct {
 }
 
 // NewNote creates a new note.
-func NewNote(file *File, parent *Note, parsedNote *ParsedNote) (*Note, error) {
+func NewNote(packFileOID OID, file *File, parsedNote *ParsedNote) (*Note, error) {
 	// Set basic properties
 	n := &Note{
 		OID:          NewOID(),
+		PackFileOID:  packFileOID,
 		FileOID:      file.OID,
-		File:         file,
 		Title:        parsedNote.Title,
 		ShortTitle:   parsedNote.ShortTitle,
 		NoteKind:     parsedNote.Kind,
 		RelativePath: file.RelativePath,
-		Attributes:   make(map[string]interface{}),
+		Attributes:   parsedNote.Attributes,
+		Tags:         parsedNote.Attributes.Tags(),
 		Wikilink:     file.Wikilink + "#" + string(parsedNote.Title.TrimSpace()),
 		Content:      parsedNote.Content,
 		Body:         parsedNote.Body,
@@ -133,14 +130,8 @@ func NewNote(file *File, parent *Note, parsedNote *ParsedNote) (*Note, error) {
 		stale:        true,
 	}
 
-	// Set optional parent
-	if parent != nil {
-		n.ParentNote = parent
-		n.ParentNoteOID = parent.OID
-	}
-
 	// Set dynamic properties
-	n.updateLongTitle()                 // Require the file and optional parent
+	// TODO simply move attributes above
 	n.updateContent(parsedNote.Content) // Require the file
 	n.updateSlug()                      // Require the file and note attributes
 
@@ -148,7 +139,7 @@ func NewNote(file *File, parent *Note, parsedNote *ParsedNote) (*Note, error) {
 }
 
 // NewOrExistingNote loads and updates an existing note or creates a new one if new.
-func NewOrExistingNote(f *File, parent *Note, parsedNote *ParsedNote) (*Note, error) {
+func NewOrExistingNote(packFileOID OID, f *File, parsedNote *ParsedNote) (*Note, error) {
 	// Try to find an existing note (instead of recreating it from scratch after every change)
 	existingNote, err := CurrentRepository().FindMatchingNote(parsedNote)
 	if err != nil {
@@ -156,11 +147,11 @@ func NewOrExistingNote(f *File, parent *Note, parsedNote *ParsedNote) (*Note, er
 	}
 
 	if existingNote != nil {
-		existingNote.update(f, parent, parsedNote)
+		existingNote.update(packFileOID, f, parsedNote)
 		return existingNote, nil
 	}
 
-	return NewNote(f, parent, parsedNote)
+	return NewNote(packFileOID, f, parsedNote)
 }
 
 /* Object */
@@ -169,7 +160,7 @@ func (n *Note) Kind() string {
 	return "note"
 }
 
-func (n *Note) UniqueOID() string {
+func (n *Note) UniqueOID() OID {
 	return n.OID
 }
 
@@ -312,25 +303,12 @@ func (n Note) String() string {
 
 /* Update */
 
-func (n *Note) update(f *File, parent *Note, parsedNote *ParsedNote) {
+func (n *Note) update(packFileOID OID, f *File, parsedNote *ParsedNote) {
 	// Set basic properties
 	if n.FileOID != f.OID {
 		n.FileOID = f.OID
-		n.File = f
 		n.RelativePath = f.RelativePath
 		n.stale = true
-	}
-
-	// New parent
-	if parent != nil && n.ParentNoteOID != parent.OID {
-		n.ParentNoteOID = parent.OID
-		n.ParentNote = parent
-		n.stale = true
-	}
-	// Old parent is no longer present
-	if parent == nil && n.ParentNoteOID != "" {
-		n.ParentNoteOID = ""
-		n.ParentNote = nil
 	}
 
 	if n.Title != parsedNote.Title {
@@ -360,10 +338,16 @@ func (n *Note) update(f *File, parent *Note, parsedNote *ParsedNote) {
 		n.stale = true
 	}
 
+	if !reflect.DeepEqual(n.Attributes, parsedNote.Attributes) {
+		n.Attributes = parsedNote.Attributes
+		n.stale = true
+	}
+
 	// Set dynamic properties
-	n.updateLongTitle()                 // Require the file and optional parent
 	n.updateContent(parsedNote.Content) // Require the file
 	n.updateSlug()                      // Require the file and note attributes
+
+	n.PackFileOID = packFileOID // FIXME
 
 	if n.stale {
 		n.UpdatedAt = clock.Now()
@@ -394,7 +378,7 @@ func (n *Note) ReplaceMediasByOIDLinks(md string) string {
 		relativePath, err := CurrentRepository().GetNoteRelativePath(n.GetFile().RelativePath, link)
 		if err != nil {
 			// Use a 404 image
-			result.WriteString("oid:" + missingMediaOID)
+			result.WriteString("oid:" + MissingOID)
 			prevIndex = match[3]
 			continue
 		}
@@ -402,19 +386,19 @@ func (n *Note) ReplaceMediasByOIDLinks(md string) string {
 		media, err := CurrentRepository().FindMediaByRelativePath(relativePath)
 		if err != nil || media == nil {
 			// Use a 404 image
-			result.WriteString("oid:" + missingMediaOID)
+			result.WriteString("oid:" + MissingOID)
 			prevIndex = match[3]
 			continue
 		}
 
 		if media.Dangling {
 			// Use a 404 image
-			result.WriteString("oid:" + missingMediaOID)
+			result.WriteString("oid:" + MissingOID)
 			prevIndex = match[3]
 			continue
 		}
 
-		result.WriteString("oid:" + media.OID)
+		result.WriteString(fmt.Sprintf("oid:%s", media.OID))
 		prevIndex = match[3]
 	}
 	// Add remaining text
@@ -423,21 +407,18 @@ func (n *Note) ReplaceMediasByOIDLinks(md string) string {
 	return result.String()
 }
 
-func (n *Note) updateLongTitle() {
-	var titles []markdown.Document
-	if n.GetFile() != nil && n.GetFile().ShortTitle != "" {
-		titles = append(titles, n.GetFile().ShortTitle)
-	}
-	if n.GetParentNote() != nil {
-		titles = append(titles, n.GetParentNote().ShortTitle)
-	}
-	titles = append(titles, n.ShortTitle)
-	newLongTitle := FormatLongTitle(titles...)
-	if n.LongTitle != newLongTitle {
-		n.LongTitle = newLongTitle
-		n.stale = true
-	}
-}
+// func (n *Note) updateLongTitle() {
+// 	var titles []markdown.Document
+// 	if n.GetFile() != nil && n.GetFile().ShortTitle != "" {
+// 		titles = append(titles, n.GetFile().ShortTitle)
+// 	}
+// 	titles = append(titles, n.ShortTitle)
+// 	newLongTitle := FormatLongTitle(titles...)
+// 	if n.LongTitle != newLongTitle {
+// 		n.LongTitle = newLongTitle
+// 		n.stale = true
+// 	}
+// }
 
 func (n *Note) updateSlug() {
 	// Slug is determined based on the following values
@@ -447,15 +428,12 @@ func (n *Note) updateSlug() {
 	var shortTitle markdown.Document
 
 	// Check if a specific slug is specified
-	noteAttributes := n.GetNoteAttributes()
-	if value, ok := noteAttributes["slug"]; ok {
-		if newSlug, ok := value.(string); ok {
-			attributeSlug = newSlug
-		}
+	if newSlug, ok := n.Attributes.Slug(); ok {
+		attributeSlug = newSlug
 	}
 
 	// Check the slug on the file
-	if n.GetFile() != nil {
+	if n.GetFile() != nil { // FIXME jso now!!!!!
 		fileSlug = n.GetFile().Slug
 	}
 
@@ -487,140 +465,12 @@ func DetermineNoteSlug(fileSlug string, attributeSlug string, kind NoteKind, sho
 
 func (n *Note) updateContent(newContent markdown.Document) {
 	prevContent := n.Content
-	prevAttributes := n.Attributes
-
 	n.Content = newContent
 	n.Hash = n.Content.Hash()
 
-	tags, attributes := ExtractBlockTagsAndAttributes(n.Content, GetSchemaAttributeTypes())
-
-	// Merge with parent attributes
-	if n.ParentNoteOID == "" {
-		attributes = n.mergeAttributes(n.GetFile().Attributes, nil, attributes)
-	} else {
-		attributes = n.mergeAttributes(n.GetFile().Attributes, n.GetParentNote().GetNoteAttributes(), attributes)
-	}
-
-	// Merge with parent tags
-	if n.ParentNoteOID == "" {
-		tags = tags.Merge(n.GetFile().GetTags(), tags)
-	} else {
-		tags = tags.Merge(n.GetParentNote().GetTags(), tags)
-	}
-
-	n.Tags = tags
-	n.Attributes = attributes
-
-	// Append note title in a attribute title if not already present
-	if _, ok := attributes["title"]; !ok {
-		n.SetAttribute("title", n.ShortTitle.String())
-	}
-
-	// Replace local-specific links by generic OID links
-	// FIXME remove oid
-	// content = n.ReplaceMediasByOIDLinks(content)
-
-	/* FIXME address this feature
-	// Quotes are processed differently
-	if n.NoteKind == KindQuote {
-		quote, attribution := markdown.ExtractQuote(content)
-
-		// Turn every text line into a quote
-		// Add the attribute name or author in suffix
-		// Ex:
-		//   `@name: Walt Disney`
-		//
-		//   The way to get started is to quit
-		//   talking and begin doing.
-		//
-		// Becomes:
-		//
-		//   > The way to get started is to quit
-		//   > talking and begin doing.
-		//   > — Walt Disney
-
-		if attribution == "" {
-			attribution = n.GetAttributeString("name", n.GetAttributeString("author", ""))
-		}
-		source := n.GetAttributeString("source", "")
-		if strings.Contains(source, "[[") {
-			// Ignore source containing wikilink.
-			// Ideally, we would retrieve the correspond note to retrieve its title.
-			source = ""
-		}
-
-		// Markdown
-		mdContent += text.PrefixLines(quote, "> ")
-		mdContent = strings.TrimSpace(mdContent)
-
-		return
-	}
-
-	// Manage embedded notes
-	// We process as usual the other lines but inject the embedded note content.
-	lines := strings.Split(content, "\n")
-	reEmbeddedNote := regexp.MustCompile(`^!\[\[(.*)(?:\|.*)?\]\]\s*`)
-	var currentBlock strings.Builder
-	for _, line := range lines {
-		matches := reEmbeddedNote.FindStringSubmatch(line)
-		if matches != nil {
-			if currentBlock.Len() > 0 {
-				blockContent := currentBlock.String()
-				mdContent += markdown.ToMarkdown(blockContent) + "\n\n"
-				htmlContent += markdown.ToHTML(blockContent) + "\n\n"
-				txtContent += markdown.ToText(blockContent) + "\n\n"
-				currentBlock.Reset()
-			}
-			wikilink := matches[1]
-			note, _ := CurrentRepository().FindNoteByWikilink(wikilink)
-			if note == nil {
-				note = CurrentDB().WIP().FindNoteByWikilink(wikilink)
-			}
-			// Ignore missing notes, this one will be reprocessed later
-			if note != nil {
-				mdContent += note.ContentMarkdown + "\n\n"
-				htmlContent += note.ContentHTML + "\n\n"
-				txtContent += note.ContentText + "\n\n"
-			} else {
-				// Print the missing link, otherwise the note content may be weird
-				mdContent += line + "\n\n"
-				htmlContent += "<del>" + wikilink + "</del>\n\n"
-				txtContent += markdown.ToText(line) + "\n\n"
-			}
-		} else {
-			currentBlock.WriteString(line)
-			currentBlock.WriteRune('\n')
-		}
-	}
-	if currentBlock.Len() > 0 {
-		blockContent := currentBlock.String()
-		mdContent += markdown.ToMarkdown(blockContent)
-	}
-	*/
-
-	if prevContent != n.Content || !reflect.DeepEqual(prevAttributes, n.Attributes) {
+	if prevContent != n.Content {
 		n.stale = true
 	}
-}
-
-// mergeAttributes is similar to generic mergeAttributes function but filter to exclude non-inheritable attributes.
-func (n *Note) mergeAttributes(fileAttributes, parentNoteAttributes, noteAttributes AttributeSet) AttributeSet {
-	inheritableFileAttributes := fileAttributes
-	inheritableParentNoteAttributes := FilterNonInheritableAttributes(parentNoteAttributes, n.RelativePath, n.NoteKind)
-	ownAttributes := noteAttributes
-	return inheritableFileAttributes.Merge(inheritableParentNoteAttributes, ownAttributes)
-}
-
-// GetNoteAttributes returns the attributes specifically present on the note.
-func (n *Note) GetNoteAttributes() AttributeSet {
-	_, attributes := ExtractBlockTagsAndAttributes(n.Content, GetSchemaAttributeTypes())
-	return attributes
-}
-
-// GetNoteTags returns the tags specifically present on the note.
-func (n *Note) GetNoteTags() []string {
-	tags, _ := ExtractBlockTagsAndAttributes(n.Content, GetSchemaAttributeTypes())
-	return tags
 }
 
 // GetFile returns the containing file, loading it from database if necessary.
@@ -628,29 +478,11 @@ func (n *Note) GetFile() *File {
 	if n.FileOID == "" {
 		return nil
 	}
-	if n.File == nil {
-		file, err := CurrentRepository().LoadFileByOID(n.FileOID)
-		if err != nil {
-			log.Fatalf("Unable to find file %q: %v", n.FileOID, err)
-		}
-		n.File = file
+	file, err := CurrentRepository().LoadFileByOID(n.FileOID)
+	if err != nil {
+		log.Fatalf("Unable to find file %q: %v", n.FileOID, err)
 	}
-	return n.File
-}
-
-// GetParentNote returns the parent note, loading it from database if necessary.
-func (n *Note) GetParentNote() *Note {
-	if n.ParentNoteOID == "" {
-		return nil
-	}
-	if n.ParentNote == nil {
-		note, err := CurrentRepository().LoadNoteByOID(n.ParentNoteOID)
-		if err != nil {
-			log.Fatalf("Unable to note file %q: %v", n.ParentNoteOID, err)
-		}
-		n.ParentNote = note
-	}
-	return n.ParentNote
+	return file
 }
 
 func (n *Note) GetAttributes() map[string]interface{} {
@@ -793,8 +625,8 @@ func (n *Note) Insert() error {
 	query := `
 		INSERT INTO note(
 			oid,
+			packfile_oid,
 			file_oid,
-			note_oid,
 			slug,
 			kind,
 			relative_path,
@@ -822,8 +654,8 @@ func (n *Note) Insert() error {
 
 	_, err = CurrentDB().Client().Exec(query,
 		n.OID,
+		n.PackFileOID,
 		n.FileOID,
-		n.ParentNoteOID,
 		n.Slug,
 		n.NoteKind,
 		n.RelativePath,
@@ -854,8 +686,8 @@ func (n *Note) Update() error {
 	query := `
 		UPDATE note
 		SET
+			packfile_oid = ?,
 			file_oid = ?,
-			note_oid = ?,
 			slug = ?,
 			kind = ?,
 			relative_path = ?,
@@ -881,8 +713,8 @@ func (n *Note) Update() error {
 	}
 
 	_, err = CurrentDB().Client().Exec(query,
+		n.PackFileOID,
 		n.FileOID,
-		n.ParentNoteOID,
 		n.Slug,
 		n.NoteKind,
 		n.RelativePath,
@@ -1061,11 +893,11 @@ func (r *Repository) DumpNotes() error {
 	return nil
 }
 
-func (r *Repository) LoadNoteByOID(oid string) (*Note, error) {
+func (r *Repository) LoadNoteByOID(oid OID) (*Note, error) {
 	return QueryNote(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
-func (r *Repository) FindNotesByFileOID(oid string) ([]*Note, error) {
+func (r *Repository) FindNotesByFileOID(oid OID) ([]*Note, error) {
 	return QueryNotes(CurrentDB().Client(), `WHERE file_oid = ?`, oid)
 }
 
@@ -1200,8 +1032,8 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 	if err := db.QueryRow(fmt.Sprintf(`
 		SELECT
 			oid,
+			packfile_oid,
 			file_oid,
-			note_oid,
 			slug,
 			kind,
 			relative_path,
@@ -1223,8 +1055,8 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 		%s;`, whereClause), args...).
 		Scan(
 			&n.OID,
+			&n.PackFileOID,
 			&n.FileOID,
-			&n.ParentNoteOID,
 			&n.Slug,
 			&n.NoteKind,
 			&n.RelativePath,
@@ -1269,8 +1101,8 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 	rows, err := db.Query(fmt.Sprintf(`
 		SELECT
 			oid,
+			packfile_oid,
 			file_oid,
-			note_oid,
 			slug,
 			kind,
 			relative_path,
@@ -1304,8 +1136,8 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 
 		err = rows.Scan(
 			&n.OID,
+			&n.PackFileOID,
 			&n.FileOID,
-			&n.ParentNoteOID,
 			&n.Slug,
 			&n.NoteKind,
 			&n.RelativePath,

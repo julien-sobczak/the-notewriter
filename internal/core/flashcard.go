@@ -40,15 +40,18 @@ const (
 )
 
 type Flashcard struct {
-	OID string `yaml:"oid" json:"oid"`
+	OID OID `yaml:"oid" json:"oid"`
+
+	// Pack file where this object belongs
+	PackFileOID OID `yaml:"packfile_oid" json:"packfile_oid"`
 
 	// File
-	FileOID string `yaml:"file_oid" json:"file_oid"`
-	File    *File  `yaml:"-" json:"-"` // Lazy-loaded
+	FileOID OID   `yaml:"file_oid" json:"file_oid"`
+	File    *File `yaml:"-" json:"-"` // Lazy-loaded
 
 	// Note representing the flashcard
-	NoteOID string `yaml:"note_oid" json:"note_oid"`
-	Note    *Note  `yaml:"-" json:"-"` // Lazy-loaded
+	NoteOID OID   `yaml:"note_oid" json:"note_oid"`
+	Note    *Note `yaml:"-" json:"-"` // Lazy-loaded
 
 	// The filepath of the file containing the note (denormalized field)
 	RelativePath string `yaml:"relative_path" json:"relative_path"`
@@ -82,7 +85,7 @@ type Flashcard struct {
 }
 
 type Study struct {
-	OID       string    `yaml:"oid" json:"oid"`               // Not persisted in database but can be useful to deduplicate, etc.
+	OID       OID       `yaml:"oid" json:"oid"`               // Not persisted in database but can be useful to deduplicate, etc.
 	StartedAt time.Time `yaml:"started_at" json:"started_at"` // Timestamp when the first card was revealed
 	EndedAt   time.Time `yaml:"ended_at" json:"ended_at"`     // Timestamp when the last card was completed
 	Reviews   []*Review `yaml:"reviews" json:"reviews"`
@@ -125,7 +128,7 @@ const (
 )
 
 type Review struct {
-	FlashcardOID string         `yaml:"flashcard_oid" json:"flashcard_oid"`
+	FlashcardOID OID            `yaml:"flashcard_oid" json:"flashcard_oid"`
 	Feedback     Feedback       `yaml:"feedback" json:"feedback"`
 	DurationInMs int            `yaml:"duration_ms" json:"duration_ms"`
 	CompletedAt  time.Time      `yaml:"completed_at" json:"completed_at"`
@@ -133,8 +136,7 @@ type Review struct {
 	Settings     map[string]any `yaml:"settings" json:"settings"` // Include algorithm-specific attributes (like the e-factor in SM-2)
 }
 
-func NewOrExistingFlashcard(file *File, note *Note, parsedFlashcard *ParsedFlashcard) (*Flashcard, error) {
-
+func NewOrExistingFlashcard(packFileOID OID, file *File, note *Note, parsedFlashcard *ParsedFlashcard) (*Flashcard, error) {
 	// Try to find an existing note (instead of recreating it from scratch after every change)
 	existingFlashcard, err := CurrentRepository().FindMatchingFlashcard(note, parsedFlashcard)
 	if err != nil {
@@ -142,17 +144,19 @@ func NewOrExistingFlashcard(file *File, note *Note, parsedFlashcard *ParsedFlash
 	}
 
 	if existingFlashcard != nil {
-		existingFlashcard.update(file, note, parsedFlashcard)
+		existingFlashcard.update(packFileOID, file, note, parsedFlashcard)
 		return existingFlashcard, nil
 	}
 
-	return NewFlashcard(file, note, parsedFlashcard)
+	return NewFlashcard(packFileOID, file, note, parsedFlashcard)
 }
 
 // NewFlashcard initializes a new flashcard.
-func NewFlashcard(file *File, note *Note, parsedFlashcard *ParsedFlashcard) (*Flashcard, error) {
+func NewFlashcard(packFileOID OID, file *File, note *Note, parsedFlashcard *ParsedFlashcard) (*Flashcard, error) {
 	f := &Flashcard{
 		OID: NewOID(),
+
+		PackFileOID: packFileOID,
 
 		// File-specific attributes
 		FileOID:      file.OID,
@@ -190,7 +194,7 @@ func (f *Flashcard) Kind() string {
 	return "flashcard"
 }
 
-func (f *Flashcard) UniqueOID() string {
+func (f *Flashcard) UniqueOID() OID {
 	return f.OID
 }
 
@@ -275,7 +279,7 @@ func (f *Flashcard) ToMarkdown() string {
 
 /* Update */
 
-func (f *Flashcard) update(file *File, note *Note, parsedFlashcard *ParsedFlashcard) {
+func (f *Flashcard) update(packFileOID OID, file *File, note *Note, parsedFlashcard *ParsedFlashcard) {
 	if f.ShortTitle != note.ShortTitle {
 		f.ShortTitle = note.ShortTitle
 		f.stale = true
@@ -312,6 +316,8 @@ func (f *Flashcard) update(file *File, note *Note, parsedFlashcard *ParsedFlashc
 		f.Back = parsedFlashcard.Back
 		f.stale = true
 	}
+
+	f.PackFileOID = packFileOID // FIXME
 }
 
 /* State Management */
@@ -366,6 +372,7 @@ func (f *Flashcard) Insert() error {
 	query := `
 		INSERT INTO flashcard(
 			oid,
+			packfile_oid,
 			file_oid,
 			note_oid,
 			relative_path,
@@ -378,10 +385,11 @@ func (f *Flashcard) Insert() error {
 			updated_at,
 			last_checked_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 		`
 	_, err := CurrentDB().Client().Exec(query,
 		f.OID,
+		f.PackFileOID,
 		f.FileOID,
 		f.NoteOID,
 		f.RelativePath,
@@ -405,6 +413,7 @@ func (f *Flashcard) Update() error {
 	query := `
 		UPDATE flashcard
 		SET
+			packfile_oid = ?,
 			file_oid = ?,
 			note_oid = ?,
 			relative_path = ?,
@@ -418,6 +427,7 @@ func (f *Flashcard) Update() error {
 		WHERE oid = ?;
 		`
 	_, err := CurrentDB().Client().Exec(query,
+		f.PackFileOID,
 		f.FileOID,
 		f.NoteOID,
 		f.RelativePath,
@@ -485,7 +495,7 @@ func (r *Repository) FindMatchingFlashcard(note *Note, parsedFlashcard *ParsedFl
 	return nil, nil
 }
 
-func (r *Repository) LoadFlashcardByOID(oid string) (*Flashcard, error) {
+func (r *Repository) LoadFlashcardByOID(oid OID) (*Flashcard, error) {
 	return QueryFlashcard(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
@@ -493,7 +503,7 @@ func (r *Repository) LoadFlashcardBySlug(slug string) (*Flashcard, error) {
 	return QueryFlashcard(CurrentDB().Client(), `WHERE slug = ?`, slug)
 }
 
-func (r *Repository) LoadFlashcardByNoteOID(noteID string) (*Flashcard, error) {
+func (r *Repository) LoadFlashcardByNoteOID(noteID OID) (*Flashcard, error) {
 	return QueryFlashcard(CurrentDB().Client(), `WHERE note_oid = ?`, noteID)
 }
 
@@ -528,6 +538,7 @@ func QueryFlashcard(db SQLClient, whereClause string, args ...any) (*Flashcard, 
 	if err := db.QueryRow(fmt.Sprintf(`
 		SELECT
 			oid,
+			packfile_oid,
 			file_oid,
 			note_oid,
 			relative_path,
@@ -546,6 +557,7 @@ func QueryFlashcard(db SQLClient, whereClause string, args ...any) (*Flashcard, 
 		%s;`, whereClause), args...).
 		Scan(
 			&f.OID,
+			&f.PackFileOID,
 			&f.FileOID,
 			&f.NoteOID,
 			&f.RelativePath,
@@ -594,6 +606,7 @@ func QueryFlashcards(db SQLClient, whereClause string, args ...any) ([]*Flashcar
 	rows, err := db.Query(fmt.Sprintf(`
 		SELECT
 			oid,
+			packfile_oid,
 			file_oid,
 			note_oid,
 			relative_path,
@@ -626,6 +639,7 @@ func QueryFlashcards(db SQLClient, whereClause string, args ...any) ([]*Flashcar
 
 		err = rows.Scan(
 			&f.OID,
+			&f.PackFileOID,
 			&f.FileOID,
 			&f.NoteOID,
 			&f.RelativePath,
@@ -678,7 +692,7 @@ func QueryFlashcards(db SQLClient, whereClause string, args ...any) ([]*Flashcar
  */
 
 // NewStudy creates a new study.
-func NewStudy(flashcardOID string) *Study {
+func NewStudy(flashcardOID OID) *Study {
 	return &Study{
 		OID:   NewOID(),
 		stale: true,
@@ -691,7 +705,7 @@ func (s *Study) Kind() string {
 	return "study"
 }
 
-func (s *Study) UniqueOID() string {
+func (s *Study) UniqueOID() OID {
 	return s.OID
 }
 

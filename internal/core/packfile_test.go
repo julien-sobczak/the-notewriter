@@ -27,7 +27,7 @@ func TestObjectData(t *testing.T) {
 	parsedFile, err := ParseFileFromRelativePath(root, "project.md")
 	require.NoError(t, err)
 
-	fileSrc, err := NewFile(nil, parsedFile)
+	fileSrc, err := NewFile(NilOID, parsedFile)
 	require.NoError(t, err)
 	dataSrc, err := NewObjectData(fileSrc)
 	require.NoError(t, err)
@@ -56,7 +56,6 @@ func TestPackFile(t *testing.T) {
 	UseFixedOID(t, "93267c32147a4ab7a1100ce82faab56a99fca1cd")
 	FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
 
-
 	t.Run("New pack file", func(t *testing.T) {
 		root := SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
@@ -64,13 +63,13 @@ func TestPackFile(t *testing.T) {
 		require.NoError(t, err)
 
 		// FIXME how to convert a `Markdown.File` to a `File` (including subobjects) and a list of `Media`
-		file, err := NewFile(nil, parsedFile)
+		file, err := NewFile(NilOID, parsedFile)
 		require.NoError(t, err)
 		parsedNote, ok := parsedFile.FindNoteByTitle("Flashcard: Golang Logo")
 		require.True(t, ok)
-		note, err := NewNote(file, nil, parsedNote)
+		note, err := NewNote(NilOID, file, parsedNote)
 		require.NoError(t, err)
-		flashcard, err := NewFlashcard(file, note, parsedNote.Flashcard)
+		flashcard, err := NewFlashcard(NilOID, file, note, parsedNote.Flashcard)
 		require.NoError(t, err)
 
 		packFileSrc := NewPackFile(file)

@@ -128,7 +128,7 @@ func SetNextOIDs(t *testing.T, oids ...string) {
 }
 
 // UseFixedOID configures a fixed OID value
-func UseFixedOID(t *testing.T, value string) {
+func UseFixedOID(t *testing.T, value OID) {
 	oidGenerator = &fixedOIDGenerator{
 		oid: value,
 	}

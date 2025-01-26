@@ -101,25 +101,26 @@ func (od ObjectData) Unmarshal(target interface{}) error {
  */
 
 type PackFile struct {
-	OID              string        `yaml:"oid" json:"oid"`
+	OID              OID           `yaml:"oid" json:"oid"`
 	FileRelativePath string        `yaml:"file_relative_path" json:"file_relative_path"`
 	FileMTime        time.Time     `yaml:"file_mtime" json:"file_mtime"`
 	FileSize         int64         `yaml:"file_size" json:"file_size"`
 	CTime            time.Time     `yaml:"ctime" json:"ctime"`
 	MTime            time.Time     `yaml:"mtime" json:"mtime"`
 	PackObjects      []*PackObject `yaml:"objects" json:"objects"`
+	BlobRefs         []*BlobRef    `yaml:"blobs" json:"blobs"`
 }
 
 type PackObject struct {
-	OID         string     `yaml:"oid" json:"oid"`
+	OID         OID        `yaml:"oid" json:"oid"`
 	Kind        string     `yaml:"kind" json:"kind"`
 	MTime       time.Time  `yaml:"mtime" json:"mtime"`
 	Description string     `yaml:"desc" json:"desc"`
 	Data        ObjectData `yaml:"data" json:"data"`
 }
 
-// NewPackFileFromFile initializes a new empty pack file.
-func NewPackFile(fileObject FileObject) *PackFile {
+// NewPackFile initializes a new empty pack file.
+func NewPackFile(fileObject FileObject) *PackFile { // FIXME remove
 	return &PackFile{
 		OID: fileObject.UniqueOID(),
 
@@ -194,7 +195,7 @@ func (p *PackFile) Ref() PackFileRef {
 }
 
 // GetPackObject retrieves an object from a pack file.
-func (p *PackFile) GetPackObject(oid string) (*PackObject, bool) {
+func (p *PackFile) GetPackObject(oid OID) (*PackObject, bool) {
 	for _, object := range p.PackObjects {
 		if object.OID == oid {
 			return object, true
@@ -231,8 +232,20 @@ func (p *PackFile) AppendObject(obj Object) error {
 	return nil
 }
 
+// AppendBlob registers a new blob inside the pack file.
+func (p *PackFile) AppendBlob(blob *BlobRef) error {
+	p.BlobRefs = append(p.BlobRefs, blob)
+	return nil
+}
+
+// AppendBlobs registers new blobs inside the pack file.
+func (p *PackFile) AppendBlobs(blobs []*BlobRef) error {
+	p.BlobRefs = append(p.BlobRefs, blobs...)
+	return nil
+}
+
 // UnmarshallObject extract a single object from a commit.
-func (p *PackFile) UnmarshallObject(oid string, target interface{}) error {
+func (p *PackFile) UnmarshallObject(oid OID, target interface{}) error {
 	for _, objEdit := range p.PackObjects {
 		if objEdit.OID == oid {
 			return objEdit.Data.Unmarshal(target)
@@ -241,9 +254,19 @@ func (p *PackFile) UnmarshallObject(oid string, target interface{}) error {
 	return fmt.Errorf("no object with OID %q", oid)
 }
 
+// FindFirstBlobWithMimeType returns the first blob with the given mime type.
+func (p *PackFile) FindFirstBlobWithMimeType(mimeType string) *BlobRef {
+	for _, blob := range p.BlobRefs {
+		if blob.MimeType == mimeType {
+			return blob
+		}
+	}
+	return nil
+}
+
 /* Object */
 
-func (p *PackFile) UniqueOID() string {
+func (p *PackFile) UniqueOID() OID {
 	return p.OID
 }
 
@@ -268,7 +291,7 @@ func (p *PackFile) Write(w io.Writer) error {
 
 // Save writes a new pack file inside .nt/objects.
 func (p *PackFile) Save() error {
-	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects/"+OIDToPath(p.OID))
+	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects/"+p.OID.RelativePath()+".pack")
 	return p.SaveTo(path)
 }
 
@@ -311,7 +334,7 @@ func (p *PackFile) ToMarkdown() string {
 
 type PackFileRef struct {
 	RelativePath string    `yaml:"relative_path" json:"relative_path"`
-	OID          string    `yaml:"oid" json:"oid"`
+	OID          OID       `yaml:"oid" json:"oid"`
 	CTime        time.Time `yaml:"ctime" json:"ctime"`
 	MTime        time.Time `yaml:"mtime" json:"mtime"`
 }
@@ -319,8 +342,8 @@ type PackFileRef struct {
 // Convenient type to add methods
 type PackFileRefs []PackFileRef
 
-func (p PackFileRefs) OIDs() []string {
-	var results []string
+func (p PackFileRefs) OIDs() []OID {
+	var results []OID
 	for _, packFileRef := range p {
 		results = append(results, packFileRef.OID)
 	}
