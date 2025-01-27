@@ -3,16 +3,18 @@ package core
 import (
 	"database/sql"
 	"fmt"
+
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 )
 
 type Relation struct {
 	// Source
-	SourceOID  OID    `yaml:"source_oid" json:"source_oid"`
-	SourceKind string `yaml:"source_kind" json:"source_kind"`
+	SourceOID  oid.OID `yaml:"source_oid" json:"source_oid"`
+	SourceKind string  `yaml:"source_kind" json:"source_kind"`
 
 	// Target
-	TargetOID  OID    `yaml:"target_oid" json:"target_oid"`
-	TargetKind string `yaml:"target_kind" json:"target_kind"`
+	TargetOID  oid.OID `yaml:"target_oid" json:"target_oid"`
+	TargetKind string  `yaml:"target_kind" json:"target_kind"`
 
 	Type string `yaml:"type" json:"type"`
 }
@@ -22,7 +24,7 @@ func NewRelationFromObjects(objA, objB Object, relationType string) *Relation {
 }
 
 // NewRelation instantiates a new relation.
-func NewRelation(oidA OID, kindA string, oidB OID, kindB string, relationType string) *Relation {
+func NewRelation(oidA oid.OID, kindA string, oidB oid.OID, kindB string, relationType string) *Relation {
 	r := &Relation{
 		SourceOID:  oidA,
 		SourceKind: kindA,
@@ -128,11 +130,11 @@ func (r *Repository) FindRelations() ([]*Relation, error) {
 	return QueryRelations(CurrentDB().Client(), "")
 }
 
-func (r *Repository) FindRelationsTo(oid OID) ([]*Relation, error) {
+func (r *Repository) FindRelationsTo(oid oid.OID) ([]*Relation, error) {
 	return QueryRelations(CurrentDB().Client(), `WHERE target_oid = ?`, oid)
 }
 
-func (r *Repository) FindRelationsFrom(oid OID) ([]*Relation, error) {
+func (r *Repository) FindRelationsFrom(oid oid.OID) ([]*Relation, error) {
 	return QueryRelations(CurrentDB().Client(), `WHERE source_oid = ?`, oid)
 }
 

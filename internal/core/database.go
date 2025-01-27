@@ -15,6 +15,7 @@ import (
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/julien-sobczak/the-notewriter/pkg/filesystem"
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/julien-sobczak/the-notewriter/pkg/resync"
 )
 
@@ -152,7 +153,7 @@ func (db *DB) UpsertPackFiles(packFiles ...*PackFile) error {
 	defer db.RollbackTransaction()
 
 	for _, packFile := range packFiles {
-		// TODO implement
+		log.Println(packFile)
 	}
 
 	return db.CommitTransaction()
@@ -168,7 +169,7 @@ func (db *DB) DeletePackFiles(packFiles ...*PackFile) error {
 
 	for _, packFile := range packFiles {
 		// TODO implement
-		packFile.
+		log.Println(packFile)
 	}
 
 	return db.CommitTransaction()
@@ -179,9 +180,9 @@ func (db *DB) DeletePackFiles(packFiles ...*PackFile) error {
 // persisting in .nt/objects and in .nt/database.sqlite
 
 // ReadPackFile reads a pack file on disk.
-func (db *DB) ReadPackFileOnDisk(oid OID) (*PackFile, error) {
+func (db *DB) ReadPackFileOnDisk(oid oid.OID) (*PackFile, error) {
 	result := new(PackFile)
-	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", oid.RelativePath+".pack")
+	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", oid.RelativePath()+".pack")
 	in, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -195,7 +196,7 @@ func (db *DB) ReadPackFileOnDisk(oid OID) (*PackFile, error) {
 
 // DeletePackFile removes a single pack file on disk
 func (db *DB) DeletePackFileOnDisk(packFile *PackFile) error {
-	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", OIDToPath(packFile.OID)+".pack")
+	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", packFile.OID.RelativePath()+".pack")
 	err := os.Remove(path)
 	if err != nil {
 		return err
@@ -205,13 +206,13 @@ func (db *DB) DeletePackFileOnDisk(packFile *PackFile) error {
 }
 
 // ReadBlob reads a blob file on disk.
-func (db *DB) ReadBlobOnDisk(oid OID) ([]byte, error) {
+func (db *DB) ReadBlobOnDisk(oid oid.OID) ([]byte, error) {
 	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", oid.RelativePath()+".blob")
 	return os.ReadFile(path)
 }
 
 // WriteBlob writes a blob file on disk
-func (db *DB) WriteBlobOnDisk(oid OID, data []byte) error {
+func (db *DB) WriteBlobOnDisk(oid oid.OID, data []byte) error {
 	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", oid.RelativePath()+".blob")
 	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
 		return err
@@ -235,7 +236,7 @@ func (db *DB) DeleteBlobsOnDisk(media *Media) error {
 
 // DeleteBlob removes a single blob on disk
 func (db *DB) DeleteBlobOnDisk(media *Media, blob *BlobRef) error {
-	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", OIDToPath(blob.OID)+".blob")
+	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", blob.OID.RelativePath()+".blob")
 	err := os.Remove(path)
 	if err != nil {
 		return err
@@ -397,14 +398,14 @@ func (db *DB) Ref(name string) (string, bool) {
 }
 
 // BlobExists checks if a blob exists locally.
-func (db *DB) BlobExists(oid OID) bool {
+func (db *DB) BlobExists(oid oid.OID) bool {
 	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", oid.RelativePath()+".blob")
 	_, err := os.Stat(path)
 	return !os.IsNotExist(err)
 }
 
 // PackFileExists checks if a blob exists locally.
-func (db *DB) PackFileExists(oid OID) bool {
+func (db *DB) PackFileExists(oid oid.OID) bool {
 	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", oid.RelativePath()+".pack")
 	_, err := os.Stat(path)
 	return !os.IsNotExist(err)
@@ -463,7 +464,7 @@ func (db *DB) StatsOnDisk() (*StatsOnDisk, error) {
 	result := NewStatsOnDiskEmpty()
 
 	for _, file := range files {
-		oid := filepath.Base(file)
+		oid := oid.MustParse(filepath.Base(file))
 
 		result.ObjectFiles++
 

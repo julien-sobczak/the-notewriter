@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +21,7 @@ func TestGoLink(t *testing.T) {
 [Golang](https://go.dev/doc/ "#go/go") was designed at Google in 2007.
 `))
 
-	UseSequenceOID(t)
+	oid.UseSequence(t)
 	AssertNoGoLinks(t)
 	c := FreezeNow(t)
 	createdAt := clock.Now()
@@ -28,20 +29,20 @@ func TestGoLink(t *testing.T) {
 	// Init the file
 	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
-	file, err := NewFile(NilOID, parsedFile)
+	file, err := NewFile(oid.Nil, parsedFile)
 	require.NoError(t, err)
 	require.NoError(t, file.Save())
 	parsedNote, ok := parsedFile.FindNoteByTitle("Reference: Golang History")
 	require.True(t, ok)
-	note, err := NewNote(NilOID, file, parsedNote)
+	note, err := NewNote(oid.Nil, file, parsedNote)
 	require.NoError(t, err)
 	require.NoError(t, note.Save())
 
 	// Create
 	parsedGoLink, ok := parsedNote.FindGoLinkByGoName("go")
 	require.True(t, ok)
-	goLink := NewGoLink(NilOID, note, parsedGoLink)
-	goLinkCopy := NewGoLink(NilOID, note, parsedGoLink)
+	goLink := NewGoLink(oid.Nil, note, parsedGoLink)
+	goLinkCopy := NewGoLink(oid.Nil, note, parsedGoLink)
 	require.NotEqual(t, goLink.OID, goLinkCopy.OID)
 
 	// Check all fields
@@ -86,12 +87,12 @@ func TestGoLink(t *testing.T) {
 	require.NoError(t, err)
 	parsedNote, ok = parsedFile.FindNoteByShortTitle("Golang History")
 	require.True(t, ok)
-	newNote, err := NewOrExistingNote(NilOID, file, parsedNote)
+	newNote, err := NewOrExistingNote(oid.Nil, file, parsedNote)
 	require.NoError(t, err)
 	require.NoError(t, newNote.Save())
 	parsedGoLink, ok = parsedNote.FindGoLinkByGoName("go")
 	require.True(t, ok)
-	newGoLink, err := NewOrExistingGoLink(NilOID, newNote, parsedGoLink)
+	newGoLink, err := NewOrExistingGoLink(oid.Nil, newNote, parsedGoLink)
 	require.NoError(t, err)
 	require.NoError(t, newGoLink.Save())
 	// ...and compare
@@ -114,7 +115,7 @@ func TestGoLink(t *testing.T) {
 }
 
 func TestGoLinkFormats(t *testing.T) {
-	UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
+	oid.UseFixed(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
 	FreezeAt(t, HumanTime(t, "2023-01-01 01:12:30"))
 
 	root := SetUpRepositoryFromFileContent(t, "go.md", UnescapeTestContent(`
@@ -128,17 +129,17 @@ func TestGoLinkFormats(t *testing.T) {
 	// Init the file
 	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
-	file, err := NewFile(NilOID, parsedFile)
+	file, err := NewFile(oid.Nil, parsedFile)
 	require.NoError(t, err)
 
 	// Init the go link
 	parsedNote, ok := parsedFile.FindNoteByTitle("Reference: Golang History")
 	require.True(t, ok)
-	note, err := NewNote(NilOID, file, parsedNote)
+	note, err := NewNote(oid.Nil, file, parsedNote)
 	require.NoError(t, err)
 	parsedGoLink, ok := parsedNote.FindGoLinkByGoName("go")
 	require.True(t, ok)
-	goLink := NewGoLink(NilOID, note, parsedGoLink)
+	goLink := NewGoLink(oid.Nil, note, parsedGoLink)
 
 	t.Run("ToYAML", func(t *testing.T) {
 		actual := goLink.ToYAML()

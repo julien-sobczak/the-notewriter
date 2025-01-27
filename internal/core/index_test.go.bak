@@ -178,7 +178,7 @@ func TestIndex(t *testing.T) {
 
 	t.Run("New", func(t *testing.T) {
 		// Make tests reproductible
-		UseSequenceOID(t)
+		oid.UseSequence(t)
 		now := FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
 		root := SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
@@ -233,7 +233,7 @@ Guido van Rossum
 
 	t.Run("Large Staging Area", func(t *testing.T) {
 		// Make tests reproductible
-		UseSequenceOID(t)
+		oid.UseSequence(t)
 		root := SetUpRepositoryFromTempDir(t)
 
 		// Create a large file containing many notes
@@ -267,7 +267,7 @@ Guido van Rossum
 
 	t.Run("Save on disk", func(t *testing.T) {
 		// Make tests reproductible
-		UseSequenceOID(t)
+		oid.UseSequence(t)
 
 		root := SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 

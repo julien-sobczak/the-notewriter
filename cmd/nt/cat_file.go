@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/julien-sobczak/the-notewriter/internal/core"
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/spf13/cobra"
 )
 
@@ -27,17 +28,17 @@ var catFileCmd = &cobra.Command{
 
 		arg := args[0]
 
-		if oid := core.ParseOIDOrNil(arg); !oid.IsNil() {
+		if oid := oid.ParseOrNil(arg); !oid.IsNil() {
 			dumpOID(oid)
 		}
 
-		// If the argument is not an OID, it must be a path
+		// If the argument is not an oid.OID, it must be a path
 		dumpPath(arg)
 	},
 }
 
 // dumpOID checks if the given OID exists and dumps it
-func dumpOID(oid core.OID) {
+func dumpOID(oid oid.OID) {
 	// OIDs can represent a pack file, an object inside a pack file, or a blob.
 	packFile, err := core.CurrentDB().Index().ReadPackFile(oid)
 	if err != nil {
@@ -92,8 +93,7 @@ func dumpPath(path string) {
 		os.Exit(1)
 	}
 
-	oid := filename
-	dumpOID(core.MustParseOID(oid))
+	dumpOID(oid.MustParse(filename))
 }
 
 func dumpObject(object core.Dumpable) {

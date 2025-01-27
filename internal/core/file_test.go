@@ -9,6 +9,7 @@ import (
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -47,7 +48,7 @@ A **gopher**.
 
 `))
 
-	UseSequenceOID(t)
+	oid.UseSequence(t)
 	AssertNoFiles(t)
 	c := FreezeNow(t)
 	createdAt := clock.Now()
@@ -57,9 +58,9 @@ A **gopher**.
 	require.NoError(t, err)
 
 	// Create
-	file, err := NewFile(NilOID, parsedFile)
+	file, err := NewFile(oid.Nil, parsedFile)
 	require.NoError(t, err)
-	fileCopy, err := NewFile(NilOID, parsedFile)
+	fileCopy, err := NewFile(oid.Nil, parsedFile)
 	require.NoError(t, err)
 	require.NotEqual(t, file.OID, fileCopy.OID)
 
@@ -120,7 +121,7 @@ A **gopher**.
 	// Recreate...
 	parsedFile, err = ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
-	newFile, err := NewOrExistingFile(NilOID, parsedFile)
+	newFile, err := NewOrExistingFile(oid.Nil, parsedFile)
 	require.NoError(t, err)
 	require.NoError(t, newFile.Save())
 	// ...and compare
@@ -170,14 +171,14 @@ tags: [programming]
 
 	parsedFile, err := ParseFile(root, mdChild, mdParent)
 	require.NoError(t, err)
-	childFile, err := NewFile(NilOID, parsedFile)
+	childFile, err := NewFile(oid.Nil, parsedFile)
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{"go", "programming"}, childFile.Attributes.Tags())
 }
 
 func TestFileFormats(t *testing.T) {
-	UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
+	oid.UseFixed(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
 	FreezeAt(t, HumanTime(t, "2023-01-01 01:12:30"))
 
 	root := SetUpRepositoryFromFileContent(t, "go.md", UnescapeTestContent(`---
@@ -197,7 +198,7 @@ tags:
 	// Init the file
 	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
-	file, err := NewFile(NilOID, parsedFile)
+	file, err := NewFile(oid.Nil, parsedFile)
 	require.NoError(t, err)
 	file.MTime = clock.Now() // make tests reproductible
 

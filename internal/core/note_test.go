@@ -9,6 +9,7 @@ import (
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,7 +33,7 @@ tags:
 > Go was created in 2007
 `))
 
-	UseSequenceOID(t)
+	oid.UseSequence(t)
 	AssertNoNotes(t)
 	c := FreezeNow(t)
 	createdAt := clock.Now()
@@ -42,14 +43,14 @@ tags:
 	require.NoError(t, err)
 
 	// Create
-	file, err := NewFile(NilOID, parsedFile)
+	file, err := NewFile(oid.Nil, parsedFile)
 	require.NoError(t, err)
 	require.NoError(t, file.Save())
 	parsedNote, ok := parsedFile.FindNoteByTitle("Reference: Golang History")
 	require.True(t, ok)
-	note, err := NewNote(NilOID, file, parsedNote)
+	note, err := NewNote(oid.Nil, file, parsedNote)
 	require.NoError(t, err)
-	noteCopy, err := NewNote(NilOID, file, parsedNote)
+	noteCopy, err := NewNote(oid.Nil, file, parsedNote)
 	require.NoError(t, err)
 	require.NotEqual(t, note.OID, noteCopy.OID)
 
@@ -119,7 +120,7 @@ tags:
 	require.NoError(t, err)
 	parsedNote, ok = parsedFile.FindNoteByTitle("Reference: Golang History")
 	require.True(t, ok)
-	newNote, err := NewOrExistingNote(NilOID, file, parsedNote)
+	newNote, err := NewOrExistingNote(oid.Nil, file, parsedNote)
 	require.NoError(t, err)
 	require.NoError(t, newNote.Save())
 	// ...and compare
@@ -169,14 +170,14 @@ func TestNoteWithParent(t *testing.T) {
 	// Init the file
 	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
-	file, err := NewFile(NilOID, parsedFile)
+	file, err := NewFile(oid.Nil, parsedFile)
 	require.NoError(t, err)
 	require.NoError(t, file.Save())
 
 	// Init the notes
 	childParsedFile, ok := parsedFile.FindNoteByTitle("Flashcard: Golang History")
 	require.True(t, ok)
-	childNote, err := NewNote(NilOID, file, childParsedFile)
+	childNote, err := NewNote(oid.Nil, file, childParsedFile)
 	require.NoError(t, err)
 
 	// Check attributes
@@ -188,7 +189,7 @@ func TestNoteWithParent(t *testing.T) {
 }
 
 func TestNoteFormats(t *testing.T) {
-	UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
+	oid.UseFixed(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
 	FreezeAt(t, HumanTime(t, "2023-01-01 01:12:30"))
 
 	root := SetUpRepositoryFromFileContent(t, "go.md", UnescapeTestContent(`---
@@ -208,13 +209,13 @@ Golang was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in
 	// Init the file
 	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
-	file, err := NewFile(NilOID, parsedFile)
+	file, err := NewFile(oid.Nil, parsedFile)
 	require.NoError(t, err)
 
 	// Init the note
 	parsedNote, ok := parsedFile.FindNoteByTitle("Reference: Golang History")
 	require.True(t, ok)
-	note, err := NewNote(NilOID, file, parsedNote)
+	note, err := NewNote(oid.Nil, file, parsedNote)
 	require.NoError(t, err)
 
 	t.Run("ToYAML", func(t *testing.T) {
@@ -314,12 +315,12 @@ func TestSearchNotes(t *testing.T) {
 	// Insert the note
 	parsedFile, err := ParseFileFromRelativePath(root, "note.md")
 	require.NoError(t, err)
-	file, err := NewFile(NilOID, parsedFile)
+	file, err := NewFile(oid.Nil, parsedFile)
 	require.NoError(t, err)
 	require.NoError(t, file.Save())
 	parsedNote, ok := parsedFile.FindNoteByTitle("Reference: FTS5")
 	require.True(t, ok)
-	note, err := NewNote(NilOID, file, parsedNote)
+	note, err := NewNote(oid.Nil, file, parsedNote)
 	require.NoError(t, err)
 	require.NoError(t, note.Insert())
 

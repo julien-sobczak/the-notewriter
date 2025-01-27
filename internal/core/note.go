@@ -14,6 +14,7 @@ import (
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
@@ -56,15 +57,15 @@ var (
 // FIXME add json field tag + sql field tag
 type Note struct {
 	// A unique identifier among all files
-	OID OID `yaml:"oid" json:"oid"`
+	OID oid.OID `yaml:"oid" json:"oid"`
 	// A unique human-friendly slug
 	Slug string `yaml:"slug" json:"slug"`
 
 	// Pack file where this object belongs
-	PackFileOID OID `yaml:"packfile_oid" json:"packfile_oid"`
+	PackFileOID oid.OID `yaml:"packfile_oid" json:"packfile_oid"`
 
 	// File containing the note
-	FileOID OID `yaml:"file_oid" json:"file_oid"`
+	FileOID oid.OID `yaml:"file_oid" json:"file_oid"`
 
 	// Type of note
 	NoteKind NoteKind `yaml:"kind" json:"kind"`
@@ -107,10 +108,10 @@ type Note struct {
 }
 
 // NewNote creates a new note.
-func NewNote(packFileOID OID, file *File, parsedNote *ParsedNote) (*Note, error) {
+func NewNote(packFileOID oid.OID, file *File, parsedNote *ParsedNote) (*Note, error) {
 	// Set basic properties
 	n := &Note{
-		OID:          NewOID(),
+		OID:          oid.New(),
 		PackFileOID:  packFileOID,
 		FileOID:      file.OID,
 		Title:        parsedNote.Title,
@@ -139,7 +140,7 @@ func NewNote(packFileOID OID, file *File, parsedNote *ParsedNote) (*Note, error)
 }
 
 // NewOrExistingNote loads and updates an existing note or creates a new one if new.
-func NewOrExistingNote(packFileOID OID, f *File, parsedNote *ParsedNote) (*Note, error) {
+func NewOrExistingNote(packFileOID oid.OID, f *File, parsedNote *ParsedNote) (*Note, error) {
 	// Try to find an existing note (instead of recreating it from scratch after every change)
 	existingNote, err := CurrentRepository().FindMatchingNote(parsedNote)
 	if err != nil {
@@ -160,7 +161,7 @@ func (n *Note) Kind() string {
 	return "note"
 }
 
-func (n *Note) UniqueOID() OID {
+func (n *Note) UniqueOID() oid.OID {
 	return n.OID
 }
 
@@ -303,7 +304,7 @@ func (n Note) String() string {
 
 /* Update */
 
-func (n *Note) update(packFileOID OID, f *File, parsedNote *ParsedNote) {
+func (n *Note) update(packFileOID oid.OID, f *File, parsedNote *ParsedNote) {
 	// Set basic properties
 	if n.FileOID != f.OID {
 		n.FileOID = f.OID
@@ -378,7 +379,7 @@ func (n *Note) ReplaceMediasByOIDLinks(md string) string {
 		relativePath, err := CurrentRepository().GetNoteRelativePath(n.GetFile().RelativePath, link)
 		if err != nil {
 			// Use a 404 image
-			result.WriteString("oid:" + MissingOID)
+			result.WriteString("oid:" + oid.Missing)
 			prevIndex = match[3]
 			continue
 		}
@@ -386,14 +387,14 @@ func (n *Note) ReplaceMediasByOIDLinks(md string) string {
 		media, err := CurrentRepository().FindMediaByRelativePath(relativePath)
 		if err != nil || media == nil {
 			// Use a 404 image
-			result.WriteString("oid:" + MissingOID)
+			result.WriteString("oid:" + oid.Missing)
 			prevIndex = match[3]
 			continue
 		}
 
 		if media.Dangling {
 			// Use a 404 image
-			result.WriteString("oid:" + MissingOID)
+			result.WriteString("oid:" + oid.Missing)
 			prevIndex = match[3]
 			continue
 		}
@@ -893,11 +894,11 @@ func (r *Repository) DumpNotes() error {
 	return nil
 }
 
-func (r *Repository) LoadNoteByOID(oid OID) (*Note, error) {
+func (r *Repository) LoadNoteByOID(oid oid.OID) (*Note, error) {
 	return QueryNote(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
-func (r *Repository) FindNotesByFileOID(oid OID) ([]*Note, error) {
+func (r *Repository) FindNotesByFileOID(oid oid.OID) ([]*Note, error) {
 	return QueryNotes(CurrentDB().Client(), `WHERE file_oid = ?`, oid)
 }
 

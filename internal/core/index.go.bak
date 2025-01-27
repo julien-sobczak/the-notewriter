@@ -597,7 +597,7 @@ type Commit struct {
 // NewCommit initializes a new empty commit.
 func NewCommit() *Commit {
 	return &Commit{
-		OID:   NewOID(),
+		OID:   oid.New(),
 		CTime: clock.Now(),
 		MTime: clock.Now(),
 	}

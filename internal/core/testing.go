@@ -119,28 +119,6 @@ func FreezeAt(t *testing.T, point time.Time) *clock.TestClock {
 	return now
 }
 
-// SetNextOIDs configures a predefined list of OID
-func SetNextOIDs(t *testing.T, oids ...string) {
-	oidGenerator = &suiteOIDGenerator{
-		nextOIDs: oids,
-	}
-	t.Cleanup(ResetOID)
-}
-
-// UseFixedOID configures a fixed OID value
-func UseFixedOID(t *testing.T, value OID) {
-	oidGenerator = &fixedOIDGenerator{
-		oid: value,
-	}
-	t.Cleanup(ResetOID)
-}
-
-// UseFixedOID configures a fixed OID value
-func UseSequenceOID(t *testing.T) {
-	oidGenerator = &sequenceOIDGenerator{}
-	t.Cleanup(ResetOID)
-}
-
 /* Test Helpers */
 
 func MustCountFiles(t *testing.T) int {

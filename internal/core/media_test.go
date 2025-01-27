@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +26,7 @@ A **gopher**.
 ![Logo](./go.svg)
 `))
 
-	UseSequenceOID(t)
+	oid.UseSequence(t)
 	AssertNoMedias(t)
 	c := FreezeNow(t)
 	createdAt := clock.Now()
@@ -37,9 +38,9 @@ A **gopher**.
 	// Create
 	parsedMedia, ok := parsedFile.FindMediaByFilename("go.svg")
 	require.True(t, ok)
-	media, err := NewMedia(NilOID, parsedMedia)
+	media, err := NewMedia(oid.Nil, parsedMedia)
 	require.NoError(t, err)
-	mediaCopy, err := NewMedia(NilOID, parsedMedia)
+	mediaCopy, err := NewMedia(oid.Nil, parsedMedia)
 	require.NoError(t, err)
 	require.NotEqual(t, media.OID, mediaCopy.OID)
 
@@ -87,7 +88,7 @@ A **gopher**.
 	require.NoError(t, err)
 	parsedMedia, ok = parsedFile.FindMediaByFilename("go.svg")
 	require.True(t, ok)
-	newMedia, err := NewOrExistingMedia(NilOID, parsedMedia)
+	newMedia, err := NewOrExistingMedia(oid.Nil, parsedMedia)
 	require.NoError(t, err)
 	require.Equal(t, media.OID, newMedia.OID)
 	require.NoError(t, newMedia.Save())
@@ -113,7 +114,7 @@ A **gopher**.
 }
 
 func TestMediaFormats(t *testing.T) {
-	UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
+	oid.UseFixed(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
 	FreezeAt(t, HumanTime(t, "2023-01-01 01:12:30"))
 
 	root := SetUpRepositoryFromFileContent(t, "go.md", UnescapeTestContent(`
@@ -134,7 +135,7 @@ A **gopher**.
 	require.NoError(t, err)
 	parsedMedia, ok := parsedFile.FindMediaByFilename("go.svg")
 	require.True(t, ok)
-	media, err := NewMedia(NilOID, parsedMedia)
+	media, err := NewMedia(oid.Nil, parsedMedia)
 	require.NoError(t, err)
 
 	// Force blobs generation to check the whole model

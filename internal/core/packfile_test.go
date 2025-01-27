@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -27,7 +28,7 @@ func TestObjectData(t *testing.T) {
 	parsedFile, err := ParseFileFromRelativePath(root, "project.md")
 	require.NoError(t, err)
 
-	fileSrc, err := NewFile(NilOID, parsedFile)
+	fileSrc, err := NewFile(oid.Nil, parsedFile)
 	require.NoError(t, err)
 	dataSrc, err := NewObjectData(fileSrc)
 	require.NoError(t, err)
@@ -53,7 +54,7 @@ func TestObjectData(t *testing.T) {
 func TestPackFile(t *testing.T) {
 
 	// Make tests reproductible
-	UseFixedOID(t, "93267c32147a4ab7a1100ce82faab56a99fca1cd")
+	oid.UseFixed(t, "93267c32147a4ab7a1100ce82faab56a99fca1cd")
 	FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
 
 	t.Run("New pack file", func(t *testing.T) {
@@ -63,13 +64,13 @@ func TestPackFile(t *testing.T) {
 		require.NoError(t, err)
 
 		// FIXME how to convert a `Markdown.File` to a `File` (including subobjects) and a list of `Media`
-		file, err := NewFile(NilOID, parsedFile)
+		file, err := NewFile(oid.Nil, parsedFile)
 		require.NoError(t, err)
 		parsedNote, ok := parsedFile.FindNoteByTitle("Flashcard: Golang Logo")
 		require.True(t, ok)
-		note, err := NewNote(NilOID, file, parsedNote)
+		note, err := NewNote(oid.Nil, file, parsedNote)
 		require.NoError(t, err)
-		flashcard, err := NewFlashcard(NilOID, file, note, parsedNote.Flashcard)
+		flashcard, err := NewFlashcard(oid.Nil, file, note, parsedNote.Flashcard)
 		require.NoError(t, err)
 
 		packFileSrc := NewPackFile(file)

@@ -12,6 +12,7 @@ import (
 
 	"github.com/julien-sobczak/the-notewriter/internal/medias"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"gopkg.in/yaml.v3"
 )
 
@@ -41,10 +42,10 @@ const PreviewMaxWidthOrHeight = 600
 const LargeMaxWidthOrHeight = 1980
 
 type Media struct {
-	OID OID `yaml:"oid" json:"oid"`
+	OID oid.OID `yaml:"oid" json:"oid"`
 
 	// Pack file where this object belongs
-	PackFileOID OID `yaml:"packfile_oid" json:"packfile_oid"`
+	PackFileOID oid.OID `yaml:"packfile_oid" json:"packfile_oid"`
 
 	// Relative path
 	RelativePath string `yaml:"relative_path" json:"relative_path"`
@@ -102,14 +103,14 @@ func DetectMediaKind(filename string) MediaKind {
 }
 
 // NewMedia initializes a new media.
-func NewMedia(packFileOID OID, parsedMedia *ParsedMedia) (*Media, error) {
+func NewMedia(packFileOID oid.OID, parsedMedia *ParsedMedia) (*Media, error) {
 	hash := ""
 	if !parsedMedia.Dangling {
 		hash = parsedMedia.FileHash()
 	}
 
 	return &Media{
-		OID:          NewOID(),
+		OID:          oid.New(),
 		PackFileOID:  packFileOID,
 		RelativePath: parsedMedia.RelativePath,
 		MediaKind:    parsedMedia.MediaKind,
@@ -125,7 +126,7 @@ func NewMedia(packFileOID OID, parsedMedia *ParsedMedia) (*Media, error) {
 	}, nil
 }
 
-func NewOrExistingMedia(packFileOID OID, parsedMedia *ParsedMedia) (*Media, error) {
+func NewOrExistingMedia(packFileOID oid.OID, parsedMedia *ParsedMedia) (*Media, error) {
 	existingMedia, err := CurrentRepository().FindMatchingMedia(parsedMedia)
 	if err != nil {
 		return nil, err
@@ -139,7 +140,7 @@ func NewOrExistingMedia(packFileOID OID, parsedMedia *ParsedMedia) (*Media, erro
 	return NewMedia(packFileOID, parsedMedia)
 }
 
-func (m *Media) update(packFileOID OID, parsedMedia *ParsedMedia) {
+func (m *Media) update(packFileOID oid.OID, parsedMedia *ParsedMedia) {
 	// Special case when file didn't exist or no longer exist
 	if m.Dangling != parsedMedia.Dangling {
 		m.Dangling = parsedMedia.Dangling
@@ -289,7 +290,7 @@ func MustWriteBlob(path string, tags []string) *BlobRef {
 		log.Fatalf("Unable to read blob %q: %v", path, err)
 	}
 	ext := filepath.Ext(path)
-	oid := NewOIDFromBytes(data)
+	oid := oid.NewFromBytes(data)
 	blob := &BlobRef{
 		OID:      oid,
 		MimeType: medias.MimeType(ext),
@@ -307,7 +308,7 @@ func (m *Media) Kind() string {
 	return "media"
 }
 
-func (m *Media) UniqueOID() OID {
+func (m *Media) UniqueOID() oid.OID {
 	return m.OID
 }
 
@@ -605,7 +606,7 @@ func (r *Repository) CountMedias() (int, error) {
 	return count, nil
 }
 
-func (r *Repository) LoadMediaByOID(oid OID) (*Media, error) {
+func (r *Repository) LoadMediaByOID(oid oid.OID) (*Media, error) {
 	return QueryMedia(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
@@ -627,11 +628,11 @@ func (r *Repository) FindMediasLastCheckedBefore(point time.Time) ([]*Media, err
 	return QueryMedias(CurrentDB().Client(), `WHERE last_indexed_at < ?`, timeToSQL(point))
 }
 
-func (r *Repository) FindBlobsFromMedia(mediaOID OID) ([]*BlobRef, error) {
+func (r *Repository) FindBlobsFromMedia(mediaOID oid.OID) ([]*BlobRef, error) {
 	return QueryBlobs(CurrentDB().Client(), "WHERE media_oid = ?", mediaOID)
 }
 
-func (r *Repository) FindBlobFromOID(oid OID) (*BlobRef, error) {
+func (r *Repository) FindBlobFromOID(oid oid.OID) (*BlobRef, error) {
 	return QueryBlob(CurrentDB().Client(), "WHERE oid = ?", oid)
 }
 
@@ -872,7 +873,7 @@ func (m *Media) Blobs() []*BlobRef {
 
 /* ParsedFile */
 
-func NewMediasFromParsedFile(packFileOID OID, parsedFile *ParsedFile) ([]*Media, error) { // FIXME still useful => NewPackFileFromParsedFile instead
+func NewMediasFromParsedFile(packFileOID oid.OID, parsedFile *ParsedFile) ([]*Media, error) { // FIXME still useful => NewPackFileFromParsedFile instead
 	var medias []*Media
 	for _, parsedMedia := range parsedFile.Medias {
 		media, err := NewOrExistingMedia(packFileOID, parsedMedia)

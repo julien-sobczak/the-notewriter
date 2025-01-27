@@ -12,6 +12,7 @@ import (
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/filesystem"
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/julien-sobczak/the-notewriter/pkg/resync"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"golang.org/x/exp/slices"
@@ -361,12 +362,12 @@ func (r *Repository) Add(paths ...PathSpec) error {
 }
 
 func (r *Repository) NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFile, error) {
-	// Use the hash of the parsed file as OID (if the file changes = new OID)
-	oid := MustParseOID(parsedFile.Hash())
+	// Use the hash of the parsed file as OID (if the file changes = new oid.OID)
+	packFileOID := oid.MustParse(parsedFile.Hash())
 
 	// Check first if a previous execution already created the pack file
 	// (ex: the command was aborted with Ctrl+C and restarted)
-	existingPackFile, err := CurrentDB().ReadPackFileOnDisk(oid)
+	existingPackFile, err := CurrentDB().ReadPackFileOnDisk(packFileOID)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
@@ -375,7 +376,7 @@ func (r *Repository) NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFil
 	}
 
 	packFile := &PackFile{
-		OID: oid,
+		OID: packFileOID,
 
 		// Init file properties
 		FileRelativePath: parsedFile.RelativePath,
@@ -391,7 +392,7 @@ func (r *Repository) NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFil
 	var objects []Object
 
 	// Process the File
-	file, err := NewOrExistingFile(NilOID, parsedFile)
+	file, err := NewOrExistingFile(oid.Nil, parsedFile)
 	if err != nil {
 		return nil, err
 	}
@@ -457,12 +458,12 @@ func (r *Repository) NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFil
 }
 
 func (r *Repository) NewPackFileFromParsedMedia(parsedMedia *ParsedMedia) (*PackFile, error) {
-	// Use the hash of the raw original media as OID (if the media is even slightly edited = new OID)
-	oid := MustParseOID(parsedMedia.FileHash())
+	// Use the hash of the raw original media as OID (if the media is even slightly edited = new oid.OID)
+	packFileOID := oid.MustParse(parsedMedia.FileHash())
 
 	// Check first if a previous execution already created the pack file
 	// (ex: the command was aborted with Ctrl+C and restarted)
-	existingPackFile, err := CurrentDB().ReadPackFileOnDisk(oid)
+	existingPackFile, err := CurrentDB().ReadPackFileOnDisk(packFileOID)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
@@ -471,7 +472,7 @@ func (r *Repository) NewPackFileFromParsedMedia(parsedMedia *ParsedMedia) (*Pack
 	}
 
 	packFile := &PackFile{
-		OID: oid,
+		OID: packFileOID,
 
 		// Init file properties
 		FileRelativePath: parsedMedia.RelativePath,

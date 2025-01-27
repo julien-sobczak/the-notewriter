@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"gopkg.in/yaml.v3"
 )
 
@@ -101,7 +102,7 @@ func (od ObjectData) Unmarshal(target interface{}) error {
  */
 
 type PackFile struct {
-	OID              OID           `yaml:"oid" json:"oid"`
+	OID              oid.OID       `yaml:"oid" json:"oid"`
 	FileRelativePath string        `yaml:"file_relative_path" json:"file_relative_path"`
 	FileMTime        time.Time     `yaml:"file_mtime" json:"file_mtime"`
 	FileSize         int64         `yaml:"file_size" json:"file_size"`
@@ -112,7 +113,7 @@ type PackFile struct {
 }
 
 type PackObject struct {
-	OID         OID        `yaml:"oid" json:"oid"`
+	OID         oid.OID    `yaml:"oid" json:"oid"`
 	Kind        string     `yaml:"kind" json:"kind"`
 	MTime       time.Time  `yaml:"mtime" json:"mtime"`
 	Description string     `yaml:"desc" json:"desc"`
@@ -195,7 +196,7 @@ func (p *PackFile) Ref() PackFileRef {
 }
 
 // GetPackObject retrieves an object from a pack file.
-func (p *PackFile) GetPackObject(oid OID) (*PackObject, bool) {
+func (p *PackFile) GetPackObject(oid oid.OID) (*PackObject, bool) {
 	for _, object := range p.PackObjects {
 		if object.OID == oid {
 			return object, true
@@ -245,7 +246,7 @@ func (p *PackFile) AppendBlobs(blobs []*BlobRef) error {
 }
 
 // UnmarshallObject extract a single object from a commit.
-func (p *PackFile) UnmarshallObject(oid OID, target interface{}) error {
+func (p *PackFile) UnmarshallObject(oid oid.OID, target interface{}) error {
 	for _, objEdit := range p.PackObjects {
 		if objEdit.OID == oid {
 			return objEdit.Data.Unmarshal(target)
@@ -266,7 +267,7 @@ func (p *PackFile) FindFirstBlobWithMimeType(mimeType string) *BlobRef {
 
 /* Object */
 
-func (p *PackFile) UniqueOID() OID {
+func (p *PackFile) UniqueOID() oid.OID {
 	return p.OID
 }
 
@@ -334,7 +335,7 @@ func (p *PackFile) ToMarkdown() string {
 
 type PackFileRef struct {
 	RelativePath string    `yaml:"relative_path" json:"relative_path"`
-	OID          OID       `yaml:"oid" json:"oid"`
+	OID          oid.OID   `yaml:"oid" json:"oid"`
 	CTime        time.Time `yaml:"ctime" json:"ctime"`
 	MTime        time.Time `yaml:"mtime" json:"mtime"`
 }
@@ -342,8 +343,8 @@ type PackFileRef struct {
 // Convenient type to add methods
 type PackFileRefs []PackFileRef
 
-func (p PackFileRefs) OIDs() []OID {
-	var results []OID
+func (p PackFileRefs) OIDs() []oid.OID {
+	var results []oid.OID
 	for _, packFileRef := range p {
 		results = append(results, packFileRef.OID)
 	}

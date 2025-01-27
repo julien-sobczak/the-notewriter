@@ -9,16 +9,17 @@ import (
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"gopkg.in/yaml.v3"
 )
 
 type GoLink struct {
-	OID OID `yaml:"oid" json:"oid"`
+	OID oid.OID `yaml:"oid" json:"oid"`
 
 	// Pack file where this object belongs
-	PackFileOID OID `yaml:"packfile_oid" json:"packfile_oid"`
+	PackFileOID oid.OID `yaml:"packfile_oid" json:"packfile_oid"`
 
-	NoteOID OID `yaml:"note_oid" json:"note_oid"`
+	NoteOID oid.OID `yaml:"note_oid" json:"note_oid"`
 
 	// The filepath of the file containing the note (denormalized field)
 	RelativePath string `yaml:"relative_path" json:"relative_path"`
@@ -45,7 +46,7 @@ type GoLink struct {
 	stale bool
 }
 
-func NewOrExistingGoLink(packFileOID OID, note *Note, parsedGoLink *ParsedGoLink) (*GoLink, error) {
+func NewOrExistingGoLink(packFileOID oid.OID, note *Note, parsedGoLink *ParsedGoLink) (*GoLink, error) {
 	existingGoLink, err := CurrentRepository().FindGoLinkByGoName(string(parsedGoLink.GoName))
 	if err != nil {
 		return nil, err
@@ -57,9 +58,9 @@ func NewOrExistingGoLink(packFileOID OID, note *Note, parsedGoLink *ParsedGoLink
 	return NewGoLink(packFileOID, note, parsedGoLink), nil
 }
 
-func NewGoLink(packFileOID OID, note *Note, parsedLink *ParsedGoLink) *GoLink {
+func NewGoLink(packFileOID oid.OID, note *Note, parsedLink *ParsedGoLink) *GoLink {
 	return &GoLink{
-		OID:          NewOID(),
+		OID:          oid.New(),
 		PackFileOID:  packFileOID,
 		NoteOID:      note.OID,
 		RelativePath: note.RelativePath,
@@ -82,7 +83,7 @@ func (l *GoLink) Kind() string {
 	return "link"
 }
 
-func (l *GoLink) UniqueOID() OID {
+func (l *GoLink) UniqueOID() oid.OID {
 	return l.OID
 }
 
@@ -169,7 +170,7 @@ func (l *GoLink) ToMarkdown() string {
 
 /* Update */
 
-func (l *GoLink) update(packFileOID OID, note *Note, parsedLink *ParsedGoLink) {
+func (l *GoLink) update(packFileOID oid.OID, note *Note, parsedLink *ParsedGoLink) {
 	if l.NoteOID != note.OID {
 		l.NoteOID = note.OID
 		l.stale = true
@@ -333,7 +334,7 @@ func (r *Repository) CountGoLinks() (int, error) {
 	return count, nil
 }
 
-func (r *Repository) LoadGoLinkByOID(oid OID) (*GoLink, error) {
+func (r *Repository) LoadGoLinkByOID(oid oid.OID) (*GoLink, error) {
 	return QueryGoLink(CurrentDB().Client(), "WHERE oid = ?", oid)
 }
 

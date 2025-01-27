@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +18,7 @@ func TestReminder(t *testing.T) {
 
 * [ ] Test ”#reminder-2085-09”
 `))
-	UseSequenceOID(t)
+	oid.UseSequence(t)
 	AssertNoReminders(t)
 	c := FreezeNow(t)
 	createdAt := clock.Now()
@@ -25,19 +26,19 @@ func TestReminder(t *testing.T) {
 	// Init the file
 	parsedFile, err := ParseFileFromRelativePath(root, "project.md")
 	require.NoError(t, err)
-	file, err := NewFile(NilOID, parsedFile)
+	file, err := NewFile(oid.Nil, parsedFile)
 	require.NoError(t, err)
 	require.NoError(t, file.Save())
 	parsedNote, ok := parsedFile.FindNoteByTitle("TODO: Backlog")
 	require.True(t, ok)
-	note, err := NewNote(NilOID, file, parsedNote)
+	note, err := NewNote(oid.Nil, file, parsedNote)
 	require.NoError(t, err)
 	require.NoError(t, note.Save())
 
 	// Create
 	parsedReminder, ok := parsedNote.FindReminderByTag("#reminder-2085-09")
 	require.True(t, ok)
-	reminder, err := NewReminder(NilOID, note, parsedReminder)
+	reminder, err := NewReminder(oid.Nil, note, parsedReminder)
 	require.NoError(t, err)
 
 	// Check all fields
@@ -84,12 +85,12 @@ func TestReminder(t *testing.T) {
 	require.NoError(t, err)
 	parsedNote, ok = parsedFile.FindNoteByTitle("TODO: Backlog")
 	require.True(t, ok)
-	newNote, err := NewOrExistingNote(NilOID, file, parsedNote)
+	newNote, err := NewOrExistingNote(oid.Nil, file, parsedNote)
 	require.NoError(t, err)
 	require.NoError(t, newNote.Save())
 	parsedReminder, ok = parsedNote.FindReminderByTag("#reminder-2050-01")
 	require.True(t, ok)
-	newReminder, err := NewOrExistingReminder(NilOID, newNote, parsedReminder)
+	newReminder, err := NewOrExistingReminder(oid.Nil, newNote, parsedReminder)
 	require.NoError(t, err)
 	require.NoError(t, newReminder.Save())
 
@@ -113,7 +114,7 @@ func TestReminder(t *testing.T) {
 }
 
 func TestReminderFormats(t *testing.T) {
-	UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
+	oid.UseFixed(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
 	FreezeAt(t, HumanTime(t, "2023-01-01 01:12:30"))
 
 	root := SetUpRepositoryFromFileContent(t, "project.md", UnescapeTestContent(`
@@ -125,17 +126,17 @@ func TestReminderFormats(t *testing.T) {
 	// Init the file
 	parsedFile, err := ParseFileFromRelativePath(root, "project.md")
 	require.NoError(t, err)
-	file, err := NewFile(NilOID, parsedFile)
+	file, err := NewFile(oid.Nil, parsedFile)
 	require.NoError(t, err)
 
 	// Init the reminder
 	parsedNote, ok := parsedFile.FindNoteByTitle("TODO: Backlog")
 	require.True(t, ok)
-	note, err := NewNote(NilOID, file, parsedNote)
+	note, err := NewNote(oid.Nil, file, parsedNote)
 	require.NoError(t, err)
 	parsedReminder, ok := parsedNote.FindReminderByTag("#reminder-2085-09")
 	require.True(t, ok)
-	reminder, err := NewReminder(NilOID, note, parsedReminder)
+	reminder, err := NewReminder(oid.Nil, note, parsedReminder)
 	require.NoError(t, err)
 
 	t.Run("ToYAML", func(t *testing.T) {

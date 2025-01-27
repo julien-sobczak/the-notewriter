@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -26,7 +27,7 @@ A **gopher**.
 ![Logo](./medias/go.svg)
 `))
 
-	UseSequenceOID(t)
+	oid.UseSequence(t)
 	AssertNoFlashcards(t)
 	c := FreezeNow(t)
 	createdAt := clock.Now()
@@ -34,17 +35,17 @@ A **gopher**.
 	// Init the file
 	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
-	file, err := NewFile(NilOID, parsedFile)
+	file, err := NewFile(oid.Nil, parsedFile)
 	require.NoError(t, err)
 	require.NoError(t, file.Save())
 	parsedNote, ok := parsedFile.FindNoteByTitle("Flashcard: Golang Logo")
 	require.True(t, ok)
-	note, err := NewNote(NilOID, file, parsedNote)
+	note, err := NewNote(oid.Nil, file, parsedNote)
 	require.NoError(t, err)
 	require.NoError(t, note.Save())
 
 	// Create
-	flashcard, err := NewFlashcard(NilOID, file, note, parsedNote.Flashcard)
+	flashcard, err := NewFlashcard(oid.Nil, file, note, parsedNote.Flashcard)
 	require.NoError(t, err)
 
 	// Check all fields
@@ -94,10 +95,10 @@ A **gopher**.
 	require.NoError(t, err)
 	parsedNote, ok = parsedFile.FindNoteByShortTitle("Golang Logo")
 	require.True(t, ok)
-	newNote, err := NewOrExistingNote(NilOID, file, parsedNote)
+	newNote, err := NewOrExistingNote(oid.Nil, file, parsedNote)
 	require.NoError(t, err)
 	require.NoError(t, newNote.Save())
-	newFlashcard, err := NewOrExistingFlashcard(NilOID, file, newNote, parsedNote.Flashcard)
+	newFlashcard, err := NewOrExistingFlashcard(oid.Nil, file, newNote, parsedNote.Flashcard)
 	require.NoError(t, err)
 	require.NoError(t, newFlashcard.Save())
 	// ... and compare
@@ -120,7 +121,7 @@ A **gopher**.
 }
 
 func TestFlashcardFormats(t *testing.T) {
-	UseFixedOID(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
+	oid.UseFixed(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
 	FreezeAt(t, HumanTime(t, "2023-01-01 01:12:30"))
 
 	root := SetUpRepositoryFromFileContent(t, "go.md", UnescapeTestContent(`
@@ -138,16 +139,16 @@ A **gopher**.
 	// Init the file
 	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
-	file, err := NewFile(NilOID, parsedFile)
+	file, err := NewFile(oid.Nil, parsedFile)
 	require.NoError(t, err)
 
 	// Init the flashcard
 	parsedNote, ok := parsedFile.FindNoteByTitle("Flashcard: Golang Logo")
 	require.True(t, ok)
-	note, err := NewNote(NilOID, file, parsedNote)
+	note, err := NewNote(oid.Nil, file, parsedNote)
 	require.NoError(t, err)
 	require.NotNil(t, parsedNote.Flashcard)
-	flashcard, err := NewFlashcard(NilOID, file, note, parsedNote.Flashcard)
+	flashcard, err := NewFlashcard(oid.Nil, file, note, parsedNote.Flashcard)
 	require.NoError(t, err)
 
 	t.Run("ToYAML", func(t *testing.T) {

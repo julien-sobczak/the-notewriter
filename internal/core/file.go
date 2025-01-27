@@ -16,6 +16,7 @@ import (
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/internal/medias"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
@@ -28,12 +29,12 @@ type Attribute struct { // TODO remove
 
 type File struct {
 	// A unique identifier among all files
-	OID OID `yaml:"oid" json:"oid"`
+	OID oid.OID `yaml:"oid" json:"oid"`
 	// A unique human-friendly slug
 	Slug string `yaml:"slug" json:"slug"`
 
 	// Pack file where this object belongs
-	PackFileOID OID `yaml:"packfile_oid" json:"packfile_oid"`
+	PackFileOID oid.OID `yaml:"packfile_oid" json:"packfile_oid"`
 
 	// A relative path to the repository directory
 	RelativePath string `yaml:"relative_path" json:"relative_path"`
@@ -81,7 +82,7 @@ type File struct {
 
 func NewEmptyFile(name string) *File { // TODO still useful?
 	return &File{
-		OID:          NewOID(),
+		OID:          oid.New(),
 		Slug:         "",
 		stale:        true,
 		new:          true,
@@ -91,7 +92,7 @@ func NewEmptyFile(name string) *File { // TODO still useful?
 	}
 }
 
-func NewOrExistingFile(packFileOID OID, parsedFile *ParsedFile) (*File, error) {
+func NewOrExistingFile(packFileOID oid.OID, parsedFile *ParsedFile) (*File, error) {
 	var existingFile *File
 
 	file, err := CurrentRepository().FindMatchingFile(parsedFile)
@@ -108,9 +109,9 @@ func NewOrExistingFile(packFileOID OID, parsedFile *ParsedFile) (*File, error) {
 	}
 }
 
-func NewFile(packFIleOID OID, parsedFile *ParsedFile) (*File, error) {
+func NewFile(packFIleOID oid.OID, parsedFile *ParsedFile) (*File, error) {
 	file := &File{
-		OID:          NewOID(),
+		OID:          oid.New(),
 		PackFileOID:  packFIleOID,
 		Slug:         parsedFile.Slug,
 		RelativePath: parsedFile.RelativePath,
@@ -139,7 +140,7 @@ func (f *File) Kind() string {
 	return "file"
 }
 
-func (f *File) UniqueOID() OID {
+func (f *File) UniqueOID() oid.OID {
 	return f.OID
 }
 
@@ -212,7 +213,7 @@ func (f File) String() string {
 
 /* Update */
 
-func (f *File) update(packFileOID OID, parsedFile *ParsedFile) error {
+func (f *File) update(packFileOID oid.OID, parsedFile *ParsedFile) error {
 	newAttributes := parsedFile.FileAttributes
 
 	// Check if attributes have changed
@@ -493,7 +494,7 @@ func (f *File) Delete() error {
 	return err
 }
 
-func (r *Repository) LoadFileByOID(oid OID) (*File, error) {
+func (r *Repository) LoadFileByOID(oid oid.OID) (*File, error) {
 	return QueryFile(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
@@ -733,7 +734,7 @@ func (f *File) GenerateBlobs() {
 		log.Fatalf("Error reading Markdown file %s: %v", f.RelativePath, err)
 	}
 
-	oid := NewOIDFromBytes(data)
+	oid := oid.NewFromBytes(data)
 	blob := &BlobRef{
 		OID:      oid,
 		MimeType: medias.MimeType(".gz"),
@@ -782,6 +783,6 @@ func (f *File) Blobs() []*BlobRef {
 
 /* ParsedFile */
 
-func NewFileFromParsedFile(packFileOID OID, parsedFile *ParsedFile) (*File, error) {
+func NewFileFromParsedFile(packFileOID oid.OID, parsedFile *ParsedFile) (*File, error) {
 	return NewFile(packFileOID, parsedFile)
 }

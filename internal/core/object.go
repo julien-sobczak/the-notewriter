@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"gopkg.in/yaml.v3"
 )
 
@@ -24,7 +25,7 @@ const (
 
 type BlobRef struct {
 	// OID to locate the blob file in .nt/objects
-	OID        OID          `yaml:"oid" json:"oid"`
+	OID        oid.OID      `yaml:"oid" json:"oid"`
 	MimeType   string       `yaml:"mime" json:"mime"`
 	Attributes AttributeSet `yaml:"attributes" json:"attributes"`
 	Tags       TagSet       `yaml:"tags" json:"tags"`
@@ -57,7 +58,7 @@ type Object interface {
 	// Kind returns the object kind to determine which kind of object to create.
 	Kind() string
 	// UniqueOID returns the OID of the object.
-	UniqueOID() OID
+	UniqueOID() oid.OID
 	// ModificationTime returns the last modification time.
 	ModificationTime() time.Time
 
@@ -97,7 +98,7 @@ type StatefulObject interface {
 // FileObject represents an object present as a file in the repository.
 type FileObject interface {
 	// UniqueOID of the object representing the file
-	UniqueOID() OID
+	UniqueOID() oid.OID
 
 	// Relative path to repository
 	FileRelativePath() string
@@ -159,8 +160,8 @@ func (c *BlobFile) Save() error {
 // Convenient type to add methods
 type BlobRefs []BlobRef
 
-func (r BlobRefs) OIDs() []OID {
-	var results []OID
+func (r BlobRefs) OIDs() []oid.OID {
+	var results []oid.OID
 	for _, ref := range r {
 		results = append(results, ref.OID)
 	}

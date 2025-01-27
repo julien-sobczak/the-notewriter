@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"gopkg.in/yaml.v3"
 )
 
@@ -41,7 +42,7 @@ type IndexEntry struct {
 	RelativePath string `yaml:"relative_path"`
 
 	// Pack file OID representing this file under .nt/objects
-	PackFileOID OID `yaml:"packfile_oid"`
+	PackFileOID oid.OID `yaml:"packfile_oid"`
 	// File last modification date
 	MTime time.Time `yaml:"mtime"`
 	// Size of the file (can be useful to detect changes)
@@ -50,7 +51,7 @@ type IndexEntry struct {
 	// True when a file has been staged
 	Staged bool `yaml:"staged"`
 	// Save but when the file has been staged (= different object under .nt/objects)
-	StagedPackFileOID OID `yaml:"staged_packfile_oid"`
+	StagedPackFileOID oid.OID `yaml:"staged_packfile_oid"`
 	// Timestamp when the file has been detected as deleted
 	StagedTombstone time.Time `yaml:"staged_tombstone"`
 	StagedMTime     time.Time `yaml:"staged_mtime"`
@@ -133,16 +134,16 @@ func (i *IndexEntry) ReadPackFile() (*PackFile, error) {
 
 // IndexObject represents a single object present in a pack file.
 type IndexObject struct {
-	OID         OID    `yaml:"oid"`
-	Kind        string `yaml:"kind"`
-	PackFileOID OID    `yaml:"packfile_oid"`
+	OID         oid.OID `yaml:"oid"`
+	Kind        string  `yaml:"kind"`
+	PackFileOID oid.OID `yaml:"packfile_oid"`
 }
 
 // IndexBlob represents a single blob.
 type IndexBlob struct {
-	OID         OID    `yaml:"oid"`
-	MimeType    string `yaml:"mime" json:"mime"`
-	PackFileOID OID    `yaml:"packfile_oid"`
+	OID         oid.OID `yaml:"oid"`
+	MimeType    string  `yaml:"mime" json:"mime"`
+	PackFileOID oid.OID `yaml:"packfile_oid"`
 }
 
 // ReadIndex reads the index file from the current repository.
@@ -211,7 +212,7 @@ func (i *Index) Save() error {
 	return i.Write(f)
 }
 
-func (i *Index) GetEntryByPackFileOID(oid OID) (*IndexEntry, bool) {
+func (i *Index) GetEntryByPackFileOID(oid oid.OID) (*IndexEntry, bool) {
 	for _, entry := range i.Entries {
 		if entry.PackFileOID == oid {
 			return entry, true
@@ -303,7 +304,7 @@ func (i *Index) Reset(pathSpecs ...string) error {
 /* Extracting objects */
 
 // ReadPackFile reads a pack file from the index.
-func (i *Index) ReadPackFile(oid OID) (*PackFile, error) {
+func (i *Index) ReadPackFile(oid oid.OID) (*PackFile, error) {
 	for _, entry := range i.Entries {
 		if entry.PackFileOID == oid {
 			objectPath := filepath.Join(CurrentRepository().Path, ".nt/objects", oid.RelativePath()+".pack")
@@ -314,7 +315,7 @@ func (i *Index) ReadPackFile(oid OID) (*PackFile, error) {
 }
 
 // ReadPackObject reads a pack object from the index.
-func (i *Index) ReadPackObject(oid OID) (*PackObject, error) {
+func (i *Index) ReadPackObject(oid oid.OID) (*PackObject, error) {
 	for _, object := range i.Objects {
 		if object.OID == oid {
 			packFile, err := NewPackFileFromPath(object.PackFileOID.RelativePath() + ".pack")
@@ -332,7 +333,7 @@ func (i *Index) ReadPackObject(oid OID) (*PackObject, error) {
 }
 
 // ReadObject reads an object from the index.
-func (i *Index) ReadObject(oid OID) (Object, error) {
+func (i *Index) ReadObject(oid oid.OID) (Object, error) {
 	packObject, err := i.ReadPackObject(oid)
 	if err != nil {
 		return nil, err
@@ -341,7 +342,7 @@ func (i *Index) ReadObject(oid OID) (Object, error) {
 }
 
 // ReadBlob reads a blob from the index.
-func (i *Index) ReadBlob(oid OID) (*BlobRef, error) {
+func (i *Index) ReadBlob(oid oid.OID) (*BlobRef, error) {
 	for _, blob := range i.Blobs {
 		if blob.OID == oid {
 			packFile, err := NewPackFileFromPath(blob.PackFileOID.RelativePath() + ".blob")
@@ -360,7 +361,7 @@ func (i *Index) ReadBlob(oid OID) (*BlobRef, error) {
 }
 
 // ReadBlobData reads a blob from the index.
-func (i *Index) ReadBlobData(oid OID) ([]byte, error) {
+func (i *Index) ReadBlobData(oid oid.OID) ([]byte, error) {
 	ref, err := i.ReadBlob(oid)
 	if err != nil {
 		return nil, err
