@@ -91,6 +91,8 @@ type StatefulObject interface {
 
 	// Save persists to DB
 	Save() error
+	// Delete removes from DB
+	Delete() error
 
 	// Update website/guides/devolopers/presentation.md
 }

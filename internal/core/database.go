@@ -61,6 +61,39 @@ func CurrentDB() *DB {
 	return dbSingleton
 }
 
+func (db *DB) initClient() *sql.DB {
+	dbClientOnce.Do(func() {
+		config := CurrentConfig()
+		db, err := sql.Open("sqlite3", filepath.Join(config.RootDirectory, ".nt/database.db"))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
+			os.Exit(1)
+		}
+		dbSingleton.client = db
+
+		instance, err := sqlite3.WithInstance(db, &sqlite3.Config{})
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		// Run migrations
+		d, err := iofs.New(migrationsFS, "sql")
+		if err != nil {
+			log.Fatalf("Error while reading migrations: %v", err)
+		}
+		m, err := migrate.NewWithInstance("iofs", d, "sqlite3", instance)
+		if err != nil {
+			log.Fatalf("Error while initializing migrations: %v", err)
+		}
+
+		err = m.Up() // Create/Update table schema_migrations
+		if err != nil && err != migrate.ErrNoChange {
+			log.Fatalf("Error while running migrations: %v", err)
+		}
+	})
+	return dbSingleton.client
+}
+
 func ReadRefs() map[string]string {
 	refs := make(map[string]string)
 	refdir := CurrentRepository().GetAbsolutePath(".nt/refs")
@@ -142,42 +175,41 @@ func (db *DB) Client() SQLClient {
 	return db.initClient()
 }
 
-/* File Management */
+/* PackFile Management */
 
+// UpsertPackFiles inserts or updates pack files in the database.
 func (db *DB) UpsertPackFiles(packFiles ...*PackFile) error {
-	// Run all queries inside the same transaction
-	err := db.BeginTransaction()
-	if err != nil {
-		return err
-	}
-	defer db.RollbackTransaction()
-
 	for _, packFile := range packFiles {
-		log.Println(packFile)
+		for _, object := range packFile.PackObjects {
+			obj := object.ReadObject()
+			if statefulObj, ok := obj.(StatefulObject); ok {
+				if err := statefulObj.Save(); err != nil {
+					return err
+				}
+			}
+		}
 	}
-
-	return db.CommitTransaction()
+	return nil
 }
 
+// DeletePackFiles removes pack files from the database.
 func (db *DB) DeletePackFiles(packFiles ...*PackFile) error {
-	// Run all queries inside the same transaction
-	err := db.BeginTransaction()
-	if err != nil {
-		return err
-	}
-	defer db.RollbackTransaction()
-
 	for _, packFile := range packFiles {
-		// TODO implement
-		log.Println(packFile)
+		for _, object := range packFile.PackObjects {
+			obj := object.ReadObject()
+			if statefulObj, ok := obj.(StatefulObject); ok {
+				if err := statefulObj.Delete(); err != nil {
+					return err
+				}
+			}
+		}
 	}
-
-	return db.CommitTransaction()
+	return nil
 }
 
-// FIXME methods below still useful?
-// The objective is to have methods that hide the fact that we are
-// persisting in .nt/objects and in .nt/database.sqlite
+/*
+ * Object Management
+ */
 
 // ReadPackFile reads a pack file on disk.
 func (db *DB) ReadPackFileOnDisk(oid oid.OID) (*PackFile, error) {
@@ -194,24 +226,33 @@ func (db *DB) ReadPackFileOnDisk(oid oid.OID) (*PackFile, error) {
 	return result, nil
 }
 
-// DeletePackFile removes a single pack file on disk
+// WritePackFileOnDisk writes a blob file on disk
+func (db *DB) WritePackFileOnDisk(packFile *PackFile) error {
+	if err := packFile.Save(); err != nil {
+		return err
+	}
+	CurrentLogger().Infof("💾 Saved pack file %s.pack", packFile.OID)
+	return nil
+}
+
+// DeletePackFileOnDisk removes a single pack file on disk
 func (db *DB) DeletePackFileOnDisk(packFile *PackFile) error {
 	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", packFile.OID.RelativePath()+".pack")
 	err := os.Remove(path)
 	if err != nil {
 		return err
 	}
-	CurrentLogger().Infof("💾 Deleted pack file %s", filepath.Base(path))
+	CurrentLogger().Infof("💾 Deleted pack file %s.blob", packFile.OID)
 	return nil
 }
 
-// ReadBlob reads a blob file on disk.
+// ReadBlobOnDisk reads a blob file on disk.
 func (db *DB) ReadBlobOnDisk(oid oid.OID) ([]byte, error) {
 	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", oid.RelativePath()+".blob")
 	return os.ReadFile(path)
 }
 
-// WriteBlob writes a blob file on disk
+// WriteBlobOnDisk writes a blob file on disk
 func (db *DB) WriteBlobOnDisk(oid oid.OID, data []byte) error {
 	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", oid.RelativePath()+".blob")
 	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
@@ -224,7 +265,7 @@ func (db *DB) WriteBlobOnDisk(oid oid.OID, data []byte) error {
 	return nil
 }
 
-// DeleteBlobs removes all blobs on disk from a media
+// DeleteBlobsOnDisk removes all blobs on disk from a media
 func (db *DB) DeleteBlobsOnDisk(media *Media) error {
 	for _, blob := range media.BlobRefs {
 		if err := db.DeleteBlobOnDisk(media, blob); err != nil {
@@ -234,7 +275,7 @@ func (db *DB) DeleteBlobsOnDisk(media *Media) error {
 	return nil
 }
 
-// DeleteBlob removes a single blob on disk
+// DeleteBlobOnDisk removes a single blob on disk
 func (db *DB) DeleteBlobOnDisk(media *Media, blob *BlobRef) error {
 	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", blob.OID.RelativePath()+".blob")
 	err := os.Remove(path)
@@ -244,6 +285,10 @@ func (db *DB) DeleteBlobOnDisk(media *Media, blob *BlobRef) error {
 	CurrentLogger().Infof("💾 Deleted blob %s", filepath.Base(path))
 	return nil
 }
+
+/*
+ * Remote Management
+ */
 
 // Origin returns the origin implementation based on the optional configured type.
 func (db *DB) Origin() Remote {
@@ -281,39 +326,6 @@ func (db *DB) Origin() Remote {
 		}
 	})
 	return db.origin
-}
-
-func (db *DB) initClient() *sql.DB {
-	dbClientOnce.Do(func() {
-		config := CurrentConfig()
-		db, err := sql.Open("sqlite3", filepath.Join(config.RootDirectory, ".nt/database.db"))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
-			os.Exit(1)
-		}
-		dbSingleton.client = db
-
-		instance, err := sqlite3.WithInstance(db, &sqlite3.Config{})
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		// Run migrations
-		d, err := iofs.New(migrationsFS, "sql")
-		if err != nil {
-			log.Fatalf("Error while reading migrations: %v", err)
-		}
-		m, err := migrate.NewWithInstance("iofs", d, "sqlite3", instance)
-		if err != nil {
-			log.Fatalf("Error while initializing migrations: %v", err)
-		}
-
-		err = m.Up() // Create/Update table schema_migrations
-		if err != nil && err != migrate.ErrNoChange {
-			log.Fatalf("Error while running migrations: %v", err)
-		}
-	})
-	return dbSingleton.client
 }
 
 // Pull retrieves remote objects.
