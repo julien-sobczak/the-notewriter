@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/julien-sobczak/the-notewriter/internal/medias"
-	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"gopkg.in/yaml.v3"
 )
@@ -75,10 +74,7 @@ type Media struct {
 	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
 	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
 	DeletedAt     time.Time `yaml:"deleted_at,omitempty" json:"deleted_at,omitempty"`
-	LastIndexedAt time.Time `yaml:"-" json:"-"`
-
-	new   bool
-	stale bool
+	LastIndexedAt time.Time `yaml:"last_indexed_at,omitempty" json:"last_indexed_at,omitempty"`
 }
 
 // DetectMediaKind returns the media kind based on a file path.
@@ -103,48 +99,48 @@ func DetectMediaKind(filename string) MediaKind {
 }
 
 // NewMedia initializes a new media.
-func NewMedia(packFileOID oid.OID, parsedMedia *ParsedMedia) (*Media, error) {
+func NewMedia(packFile *PackFile, parsedMedia *ParsedMedia) (*Media, error) {
 	hash := ""
 	if !parsedMedia.Dangling {
 		hash = parsedMedia.FileHash()
 	}
 
 	return &Media{
-		OID:          oid.New(),
-		PackFileOID:  packFileOID,
-		RelativePath: parsedMedia.RelativePath,
-		MediaKind:    parsedMedia.MediaKind,
-		Extension:    parsedMedia.Extension,
-		Dangling:     parsedMedia.Dangling,
-		Size:         parsedMedia.FileSize(),
-		MTime:        parsedMedia.FileMTime(),
-		Hash:         hash,
-		CreatedAt:    clock.Now(),
-		UpdatedAt:    clock.Now(),
-		new:          true,
-		stale:        true,
+		OID:           oid.New(),
+		PackFileOID:   packFile.OID,
+		RelativePath:  parsedMedia.RelativePath,
+		MediaKind:     parsedMedia.MediaKind,
+		Extension:     parsedMedia.Extension,
+		Dangling:      parsedMedia.Dangling,
+		Size:          parsedMedia.FileSize(),
+		MTime:         parsedMedia.FileMTime(),
+		Hash:          hash,
+		CreatedAt:     packFile.CTime,
+		UpdatedAt:     packFile.CTime,
+		LastIndexedAt: packFile.CTime,
 	}, nil
 }
 
-func NewOrExistingMedia(packFileOID oid.OID, parsedMedia *ParsedMedia) (*Media, error) {
+func NewOrExistingMedia(packFile *PackFile, parsedMedia *ParsedMedia) (*Media, error) {
+	// Try to find an existing object (instead of recreating it from scratch after every change)
 	existingMedia, err := CurrentRepository().FindMatchingMedia(parsedMedia)
 	if err != nil {
 		return nil, err
 	}
-
 	if existingMedia != nil {
-		existingMedia.update(packFileOID, parsedMedia)
+		existingMedia.update(packFile, parsedMedia)
 		return existingMedia, nil
 	}
-
-	return NewMedia(packFileOID, parsedMedia)
+	return NewMedia(packFile, parsedMedia)
 }
 
-func (m *Media) update(packFileOID oid.OID, parsedMedia *ParsedMedia) {
+func (m *Media) update(packFile *PackFile, parsedMedia *ParsedMedia) {
+	stale := false
+
 	// Special case when file didn't exist or no longer exist
 	if m.Dangling != parsedMedia.Dangling {
 		m.Dangling = parsedMedia.Dangling
-		m.stale = true
+		stale = true
 
 		if parsedMedia.Dangling {
 			m.Size = 0
@@ -161,19 +157,24 @@ func (m *Media) update(packFileOID oid.OID, parsedMedia *ParsedMedia) {
 	// Check if file on disk has changed
 	if m.Size != parsedMedia.Size {
 		m.Size = parsedMedia.Size
-		m.stale = true
+		stale = true
 	}
 	if m.MTime != parsedMedia.MTime {
 		m.MTime = parsedMedia.MTime
-		m.stale = true
+		stale = true
 	}
 	hash := parsedMedia.FileHash()
 	if m.Hash != hash {
 		m.Hash = hash
-		m.stale = true
+		stale = true
 	}
 
-	m.PackFileOID = packFileOID // FIXME
+	m.PackFileOID = packFile.OID
+	m.LastIndexedAt = packFile.CTime
+
+	if stale {
+		m.UpdatedAt = m.LastIndexedAt
+	}
 }
 
 func (m *Media) GenerateBlobs() {
@@ -316,37 +317,6 @@ func (m *Media) ModificationTime() time.Time {
 	return m.UpdatedAt
 }
 
-func (m *Media) Refresh() (bool, error) {
-	// No dependencies = no need to refresh
-	return false, nil
-}
-
-func (m *Media) Stale() bool {
-	return m.stale
-}
-
-func (m *Media) State() State {
-	if !m.DeletedAt.IsZero() {
-		return Deleted
-	}
-	if m.new {
-		return Added
-	}
-	if m.stale {
-		return Modified
-	}
-	return None
-}
-
-func (m *Media) ForceState(state State) {
-	switch state {
-	case Added:
-		m.new = true
-	case Deleted:
-		m.DeletedAt = clock.Now()
-	}
-	m.stale = true
-}
 func (m *Media) Read(r io.Reader) error {
 	err := yaml.NewDecoder(r).Decode(m)
 	if err != nil {
@@ -391,64 +361,15 @@ func (m *Media) ToMarkdown() string {
 	return sb.String()
 }
 
-/* State Management */
-
-func (m *Media) New() bool {
-	return m.new
-}
-
-func (m *Media) Updated() bool {
-	return m.stale
-}
-
-func (m *Media) Check() error {
-	CurrentLogger().Debugf("Checking media %s...", m.RelativePath)
-	m.LastIndexedAt = clock.Now()
-	query := `
-		UPDATE media
-		SET last_indexed_at = ?
-		WHERE oid = ?;`
-	_, err := CurrentDB().Client().Exec(query,
-		timeToSQL(m.LastIndexedAt),
-		m.OID,
-	)
-
-	return err
-}
+/* Database Management */
 
 func (m *Media) Save() error {
-	var err error
-	m.UpdatedAt = clock.Now()
-	m.LastIndexedAt = clock.Now()
-	switch m.State() {
-	case Added:
-		err = m.Insert()
-		if err == nil {
-			err = m.InsertBlobs()
-		}
-	case Modified:
-		err = m.Update()
-		if err == nil {
-			err = m.InsertBlobs()
-		}
-	case Deleted:
-		err = m.Delete()
-		if err == nil {
-			err = m.DeleteBlobs()
-		}
-	default:
-		err = m.Check()
-	}
-	if err != nil {
+	CurrentLogger().Debugf("Saving media %s...", m.RelativePath)
+
+	if err := m.InsertBlobs(); err != nil {
 		return err
 	}
-	m.new = false
-	m.stale = false
-	return nil
-}
 
-func (m *Media) Insert() error {
-	CurrentLogger().Debugf("Inserting media %s...", m.RelativePath)
 	query := `
 		INSERT INTO media(
 			oid,
@@ -464,9 +385,22 @@ func (m *Media) Insert() error {
 			updated_at,
 			last_indexed_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(oid) DO UPDATE SET
+			packfile_oid = ?,
+			relative_path = ?,
+			kind = ?,
+			dangling = ?,
+			extension = ?,
+			mtime = ?,
+			hashsum = ?,
+			size = ?,
+			updated_at = ?,
+			last_indexed_at = ?
+		;
 	`
 	_, err := CurrentDB().Client().Exec(query,
+		// Insert
 		m.OID,
 		m.PackFileOID,
 		m.RelativePath,
@@ -477,6 +411,17 @@ func (m *Media) Insert() error {
 		m.Hash,
 		m.Size,
 		timeToSQL(m.CreatedAt),
+		timeToSQL(m.UpdatedAt),
+		timeToSQL(m.LastIndexedAt),
+		// Update
+		m.PackFileOID,
+		m.RelativePath,
+		m.MediaKind,
+		m.Dangling,
+		m.Extension,
+		timeToSQL(m.MTime),
+		m.Hash,
+		m.Size,
 		timeToSQL(m.UpdatedAt),
 		timeToSQL(m.LastIndexedAt),
 	)
@@ -534,50 +479,13 @@ func (m *Media) InsertBlobs() error {
 	return nil
 }
 
-func (m *Media) Update() error {
-	CurrentLogger().Debugf("Updating media %s...", m.RelativePath)
-	query := `
-		UPDATE media
-		SET
-			packfile_oid = ?,
-			relative_path = ?,
-			kind = ?,
-			dangling = ?,
-			extension = ?,
-			mtime = ?,
-			hashsum = ?,
-			size = ?,
-			created_at = ?,
-			updated_at = ?,
-			last_indexed_at = ?
-		WHERE oid = ?;
-	`
-	_, err := CurrentDB().Client().Exec(query,
-		m.PackFileOID,
-		m.RelativePath,
-		m.MediaKind,
-		m.Dangling,
-		m.Extension,
-		timeToSQL(m.MTime),
-		m.Hash,
-		m.Size,
-		timeToSQL(m.CreatedAt),
-		timeToSQL(m.UpdatedAt),
-		timeToSQL(m.LastIndexedAt),
-		m.OID,
-	)
-
-	return err
-}
-
 func (m *Media) Delete() error {
-	m.ForceState(Deleted)
+	CurrentLogger().Debugf("Deleting media %s...", m.RelativePath)
 	if err := m.DeleteBlobs(); err != nil {
 		return err
 	}
-	CurrentLogger().Debugf("Deleting media %s...", m.RelativePath)
-	query := `DELETE FROM media WHERE oid = ?;`
-	_, err := CurrentDB().Client().Exec(query, m.OID)
+	query := `DELETE FROM media WHERE oid = ? AND packfile_oid = ?;`
+	_, err := CurrentDB().Client().Exec(query, m.OID, m.PackFileOID)
 	return err
 }
 
@@ -595,6 +503,8 @@ func (m *Media) DeleteBlobs() error {
 	CurrentLogger().Debugf("Deleted %d rows", rows)
 	return nil
 }
+
+/* SQL Queries */
 
 // CountMedias returns the total number of medias.
 func (r *Repository) CountMedias() (int, error) {
@@ -869,18 +779,4 @@ func (m *Media) FileHash() string {
 }
 func (m *Media) Blobs() []*BlobRef {
 	return m.BlobRefs
-}
-
-/* ParsedFile */
-
-func NewMediasFromParsedFile(packFileOID oid.OID, parsedFile *ParsedFile) ([]*Media, error) { // FIXME still useful => NewPackFileFromParsedFile instead
-	var medias []*Media
-	for _, parsedMedia := range parsedFile.Medias {
-		media, err := NewOrExistingMedia(packFileOID, parsedMedia)
-		if err != nil {
-			return nil, err
-		}
-		medias = append(medias, media)
-	}
-	return medias, nil
 }

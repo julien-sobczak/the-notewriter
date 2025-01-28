@@ -26,23 +26,25 @@ func TestGoLink(t *testing.T) {
 	c := FreezeNow(t)
 	createdAt := clock.Now()
 
+	dummyPackFile := DummyPackFile()
+
 	// Init the file
 	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
-	file, err := NewFile(oid.Nil, parsedFile)
+	file, err := NewFile(dummyPackFile, parsedFile)
 	require.NoError(t, err)
 	require.NoError(t, file.Save())
 	parsedNote, ok := parsedFile.FindNoteByTitle("Reference: Golang History")
 	require.True(t, ok)
-	note, err := NewNote(oid.Nil, file, parsedNote)
+	note, err := NewNote(dummyPackFile, file, parsedNote)
 	require.NoError(t, err)
 	require.NoError(t, note.Save())
 
 	// Create
 	parsedGoLink, ok := parsedNote.FindGoLinkByGoName("go")
 	require.True(t, ok)
-	goLink := NewGoLink(oid.Nil, note, parsedGoLink)
-	goLinkCopy := NewGoLink(oid.Nil, note, parsedGoLink)
+	goLink := NewGoLink(dummyPackFile, note, parsedGoLink)
+	goLinkCopy := NewGoLink(dummyPackFile, note, parsedGoLink)
 	require.NotEqual(t, goLink.OID, goLinkCopy.OID)
 
 	// Check all fields
@@ -87,12 +89,12 @@ func TestGoLink(t *testing.T) {
 	require.NoError(t, err)
 	parsedNote, ok = parsedFile.FindNoteByShortTitle("Golang History")
 	require.True(t, ok)
-	newNote, err := NewOrExistingNote(oid.Nil, file, parsedNote)
+	newNote, err := NewOrExistingNote(dummyPackFile, file, parsedNote)
 	require.NoError(t, err)
 	require.NoError(t, newNote.Save())
 	parsedGoLink, ok = parsedNote.FindGoLinkByGoName("go")
 	require.True(t, ok)
-	newGoLink, err := NewOrExistingGoLink(oid.Nil, newNote, parsedGoLink)
+	newGoLink, err := NewOrExistingGoLink(dummyPackFile, newNote, parsedGoLink)
 	require.NoError(t, err)
 	require.NoError(t, newGoLink.Save())
 	// ...and compare
@@ -126,20 +128,22 @@ func TestGoLinkFormats(t *testing.T) {
 [Golang](https://go.dev/doc/ "#go/go") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.
 `))
 
+	dummyPackFile := DummyPackFile()
+
 	// Init the file
 	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
-	file, err := NewFile(oid.Nil, parsedFile)
+	file, err := NewFile(dummyPackFile, parsedFile)
 	require.NoError(t, err)
 
 	// Init the go link
 	parsedNote, ok := parsedFile.FindNoteByTitle("Reference: Golang History")
 	require.True(t, ok)
-	note, err := NewNote(oid.Nil, file, parsedNote)
+	note, err := NewNote(dummyPackFile, file, parsedNote)
 	require.NoError(t, err)
 	parsedGoLink, ok := parsedNote.FindGoLinkByGoName("go")
 	require.True(t, ok)
-	goLink := NewGoLink(oid.Nil, note, parsedGoLink)
+	goLink := NewGoLink(dummyPackFile, note, parsedGoLink)
 
 	t.Run("ToYAML", func(t *testing.T) {
 		actual := goLink.ToYAML()

@@ -35,12 +35,14 @@ A **gopher**.
 	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
 
+	dummyPackFile := DummyPackFile()
+
 	// Create
 	parsedMedia, ok := parsedFile.FindMediaByFilename("go.svg")
 	require.True(t, ok)
-	media, err := NewMedia(oid.Nil, parsedMedia)
+	media, err := NewMedia(dummyPackFile, parsedMedia)
 	require.NoError(t, err)
-	mediaCopy, err := NewMedia(oid.Nil, parsedMedia)
+	mediaCopy, err := NewMedia(dummyPackFile, parsedMedia)
 	require.NoError(t, err)
 	require.NotEqual(t, media.OID, mediaCopy.OID)
 
@@ -88,7 +90,7 @@ A **gopher**.
 	require.NoError(t, err)
 	parsedMedia, ok = parsedFile.FindMediaByFilename("go.svg")
 	require.True(t, ok)
-	newMedia, err := NewOrExistingMedia(oid.Nil, parsedMedia)
+	newMedia, err := NewOrExistingMedia(dummyPackFile, parsedMedia)
 	require.NoError(t, err)
 	require.Equal(t, media.OID, newMedia.OID)
 	require.NoError(t, newMedia.Save())
@@ -129,13 +131,15 @@ A **gopher**.
 ![Logo](./go.svg)
 `))
 
+	dummyPackFile := DummyPackFile()
+
 	// Init the media
 	touch(t, "go.svg")
 	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
 	parsedMedia, ok := parsedFile.FindMediaByFilename("go.svg")
 	require.True(t, ok)
-	media, err := NewMedia(oid.Nil, parsedMedia)
+	media, err := NewMedia(dummyPackFile, parsedMedia)
 	require.NoError(t, err)
 
 	// Force blobs generation to check the whole model

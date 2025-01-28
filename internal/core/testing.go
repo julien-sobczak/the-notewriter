@@ -11,6 +11,7 @@ import (
 	"github.com/julien-sobczak/the-notewriter/internal/testutil"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/filesystem"
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -303,4 +304,20 @@ func HumanTime(t *testing.T, str string) time.Time {
 	}
 	t.Fatalf("No matching pattern for date %q", str)
 	return time.Time{} // zero
+}
+
+/* Dummy Objects */
+
+func DummyPackFile() *PackFile {
+	return &PackFile{
+		OID: oid.New(),
+
+		// Init a fake file
+		FileRelativePath: ".",
+		FileMTime:        clock.Now(),
+		FileSize:         1,
+
+		// Init pack file properties
+		CTime: clock.Now(),
+	}
 }

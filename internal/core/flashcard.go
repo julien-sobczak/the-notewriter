@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
-	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"gopkg.in/yaml.v3"
 )
@@ -74,15 +73,12 @@ type Flashcard struct {
 	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
 	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
 	DeletedAt     time.Time `yaml:"deleted_at,omitempty" json:"deleted_at,omitempty"`
-	LastIndexedAt time.Time `yaml:"-" json:"-"`
+	LastIndexedAt time.Time `yaml:"last_indexed_at,omitempty" json:"last_indexed_at,omitempty"`
 
 	// SRS
 	DueAt     time.Time      `yaml:"due_at,omitempty" json:"due_at,omitempty"`
 	StudiedAt time.Time      `yaml:"studied_at,omitempty" json:"studied_at,omitempty"`
 	Settings  map[string]any `yaml:"settings,omitempty" json:"settings,omitempty"`
-
-	new   bool
-	stale bool
 }
 
 type Study struct {
@@ -137,27 +133,25 @@ type Review struct {
 	Settings     map[string]any `yaml:"settings" json:"settings"` // Include algorithm-specific attributes (like the e-factor in SM-2)
 }
 
-func NewOrExistingFlashcard(packFileOID oid.OID, file *File, note *Note, parsedFlashcard *ParsedFlashcard) (*Flashcard, error) {
+func NewOrExistingFlashcard(packFile *PackFile, file *File, note *Note, parsedFlashcard *ParsedFlashcard) (*Flashcard, error) {
 	// Try to find an existing note (instead of recreating it from scratch after every change)
 	existingFlashcard, err := CurrentRepository().FindMatchingFlashcard(note, parsedFlashcard)
 	if err != nil {
 		return nil, err
 	}
-
 	if existingFlashcard != nil {
-		existingFlashcard.update(packFileOID, file, note, parsedFlashcard)
+		existingFlashcard.update(packFile, file, note, parsedFlashcard)
 		return existingFlashcard, nil
 	}
-
-	return NewFlashcard(packFileOID, file, note, parsedFlashcard)
+	return NewFlashcard(packFile, file, note, parsedFlashcard)
 }
 
 // NewFlashcard initializes a new flashcard.
-func NewFlashcard(packFileOID oid.OID, file *File, note *Note, parsedFlashcard *ParsedFlashcard) (*Flashcard, error) {
+func NewFlashcard(packFile *PackFile, file *File, note *Note, parsedFlashcard *ParsedFlashcard) (*Flashcard, error) {
 	f := &Flashcard{
 		OID: oid.New(),
 
-		PackFileOID: packFileOID,
+		PackFileOID: packFile.OID,
 
 		// File-specific attributes
 		FileOID:      file.OID,
@@ -179,11 +173,9 @@ func NewFlashcard(packFileOID oid.OID, file *File, note *Note, parsedFlashcard *
 		// Wait for first study to initialize SRS fields
 
 		// Timestamps
-		CreatedAt: clock.Now(),
-		UpdatedAt: clock.Now(),
-
-		new:   true,
-		stale: true,
+		CreatedAt:     packFile.CTime,
+		UpdatedAt:     packFile.CTime,
+		LastIndexedAt: packFile.CTime,
 	}
 
 	return f, nil
@@ -201,38 +193,6 @@ func (f *Flashcard) UniqueOID() oid.OID {
 
 func (f *Flashcard) ModificationTime() time.Time {
 	return f.UpdatedAt
-}
-
-func (f *Flashcard) Refresh() (bool, error) {
-	// TODO: No need to refresh?
-	return false, nil
-}
-
-func (f *Flashcard) Stale() bool {
-	return f.stale
-}
-
-func (f *Flashcard) State() State {
-	if !f.DeletedAt.IsZero() {
-		return Deleted
-	}
-	if f.new {
-		return Added
-	}
-	if f.stale {
-		return Modified
-	}
-	return None
-}
-
-func (f *Flashcard) ForceState(state State) {
-	switch state {
-	case Added:
-		f.new = true
-	case Deleted:
-		f.DeletedAt = clock.Now()
-	}
-	f.stale = true
 }
 
 func (f *Flashcard) Read(r io.Reader) error {
@@ -280,96 +240,56 @@ func (f *Flashcard) ToMarkdown() string {
 
 /* Update */
 
-func (f *Flashcard) update(packFileOID oid.OID, file *File, note *Note, parsedFlashcard *ParsedFlashcard) {
+func (f *Flashcard) update(packFile *PackFile, file *File, note *Note, parsedFlashcard *ParsedFlashcard) {
+	stale := false
+
 	if f.ShortTitle != note.ShortTitle {
 		f.ShortTitle = note.ShortTitle
-		f.stale = true
+		stale = true
 	}
 
 	if f.FileOID != file.OID {
 		f.FileOID = file.OID
 		f.File = file
-		f.stale = true
+		stale = true
 	}
 
 	if f.NoteOID != note.OID {
 		f.NoteOID = note.OID
 		f.Note = note
-		f.stale = true
+		stale = true
 	}
 
 	if f.Slug != note.Slug {
 		f.Slug = note.Slug
-		f.stale = true
+		stale = true
 	}
 
 	if !reflect.DeepEqual(f.Tags, note.GetTags()) {
 		f.Tags = note.GetTags()
-		f.stale = true
+		stale = true
 	}
 
 	if f.Front != parsedFlashcard.Front {
 		f.Front = parsedFlashcard.Front
-		f.stale = true
+		stale = true
 	}
 
 	if f.Back != parsedFlashcard.Back {
 		f.Back = parsedFlashcard.Back
-		f.stale = true
+		stale = true
 	}
 
-	f.PackFileOID = packFileOID // FIXME
-}
+	f.PackFileOID = packFile.OID
+	f.LastIndexedAt = packFile.CTime
 
-/* State Management */
-
-func (f *Flashcard) New() bool {
-	return f.new
-}
-
-func (f *Flashcard) Updated() bool {
-	return f.stale
-}
-
-func (f *Flashcard) Check() error {
-	CurrentLogger().Debugf("Checking flashcard %s...", f.ShortTitle)
-	f.LastIndexedAt = clock.Now()
-	query := `
-		UPDATE flashcard
-		SET last_indexed_at = ?
-		WHERE oid = ?;`
-	_, err := CurrentDB().Client().Exec(query,
-		timeToSQL(f.LastIndexedAt),
-		f.OID,
-	)
-
-	return err
+	if stale {
+		f.UpdatedAt = packFile.CTime
+	}
 }
 
 func (f *Flashcard) Save() error {
-	var err error
-	f.UpdatedAt = clock.Now()
-	f.LastIndexedAt = clock.Now()
-	switch f.State() {
-	case Added:
-		err = f.Insert()
-	case Modified:
-		err = f.Update()
-	case Deleted:
-		err = f.Delete()
-	default:
-		err = f.Check()
-	}
-	if err != nil {
-		return err
-	}
-	f.new = false
-	f.stale = false
-	return nil
-}
-
-func (f *Flashcard) Insert() error {
-	CurrentLogger().Debugf("Inserting flashcard %s...", f.ShortTitle)
+	CurrentLogger().Debugf("Saving flashcard %s...", f.ShortTitle)
 	query := `
 		INSERT INTO flashcard(
 			oid,
@@ -386,9 +306,23 @@ func (f *Flashcard) Insert() error {
 			updated_at,
 			last_indexed_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(oid) DO UPDATE SET
+			packfile_oid = ?,
+			file_oid = ?,
+			note_oid = ?,
+			relative_path = ?,
+			short_title = ?,
+			slug = ?,
+			tags = ?,
+			front = ?,
+			back = ?,
+			updated_at = ?,
+			last_indexed_at = ?
+		;
 		`
 	_, err := CurrentDB().Client().Exec(query,
+		// Insert
 		f.OID,
 		f.PackFileOID,
 		f.FileOID,
@@ -401,33 +335,8 @@ func (f *Flashcard) Insert() error {
 		f.Back,
 		timeToSQL(f.CreatedAt),
 		timeToSQL(f.UpdatedAt),
-		timeToSQL(f.LastIndexedAt))
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (f *Flashcard) Update() error {
-	CurrentLogger().Debugf("Updating flashcard %s...", f.ShortTitle)
-	query := `
-		UPDATE flashcard
-		SET
-			packfile_oid = ?,
-			file_oid = ?,
-			note_oid = ?,
-			relative_path = ?,
-			short_title = ?,
-			slug = ?,
-			tags = ?,
-			front = ?,
-			back = ?,
-			updated_at = ?,
-			last_indexed_at = ?
-		WHERE oid = ?;
-		`
-	_, err := CurrentDB().Client().Exec(query,
+		timeToSQL(f.LastIndexedAt),
+		// Update
 		f.PackFileOID,
 		f.FileOID,
 		f.NoteOID,
@@ -439,16 +348,18 @@ func (f *Flashcard) Update() error {
 		f.Back,
 		timeToSQL(f.UpdatedAt),
 		timeToSQL(f.LastIndexedAt),
-		f.OID)
+	)
+	if err != nil {
+		return err
+	}
 
-	return err
+	return nil
 }
 
 func (f *Flashcard) Delete() error {
-	f.ForceState(Deleted)
 	CurrentLogger().Debugf("Deleting flashcard %s...", f.ShortTitle)
-	query := `DELETE FROM flashcard WHERE oid = ?;`
-	_, err := CurrentDB().Client().Exec(query, f.OID)
+	query := `DELETE FROM flashcard WHERE oid = ? AND packfile_oid = ?;`
+	_, err := CurrentDB().Client().Exec(query, f.OID, f.PackFileOID)
 	return err
 }
 
@@ -461,6 +372,8 @@ func SettingsJSON(settings map[string]any) (string, error) {
 	}
 	return buf.String(), nil
 }
+
+/* SQL Queries */
 
 // CountFlashcards returns the total number of flashcards.
 func (r *Repository) CountFlashcards() (int, error) {
@@ -712,25 +625,6 @@ func (s *Study) UniqueOID() oid.OID {
 
 func (s *Study) ModificationTime() time.Time {
 	return s.EndedAt
-}
-
-func (s *Study) Refresh() (bool, error) {
-	// Study are immutable
-	return false, nil
-}
-
-func (s *Study) Stale() bool {
-	return s.stale
-}
-
-func (s *Study) State() State {
-	// Mark study as new to try to update the corresponding flashcard
-	// if the study is more recent that the last review.
-	return Added
-}
-
-func (s *Study) ForceState(state State) {
-	// Do nothing
 }
 
 func (s *Study) Read(r io.Reader) error {

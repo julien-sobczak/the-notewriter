@@ -48,41 +48,35 @@ type Reminder struct {
 	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
 	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
 	DeletedAt     time.Time `yaml:"deleted_at,omitempty" json:"deleted_at,omitempty"`
-	LastIndexedAt time.Time `yaml:"-" json:"-"`
-
-	new   bool
-	stale bool
+	LastIndexedAt time.Time `yaml:"last_indexed_at,omitempty" json:"last_indexed_at,omitempty"`
 }
 
-func NewOrExistingReminder(packFileOID oid.OID, note *Note, parsedReminder *ParsedReminder) (*Reminder, error) {
+func NewOrExistingReminder(packFile *PackFile, note *Note, parsedReminder *ParsedReminder) (*Reminder, error) {
 	// Try to find an existing note (instead of recreating it from scratch after every change)
 	existingReminder, err := CurrentRepository().FindMatchingReminder(note, parsedReminder)
 	if err != nil {
 		return nil, err
 	}
-
 	if existingReminder != nil {
-		existingReminder.update(packFileOID, note, parsedReminder)
+		existingReminder.update(packFile, note, parsedReminder)
 		return existingReminder, nil
 	}
-
-	return NewReminder(packFileOID, note, parsedReminder)
+	return NewReminder(packFile, note, parsedReminder)
 }
 
 // NewReminder instantiates a new reminder.
-func NewReminder(packFileOID oid.OID, note *Note, parsedReminder *ParsedReminder) (*Reminder, error) {
+func NewReminder(packFile *PackFile, note *Note, parsedReminder *ParsedReminder) (*Reminder, error) {
 	r := &Reminder{
-		OID:          oid.New(),
-		PackFileOID:  packFileOID,
-		FileOID:      note.FileOID,
-		NoteOID:      note.OID,
-		RelativePath: note.RelativePath,
-		Tag:          parsedReminder.Tag,
-		Description:  parsedReminder.Description,
-		CreatedAt:    clock.Now(),
-		UpdatedAt:    clock.Now(),
-		stale:        true,
-		new:          true,
+		OID:           oid.New(),
+		PackFileOID:   packFile.OID,
+		FileOID:       note.FileOID,
+		NoteOID:       note.OID,
+		RelativePath:  note.RelativePath,
+		Tag:           parsedReminder.Tag,
+		Description:   parsedReminder.Description,
+		CreatedAt:     packFile.CTime,
+		UpdatedAt:     packFile.CTime,
+		LastIndexedAt: packFile.CTime,
 	}
 
 	err := r.Next()
@@ -105,38 +99,6 @@ func (r *Reminder) UniqueOID() oid.OID {
 
 func (r *Reminder) ModificationTime() time.Time {
 	return r.UpdatedAt
-}
-
-func (r *Reminder) Refresh() (bool, error) {
-	// No dependencies = no need to refresh
-	return false, nil
-}
-
-func (r *Reminder) Stale() bool {
-	return r.stale
-}
-
-func (r *Reminder) State() State {
-	if !r.DeletedAt.IsZero() {
-		return Deleted
-	}
-	if r.new {
-		return Added
-	}
-	if r.stale {
-		return Modified
-	}
-	return None
-}
-
-func (r *Reminder) ForceState(state State) {
-	switch state {
-	case Added:
-		r.new = true
-	case Deleted:
-		r.DeletedAt = clock.Now()
-	}
-	r.stale = true
 }
 
 func (n *Reminder) Read(r io.Reader) error {
@@ -166,41 +128,42 @@ func (r Reminder) String() string {
 
 /* Update */
 
-func (r *Reminder) update(packFileOID oid.OID, note *Note, parsedReminder *ParsedReminder) error {
+func (r *Reminder) update(packFile *PackFile, note *Note, parsedReminder *ParsedReminder) error {
+	stale := false
+
 	if r.FileOID != note.FileOID {
 		r.FileOID = note.FileOID
-		r.stale = true
+		stale = true
 	}
 	if r.NoteOID != note.OID {
 		r.NoteOID = note.OID
 		r.Note = note
-		r.stale = true
+		stale = true
 	}
 	if r.Description != parsedReminder.Description {
 		r.Description = parsedReminder.Description
-		r.stale = true
+		stale = true
 	}
 	if r.Tag != parsedReminder.Tag {
 		r.Tag = parsedReminder.Tag
-		r.stale = true
+		stale = true
 		err := r.Next()
 		if err != nil {
 			return err
 		}
 	}
-	r.PackFileOID = packFileOID // FIXME
+
+	r.PackFileOID = packFile.OID
+	r.LastIndexedAt = packFile.CTime
+
+	if stale {
+		r.UpdatedAt = packFile.CTime
+	}
+
 	return nil
 }
 
 /* State Management */
-
-func (r *Reminder) New() bool {
-	return r.new
-}
-
-func (r *Reminder) Updated() bool {
-	return r.stale
-}
 
 func (r *Reminder) Next() error {
 	if clock.Now().Before(r.NextPerformedAt) {
@@ -611,45 +574,8 @@ func generateDates(yearExpr, monthExpr, dayExpr string) []time.Time {
 
 /* Database Management */
 
-func (r *Reminder) Check() error {
-	CurrentLogger().Debugf("Checking reminder %s...", r.Description)
-	r.LastIndexedAt = clock.Now()
-	query := `
-		UPDATE reminder
-		SET last_indexed_at = ?
-		WHERE oid = ?;`
-	_, err := CurrentDB().Client().Exec(query,
-		timeToSQL(r.LastIndexedAt),
-		r.OID,
-	)
-
-	return err
-}
-
 func (r *Reminder) Save() error {
-	var err error
-	r.UpdatedAt = clock.Now()
-	r.LastIndexedAt = clock.Now()
-	switch r.State() {
-	case Added:
-		err = r.Insert()
-	case Modified:
-		err = r.Update()
-	case Deleted:
-		err = r.Delete()
-	default:
-		err = r.Check()
-	}
-	if err != nil {
-		return err
-	}
-	r.new = false
-	r.stale = false
-	return nil
-}
-
-func (r *Reminder) Insert() error {
-	CurrentLogger().Debugf("Inserting reminder %s...", r.Description)
+	CurrentLogger().Debugf("Saving reminder %s...", r.Description)
 	query := `
 		INSERT INTO reminder(
 			oid,
@@ -665,9 +591,22 @@ func (r *Reminder) Insert() error {
 			updated_at,
 			last_indexed_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(oid) DO UPDATE SET
+			packfile_oid = ?,
+			file_oid = ?,
+			note_oid = ?,
+			relative_path = ?,
+			description = ?,
+			tag = ?,
+			last_performed_at = ?,
+			next_performed_at = ?,
+			updated_at = ?,
+			last_indexed_at = ?
+		;
 	`
 	_, err := CurrentDB().Client().Exec(query,
+		// Insert
 		r.OID,
 		r.PackFileOID,
 		r.FileOID,
@@ -680,32 +619,7 @@ func (r *Reminder) Insert() error {
 		timeToSQL(r.CreatedAt),
 		timeToSQL(r.UpdatedAt),
 		timeToSQL(r.LastIndexedAt),
-	)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (r *Reminder) Update() error {
-	CurrentLogger().Debugf("Updating reminder %s...", r.Description)
-	query := `
-		UPDATE reminder
-		SET
-			packfile_oid = ?,
-			file_oid = ?,
-			note_oid = ?,
-			relative_path = ?,
-			description = ?,
-			tag = ?,
-			last_performed_at = ?,
-			next_performed_at = ?,
-			updated_at = ?,
-			last_indexed_at = ?
-		WHERE oid = ?;
-	`
-	_, err := CurrentDB().Client().Exec(query,
+		// Update
 		r.PackFileOID,
 		r.FileOID,
 		r.NoteOID,
@@ -716,19 +630,22 @@ func (r *Reminder) Update() error {
 		timeToSQL(r.NextPerformedAt),
 		timeToSQL(r.UpdatedAt),
 		timeToSQL(r.LastIndexedAt),
-		r.OID,
 	)
+	if err != nil {
+		return err
+	}
 
-	return err
+	return nil
 }
 
 func (r *Reminder) Delete() error {
-	r.ForceState(Deleted)
 	CurrentLogger().Debugf("Deleting reminder %s...", r.Description)
-	query := `DELETE FROM reminder WHERE oid = ?;`
-	_, err := CurrentDB().Client().Exec(query, r.OID)
+	query := `DELETE FROM reminder WHERE oid = ? AND packfile_oid = ?;`
+	_, err := CurrentDB().Client().Exec(query, r.OID, r.PackFileOID)
 	return err
 }
+
+/* SQL Queries */
 
 // CountReminders returns the total number of reminders.
 func (r *Repository) CountReminders() (int, error) {

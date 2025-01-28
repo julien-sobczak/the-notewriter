@@ -42,15 +42,17 @@ tags:
 	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
 
+	dummyPackFile := DummyPackFile()
+
 	// Create
-	file, err := NewFile(oid.Nil, parsedFile)
+	file, err := NewFile(dummyPackFile, parsedFile)
 	require.NoError(t, err)
 	require.NoError(t, file.Save())
 	parsedNote, ok := parsedFile.FindNoteByTitle("Reference: Golang History")
 	require.True(t, ok)
-	note, err := NewNote(oid.Nil, file, parsedNote)
+	note, err := NewNote(dummyPackFile, file, parsedNote)
 	require.NoError(t, err)
-	noteCopy, err := NewNote(oid.Nil, file, parsedNote)
+	noteCopy, err := NewNote(dummyPackFile, file, parsedNote)
 	require.NoError(t, err)
 	require.NotEqual(t, note.OID, noteCopy.OID)
 
@@ -120,7 +122,7 @@ tags:
 	require.NoError(t, err)
 	parsedNote, ok = parsedFile.FindNoteByTitle("Reference: Golang History")
 	require.True(t, ok)
-	newNote, err := NewOrExistingNote(oid.Nil, file, parsedNote)
+	newNote, err := NewOrExistingNote(dummyPackFile, file, parsedNote)
 	require.NoError(t, err)
 	require.NoError(t, newNote.Save())
 	// ...and compare
@@ -167,17 +169,19 @@ func TestNoteWithParent(t *testing.T) {
 	err := os.WriteFile(filepath.Join(root, "go.md"), []byte(UnescapeTestContent(content)), 0644)
 	require.NoError(t, err)
 
+	dummyPackFile := DummyPackFile()
+
 	// Init the file
 	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
-	file, err := NewFile(oid.Nil, parsedFile)
+	file, err := NewFile(dummyPackFile, parsedFile)
 	require.NoError(t, err)
 	require.NoError(t, file.Save())
 
 	// Init the notes
 	childParsedFile, ok := parsedFile.FindNoteByTitle("Flashcard: Golang History")
 	require.True(t, ok)
-	childNote, err := NewNote(oid.Nil, file, childParsedFile)
+	childNote, err := NewNote(dummyPackFile, file, childParsedFile)
 	require.NoError(t, err)
 
 	// Check attributes
@@ -206,16 +210,18 @@ tags:
 Golang was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.
 `))
 
+	dummyPackFile := DummyPackFile()
+
 	// Init the file
 	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
-	file, err := NewFile(oid.Nil, parsedFile)
+	file, err := NewFile(dummyPackFile, parsedFile)
 	require.NoError(t, err)
 
 	// Init the note
 	parsedNote, ok := parsedFile.FindNoteByTitle("Reference: Golang History")
 	require.True(t, ok)
-	note, err := NewNote(oid.Nil, file, parsedNote)
+	note, err := NewNote(dummyPackFile, file, parsedNote)
 	require.NoError(t, err)
 
 	t.Run("ToYAML", func(t *testing.T) {
@@ -315,14 +321,17 @@ func TestSearchNotes(t *testing.T) {
 	// Insert the note
 	parsedFile, err := ParseFileFromRelativePath(root, "note.md")
 	require.NoError(t, err)
-	file, err := NewFile(oid.Nil, parsedFile)
+
+	dummyPackFile := DummyPackFile()
+
+	file, err := NewFile(dummyPackFile, parsedFile)
 	require.NoError(t, err)
 	require.NoError(t, file.Save())
 	parsedNote, ok := parsedFile.FindNoteByTitle("Reference: FTS5")
 	require.True(t, ok)
-	note, err := NewNote(oid.Nil, file, parsedNote)
+	note, err := NewNote(dummyPackFile, file, parsedNote)
 	require.NoError(t, err)
-	require.NoError(t, note.Insert())
+	require.NoError(t, note.Save())
 
 	// Search the note using a full-text query
 	notes, err := CurrentRepository().SearchNotes("kind:reference fts5")
@@ -330,8 +339,8 @@ func TestSearchNotes(t *testing.T) {
 	assert.Len(t, notes, 1)
 
 	// Update the note content
-	note.updateContent("full-text")
-	require.NoError(t, note.Update())
+	note.Content = "full-text"
+	require.NoError(t, note.Save())
 
 	// Search the note using a full-text query
 	notes, err = CurrentRepository().SearchNotes("kind:reference full")

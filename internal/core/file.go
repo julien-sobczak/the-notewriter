@@ -14,17 +14,11 @@ import (
 	"github.com/julien-sobczak/the-notewriter/internal/helpers"
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/internal/medias"
-	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 )
-
-type Attribute struct { // TODO remove
-	Key   string
-	Value interface{}
-}
 
 type File struct {
 	// A unique identifier among all files
@@ -58,6 +52,7 @@ type File struct {
 	notes      []*Note      `yaml:"-" json:"-"` // TODO still useful?
 	flashcards []*Flashcard `yaml:"-" json:"-"` // TODO still useful?
 
+	// TODO still useful as these fields are stored in the index?
 	// Size of the file (can be useful to detect changes)
 	Size int64 `yaml:"size" json:"size"`
 	// Hash of the content (can be useful to detect changes too)
@@ -71,10 +66,7 @@ type File struct {
 	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
 	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
 	DeletedAt     time.Time `yaml:"deleted_at,omitempty" json:"deleted_at,omitempty"`
-	LastIndexedAt time.Time `yaml:"-" json:"-"`
-
-	new   bool
-	stale bool
+	LastIndexedAt time.Time `yaml:"last_indexed_at,omitempty" json:"last_indexed_at,omitempty"`
 }
 
 /* Creation */
@@ -83,51 +75,44 @@ func NewEmptyFile(name string) *File { // TODO still useful?
 	return &File{
 		OID:          oid.New(),
 		Slug:         "",
-		stale:        true,
-		new:          true,
 		Wikilink:     name,
 		RelativePath: name,
 		Attributes:   make(map[string]interface{}),
 	}
 }
 
-func NewOrExistingFile(packFileOID oid.OID, parsedFile *ParsedFile) (*File, error) {
-	var existingFile *File
-
-	file, err := CurrentRepository().FindMatchingFile(parsedFile)
+func NewOrExistingFile(packFile *PackFile, parsedFile *ParsedFile) (*File, error) {
+	// Try to find an existing object (instead of recreating it from scratch after every change)
+	existingFile, err := CurrentRepository().FindMatchingFile(parsedFile)
 	if err != nil {
 		return nil, err
 	}
-	existingFile = file
-
 	if existingFile != nil {
-		err := existingFile.update(packFileOID, parsedFile)
+		err := existingFile.update(packFile, parsedFile)
 		return existingFile, err
-	} else {
-		return NewFile(packFileOID, parsedFile)
 	}
+	return NewFile(packFile, parsedFile)
 }
 
-func NewFile(packFIleOID oid.OID, parsedFile *ParsedFile) (*File, error) {
+func NewFile(packFile *PackFile, parsedFile *ParsedFile) (*File, error) {
 	file := &File{
-		OID:          oid.New(),
-		PackFileOID:  packFIleOID,
-		Slug:         parsedFile.Slug,
-		RelativePath: parsedFile.RelativePath,
-		Wikilink:     text.TrimExtension(parsedFile.RelativePath),
-		Size:         parsedFile.Markdown.Size,
-		MTime:        parsedFile.Markdown.MTime,
-		Hash:         helpers.Hash(parsedFile.Markdown.Content),
-		Attributes:   parsedFile.FileAttributes,
-		FrontMatter:  parsedFile.Markdown.FrontMatter,
-		Title:        parsedFile.Title,
-		ShortTitle:   parsedFile.ShortTitle,
-		Body:         parsedFile.Markdown.Body,
-		BodyLine:     parsedFile.Markdown.BodyLine,
-		CreatedAt:    clock.Now(),
-		UpdatedAt:    clock.Now(),
-		stale:        true,
-		new:          true,
+		OID:           oid.New(),
+		PackFileOID:   packFile.OID,
+		Slug:          parsedFile.Slug,
+		RelativePath:  parsedFile.RelativePath,
+		Wikilink:      text.TrimExtension(parsedFile.RelativePath),
+		Size:          parsedFile.Markdown.Size,
+		MTime:         parsedFile.Markdown.MTime,
+		Hash:          helpers.Hash(parsedFile.Markdown.Content),
+		Attributes:    parsedFile.FileAttributes,
+		FrontMatter:   parsedFile.Markdown.FrontMatter,
+		Title:         parsedFile.Title,
+		ShortTitle:    parsedFile.ShortTitle,
+		Body:          parsedFile.Markdown.Body,
+		BodyLine:      parsedFile.Markdown.BodyLine,
+		CreatedAt:     packFile.CTime,
+		UpdatedAt:     packFile.CTime,
+		LastIndexedAt: packFile.CTime,
 	}
 
 	return file, nil
@@ -141,43 +126,6 @@ func (f *File) Kind() string {
 
 func (f *File) UniqueOID() oid.OID {
 	return f.OID
-}
-
-func (f *File) Refresh() (bool, error) {
-	// No dependencies = no need to refresh
-	return false, nil
-}
-
-func (f *File) Stale() bool {
-	return f.stale
-}
-
-func (f *File) State() State {
-	if !f.DeletedAt.IsZero() {
-		return Deleted
-	}
-	if f.new {
-		return Added
-	}
-	if f.stale {
-		return Modified
-	}
-	return None
-}
-
-func (f *File) ForceState(state State) {
-	switch state {
-	case Added:
-		f.new = true
-	case Deleted:
-		f.DeletedAt = clock.Now()
-	}
-	f.stale = true
-}
-
-func (f *File) SetAlive() {
-	f.DeletedAt = clock.Now()
-	f.stale = true
 }
 
 func (f *File) ModificationTime() time.Time {
@@ -212,12 +160,14 @@ func (f File) String() string {
 
 /* Update */
 
-func (f *File) update(packFileOID oid.OID, parsedFile *ParsedFile) error {
+func (f *File) update(packFile *PackFile, parsedFile *ParsedFile) error {
+	stale := false
+
 	newAttributes := parsedFile.FileAttributes
 
 	// Check if attributes have changed
 	if !reflect.DeepEqual(newAttributes, f.Attributes) {
-		f.stale = true
+		stale = true
 		f.Attributes = newAttributes
 	}
 
@@ -225,37 +175,25 @@ func (f *File) update(packFileOID oid.OID, parsedFile *ParsedFile) error {
 
 	// Check if local file has changed
 	if f.MTime != md.MTime || f.Size != md.Size {
-		// file change
-		f.stale = true
+		stale = true
 
 		f.Size = md.Size
 		f.MTime = md.MTime
 		f.Hash = helpers.Hash(md.Content)
 		f.FrontMatter = md.FrontMatter
 		f.Attributes = parsedFile.FileAttributes
-		// FIXME remove comment
-		// f.Attributes = parsedFile.FileAttributes.Cast(GetSchemaAttributeTypes())
-		// if parent != nil {
-		// 	f.Attributes = parent.Attributes.Merge(f.Attributes)
-		// }
 		f.Body = md.Body
 		f.BodyLine = md.BodyLine
 	}
 
-	f.PackFileOID = packFileOID
-	// Do not set the stale flag. An object can be unchanged when a new pack file is created (ex: new note appended at the end)
+	f.PackFileOID = packFile.OID
+	f.LastIndexedAt = packFile.CTime
+
+	if stale {
+		f.UpdatedAt = packFile.CTime
+	}
 
 	return nil
-}
-
-/* State Management */
-
-func (f *File) New() bool {
-	return f.new
-}
-
-func (f *File) Updated() bool {
-	return f.stale
 }
 
 /* Front Matter */
@@ -317,66 +255,8 @@ func (f *File) FindFlashcardByTitle(shortTitle string) *Flashcard {
 
 /* Data Management */
 
-func (f *File) Check() error {
-	client := CurrentDB().Client()
-	CurrentLogger().Debugf("Checking file %s...", f.RelativePath)
-	f.LastIndexedAt = clock.Now()
-	query := `
-		UPDATE file
-		SET last_indexed_at = ?
-		WHERE oid = ?;`
-	if _, err := client.Exec(query, timeToSQL(f.LastIndexedAt), f.OID); err != nil {
-		return err
-	}
-	query = `
-		UPDATE note
-		SET last_indexed_at = ?
-		WHERE file_oid = ?;`
-	if _, err := client.Exec(query, timeToSQL(f.LastIndexedAt), f.OID); err != nil {
-		return err
-	}
-	query = `
-		UPDATE flashcard
-		SET last_indexed_at = ?
-		WHERE file_oid = ?;`
-	if _, err := client.Exec(query, timeToSQL(f.LastIndexedAt), f.OID); err != nil {
-		return err
-	}
-	query = `
-		UPDATE reminder
-		SET last_indexed_at = ?
-		WHERE file_oid = ?;`
-	if _, err := client.Exec(query, timeToSQL(f.LastIndexedAt), f.OID); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (f *File) Save() error {
-	var err error
-	f.UpdatedAt = clock.Now()
-	f.LastIndexedAt = clock.Now()
-	switch f.State() {
-	case Added:
-		err = f.Insert()
-	case Modified:
-		err = f.Update()
-	case Deleted:
-		err = f.Delete()
-	default:
-		err = f.Check()
-	}
-	if err != nil {
-		return err
-	}
-	f.new = false
-	f.stale = false
-	return nil
-}
-
-func (f *File) Insert() error {
-	CurrentLogger().Debugf("Inserting file %s...", f.RelativePath)
+	CurrentLogger().Debugf("Saving file %s...", f.RelativePath)
 	query := `
 		INSERT INTO file(
 			oid,
@@ -397,7 +277,24 @@ func (f *File) Insert() error {
 			size,
 			hashsum,
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(oid) DO UPDATE SET
+			packfile_oid = ?,
+			slug = ?,
+			relative_path = ?,
+			wikilink = ?,
+			front_matter = ?,
+			attributes = ?,
+			title = ?,
+			short_title = ?,
+			body = ?,
+			body_line = ?,
+			updated_at = ?,
+			last_indexed_at = ?,
+			mtime = ?,
+			size = ?,
+			hashsum = ?,
+		;
 	`
 	frontMatter, err := f.FrontMatter.AsBeautifulYAML()
 	if err != nil {
@@ -409,6 +306,7 @@ func (f *File) Insert() error {
 	}
 
 	_, err = CurrentDB().Client().Exec(query,
+		// Insert
 		f.OID,
 		f.PackFileOID,
 		f.Slug,
@@ -426,45 +324,7 @@ func (f *File) Insert() error {
 		timeToSQL(f.MTime),
 		f.Size,
 		f.Hash,
-	)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (f *File) Update() error {
-	CurrentLogger().Debugf("Updating file %s...", f.RelativePath)
-	query := `
-		UPDATE file
-		SET
-			packfile_oid = ?,
-		    slug = ?,
-			relative_path = ?,
-			wikilink = ?,
-			front_matter = ?,
-			attributes = ?,
-			title = ?,
-			short_title = ?,
-			body = ?,
-			body_line = ?,
-			updated_at = ?,
-			last_indexed_at = ?,
-			mtime = ?,
-			size = ?,
-			hashsum = ?,
-		WHERE oid = ?;
-	`
-	frontMatter, err := f.FrontMatter.AsBeautifulYAML()
-	if err != nil {
-		return err
-	}
-	attributesJSON, err := f.Attributes.ToJSON()
-	if err != nil {
-		return err
-	}
-	_, err = CurrentDB().Client().Exec(query,
+		// Update
 		f.PackFileOID,
 		f.Slug,
 		f.RelativePath,
@@ -480,16 +340,18 @@ func (f *File) Update() error {
 		timeToSQL(f.MTime),
 		f.Size,
 		f.Hash,
-		f.OID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (f *File) Delete() error {
-	f.ForceState(Deleted)
 	CurrentLogger().Debugf("Deleting file %s...", f.RelativePath)
-	query := `DELETE FROM file WHERE oid = ?;`
-	_, err := CurrentDB().Client().Exec(query, f.OID)
+	query := `DELETE FROM file WHERE oid = ? AND packfile_oid = ?;`
+	_, err := CurrentDB().Client().Exec(query, f.OID, f.PackFileOID)
 	return err
 }
 
@@ -760,14 +622,8 @@ func (f *File) FileHash() string {
 	return f.Hash
 }
 func (f *File) Blobs() []*BlobRef {
-	if f.new && len(f.BlobRefs) == 0 {
+	if len(f.BlobRefs) == 0 {
 		f.GenerateBlobs()
 	}
 	return f.BlobRefs
-}
-
-/* ParsedFile */
-
-func NewFileFromParsedFile(packFileOID oid.OID, parsedFile *ParsedFile) (*File, error) {
-	return NewFile(packFileOID, parsedFile)
 }

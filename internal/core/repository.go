@@ -385,14 +385,13 @@ func (r *Repository) NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFil
 
 		// Init pack file properties
 		CTime: clock.Now(),
-		MTime: clock.Now(),
 	}
 
 	// Create objects
 	var objects []Object
 
 	// Process the File
-	file, err := NewOrExistingFile(oid.Nil, parsedFile)
+	file, err := NewOrExistingFile(packFile, parsedFile)
 	if err != nil {
 		return nil, err
 	}
@@ -400,7 +399,7 @@ func (r *Repository) NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFil
 
 	// Process the Note(s)
 	for _, parsedNote := range parsedFile.Notes {
-		note, err := NewOrExistingNote(packFile.OID, file, parsedNote)
+		note, err := NewOrExistingNote(packFile, file, parsedNote)
 		if err != nil {
 			return nil, err
 		}
@@ -409,7 +408,7 @@ func (r *Repository) NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFil
 		// Process the Flashcard
 		if parsedNote.Flashcard != nil {
 			parsedFlashcard := parsedNote.Flashcard
-			flashcard, err := NewOrExistingFlashcard(packFile.OID, file, note, parsedFlashcard)
+			flashcard, err := NewOrExistingFlashcard(packFile, file, note, parsedFlashcard)
 			if err != nil {
 				return nil, err
 			}
@@ -418,7 +417,7 @@ func (r *Repository) NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFil
 
 		// Process the Reminder(s)
 		for _, parsedReminder := range parsedNote.Reminders {
-			reminder, err := NewOrExistingReminder(packFile.OID, note, parsedReminder)
+			reminder, err := NewOrExistingReminder(packFile, note, parsedReminder)
 			if err != nil {
 				return nil, err
 			}
@@ -427,7 +426,7 @@ func (r *Repository) NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFil
 
 		// Process the Golink(s)
 		for _, parsedGoLink := range parsedNote.GoLinks {
-			goLink, err := NewOrExistingGoLink(packFile.OID, note, parsedGoLink)
+			goLink, err := NewOrExistingGoLink(packFile, note, parsedGoLink)
 			if err != nil {
 				return nil, err
 			}
@@ -481,11 +480,10 @@ func (r *Repository) NewPackFileFromParsedMedia(parsedMedia *ParsedMedia) (*Pack
 
 		// Init pack file properties
 		CTime: clock.Now(),
-		MTime: clock.Now(),
 	}
 
 	// Process the Media
-	media, err := NewOrExistingMedia(packFile.OID, parsedMedia)
+	media, err := NewOrExistingMedia(packFile, parsedMedia)
 	if err != nil {
 		return nil, err
 	}

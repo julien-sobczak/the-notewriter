@@ -57,10 +57,12 @@ A **gopher**.
 	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
 
+	dummyPackFile := DummyPackFile()
+
 	// Create
-	file, err := NewFile(oid.Nil, parsedFile)
+	file, err := NewFile(dummyPackFile, parsedFile)
 	require.NoError(t, err)
-	fileCopy, err := NewFile(oid.Nil, parsedFile)
+	fileCopy, err := NewFile(dummyPackFile, parsedFile)
 	require.NoError(t, err)
 	require.NotEqual(t, file.OID, fileCopy.OID)
 
@@ -121,7 +123,7 @@ A **gopher**.
 	// Recreate...
 	parsedFile, err = ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
-	newFile, err := NewOrExistingFile(oid.Nil, parsedFile)
+	newFile, err := NewOrExistingFile(dummyPackFile, parsedFile)
 	require.NoError(t, err)
 	require.NoError(t, newFile.Save())
 	// ...and compare
@@ -171,7 +173,9 @@ tags: [programming]
 
 	parsedFile, err := ParseFile(root, mdChild, mdParent)
 	require.NoError(t, err)
-	childFile, err := NewFile(oid.Nil, parsedFile)
+
+	dummyPackFile := DummyPackFile()
+	childFile, err := NewFile(dummyPackFile, parsedFile)
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{"go", "programming"}, childFile.Attributes.Tags())
@@ -198,7 +202,8 @@ tags:
 	// Init the file
 	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
-	file, err := NewFile(oid.Nil, parsedFile)
+	dummyPackFile := DummyPackFile()
+	file, err := NewFile(dummyPackFile, parsedFile)
 	require.NoError(t, err)
 	file.MTime = clock.Now() // make tests reproductible
 

@@ -107,7 +107,6 @@ type PackFile struct {
 	FileMTime        time.Time     `yaml:"file_mtime" json:"file_mtime"`
 	FileSize         int64         `yaml:"file_size" json:"file_size"`
 	CTime            time.Time     `yaml:"ctime" json:"ctime"`
-	MTime            time.Time     `yaml:"mtime" json:"mtime"`
 	PackObjects      []*PackObject `yaml:"objects" json:"objects"`
 	BlobRefs         []*BlobRef    `yaml:"blobs" json:"blobs"`
 }
@@ -115,13 +114,13 @@ type PackFile struct {
 type PackObject struct {
 	OID         oid.OID    `yaml:"oid" json:"oid"`
 	Kind        string     `yaml:"kind" json:"kind"`
-	MTime       time.Time  `yaml:"mtime" json:"mtime"`
+	CTime       time.Time  `yaml:"ctime" json:"ctime"`
 	Description string     `yaml:"desc" json:"desc"`
 	Data        ObjectData `yaml:"data" json:"data"`
 }
 
 // NewPackFile initializes a new empty pack file.
-func NewPackFile(fileObject FileObject) *PackFile { // FIXME remove
+func NewPackFile(fileObject FileObject) *PackFile {
 	return &PackFile{
 		OID: fileObject.UniqueOID(),
 
@@ -132,7 +131,6 @@ func NewPackFile(fileObject FileObject) *PackFile { // FIXME remove
 
 		// Init pack file properties
 		CTime: clock.Now(),
-		MTime: clock.Now(),
 	}
 }
 
@@ -191,7 +189,6 @@ func (p *PackFile) Ref() PackFileRef {
 		RelativePath: p.FileRelativePath,
 		OID:          p.OID,
 		CTime:        p.CTime,
-		MTime:        p.MTime,
 	}
 }
 
@@ -226,7 +223,7 @@ func (p *PackFile) AppendObject(obj Object) error {
 	p.PackObjects = append(p.PackObjects, &PackObject{
 		OID:         obj.UniqueOID(),
 		Kind:        obj.Kind(),
-		MTime:       obj.ModificationTime(),
+		CTime:       obj.ModificationTime(),
 		Description: obj.String(),
 		Data:        data,
 	})
@@ -337,7 +334,6 @@ type PackFileRef struct {
 	RelativePath string    `yaml:"relative_path" json:"relative_path"`
 	OID          oid.OID   `yaml:"oid" json:"oid"`
 	CTime        time.Time `yaml:"ctime" json:"ctime"`
-	MTime        time.Time `yaml:"mtime" json:"mtime"`
 }
 
 // Convenient type to add methods

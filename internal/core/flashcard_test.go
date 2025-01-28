@@ -32,20 +32,22 @@ A **gopher**.
 	c := FreezeNow(t)
 	createdAt := clock.Now()
 
+	dummyPackFile := DummyPackFile()
+
 	// Init the file
 	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
-	file, err := NewFile(oid.Nil, parsedFile)
+	file, err := NewFile(dummyPackFile, parsedFile)
 	require.NoError(t, err)
 	require.NoError(t, file.Save())
 	parsedNote, ok := parsedFile.FindNoteByTitle("Flashcard: Golang Logo")
 	require.True(t, ok)
-	note, err := NewNote(oid.Nil, file, parsedNote)
+	note, err := NewNote(dummyPackFile, file, parsedNote)
 	require.NoError(t, err)
 	require.NoError(t, note.Save())
 
 	// Create
-	flashcard, err := NewFlashcard(oid.Nil, file, note, parsedNote.Flashcard)
+	flashcard, err := NewFlashcard(dummyPackFile, file, note, parsedNote.Flashcard)
 	require.NoError(t, err)
 
 	// Check all fields
@@ -95,10 +97,10 @@ A **gopher**.
 	require.NoError(t, err)
 	parsedNote, ok = parsedFile.FindNoteByShortTitle("Golang Logo")
 	require.True(t, ok)
-	newNote, err := NewOrExistingNote(oid.Nil, file, parsedNote)
+	newNote, err := NewOrExistingNote(dummyPackFile, file, parsedNote)
 	require.NoError(t, err)
 	require.NoError(t, newNote.Save())
-	newFlashcard, err := NewOrExistingFlashcard(oid.Nil, file, newNote, parsedNote.Flashcard)
+	newFlashcard, err := NewOrExistingFlashcard(dummyPackFile, file, newNote, parsedNote.Flashcard)
 	require.NoError(t, err)
 	require.NoError(t, newFlashcard.Save())
 	// ... and compare
@@ -136,19 +138,21 @@ What does the **Golang logo** represent?
 A **gopher**.
 `))
 
+	dummyPackFile := DummyPackFile()
+
 	// Init the file
 	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 	require.NoError(t, err)
-	file, err := NewFile(oid.Nil, parsedFile)
+	file, err := NewFile(dummyPackFile, parsedFile)
 	require.NoError(t, err)
 
 	// Init the flashcard
 	parsedNote, ok := parsedFile.FindNoteByTitle("Flashcard: Golang Logo")
 	require.True(t, ok)
-	note, err := NewNote(oid.Nil, file, parsedNote)
+	note, err := NewNote(dummyPackFile, file, parsedNote)
 	require.NoError(t, err)
 	require.NotNil(t, parsedNote.Flashcard)
-	flashcard, err := NewFlashcard(oid.Nil, file, note, parsedNote.Flashcard)
+	flashcard, err := NewFlashcard(dummyPackFile, file, note, parsedNote.Flashcard)
 	require.NoError(t, err)
 
 	t.Run("ToYAML", func(t *testing.T) {

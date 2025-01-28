@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
-	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"gopkg.in/yaml.v3"
 )
@@ -40,28 +39,26 @@ type GoLink struct {
 	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
 	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
 	DeletedAt     time.Time `yaml:"deleted_at,omitempty" json:"deleted_at,omitempty"`
-	LastIndexedAt time.Time `yaml:"-" json:"-"`
-
-	new   bool
-	stale bool
+	LastIndexedAt time.Time `yaml:"last_indexed_at,omitempty" json:"last_indexed_at,omitempty"`
 }
 
-func NewOrExistingGoLink(packFileOID oid.OID, note *Note, parsedGoLink *ParsedGoLink) (*GoLink, error) {
+func NewOrExistingGoLink(packFile *PackFile, note *Note, parsedGoLink *ParsedGoLink) (*GoLink, error) {
+	// Try to find an existing object (instead of recreating it from scratch after every change)
 	existingGoLink, err := CurrentRepository().FindGoLinkByGoName(string(parsedGoLink.GoName))
 	if err != nil {
 		return nil, err
 	}
 	if existingGoLink != nil {
-		existingGoLink.update(packFileOID, note, parsedGoLink)
+		existingGoLink.update(packFile, note, parsedGoLink)
 		return existingGoLink, nil
 	}
-	return NewGoLink(packFileOID, note, parsedGoLink), nil
+	return NewGoLink(packFile, note, parsedGoLink), nil
 }
 
-func NewGoLink(packFileOID oid.OID, note *Note, parsedLink *ParsedGoLink) *GoLink {
+func NewGoLink(packFile *PackFile, note *Note, parsedLink *ParsedGoLink) *GoLink {
 	return &GoLink{
 		OID:          oid.New(),
-		PackFileOID:  packFileOID,
+		PackFileOID:  packFile.OID,
 		NoteOID:      note.OID,
 		RelativePath: note.RelativePath,
 		Text:         parsedLink.Text,
@@ -69,11 +66,9 @@ func NewGoLink(packFileOID oid.OID, note *Note, parsedLink *ParsedGoLink) *GoLin
 		Title:        parsedLink.Title,
 		GoName:       parsedLink.GoName,
 
-		CreatedAt: clock.Now(),
-		UpdatedAt: clock.Now(),
-
-		new:   true,
-		stale: true,
+		CreatedAt:     packFile.CTime,
+		UpdatedAt:     packFile.CTime,
+		LastIndexedAt: packFile.CTime,
 	}
 }
 
@@ -89,38 +84,6 @@ func (l *GoLink) UniqueOID() oid.OID {
 
 func (l *GoLink) ModificationTime() time.Time {
 	return l.UpdatedAt
-}
-
-func (l *GoLink) Refresh() (bool, error) {
-	// No dependencies = no need to refresh
-	return false, nil
-}
-
-func (l *GoLink) Stale() bool {
-	return l.stale
-}
-
-func (l *GoLink) State() State {
-	if !l.DeletedAt.IsZero() {
-		return Deleted
-	}
-	if l.new {
-		return Added
-	}
-	if l.stale {
-		return Modified
-	}
-	return None
-}
-
-func (l *GoLink) ForceState(state State) {
-	switch state {
-	case Added:
-		l.new = true
-	case Deleted:
-		l.DeletedAt = clock.Now()
-	}
-	l.stale = true
 }
 
 func (l *GoLink) Read(r io.Reader) error {
@@ -170,84 +133,42 @@ func (l *GoLink) ToMarkdown() string {
 
 /* Update */
 
-func (l *GoLink) update(packFileOID oid.OID, note *Note, parsedLink *ParsedGoLink) {
+func (l *GoLink) update(packFile *PackFile, note *Note, parsedLink *ParsedGoLink) {
+	stale := false
+
 	if l.NoteOID != note.OID {
 		l.NoteOID = note.OID
-		l.stale = true
+		stale = true
 	}
 	if l.Text != parsedLink.Text {
 		l.Text = parsedLink.Text
-		l.stale = true
+		stale = true
 	}
 	if l.URL != parsedLink.URL {
 		l.URL = parsedLink.URL
-		l.stale = true
+		stale = true
 	}
 	if l.Title != parsedLink.Title {
 		l.Title = parsedLink.Title
-		l.stale = true
+		stale = true
 	}
 	if l.GoName != parsedLink.GoName {
 		l.GoName = parsedLink.GoName
-		l.stale = true
+		stale = true
 	}
 
-	l.PackFileOID = packFileOID
-	// Do not set the stale flag. An object can be unchanged when a new pack file is created (ex: new note appended at the end)
-	// FIXME always update and marks as stale? If we end up here, it means the Markdown file has been modified
-}
+	l.PackFileOID = packFile.OID
+	l.LastIndexedAt = packFile.CTime
 
-/* State Management */
-
-func (l *GoLink) New() bool {
-	return l.new
-}
-
-func (l *GoLink) Updated() bool {
-	return l.stale
+	if stale {
+		l.UpdatedAt = packFile.CTime
+	}
 }
 
 /* Database Management */
 
-func (l *GoLink) Check() error {
-	CurrentLogger().Debugf("Checking link %s...", l.GoName)
-	l.LastIndexedAt = clock.Now()
-	query := `
-		UPDATE link
-		SET last_indexed_at = ?
-		WHERE oid = ?;`
-	_, err := CurrentDB().Client().Exec(query,
-		timeToSQL(l.LastIndexedAt),
-		l.OID,
-	)
-
-	return err
-}
-
 func (l *GoLink) Save() error {
-	var err error
-	l.UpdatedAt = clock.Now()
-	l.LastIndexedAt = clock.Now()
-	switch l.State() {
-	case Added:
-		err = l.Insert()
-	case Modified:
-		err = l.Update()
-	case Deleted:
-		err = l.Delete()
-	default:
-		err = l.Check()
-	}
-	if err != nil {
-		return err
-	}
-	l.new = false
-	l.stale = false
-	return nil
-}
-
-func (l *GoLink) Insert() error {
-	CurrentLogger().Debugf("Creating go link %s...", l.GoName)
+	CurrentLogger().Debugf("Saving go link %s...", l.GoName)
 	query := `
 		INSERT INTO link(
 			oid,
@@ -262,9 +183,21 @@ func (l *GoLink) Insert() error {
 			updated_at,
 			last_indexed_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(oid) DO UPDATE SET
+			packfile_oid = ?,
+			note_oid = ?,
+			relative_path = ?,
+			"text" = ?,
+			url = ?,
+			title = ?,
+			go_name = ?,
+			updated_at = ?,
+			last_indexed_at = ?
+		;
 		`
 	_, err := CurrentDB().Client().Exec(query,
+		// Insert
 		l.OID,
 		l.PackFileOID,
 		l.NoteOID,
@@ -276,31 +209,7 @@ func (l *GoLink) Insert() error {
 		timeToSQL(l.CreatedAt),
 		timeToSQL(l.UpdatedAt),
 		timeToSQL(l.LastIndexedAt),
-	)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (l *GoLink) Update() error {
-	CurrentLogger().Debugf("Updating link %s...", l.GoName)
-	query := `
-		UPDATE link
-		SET
-			packfile_oid = ?,
-			note_oid = ?,
-			relative_path = ?,
-			"text" = ?,
-			url = ?,
-			title = ?,
-			go_name = ?,
-			updated_at = ?,
-			last_indexed_at = ?
-		WHERE oid = ?;
-		`
-	_, err := CurrentDB().Client().Exec(query,
+		// Update
 		l.PackFileOID,
 		l.NoteOID,
 		l.RelativePath,
@@ -310,19 +219,22 @@ func (l *GoLink) Update() error {
 		l.GoName,
 		timeToSQL(l.UpdatedAt),
 		timeToSQL(l.LastIndexedAt),
-		l.OID,
 	)
+	if err != nil {
+		return err
+	}
 
-	return err
+	return nil
 }
 
 func (l *GoLink) Delete() error {
-	l.ForceState(Deleted)
 	CurrentLogger().Debugf("Deleting link %s...", l.GoName)
-	query := `DELETE FROM link WHERE oid = ?;`
-	_, err := CurrentDB().Client().Exec(query, l.OID)
+	query := `DELETE FROM link WHERE oid = ? AND packfile_oid = ?;`
+	_, err := CurrentDB().Client().Exec(query, l.OID, l.PackFileOID)
 	return err
 }
+
+/* SQL Queries */
 
 // CountGoLinks returns the total number of links.
 func (r *Repository) CountGoLinks() (int, error) {

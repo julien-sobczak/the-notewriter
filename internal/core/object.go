@@ -13,16 +13,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// State describes an object status.
-type State string
-
-const (
-	None     State = "none"
-	Added    State = "added"
-	Modified State = "modified"
-	Deleted  State = "deleted"
-)
-
 type BlobRef struct {
 	// OID to locate the blob file in .nt/objects
 	OID        oid.OID      `yaml:"oid" json:"oid"`
@@ -79,15 +69,6 @@ type Object interface {
 // StatefulObject to represent the subset of updatable objects persisted in database.
 type StatefulObject interface {
 	Object
-
-	Refresh() (bool, error)
-
-	// Object must be saved
-	Stale() bool
-	// State returns the current state.
-	State() State
-	// ForceState marks the object in the given state
-	ForceState(newState State)
 
 	// Save persists to DB
 	Save() error

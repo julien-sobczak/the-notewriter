@@ -23,22 +23,24 @@ func TestReminder(t *testing.T) {
 	c := FreezeNow(t)
 	createdAt := clock.Now()
 
+	dummyPackFile := DummyPackFile()
+
 	// Init the file
 	parsedFile, err := ParseFileFromRelativePath(root, "project.md")
 	require.NoError(t, err)
-	file, err := NewFile(oid.Nil, parsedFile)
+	file, err := NewFile(dummyPackFile, parsedFile)
 	require.NoError(t, err)
 	require.NoError(t, file.Save())
 	parsedNote, ok := parsedFile.FindNoteByTitle("TODO: Backlog")
 	require.True(t, ok)
-	note, err := NewNote(oid.Nil, file, parsedNote)
+	note, err := NewNote(dummyPackFile, file, parsedNote)
 	require.NoError(t, err)
 	require.NoError(t, note.Save())
 
 	// Create
 	parsedReminder, ok := parsedNote.FindReminderByTag("#reminder-2085-09")
 	require.True(t, ok)
-	reminder, err := NewReminder(oid.Nil, note, parsedReminder)
+	reminder, err := NewReminder(dummyPackFile, note, parsedReminder)
 	require.NoError(t, err)
 
 	// Check all fields
@@ -85,12 +87,12 @@ func TestReminder(t *testing.T) {
 	require.NoError(t, err)
 	parsedNote, ok = parsedFile.FindNoteByTitle("TODO: Backlog")
 	require.True(t, ok)
-	newNote, err := NewOrExistingNote(oid.Nil, file, parsedNote)
+	newNote, err := NewOrExistingNote(dummyPackFile, file, parsedNote)
 	require.NoError(t, err)
 	require.NoError(t, newNote.Save())
 	parsedReminder, ok = parsedNote.FindReminderByTag("#reminder-2050-01")
 	require.True(t, ok)
-	newReminder, err := NewOrExistingReminder(oid.Nil, newNote, parsedReminder)
+	newReminder, err := NewOrExistingReminder(dummyPackFile, newNote, parsedReminder)
 	require.NoError(t, err)
 	require.NoError(t, newReminder.Save())
 
@@ -123,20 +125,22 @@ func TestReminderFormats(t *testing.T) {
 * [ ] Test ”#reminder-2085-09”
 `))
 
+	dummyPackFile := DummyPackFile()
+
 	// Init the file
 	parsedFile, err := ParseFileFromRelativePath(root, "project.md")
 	require.NoError(t, err)
-	file, err := NewFile(oid.Nil, parsedFile)
+	file, err := NewFile(dummyPackFile, parsedFile)
 	require.NoError(t, err)
 
 	// Init the reminder
 	parsedNote, ok := parsedFile.FindNoteByTitle("TODO: Backlog")
 	require.True(t, ok)
-	note, err := NewNote(oid.Nil, file, parsedNote)
+	note, err := NewNote(dummyPackFile, file, parsedNote)
 	require.NoError(t, err)
 	parsedReminder, ok := parsedNote.FindReminderByTag("#reminder-2085-09")
 	require.True(t, ok)
-	reminder, err := NewReminder(oid.Nil, note, parsedReminder)
+	reminder, err := NewReminder(dummyPackFile, note, parsedReminder)
 	require.NoError(t, err)
 
 	t.Run("ToYAML", func(t *testing.T) {

@@ -28,7 +28,9 @@ func TestObjectData(t *testing.T) {
 	parsedFile, err := ParseFileFromRelativePath(root, "project.md")
 	require.NoError(t, err)
 
-	fileSrc, err := NewFile(oid.Nil, parsedFile)
+	dummyPackFile := DummyPackFile()
+
+	fileSrc, err := NewFile(dummyPackFile, parsedFile)
 	require.NoError(t, err)
 	dataSrc, err := NewObjectData(fileSrc)
 	require.NoError(t, err)
@@ -63,14 +65,16 @@ func TestPackFile(t *testing.T) {
 		parsedFile, err := ParseFileFromRelativePath(root, "go.md")
 		require.NoError(t, err)
 
+		dummyPackFile := DummyPackFile()
+
 		// FIXME how to convert a `Markdown.File` to a `File` (including subobjects) and a list of `Media`
-		file, err := NewFile(oid.Nil, parsedFile)
+		file, err := NewFile(dummyPackFile, parsedFile)
 		require.NoError(t, err)
 		parsedNote, ok := parsedFile.FindNoteByTitle("Flashcard: Golang Logo")
 		require.True(t, ok)
-		note, err := NewNote(oid.Nil, file, parsedNote)
+		note, err := NewNote(dummyPackFile, file, parsedNote)
 		require.NoError(t, err)
-		flashcard, err := NewFlashcard(oid.Nil, file, note, parsedNote.Flashcard)
+		flashcard, err := NewFlashcard(dummyPackFile, file, note, parsedNote.Flashcard)
 		require.NoError(t, err)
 
 		packFileSrc := NewPackFile(file)

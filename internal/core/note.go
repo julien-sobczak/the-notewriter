@@ -13,7 +13,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
-	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"golang.org/x/exp/slices"
@@ -101,58 +100,49 @@ type Note struct {
 	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
 	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
 	DeletedAt     time.Time `yaml:"deleted_at,omitempty" json:"deleted_at,omitempty"`
-	LastIndexedAt time.Time `yaml:"-" json:"-"`
-
-	new   bool
-	stale bool
+	LastIndexedAt time.Time `yaml:"last_indexed_at,omitempty" json:"last_indexed_at,omitempty"`
 }
 
 // NewNote creates a new note.
-func NewNote(packFileOID oid.OID, file *File, parsedNote *ParsedNote) (*Note, error) {
+func NewNote(packFile *PackFile, file *File, parsedNote *ParsedNote) (*Note, error) {
 	// Set basic properties
 	n := &Note{
-		OID:          oid.New(),
-		PackFileOID:  packFileOID,
-		FileOID:      file.OID,
-		Title:        parsedNote.Title,
-		ShortTitle:   parsedNote.ShortTitle,
-		NoteKind:     parsedNote.Kind,
-		RelativePath: file.RelativePath,
-		Attributes:   parsedNote.Attributes,
-		Tags:         parsedNote.Attributes.Tags(),
-		Wikilink:     file.Wikilink + "#" + string(parsedNote.Title.TrimSpace()),
-		Content:      parsedNote.Content,
-		Body:         parsedNote.Body,
-		Comment:      parsedNote.Comment,
-		Line:         parsedNote.Line,
-		CreatedAt:    clock.Now(),
-		UpdatedAt:    clock.Now(),
-		new:          true,
-		stale:        true,
+		OID:           oid.New(),
+		Slug:          parsedNote.Slug,
+		PackFileOID:   packFile.OID,
+		FileOID:       file.OID,
+		Title:         parsedNote.Title,
+		ShortTitle:    parsedNote.ShortTitle,
+		NoteKind:      parsedNote.Kind,
+		RelativePath:  file.RelativePath,
+		Attributes:    parsedNote.Attributes,
+		Tags:          parsedNote.Attributes.Tags(),
+		Wikilink:      file.Wikilink + "#" + string(parsedNote.Title.TrimSpace()),
+		Content:       parsedNote.Content,
+		Hash:          parsedNote.Content.Hash(),
+		Body:          parsedNote.Body,
+		Comment:       parsedNote.Comment,
+		Line:          parsedNote.Line,
+		CreatedAt:     packFile.CTime,
+		UpdatedAt:     packFile.CTime,
+		LastIndexedAt: packFile.CTime,
 	}
-
-	// Set dynamic properties
-	// TODO simply move attributes above
-	n.updateContent(parsedNote.Content) // Require the file
-	n.updateSlug()                      // Require the file and note attributes
 
 	return n, nil
 }
 
 // NewOrExistingNote loads and updates an existing note or creates a new one if new.
-func NewOrExistingNote(packFileOID oid.OID, f *File, parsedNote *ParsedNote) (*Note, error) {
+func NewOrExistingNote(packFile *PackFile, f *File, parsedNote *ParsedNote) (*Note, error) {
 	// Try to find an existing note (instead of recreating it from scratch after every change)
 	existingNote, err := CurrentRepository().FindMatchingNote(parsedNote)
 	if err != nil {
 		return nil, err
 	}
-
 	if existingNote != nil {
-		existingNote.update(packFileOID, f, parsedNote)
+		existingNote.update(packFile, f, parsedNote)
 		return existingNote, nil
 	}
-
-	return NewNote(packFileOID, f, parsedNote)
+	return NewNote(packFile, f, parsedNote)
 }
 
 /* Object */
@@ -167,39 +157,6 @@ func (n *Note) UniqueOID() oid.OID {
 
 func (n *Note) ModificationTime() time.Time {
 	return n.UpdatedAt
-}
-
-func (n *Note) Refresh() (bool, error) {
-	// Simply force the content to be reevaluated to force included notes to be reread
-	n.updateContent(n.Content)
-	return n.stale, nil
-}
-
-func (n *Note) Stale() bool {
-	return n.stale
-}
-
-func (n *Note) State() State {
-	if !n.DeletedAt.IsZero() {
-		return Deleted
-	}
-	if n.new {
-		return Added
-	}
-	if n.stale {
-		return Modified
-	}
-	return None
-}
-
-func (n *Note) ForceState(state State) {
-	switch state {
-	case Added:
-		n.new = true
-	case Deleted:
-		n.DeletedAt = clock.Now()
-	}
-	n.stale = true
 }
 
 func (n *Note) Read(r io.Reader) error {
@@ -304,66 +261,68 @@ func (n Note) String() string {
 
 /* Update */
 
-func (n *Note) update(packFileOID oid.OID, f *File, parsedNote *ParsedNote) {
+func (n *Note) update(packFile *PackFile, f *File, parsedNote *ParsedNote) {
+	stale := false
+
 	// Set basic properties
 	if n.FileOID != f.OID {
 		n.FileOID = f.OID
 		n.RelativePath = f.RelativePath
-		n.stale = true
+		stale = true
 	}
 
 	if n.Title != parsedNote.Title {
 		n.Title = parsedNote.Title
 		n.ShortTitle = parsedNote.ShortTitle
 		n.NoteKind = parsedNote.Kind
-		n.stale = true
+		stale = true
 	}
 	if n.Body != parsedNote.Body {
 		n.Body = parsedNote.Body
-		n.stale = true
+		stale = true
 	}
 	if n.Comment != parsedNote.Comment {
 		n.Comment = parsedNote.Comment
-		n.stale = true
+		stale = true
 	}
 
 	newWikilink := f.Wikilink + "#" + string(parsedNote.Title.TrimSpace())
 	if n.Wikilink != newWikilink {
 		n.Wikilink = newWikilink
-		n.stale = true
+		stale = true
 	}
 
 	newLine := f.AbsoluteBodyLine(parsedNote.Line)
 	if n.Line != newLine {
 		n.Line = newLine
-		n.stale = true
+		stale = true
 	}
 
 	if !reflect.DeepEqual(n.Attributes, parsedNote.Attributes) {
 		n.Attributes = parsedNote.Attributes
-		n.stale = true
+		stale = true
 	}
 
-	// Set dynamic properties
-	n.updateContent(parsedNote.Content) // Require the file
-	n.updateSlug()                      // Require the file and note attributes
+	if n.Content != parsedNote.Content {
+		n.Content = parsedNote.Content
+		n.Hash = parsedNote.Content.Hash()
+		stale = true
+	}
 
-	n.PackFileOID = packFileOID // FIXME
+	if n.Slug != parsedNote.Slug {
+		n.Hash = parsedNote.Slug
+		stale = true
+	}
 
-	if n.stale {
-		n.UpdatedAt = clock.Now()
+	n.PackFileOID = packFile.OID
+	n.LastIndexedAt = packFile.CTime
+
+	if stale {
+		n.UpdatedAt = packFile.CTime
 	}
 }
 
-/* State Management */
-
-func (n *Note) New() bool {
-	return n.new
-}
-
-func (n *Note) Updated() bool {
-	return n.stale
-}
+/* Database Management */
 
 // ReplaceMediasByOIDLinks replaces all non-dangling links by a OID fake link.
 func (n *Note) ReplaceMediasByOIDLinks(md string) string {
@@ -406,72 +365,6 @@ func (n *Note) ReplaceMediasByOIDLinks(md string) string {
 	result.WriteString(md[prevIndex:])
 
 	return result.String()
-}
-
-// func (n *Note) updateLongTitle() {
-// 	var titles []markdown.Document
-// 	if n.GetFile() != nil && n.GetFile().ShortTitle != "" {
-// 		titles = append(titles, n.GetFile().ShortTitle)
-// 	}
-// 	titles = append(titles, n.ShortTitle)
-// 	newLongTitle := FormatLongTitle(titles...)
-// 	if n.LongTitle != newLongTitle {
-// 		n.LongTitle = newLongTitle
-// 		n.stale = true
-// 	}
-// }
-
-func (n *Note) updateSlug() {
-	// Slug is determined based on the following values
-	var fileSlug string
-	var attributeSlug string
-	var kind NoteKind
-	var shortTitle markdown.Document
-
-	// Check if a specific slug is specified
-	if newSlug, ok := n.Attributes.Slug(); ok {
-		attributeSlug = newSlug
-	}
-
-	// Check the slug on the file
-	if n.GetFile() != nil { // FIXME jso now!!!!!
-		fileSlug = n.GetFile().Slug
-	}
-
-	kind = n.NoteKind
-	shortTitle = n.ShortTitle
-
-	newSlug := DetermineNoteSlug(
-		fileSlug,
-		attributeSlug,
-		kind,
-		string(shortTitle),
-	)
-	if n.Slug != newSlug {
-		n.Slug = newSlug
-		n.stale = true
-	}
-}
-
-// DetermineNoteSlug determines the note slug from the attributes.
-func DetermineNoteSlug(fileSlug string, attributeSlug string, kind NoteKind, shortTitle string) string {
-	if attributeSlug != "" {
-		// @slug takes priority
-		return attributeSlug
-	}
-
-	// Slug must be generated
-	return markdown.Slug(fileSlug, string(kind), shortTitle)
-}
-
-func (n *Note) updateContent(newContent markdown.Document) {
-	prevContent := n.Content
-	n.Content = newContent
-	n.Hash = n.Content.Hash()
-
-	if prevContent != n.Content {
-		n.stale = true
-	}
 }
 
 // GetFile returns the containing file, loading it from database if necessary.
@@ -564,65 +457,8 @@ func isSupportedNote(text string) (bool, NoteKind, string) {
 
 /* State Management */
 
-func (n *Note) Check() error {
-	CurrentLogger().Debugf("Checking note %s...", n.Wikilink)
-	n.LastIndexedAt = clock.Now()
-	query := `
-		UPDATE note
-		SET last_indexed_at = ?
-		WHERE oid = ?;`
-	if _, err := CurrentDB().Client().Exec(query, timeToSQL(n.LastIndexedAt), n.OID); err != nil {
-		return err
-	}
-	query = `
-		UPDATE flashcard
-		SET last_indexed_at = ?
-		WHERE note_oid = ?;`
-	if _, err := CurrentDB().Client().Exec(query, timeToSQL(n.LastIndexedAt), n.OID); err != nil {
-		return err
-	}
-	query = `
-		UPDATE link
-		SET last_indexed_at = ?
-		WHERE note_oid = ?;`
-	if _, err := CurrentDB().Client().Exec(query, timeToSQL(n.LastIndexedAt), n.OID); err != nil {
-		return err
-	}
-	query = `
-		UPDATE reminder
-		SET last_indexed_at = ?
-		WHERE note_oid = ?;`
-	if _, err := CurrentDB().Client().Exec(query, timeToSQL(n.LastIndexedAt), n.OID); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (n *Note) Save() error {
-	var err error
-	n.UpdatedAt = clock.Now()
-	n.LastIndexedAt = clock.Now()
-	switch n.State() {
-	case Added:
-		err = n.Insert()
-	case Modified:
-		err = n.Update()
-	case Deleted:
-		err = n.Delete()
-	default:
-		err = n.Check()
-	}
-	if err != nil {
-		return err
-	}
-	n.new = false
-	n.stale = false
-	return nil
-}
-
-func (n *Note) Insert() error {
-	CurrentLogger().Debugf("Inserting note %s...", n.Wikilink)
+	CurrentLogger().Debugf("Saving note %s...", n.Wikilink)
 	query := `
 		INSERT INTO note(
 			oid,
@@ -645,7 +481,27 @@ func (n *Note) Insert() error {
 			created_at,
 			updated_at,
 			last_indexed_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(oid) DO UPDATE SET
+			packfile_oid = ?,
+			file_oid = ?,
+			slug = ?,
+			kind = ?,
+			relative_path = ?,
+			wikilink = ?,
+			title = ?,
+			long_title = ?,
+			short_title = ?,
+			attributes = ?,
+			tags = ?,
+			"line" = ?,
+			content = ?,
+			hashsum = ?,
+			body = ?,
+			comment = ?,
+			updated_at = ?,
+			last_indexed_at = ?
+		;
 	`
 
 	attributesJSON, err := n.Attributes.ToJSON()
@@ -654,6 +510,7 @@ func (n *Note) Insert() error {
 	}
 
 	_, err = CurrentDB().Client().Exec(query,
+		// Insert
 		n.OID,
 		n.PackFileOID,
 		n.FileOID,
@@ -674,46 +531,7 @@ func (n *Note) Insert() error {
 		timeToSQL(n.CreatedAt),
 		timeToSQL(n.UpdatedAt),
 		timeToSQL(n.LastIndexedAt),
-	)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (n *Note) Update() error {
-	CurrentLogger().Debugf("Updating note %s...", n.Wikilink)
-	query := `
-		UPDATE note
-		SET
-			packfile_oid = ?,
-			file_oid = ?,
-			slug = ?,
-			kind = ?,
-			relative_path = ?,
-			wikilink = ?,
-			title = ?,
-			long_title = ?,
-			short_title = ?,
-			attributes = ?,
-			tags = ?,
-			"line" = ?,
-			content = ?,
-			hashsum = ?,
-			body = ?,
-			comment = ?,
-			updated_at = ?,
-			last_indexed_at = ?
-		WHERE oid = ?;
-	`
-
-	attributesJSON, err := n.Attributes.ToJSON()
-	if err != nil {
-		return err
-	}
-
-	_, err = CurrentDB().Client().Exec(query,
+		// Update
 		n.PackFileOID,
 		n.FileOID,
 		n.Slug,
@@ -732,17 +550,18 @@ func (n *Note) Update() error {
 		n.Comment,
 		timeToSQL(n.UpdatedAt),
 		timeToSQL(n.LastIndexedAt),
-		n.OID,
 	)
+	if err != nil {
+		return err
+	}
 
-	return err
+	return nil
 }
 
 func (n *Note) Delete() error {
-	n.ForceState(Deleted)
 	CurrentLogger().Debugf("Deleting note %s...", n.Wikilink)
-	query := `DELETE FROM note WHERE oid = ?;`
-	_, err := CurrentDB().Client().Exec(query, n.OID)
+	query := `DELETE FROM note WHERE oid = ? AND packfile_oid = ?;`
+	_, err := CurrentDB().Client().Exec(query, n.OID, n.PackFileOID)
 	return err
 }
 
