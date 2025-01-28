@@ -176,7 +176,7 @@ func (r *Repository) Walk(pathSpecs PathSpecs, fn func(md *markdown.File) error)
 		// TODO refactor markdown.FrontMatter.AsAttributeSet(BaseSchema).Tags().Include("ignore")
 		// TODO refactor AttributeSet(markdown.FrontMatter).Tags().Include("ignore")
 		// -> return AttributeSet() range markdown.FrontMatter) + Cast(ReservedAttributesDefinition)
-		frontMatter, err := markdown.FrontMatter.AsMap() // Add methods for requires attributes
+		frontMatter, err := NewAttributeSetFromMarkdown(md)
 		if err != nil {
 			return err
 		}

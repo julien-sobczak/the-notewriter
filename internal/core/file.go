@@ -1,7 +1,6 @@
 package core
 
 import (
-	"compress/gzip"
 	"database/sql"
 	"fmt"
 	"io"
@@ -607,7 +606,7 @@ func QueryFile(db SQLClient, whereClause string, args ...any) (*File, error) {
 		return nil, err
 	}
 
-	f.Attributes = attributes.Cast(GetSchemaAttributeTypes())
+	f.Attributes = attributes.CastOrIgnore(GetSchemaAttributeTypes())
 	f.CreatedAt = timeFromSQL(createdAt)
 	f.UpdatedAt = timeFromSQL(updatedAt)
 	f.LastIndexedAt = timeFromSQL(lastIndexedAt)
@@ -680,7 +679,7 @@ func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) 
 			return nil, err
 		}
 
-		f.Attributes = attributes.Cast(GetSchemaAttributeTypes())
+		f.Attributes = attributes.CastOrIgnore(GetSchemaAttributeTypes())
 		f.CreatedAt = timeFromSQL(createdAt)
 		f.UpdatedAt = timeFromSQL(updatedAt)
 		f.LastIndexedAt = timeFromSQL(lastIndexedAt)
@@ -744,20 +743,6 @@ func (f *File) GenerateBlobs() {
 		log.Fatalf("Unable to write blob from file %q: %v", f.RelativePath, err)
 	}
 	f.BlobRefs = append(f.BlobRefs, blob)
-}
-
-func createGzipFile(filename string, data []byte) error {
-	file, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	writer := gzip.NewWriter(file)
-	defer writer.Close()
-
-	_, err = writer.Write(data)
-	return err
 }
 
 /* FileObject interface */

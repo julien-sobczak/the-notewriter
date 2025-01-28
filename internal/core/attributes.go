@@ -8,12 +8,45 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 )
+
+// AttributeTypes describes the types of a list attributes.
+// AttributeTypes is immutable.
+type AttributeTypes map[string]string
+
+// Extends enriches the current attribute types with new ones.
+// When an attribute is defined in both sets, the one from the current set is kept.
+func (a AttributeTypes) Extends(other AttributeTypes) AttributeTypes {
+	return other.Overrides(a)
+}
+
+// Extends enriches the current attribute types with new ones.
+// When an attribute is defined in both sets, the one from the other set is kept.
+func (a AttributeTypes) Overrides(other AttributeTypes) AttributeTypes {
+	var res AttributeTypes = make(map[string]string)
+	for key, value := range a {
+		res[key] = value
+	}
+	for key, value := range other {
+		res[key] = value
+	}
+	return a
+}
+
+// Definition of reserved attributes
+var ReservedAttributesTypes AttributeTypes = map[string]string{
+	"tags":       "string[]",
+	"references": "string[]",
+	"slug":       "string",
+	"source":     "string",
+	"date":       "date",
+}
 
 var (
 	regexTags                   = regexp.MustCompile("`#(\\S+)`")                          // Ex: `#favorite`
@@ -170,6 +203,42 @@ var CastBoolFn CastFn[bool] = func(value any) (bool, bool) {
 	return false, false
 }
 
+var CastDateFn CastFn[time.Time] = func(value any) (time.Time, bool) {
+	if !IsString(value) {
+		return time.Time{}, false
+	}
+
+	// YAML uses ISO 8601 format. Try it first
+	// (using a subset RFC as Golang doesn't provide the ISO 8601 format specifically).
+	// See https://symfony.com/doc/current/reference/formats/yaml.html#dates
+	parsedDate, err := time.Parse(time.RFC3339, value.(string)) // Ex: "2023-10-15T14:12:00Z"
+	if err == nil {
+		return parsedDate, true
+	}
+
+	// Try additional common format (more specific to least specific)
+
+	parsedDate, err = time.Parse(time.DateTime, value.(string)) // Ex: "2023-10-15 14:12:00"
+	if err == nil {
+		return parsedDate, true
+	}
+
+	parsedDate, err = time.Parse(time.DateOnly, value.(string)) // Ex: "2023-10-15"
+	if err == nil {
+		return parsedDate, true
+	}
+
+	return time.Time{}, false
+}
+
+func NewAttributeSetFromMarkdown(md *markdown.File) (AttributeSet, error) {
+	attributesMap, err := md.FrontMatter.AsMap()
+	if err != nil {
+		return nil, err
+	}
+	return AttributeSet(attributesMap).Cast(ReservedAttributesTypes)
+}
+
 // DiffKeys returns the keys present in only one of the attribute sets.
 func (a AttributeSet) DiffKeys(other AttributeSet) []string {
 	b := other
@@ -285,7 +354,7 @@ func (a AttributeSet) AddTag(newTag string) {
 }
 
 func (a AttributeSet) Slug() (string, bool) {
-	v, ok := a["tags"]
+	v, ok := a["slug"]
 	if !ok {
 		return "", false
 	}
@@ -326,12 +395,15 @@ func (a AttributeSet) CastValueAsString(name string) string { // FIXME really us
 	return ""
 }
 
-// CastAttributes enforces the types declared in linter schemas.
-func (a AttributeSet) Cast(types map[string]string) AttributeSet {
+// CastOrIgnore enforces the types declared in linter schemas and ignore attributes that cannot be cast.
+func (a AttributeSet) CastOrIgnore(types AttributeTypes) AttributeSet {
+	// Reserved attributes always take precedence
+	types = types.Overrides(ReservedAttributesTypes)
+
 	result := make(map[string]interface{})
 
-	// Implementation: We ignore invalid values to avoid having to cast or manage errors
-	// when reading them later.
+	// Implementation: We ignore invalid values to avoid having
+	// to cast or manage errors when reading them later.
 
 	for key, value := range a {
 		declaredType, found := types[key]
@@ -345,6 +417,28 @@ func (a AttributeSet) Cast(types map[string]string) AttributeSet {
 	}
 
 	return result
+}
+
+// Cast enforces the types declared in linter schemas.
+func (a AttributeSet) Cast(types AttributeTypes) (AttributeSet, error) {
+	// Reserved attributes always take precedence
+	types = types.Overrides(ReservedAttributesTypes)
+
+	result := make(map[string]interface{})
+	for key, value := range a {
+		declaredType, found := types[key]
+		if !found {
+			result[key] = value
+			continue
+		}
+		typedValue, ok := CastAttribute(value, declaredType)
+		if !ok {
+			return nil, fmt.Errorf("invalid value for attribute %s: %v", key, value)
+		}
+		result[key] = typedValue
+	}
+
+	return result, nil
 }
 
 func CastArray[T any](arr []any, castFn CastFn[T]) (results []T, ok bool) {
@@ -381,6 +475,8 @@ func CastAttribute(value any, declaredType string) (any, bool) {
 			return CastArray(arr, CastFloatFn)
 		case "bool":
 			return CastArray(arr, CastBoolFn)
+		case "date":
+			return CastArray(arr, CastDateFn)
 		}
 	}
 
@@ -395,6 +491,8 @@ func CastAttribute(value any, declaredType string) (any, bool) {
 		return CastFloatFn(value)
 	case "bool":
 		return CastBoolFn(value)
+	case "date":
+		return CastDateFn(value)
 	}
 
 	// Ignore invalid values
@@ -438,7 +536,7 @@ func ExtractBlockTagsAndAttributes(content markdown.Document, types map[string]s
 	}
 
 	// Cast (ensure the tags attribute is an array too)
-	attributes = attributes.Cast(types)
+	attributes = attributes.CastOrIgnore(types)
 
 	tagsInAttributes := attributes.Tags()
 

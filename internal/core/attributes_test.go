@@ -3,6 +3,7 @@ package core
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/stretchr/testify/assert"
@@ -184,6 +185,32 @@ func TestCastFn(t *testing.T) {
 		assert.False(t, ok)
 	})
 
+	t.Run("CastDateFn", func(t *testing.T) {
+		// dates are OK
+		v, ok := CastDateFn("2024-12-31")
+		assert.True(t, ok)
+		assert.NotZero(t, v)
+		assert.Equal(t, time.Date(2024, time.Month(12), 31, 0, 0, 0, 0, time.UTC), v)
+
+		// datetimes are OK
+		v, ok = CastDateFn("2024-12-31 12:32:00")
+		assert.True(t, ok)
+		assert.NotZero(t, v)
+		assert.Equal(t, time.Date(2024, time.Month(12), 31, 12, 32, 0, 0, time.UTC), v)
+
+		// RFC datetimes are OK
+		v, ok = CastDateFn("2024-12-31T12:32:00Z")
+		assert.True(t, ok)
+		assert.NotZero(t, v)
+		assert.Equal(t, time.Date(2024, time.Month(12), 31, 12, 32, 0, 0, time.UTC), v)
+
+		// RFC with a different timezone datetimes are OK
+		v, ok = CastDateFn("2024-12-31T12:32:00-05:00")
+		assert.True(t, ok)
+		assert.NotZero(t, v)
+		assert.Equal(t, time.Date(2024, time.Month(12), 31, 17, 32, 0, 0, time.UTC), v.In(time.UTC))
+	})
+
 }
 
 func TestAttributeSet(t *testing.T) {
@@ -351,14 +378,39 @@ key3:
 			"key4": "single",
 		})
 
-		actual := attributes.Cast(map[string]string{
+		schemaCompliant := map[string]string{
 			"key1": "string",
 			"key2": "string[]",
 			"key3": "integer",
 			"key4": "string[]",
-		})
+		}
+		schemaNonCompliant := map[string]string{
+			"key1": "boolean", // Not possible
+			"key2": "string[]",
+			"key3": "integer",
+			"key4": "string[]",
+		}
+
+		// Attributes are casted if possible
+		actual, err := attributes.Cast(schemaCompliant)
+		require.NoError(t, err)
 		expected := AttributeSet(map[string]any{
 			"key1": "10",
+			"key2": []string{"value1", "value2"},
+			"key3": int64(15),
+			"key4": []string{"single"},
+		})
+		assert.Equal(t, expected, actual)
+
+		// Errors are returned when not possible
+		actual, err = attributes.Cast(schemaNonCompliant)
+		require.ErrorContains(t, err, "invalid value")
+		assert.Nil(t, actual)
+
+		// Errors can be ignored
+		actual = attributes.CastOrIgnore(schemaNonCompliant)
+		expected = AttributeSet(map[string]any{
+			// key1 is missing to avoid working with a wrong type in queries
 			"key2": []string{"value1", "value2"},
 			"key3": int64(15),
 			"key4": []string{"single"},

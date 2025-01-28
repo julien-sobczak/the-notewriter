@@ -168,7 +168,7 @@ func ParseFile(repositoryAbsolutePath string, md *markdown.File, mdParent *markd
 	if err != nil {
 		return nil, err
 	}
-	parentAttributes := AttributeSet(parentFrontMatter).Cast(GetSchemaAttributeTypes())
+	parentAttributes := AttributeSet(parentFrontMatter).CastOrIgnore(GetSchemaAttributeTypes())
 	fileAttributes := parentAttributes.Merge(AttributeSet(fileFrontMatter))
 
 	// Check if file must be ignored

@@ -45,8 +45,3 @@ func (f FrontMatter) AsBeautifulYAML() (string, error) {
 	}
 	return CompactYAML(buf.String()), nil
 }
-
-func (f FrontMatter) Cast( /* schema */ ) (FrontMatter, error) {
-	// TODO to implement
-	return f, nil
-}
