@@ -36,9 +36,9 @@ type GoLink struct {
 	GoName string `yaml:"go_name" json:"go_name"`
 
 	// Timestamps to track changes
-	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
-	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
-	LastIndexedAt time.Time `yaml:"last_indexed_at,omitempty" json:"last_indexed_at,omitempty"`
+	CreatedAt time.Time `yaml:"created_at" json:"created_at"`
+	UpdatedAt time.Time `yaml:"updated_at" json:"updated_at"`
+	IndexedAt time.Time `yaml:"indexed_at,omitempty" json:"indexed_at,omitempty"`
 }
 
 func NewOrExistingGoLink(packFile *PackFile, note *Note, parsedGoLink *ParsedGoLink) (*GoLink, error) {
@@ -65,9 +65,9 @@ func NewGoLink(packFile *PackFile, note *Note, parsedLink *ParsedGoLink) *GoLink
 		Title:        parsedLink.Title,
 		GoName:       parsedLink.GoName,
 
-		CreatedAt:     packFile.CTime,
-		UpdatedAt:     packFile.CTime,
-		LastIndexedAt: packFile.CTime,
+		CreatedAt: packFile.CTime,
+		UpdatedAt: packFile.CTime,
+		IndexedAt: packFile.CTime,
 	}
 }
 
@@ -157,7 +157,7 @@ func (l *GoLink) update(packFile *PackFile, note *Note, parsedLink *ParsedGoLink
 	}
 
 	l.PackFileOID = packFile.OID
-	l.LastIndexedAt = packFile.CTime
+	l.IndexedAt = packFile.CTime
 
 	if stale {
 		l.UpdatedAt = packFile.CTime
@@ -180,7 +180,7 @@ func (l *GoLink) Save() error {
 			go_name,
 			created_at,
 			updated_at,
-			last_indexed_at
+			indexed_at
 		)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(oid) DO UPDATE SET
@@ -192,7 +192,7 @@ func (l *GoLink) Save() error {
 			title = ?,
 			go_name = ?,
 			updated_at = ?,
-			last_indexed_at = ?
+			indexed_at = ?
 		;
 		`
 	_, err := CurrentDB().Client().Exec(query,
@@ -207,7 +207,7 @@ func (l *GoLink) Save() error {
 		l.GoName,
 		timeToSQL(l.CreatedAt),
 		timeToSQL(l.UpdatedAt),
-		timeToSQL(l.LastIndexedAt),
+		timeToSQL(l.IndexedAt),
 		// Update
 		l.PackFileOID,
 		l.NoteOID,
@@ -217,7 +217,7 @@ func (l *GoLink) Save() error {
 		l.Title,
 		l.GoName,
 		timeToSQL(l.UpdatedAt),
-		timeToSQL(l.LastIndexedAt),
+		timeToSQL(l.IndexedAt),
 	)
 	if err != nil {
 		return err
@@ -261,7 +261,7 @@ func (r *Repository) FindGoLinksLastCheckedBefore(point time.Time, path string) 
 	if path == "." {
 		path = ""
 	}
-	return QueryGoLinks(CurrentDB().Client(), `WHERE last_indexed_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
+	return QueryGoLinks(CurrentDB().Client(), `WHERE indexed_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 /* SQL Helpers */
@@ -285,7 +285,7 @@ func QueryGoLink(db SQLClient, whereClause string, args ...any) (*GoLink, error)
 			go_name,
 			created_at,
 			updated_at,
-			last_indexed_at
+			indexed_at
 		FROM link
 		%s;`, whereClause), args...).
 		Scan(
@@ -309,7 +309,7 @@ func QueryGoLink(db SQLClient, whereClause string, args ...any) (*GoLink, error)
 
 	l.CreatedAt = timeFromSQL(createdAt)
 	l.UpdatedAt = timeFromSQL(updatedAt)
-	l.LastIndexedAt = timeFromSQL(lastIndexedAt)
+	l.IndexedAt = timeFromSQL(lastIndexedAt)
 
 	return &l, nil
 }
@@ -329,7 +329,7 @@ func QueryGoLinks(db SQLClient, whereClause string, args ...any) ([]*GoLink, err
 			go_name,
 			created_at,
 			updated_at,
-			last_indexed_at
+			indexed_at
 		FROM link
 		%s;`, whereClause), args...)
 	if err != nil {
@@ -361,7 +361,7 @@ func QueryGoLinks(db SQLClient, whereClause string, args ...any) ([]*GoLink, err
 
 		l.CreatedAt = timeFromSQL(createdAt)
 		l.UpdatedAt = timeFromSQL(updatedAt)
-		l.LastIndexedAt = timeFromSQL(lastIndexedAt)
+		l.IndexedAt = timeFromSQL(lastIndexedAt)
 		links = append(links, &l)
 	}
 

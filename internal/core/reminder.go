@@ -45,9 +45,9 @@ type Reminder struct {
 	NextPerformedAt time.Time `yaml:"next_performed_at" json:"next_performed_at"`
 
 	// Timestamps to track changes
-	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
-	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
-	LastIndexedAt time.Time `yaml:"last_indexed_at,omitempty" json:"last_indexed_at,omitempty"`
+	CreatedAt time.Time `yaml:"created_at" json:"created_at"`
+	UpdatedAt time.Time `yaml:"updated_at" json:"updated_at"`
+	IndexedAt time.Time `yaml:"indexed_at,omitempty" json:"indexed_at,omitempty"`
 }
 
 func NewOrExistingReminder(packFile *PackFile, note *Note, parsedReminder *ParsedReminder) (*Reminder, error) {
@@ -66,16 +66,16 @@ func NewOrExistingReminder(packFile *PackFile, note *Note, parsedReminder *Parse
 // NewReminder instantiates a new reminder.
 func NewReminder(packFile *PackFile, note *Note, parsedReminder *ParsedReminder) (*Reminder, error) {
 	r := &Reminder{
-		OID:           oid.New(),
-		PackFileOID:   packFile.OID,
-		FileOID:       note.FileOID,
-		NoteOID:       note.OID,
-		RelativePath:  note.RelativePath,
-		Tag:           parsedReminder.Tag,
-		Description:   parsedReminder.Description,
-		CreatedAt:     packFile.CTime,
-		UpdatedAt:     packFile.CTime,
-		LastIndexedAt: packFile.CTime,
+		OID:          oid.New(),
+		PackFileOID:  packFile.OID,
+		FileOID:      note.FileOID,
+		NoteOID:      note.OID,
+		RelativePath: note.RelativePath,
+		Tag:          parsedReminder.Tag,
+		Description:  parsedReminder.Description,
+		CreatedAt:    packFile.CTime,
+		UpdatedAt:    packFile.CTime,
+		IndexedAt:    packFile.CTime,
 	}
 
 	err := r.Next()
@@ -153,7 +153,7 @@ func (r *Reminder) update(packFile *PackFile, note *Note, parsedReminder *Parsed
 	}
 
 	r.PackFileOID = packFile.OID
-	r.LastIndexedAt = packFile.CTime
+	r.IndexedAt = packFile.CTime
 
 	if stale {
 		r.UpdatedAt = packFile.CTime
@@ -588,7 +588,7 @@ func (r *Reminder) Save() error {
 			next_performed_at,
 			created_at,
 			updated_at,
-			last_indexed_at
+			indexed_at
 		)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(oid) DO UPDATE SET
@@ -601,7 +601,7 @@ func (r *Reminder) Save() error {
 			last_performed_at = ?,
 			next_performed_at = ?,
 			updated_at = ?,
-			last_indexed_at = ?
+			indexed_at = ?
 		;
 	`
 	_, err := CurrentDB().Client().Exec(query,
@@ -617,7 +617,7 @@ func (r *Reminder) Save() error {
 		timeToSQL(r.NextPerformedAt),
 		timeToSQL(r.CreatedAt),
 		timeToSQL(r.UpdatedAt),
-		timeToSQL(r.LastIndexedAt),
+		timeToSQL(r.IndexedAt),
 		// Update
 		r.PackFileOID,
 		r.FileOID,
@@ -628,7 +628,7 @@ func (r *Reminder) Save() error {
 		timeToSQL(r.LastPerformedAt),
 		timeToSQL(r.NextPerformedAt),
 		timeToSQL(r.UpdatedAt),
-		timeToSQL(r.LastIndexedAt),
+		timeToSQL(r.IndexedAt),
 	)
 	if err != nil {
 		return err
@@ -679,7 +679,7 @@ func (r *Repository) FindRemindersLastCheckedBefore(point time.Time, path string
 	if path == "." {
 		path = ""
 	}
-	return QueryReminders(CurrentDB().Client(), `WHERE last_indexed_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
+	return QueryReminders(CurrentDB().Client(), `WHERE indexed_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 /* SQL Helpers */
@@ -706,7 +706,7 @@ func QueryReminder(db SQLClient, whereClause string, args ...any) (*Reminder, er
 			next_performed_at,
 			created_at,
 			updated_at,
-			last_indexed_at
+			indexed_at
 		FROM reminder
 		%s;`, whereClause), args...).
 		Scan(
@@ -733,7 +733,7 @@ func QueryReminder(db SQLClient, whereClause string, args ...any) (*Reminder, er
 	r.NextPerformedAt = timeFromSQL(nextPerformedAt)
 	r.CreatedAt = timeFromSQL(createdAt)
 	r.UpdatedAt = timeFromSQL(updatedAt)
-	r.LastIndexedAt = timeFromSQL(lastIndexedAt)
+	r.IndexedAt = timeFromSQL(lastIndexedAt)
 
 	return &r, nil
 }
@@ -754,7 +754,7 @@ func QueryReminders(db SQLClient, whereClause string, args ...any) ([]*Reminder,
 			next_performed_at,
 			created_at,
 			updated_at,
-			last_indexed_at
+			indexed_at
 		FROM reminder
 		%s;`, whereClause), args...)
 	if err != nil {
@@ -791,7 +791,7 @@ func QueryReminders(db SQLClient, whereClause string, args ...any) ([]*Reminder,
 		r.NextPerformedAt = timeFromSQL(nextPerformedAt)
 		r.CreatedAt = timeFromSQL(createdAt)
 		r.UpdatedAt = timeFromSQL(updatedAt)
-		r.LastIndexedAt = timeFromSQL(lastIndexedAt)
+		r.IndexedAt = timeFromSQL(lastIndexedAt)
 		reminders = append(reminders, &r)
 	}
 

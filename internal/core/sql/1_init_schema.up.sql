@@ -30,7 +30,7 @@ CREATE TABLE file (
   -- Timestamps to track changes
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  last_indexed_at TEXT,
+  indexed_at TEXT,
 
   -- Last modification of local file on disk
   mtime TEXT NOT NULL,
@@ -86,7 +86,7 @@ CREATE TABLE note (
   -- Timestamps to track changes
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  last_indexed_at TEXT
+  indexed_at TEXT
 );
 
 CREATE VIRTUAL TABLE note_fts USING FTS5(oid UNINDEXED, kind UNINDEXED, short_title, content, content='note', content_rowid='rowid');
@@ -135,7 +135,7 @@ CREATE TABLE media (
   -- Timestamps to track changes
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  last_indexed_at TEXT
+  indexed_at TEXT
 );
 
 CREATE TABLE blob (
@@ -177,7 +177,7 @@ CREATE TABLE link (
   -- Timestamps to track changes
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  last_indexed_at TEXT
+  indexed_at TEXT
 );
 -- Ex (skills/node.md): [Link 2](https://docs.npmjs.com "Tutorial to creating Node.js modules #go/node/module")
 -- insert into link(1, 'Link 2', 'https://docs.npmjs.com', 'Tutorial to creating Node.js', 'node/module', 'skills/node.md')
@@ -218,7 +218,7 @@ CREATE TABLE flashcard (
   -- Timestamps to track changes
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  last_indexed_at TEXT
+  indexed_at TEXT
 );
 
 
@@ -250,7 +250,7 @@ CREATE TABLE reminder (
   -- Timestamps to track changes
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  last_indexed_at TEXT
+  indexed_at TEXT
 );
 
 

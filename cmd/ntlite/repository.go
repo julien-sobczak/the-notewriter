@@ -133,7 +133,7 @@ func (r *Repository) Add() error {
 	}
 
 	// (Not implemented) Find objects to delete by querying
-	// the different tables for rows with last_indexed_at < :execution_time
+	// the different tables for rows with indexed_at < :execution_time
 
 	// Don't forget to commit
 	if err := db.CommitTransaction(); err != nil {

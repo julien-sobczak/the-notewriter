@@ -18,19 +18,19 @@ func TestFlashcard(t *testing.T) {
 
 	createdAt := clock.Now()
 	flashcard := &Flashcard{
-		OID:           "42d74d967d9b4e989502647ac510777ca1e22f4a",
-		PackFileOID:   "9c0c0682bd18439d992639f19f8d552bde3bd3c0",
-		FileOID:       "3e8d915d4e524560ae8a2e5a45553f3034b391a2",
-		NoteOID:       "52d02a28a961471db62c6d40d30639dafe4aba00",
-		RelativePath:  "project.md",
-		Slug:          "go-flashcard-golang-logo",
-		ShortTitle:    "Golang Logo",
-		Tags:          []string{"go"},
-		Front:         "What does the **Golang logo** represent?",
-		Back:          "A **gopher**.\n\n![Logo](./medias/go.svg)",
-		CreatedAt:     createdAt,
-		UpdatedAt:     createdAt,
-		LastIndexedAt: createdAt,
+		OID:          "42d74d967d9b4e989502647ac510777ca1e22f4a",
+		PackFileOID:  "9c0c0682bd18439d992639f19f8d552bde3bd3c0",
+		FileOID:      "3e8d915d4e524560ae8a2e5a45553f3034b391a2",
+		NoteOID:      "52d02a28a961471db62c6d40d30639dafe4aba00",
+		RelativePath: "project.md",
+		Slug:         "go-flashcard-golang-logo",
+		ShortTitle:   "Golang Logo",
+		Tags:         []string{"go"},
+		Front:        "What does the **Golang logo** represent?",
+		Back:         "A **gopher**.\n\n![Logo](./medias/go.svg)",
+		CreatedAt:    createdAt,
+		UpdatedAt:    createdAt,
+		IndexedAt:    createdAt,
 	}
 
 	// Save
@@ -53,7 +53,7 @@ func TestFlashcard(t *testing.T) {
 	assert.Equal(t, flashcard.Back, actual.Back)
 	assert.WithinDuration(t, clock.Now(), actual.CreatedAt, 1*time.Second)
 	assert.WithinDuration(t, clock.Now(), actual.UpdatedAt, 1*time.Second)
-	assert.WithinDuration(t, clock.Now(), actual.LastIndexedAt, 1*time.Second)
+	assert.WithinDuration(t, clock.Now(), actual.IndexedAt, 1*time.Second)
 
 	// Force update
 	actual.Front = "What is the **Golang logo**?"
@@ -76,19 +76,19 @@ func TestFlashcardFormats(t *testing.T) {
 	FreezeAt(t, HumanTime(t, "2023-01-01 01:12:30"))
 
 	flashcard := &Flashcard{
-		OID:           "42d74d967d9b4e989502647ac510777ca1e22f4a",
-		PackFileOID:   "9c0c0682bd18439d992639f19f8d552bde3bd3c0",
-		FileOID:       "3e8d915d4e524560ae8a2e5a45553f3034b391a2",
-		NoteOID:       "52d02a28a961471db62c6d40d30639dafe4aba00",
-		RelativePath:  "go.md",
-		Slug:          "go-flashcard-golang-logo",
-		ShortTitle:    "Golang Logo",
-		Tags:          []string{"go"},
-		Front:         "What does the **Golang logo** represent?",
-		Back:          "A **gopher**.",
-		CreatedAt:     clock.Now(),
-		UpdatedAt:     clock.Now(),
-		LastIndexedAt: clock.Now(),
+		OID:          "42d74d967d9b4e989502647ac510777ca1e22f4a",
+		PackFileOID:  "9c0c0682bd18439d992639f19f8d552bde3bd3c0",
+		FileOID:      "3e8d915d4e524560ae8a2e5a45553f3034b391a2",
+		NoteOID:      "52d02a28a961471db62c6d40d30639dafe4aba00",
+		RelativePath: "go.md",
+		Slug:         "go-flashcard-golang-logo",
+		ShortTitle:   "Golang Logo",
+		Tags:         []string{"go"},
+		Front:        "What does the **Golang logo** represent?",
+		Back:         "A **gopher**.",
+		CreatedAt:    clock.Now(),
+		UpdatedAt:    clock.Now(),
+		IndexedAt:    clock.Now(),
 	}
 
 	t.Run("ToYAML", func(t *testing.T) {
@@ -108,7 +108,7 @@ front: What does the **Golang logo** represent?
 back: A **gopher**.
 created_at: 2023-01-01T01:12:30Z
 updated_at: 2023-01-01T01:12:30Z
-last_indexed_at: 2023-01-01T01:12:30Z
+indexed_at: 2023-01-01T01:12:30Z
 `)
 		assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
 	})
@@ -131,7 +131,7 @@ last_indexed_at: 2023-01-01T01:12:30Z
   "back": "A **gopher**.",
   "created_at": "2023-01-01T01:12:30Z",
   "updated_at": "2023-01-01T01:12:30Z",
-  "last_indexed_at": "2023-01-01T01:12:30Z",
+  "indexed_at": "2023-01-01T01:12:30Z",
   "due_at": "0001-01-01T00:00:00Z",
   "studied_at": "0001-01-01T00:00:00Z"
 }

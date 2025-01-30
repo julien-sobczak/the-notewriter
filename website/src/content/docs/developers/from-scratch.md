@@ -56,7 +56,7 @@ type File struct {
 	CreatedAt     time.Time `yaml:"created_at"`
 	UpdatedAt     time.Time `yaml:"updated_at"`
 	DeletedAt     time.Time `yaml:"deleted_at,omitempty"`
-	LastIndexedAt time.Time `yaml:"-"`
+	IndexedAt time.Time `yaml:"-"`
 
 	new   bool
 	stale bool
@@ -72,7 +72,7 @@ The complete model `File` contains additional fields like a reference to a paren
 Basically, we persist various metadata about the file to quickly determine if a file has changed when running the command `ntlite add`. In addition:
 
 * Each object get assigned an OID (a unique 40-character string like the hash of Git objects). This OID is used as the primary key inside the SQL database and can be used with the official command `nt cat-file <oid>` to get the full information about an object.
-* Each object includes various timestamps. The creation and last modification dates are mostly informative. The timestamp `LastIndexedAt` is updated every time an object is traversed (even if the object hasn't changed) and is useful to quickly find all deleted objects.
+* Each object includes various timestamps. The creation and last modification dates are mostly informative. The timestamp `IndexedAt` is updated every time an object is traversed (even if the object hasn't changed) and is useful to quickly find all deleted objects.
 * Each object uses Go struct tags to make easy to serialize them in YAML.
 * Each object includes the fields `new` and `stale` to determine if a change must be saved and if the object must be inserted or updated.
 
@@ -99,7 +99,7 @@ type Note struct {
 	CreatedAt     time.Time `yaml:"created_at"`
 	UpdatedAt     time.Time `yaml:"updated_at"`
 	DeletedAt     time.Time `yaml:"deleted_at,omitempty"`
-	LastIndexedAt time.Time `yaml:"-"`
+	IndexedAt time.Time `yaml:"-"`
 
 	new   bool
 	stale bool
@@ -468,7 +468,7 @@ CREATE TABLE IF NOT EXISTS file (
 	body TEXT NOT NULL,
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL,
-	last_indexed_at TEXT,
+	indexed_at TEXT,
 	mtime TEXT NOT NULL,
 	size INTEGER NOT NULL,
 	hashsum TEXT NOT NULL
@@ -483,7 +483,7 @@ CREATE TABLE IF NOT EXISTS note (
 	hashsum TEXT NOT NULL,
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL,
-	last_indexed_at TEXT
+	indexed_at TEXT
 );`)
 	if err != nil {
 		log.Fatalf("Error while initializing database: %v", err)
@@ -524,7 +524,7 @@ Using this connection, we can now add methods on our model to persist the object
 func (f *File) Save() error {
 	var err error
 	f.UpdatedAt = time.Now()
-	f.LastIndexedAt = time.Now()
+	f.IndexedAt = time.Now()
 	switch f.State() {
 	case Added:
 		err = f.Insert()
@@ -551,7 +551,7 @@ func (f *File) Insert() error {
 			body,
 			created_at,
 			updated_at,
-			last_indexed_at,
+			indexed_at,
 			mtime,
 			size,
 			hashsum
@@ -564,7 +564,7 @@ func (f *File) Insert() error {
 		f.Body,
 		timeToSQL(f.CreatedAt),
 		timeToSQL(f.UpdatedAt),
-		timeToSQL(f.LastIndexedAt),
+		timeToSQL(f.IndexedAt),
 		timeToSQL(f.MTime),
 		f.Size,
 		f.Hash,
@@ -583,7 +583,7 @@ func (f *File) Update() error {
 			relative_path = ?,
 			body = ?,
 			updated_at = ?,
-			last_indexed_at = ?,
+			indexed_at = ?,
 			mtime = ?,
 			size = ?,
 			hashsum = ?
@@ -593,7 +593,7 @@ func (f *File) Update() error {
 		f.RelativePath,
 		f.Body,
 		timeToSQL(f.UpdatedAt),
-		timeToSQL(f.LastIndexedAt),
+		timeToSQL(f.IndexedAt),
 		timeToSQL(f.MTime),
 		f.Size,
 		f.Hash,
@@ -610,26 +610,26 @@ func (f *File) Delete() error {
 
 func (f *File) Check() error {
 	client := CurrentDB().Client()
-	f.LastIndexedAt = time.Now()
+	f.IndexedAt = time.Now()
 	query := `
 		UPDATE file
-		SET last_indexed_at = ?
+		SET indexed_at = ?
 		WHERE oid = ?;`
-	if _, err := client.Exec(query, timeToSQL(f.LastIndexedAt), f.OID); err != nil {
+	if _, err := client.Exec(query, timeToSQL(f.IndexedAt), f.OID); err != nil {
 		return err
 	}
 	query = `
 		UPDATE note
-		SET last_indexed_at = ?
+		SET indexed_at = ?
 		WHERE file_oid = ?;`
-	if _, err := client.Exec(query, timeToSQL(f.LastIndexedAt), f.OID); err != nil {
+	if _, err := client.Exec(query, timeToSQL(f.IndexedAt), f.OID); err != nil {
 		return err
 	}
 	return nil
 }
 ```
 
-That's a lot of code as we are using a low-level library. We have a method for every operation `Insert()`, `Update()`, `Delete()`, and an additional method `Check()` to only update the `LastIndexedAt` timestamp. The method `Save()` determines which method to call based on the attributes `new` and `stale`.
+That's a lot of code as we are using a low-level library. We have a method for every operation `Insert()`, `Update()`, `Delete()`, and an additional method `Check()` to only update the `IndexedAt` timestamp. The method `Save()` determines which method to call based on the attributes `new` and `stale`.
 
 :::note
 
@@ -853,7 +853,7 @@ func (r *Repository) Add() error {
 	}
 
 	// (Not implemented) Find objects to delete by querying
-	// the different tables for rows with last_indexed_at < :execution_time
+	// the different tables for rows with indexed_at < :execution_time
 
 	// Don't forget to commit
 	if err := db.CommitTransaction(); err != nil {
@@ -909,7 +909,7 @@ func (f *File) update() error {
 }
 ```
 
-When the `State()` of an object is different from `None` (= the object has changed), we place the object in the staging area (= the objects waiting to be committed). Then, we `Save()` every object to at minimum update their `LastIndexedAt` timestamp.
+When the `State()` of an object is different from `None` (= the object has changed), we place the object in the staging area (= the objects waiting to be committed). Then, we `Save()` every object to at minimum update their `IndexedAt` timestamp.
 
 The only step remaining to be covered in more detail is the method `StageObject()`:
 

@@ -15,18 +15,18 @@ func TestMedia(t *testing.T) {
 	FreezeNow(t)
 
 	media := &Media{
-		OID:           "42d74d967d9b4e989502647ac510777ca1e22f4a",
-		PackFileOID:   "a1ea23ae1287416c8796a0981f558206690b8a76",
-		RelativePath:  "go.svg",
-		MediaKind:     KindPicture,
-		Dangling:      true,
-		Extension:     ".svg",
-		MTime:         time.Time{},
-		Hash:          "",
-		Size:          0,
-		CreatedAt:     clock.Now(),
-		UpdatedAt:     clock.Now(),
-		LastIndexedAt: clock.Now(),
+		OID:          "42d74d967d9b4e989502647ac510777ca1e22f4a",
+		PackFileOID:  "a1ea23ae1287416c8796a0981f558206690b8a76",
+		RelativePath: "go.svg",
+		MediaKind:    KindPicture,
+		Dangling:     true,
+		Extension:    ".svg",
+		MTime:        time.Time{},
+		Hash:         "",
+		Size:         0,
+		CreatedAt:    clock.Now(),
+		UpdatedAt:    clock.Now(),
+		IndexedAt:    clock.Now(),
 	}
 
 	// Save
@@ -48,7 +48,7 @@ func TestMedia(t *testing.T) {
 	assert.Equal(t, media.Size, actual.Size)
 	assert.WithinDuration(t, clock.Now(), actual.CreatedAt, 1*time.Second)
 	assert.WithinDuration(t, clock.Now(), actual.UpdatedAt, 1*time.Second)
-	assert.WithinDuration(t, clock.Now(), actual.LastIndexedAt, 1*time.Second)
+	assert.WithinDuration(t, clock.Now(), actual.IndexedAt, 1*time.Second)
 
 	// Update
 	actual.Dangling = false
@@ -102,9 +102,9 @@ func TestMediaFormats(t *testing.T) {
 				Tags:     []string{"original", "lossy"},
 			},
 		},
-		CreatedAt:     clock.Now(),
-		UpdatedAt:     clock.Now(),
-		LastIndexedAt: clock.Now(),
+		CreatedAt: clock.Now(),
+		UpdatedAt: clock.Now(),
+		IndexedAt: clock.Now(),
 	}
 
 	t.Run("ToYAML", func(t *testing.T) {
@@ -141,7 +141,7 @@ blobs:
       - lossy
 created_at: 2023-01-01T01:12:30Z
 updated_at: 2023-01-01T01:12:30Z
-last_indexed_at: 2023-01-01T01:12:30Z
+indexed_at: 2023-01-01T01:12:30Z
 `)
 		assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
 	})
@@ -190,7 +190,7 @@ last_indexed_at: 2023-01-01T01:12:30Z
   ],
   "created_at": "2023-01-01T01:12:30Z",
   "updated_at": "2023-01-01T01:12:30Z",
-  "last_indexed_at": "2023-01-01T01:12:30Z"
+  "indexed_at": "2023-01-01T01:12:30Z"
 }
 `)
 		assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))

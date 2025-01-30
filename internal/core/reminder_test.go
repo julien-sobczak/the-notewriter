@@ -27,9 +27,9 @@ func TestReminder(t *testing.T) {
 		Description:  "Test",
 		Tag:          "#reminder-2085-09",
 
-		CreatedAt:     createdAt,
-		UpdatedAt:     createdAt,
-		LastIndexedAt: createdAt,
+		CreatedAt: createdAt,
+		UpdatedAt: createdAt,
+		IndexedAt: createdAt,
 	}
 
 	// Process and save the reminder
@@ -53,7 +53,7 @@ func TestReminder(t *testing.T) {
 	assert.Equal(t, HumanTime(t, "2085-09-01 00:00:00"), reminder.NextPerformedAt)
 	assert.WithinDuration(t, createdAt, actual.CreatedAt, 1*time.Second)
 	assert.WithinDuration(t, createdAt, actual.UpdatedAt, 1*time.Second)
-	assert.WithinDuration(t, createdAt, actual.LastIndexedAt, 1*time.Second)
+	assert.WithinDuration(t, createdAt, actual.IndexedAt, 1*time.Second)
 
 	// Force update
 	actual.Tag = "#reminder-2050-01"
@@ -83,9 +83,9 @@ func TestReminderFormats(t *testing.T) {
 		Description:  "Test",
 		Tag:          "#reminder-2085-09",
 
-		CreatedAt:     clock.Now(),
-		UpdatedAt:     clock.Now(),
-		LastIndexedAt: clock.Now(),
+		CreatedAt: clock.Now(),
+		UpdatedAt: clock.Now(),
+		IndexedAt: clock.Now(),
 	}
 	require.NoError(t, reminder.Next())
 
@@ -104,7 +104,7 @@ last_performed_at: 0001-01-01T00:00:00Z
 next_performed_at: 2085-09-01T00:00:00Z
 created_at: 2023-01-01T01:12:30Z
 updated_at: 2023-01-01T01:12:30Z
-last_indexed_at: 2023-01-01T01:12:30Z
+indexed_at: 2023-01-01T01:12:30Z
 `)
 		assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
 	})
@@ -124,7 +124,7 @@ last_indexed_at: 2023-01-01T01:12:30Z
   "next_performed_at": "2085-09-01T00:00:00Z",
   "created_at": "2023-01-01T01:12:30Z",
   "updated_at": "2023-01-01T01:12:30Z",
-  "last_indexed_at": "2023-01-01T01:12:30Z"
+  "indexed_at": "2023-01-01T01:12:30Z"
 }
 `)
 		assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))

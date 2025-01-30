@@ -139,7 +139,7 @@ type StatefulObject interface {
 }
 ```
 
-These _stateful objects_ must implement the method `Save()` (which will commnly use the singleton `CurrentDB()` to retrieve a connection to the database). This method will check the `State()` to determine if the object must be saved using a query `INSERT`, `UPDATE`, or `DELETE`. If no changes have been done, the method `Save` must still update the value of the field `LastIndexedAt` (= useful to detect dead rows in database, which are objects that are no longer present in files).
+These _stateful objects_ must implement the method `Save()` (which will commnly use the singleton `CurrentDB()` to retrieve a connection to the database). This method will check the `State()` to determine if the object must be saved using a query `INSERT`, `UPDATE`, or `DELETE`. If no changes have been done, the method `Save` must still update the value of the field `IndexedAt` (= useful to detect dead rows in database, which are objects that are no longer present in files).
 
 The method `Refresh()` requires an object to determine if its content is still up-to-date. For example, notes can include other notes using the syntax `![[wikilink#note]]`. When a included note is edited, all notes including it must be refreshed to update their content too.
 

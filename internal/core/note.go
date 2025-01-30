@@ -97,34 +97,34 @@ type Note struct {
 	Comment markdown.Document `yaml:"comment,omitempty" json:"comment,omitempty"`
 
 	// Timestamps to track changes
-	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
-	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
-	LastIndexedAt time.Time `yaml:"last_indexed_at,omitempty" json:"last_indexed_at,omitempty"`
+	CreatedAt time.Time `yaml:"created_at" json:"created_at"`
+	UpdatedAt time.Time `yaml:"updated_at" json:"updated_at"`
+	IndexedAt time.Time `yaml:"indexed_at,omitempty" json:"indexed_at,omitempty"`
 }
 
 // NewNote creates a new note.
 func NewNote(packFile *PackFile, file *File, parsedNote *ParsedNote) (*Note, error) {
 	// Set basic properties
 	n := &Note{
-		OID:           oid.New(),
-		Slug:          parsedNote.Slug,
-		PackFileOID:   packFile.OID,
-		FileOID:       file.OID,
-		Title:         parsedNote.Title,
-		ShortTitle:    parsedNote.ShortTitle,
-		NoteKind:      parsedNote.Kind,
-		RelativePath:  file.RelativePath,
-		Attributes:    parsedNote.Attributes,
-		Tags:          parsedNote.Attributes.Tags(),
-		Wikilink:      file.Wikilink + "#" + string(parsedNote.Title.TrimSpace()),
-		Content:       parsedNote.Content,
-		Hash:          parsedNote.Content.Hash(),
-		Body:          parsedNote.Body,
-		Comment:       parsedNote.Comment,
-		Line:          parsedNote.Line,
-		CreatedAt:     packFile.CTime,
-		UpdatedAt:     packFile.CTime,
-		LastIndexedAt: packFile.CTime,
+		OID:          oid.New(),
+		Slug:         parsedNote.Slug,
+		PackFileOID:  packFile.OID,
+		FileOID:      file.OID,
+		Title:        parsedNote.Title,
+		ShortTitle:   parsedNote.ShortTitle,
+		NoteKind:     parsedNote.Kind,
+		RelativePath: file.RelativePath,
+		Attributes:   parsedNote.Attributes,
+		Tags:         parsedNote.Attributes.Tags(),
+		Wikilink:     file.Wikilink + "#" + string(parsedNote.Title.TrimSpace()),
+		Content:      parsedNote.Content,
+		Hash:         parsedNote.Content.Hash(),
+		Body:         parsedNote.Body,
+		Comment:      parsedNote.Comment,
+		Line:         parsedNote.Line,
+		CreatedAt:    packFile.CTime,
+		UpdatedAt:    packFile.CTime,
+		IndexedAt:    packFile.CTime,
 	}
 
 	return n, nil
@@ -314,7 +314,7 @@ func (n *Note) update(packFile *PackFile, f *File, parsedNote *ParsedNote) {
 	}
 
 	n.PackFileOID = packFile.OID
-	n.LastIndexedAt = packFile.CTime
+	n.IndexedAt = packFile.CTime
 
 	if stale {
 		n.UpdatedAt = packFile.CTime
@@ -479,7 +479,7 @@ func (n *Note) Save() error {
 			comment,
 			created_at,
 			updated_at,
-			last_indexed_at)
+			indexed_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(oid) DO UPDATE SET
 			packfile_oid = ?,
@@ -499,7 +499,7 @@ func (n *Note) Save() error {
 			body = ?,
 			comment = ?,
 			updated_at = ?,
-			last_indexed_at = ?
+			indexed_at = ?
 		;
 	`
 
@@ -529,7 +529,7 @@ func (n *Note) Save() error {
 		n.Comment,
 		timeToSQL(n.CreatedAt),
 		timeToSQL(n.UpdatedAt),
-		timeToSQL(n.LastIndexedAt),
+		timeToSQL(n.IndexedAt),
 		// Update
 		n.PackFileOID,
 		n.FileOID,
@@ -548,7 +548,7 @@ func (n *Note) Save() error {
 		n.Body,
 		n.Comment,
 		timeToSQL(n.UpdatedAt),
-		timeToSQL(n.LastIndexedAt),
+		timeToSQL(n.IndexedAt),
 	)
 	if err != nil {
 		return err
@@ -765,7 +765,7 @@ func (r *Repository) FindNotesLastCheckedBefore(point time.Time, path string) ([
 	if path == "." {
 		path = ""
 	}
-	return QueryNotes(CurrentDB().Client(), `WHERE last_indexed_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
+	return QueryNotes(CurrentDB().Client(), `WHERE indexed_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 // SearchNotes query notes to find the ones matching a list of criteria.
@@ -869,7 +869,7 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 			comment,
 			created_at,
 			updated_at,
-			last_indexed_at
+			indexed_at
 		FROM note
 		%s;`, whereClause), args...).
 		Scan(
@@ -909,7 +909,7 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 	n.Tags = strings.Split(tagsRaw, ",")
 	n.CreatedAt = timeFromSQL(createdAt)
 	n.UpdatedAt = timeFromSQL(updatedAt)
-	n.LastIndexedAt = timeFromSQL(lastIndexedAt)
+	n.IndexedAt = timeFromSQL(lastIndexedAt)
 
 	return &n, nil
 }
@@ -938,7 +938,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			comment,
 			created_at,
 			updated_at,
-			last_indexed_at
+			indexed_at
 		FROM note
 		%s;`, whereClause), args...)
 	if err != nil {
@@ -988,7 +988,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 		n.Tags = strings.Split(tagsRaw, ",")
 		n.CreatedAt = timeFromSQL(createdAt)
 		n.UpdatedAt = timeFromSQL(updatedAt)
-		n.LastIndexedAt = timeFromSQL(lastIndexedAt)
+		n.IndexedAt = timeFromSQL(lastIndexedAt)
 		notes = append(notes, &n)
 	}
 

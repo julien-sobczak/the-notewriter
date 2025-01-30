@@ -71,9 +71,9 @@ type Media struct {
 	BlobRefs []*BlobRef `yaml:"blobs" json:"blobs"`
 
 	// Timestamps to track changes
-	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
-	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
-	LastIndexedAt time.Time `yaml:"last_indexed_at,omitempty" json:"last_indexed_at,omitempty"`
+	CreatedAt time.Time `yaml:"created_at" json:"created_at"`
+	UpdatedAt time.Time `yaml:"updated_at" json:"updated_at"`
+	IndexedAt time.Time `yaml:"indexed_at,omitempty" json:"indexed_at,omitempty"`
 }
 
 // DetectMediaKind returns the media kind based on a file path.
@@ -105,18 +105,18 @@ func NewMedia(packFile *PackFile, parsedMedia *ParsedMedia) (*Media, error) {
 	}
 
 	return &Media{
-		OID:           oid.New(),
-		PackFileOID:   packFile.OID,
-		RelativePath:  parsedMedia.RelativePath,
-		MediaKind:     parsedMedia.MediaKind,
-		Extension:     parsedMedia.Extension,
-		Dangling:      parsedMedia.Dangling,
-		Size:          parsedMedia.FileSize(),
-		MTime:         parsedMedia.FileMTime(),
-		Hash:          hash,
-		CreatedAt:     packFile.CTime,
-		UpdatedAt:     packFile.CTime,
-		LastIndexedAt: packFile.CTime,
+		OID:          oid.New(),
+		PackFileOID:  packFile.OID,
+		RelativePath: parsedMedia.RelativePath,
+		MediaKind:    parsedMedia.MediaKind,
+		Extension:    parsedMedia.Extension,
+		Dangling:     parsedMedia.Dangling,
+		Size:         parsedMedia.FileSize(),
+		MTime:        parsedMedia.FileMTime(),
+		Hash:         hash,
+		CreatedAt:    packFile.CTime,
+		UpdatedAt:    packFile.CTime,
+		IndexedAt:    packFile.CTime,
 	}, nil
 }
 
@@ -169,10 +169,10 @@ func (m *Media) update(packFile *PackFile, parsedMedia *ParsedMedia) {
 	}
 
 	m.PackFileOID = packFile.OID
-	m.LastIndexedAt = packFile.CTime
+	m.IndexedAt = packFile.CTime
 
 	if stale {
-		m.UpdatedAt = m.LastIndexedAt
+		m.UpdatedAt = m.IndexedAt
 	}
 }
 
@@ -382,7 +382,7 @@ func (m *Media) Save() error {
 			size,
 			created_at,
 			updated_at,
-			last_indexed_at
+			indexed_at
 		)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(oid) DO UPDATE SET
@@ -395,7 +395,7 @@ func (m *Media) Save() error {
 			hashsum = ?,
 			size = ?,
 			updated_at = ?,
-			last_indexed_at = ?
+			indexed_at = ?
 		;
 	`
 	_, err := CurrentDB().Client().Exec(query,
@@ -411,7 +411,7 @@ func (m *Media) Save() error {
 		m.Size,
 		timeToSQL(m.CreatedAt),
 		timeToSQL(m.UpdatedAt),
-		timeToSQL(m.LastIndexedAt),
+		timeToSQL(m.IndexedAt),
 		// Update
 		m.PackFileOID,
 		m.RelativePath,
@@ -422,7 +422,7 @@ func (m *Media) Save() error {
 		m.Hash,
 		m.Size,
 		timeToSQL(m.UpdatedAt),
-		timeToSQL(m.LastIndexedAt),
+		timeToSQL(m.IndexedAt),
 	)
 	if err != nil {
 		return err
@@ -534,7 +534,7 @@ func (r *Repository) FindMediaByHash(hash string) (*Media, error) {
 }
 
 func (r *Repository) FindMediasLastCheckedBefore(point time.Time) ([]*Media, error) {
-	return QueryMedias(CurrentDB().Client(), `WHERE last_indexed_at < ?`, timeToSQL(point))
+	return QueryMedias(CurrentDB().Client(), `WHERE indexed_at < ?`, timeToSQL(point))
 }
 
 func (r *Repository) FindBlobsFromMedia(mediaOID oid.OID) ([]*BlobRef, error) {
@@ -568,7 +568,7 @@ func QueryMedia(db SQLClient, whereClause string, args ...any) (*Media, error) {
 			size,
 			created_at,
 			updated_at,
-			last_indexed_at
+			indexed_at
 		FROM media
 		%s;`, whereClause), args...).
 		Scan(
@@ -593,7 +593,7 @@ func QueryMedia(db SQLClient, whereClause string, args ...any) (*Media, error) {
 
 	m.CreatedAt = timeFromSQL(createdAt)
 	m.UpdatedAt = timeFromSQL(updatedAt)
-	m.LastIndexedAt = timeFromSQL(lastIndexedAt)
+	m.IndexedAt = timeFromSQL(lastIndexedAt)
 	m.MTime = timeFromSQL(mTime)
 
 	// Load blobs
@@ -622,7 +622,7 @@ func QueryMedias(db SQLClient, whereClause string, args ...any) ([]*Media, error
 			size,
 			created_at,
 			updated_at,
-			last_indexed_at
+			indexed_at
 		FROM media
 		%s;`, whereClause), args...)
 	if err != nil {
@@ -656,7 +656,7 @@ func QueryMedias(db SQLClient, whereClause string, args ...any) ([]*Media, error
 
 		m.CreatedAt = timeFromSQL(createdAt)
 		m.UpdatedAt = timeFromSQL(updatedAt)
-		m.LastIndexedAt = timeFromSQL(lastIndexedAt)
+		m.IndexedAt = timeFromSQL(lastIndexedAt)
 		m.MTime = timeFromSQL(mTime)
 
 		// Load blobs

@@ -19,17 +19,17 @@ func TestGoLink(t *testing.T) {
 
 	createdAt := clock.Now()
 	goLink := &GoLink{
-		OID:           "42d74d967d9b4e989502647ac510777ca1e22f4a",
-		PackFileOID:   "9c0c0682bd18439d992639f19f8d552bde3bd3c0",
-		NoteOID:       "52d02a28a961471db62c6d40d30639dafe4aba00",
-		RelativePath:  "project.md",
-		Text:          "Golang",
-		URL:           "https://go.dev/doc/",
-		Title:         "",
-		GoName:        "go",
-		CreatedAt:     createdAt,
-		UpdatedAt:     createdAt,
-		LastIndexedAt: createdAt,
+		OID:          "42d74d967d9b4e989502647ac510777ca1e22f4a",
+		PackFileOID:  "9c0c0682bd18439d992639f19f8d552bde3bd3c0",
+		NoteOID:      "52d02a28a961471db62c6d40d30639dafe4aba00",
+		RelativePath: "project.md",
+		Text:         "Golang",
+		URL:          "https://go.dev/doc/",
+		Title:        "",
+		GoName:       "go",
+		CreatedAt:    createdAt,
+		UpdatedAt:    createdAt,
+		IndexedAt:    createdAt,
 	}
 
 	// Save
@@ -50,7 +50,7 @@ func TestGoLink(t *testing.T) {
 	assert.Equal(t, goLink.GoName, actual.GoName)
 	assert.WithinDuration(t, clock.Now(), actual.CreatedAt, 1*time.Second)
 	assert.WithinDuration(t, clock.Now(), actual.UpdatedAt, 1*time.Second)
-	assert.WithinDuration(t, clock.Now(), actual.LastIndexedAt, 1*time.Second)
+	assert.WithinDuration(t, clock.Now(), actual.IndexedAt, 1*time.Second)
 
 	// Force update
 	goLink.Text = "Go Language"
@@ -75,17 +75,17 @@ func TestGoLinkFormats(t *testing.T) {
 	FreezeAt(t, HumanTime(t, "2023-01-01 01:12:30"))
 
 	goLink := &GoLink{
-		OID:           "42d74d967d9b4e989502647ac510777ca1e22f4a",
-		PackFileOID:   "9c0c0682bd18439d992639f19f8d552bde3bd3c0",
-		NoteOID:       "52d02a28a961471db62c6d40d30639dafe4aba00",
-		RelativePath:  "go.md",
-		Text:          "Golang",
-		URL:           "https://go.dev/doc/",
-		Title:         "",
-		GoName:        "go",
-		CreatedAt:     clock.Now(),
-		UpdatedAt:     clock.Now(),
-		LastIndexedAt: clock.Now(),
+		OID:          "42d74d967d9b4e989502647ac510777ca1e22f4a",
+		PackFileOID:  "9c0c0682bd18439d992639f19f8d552bde3bd3c0",
+		NoteOID:      "52d02a28a961471db62c6d40d30639dafe4aba00",
+		RelativePath: "go.md",
+		Text:         "Golang",
+		URL:          "https://go.dev/doc/",
+		Title:        "",
+		GoName:       "go",
+		CreatedAt:    clock.Now(),
+		UpdatedAt:    clock.Now(),
+		IndexedAt:    clock.Now(),
 	}
 
 	t.Run("ToYAML", func(t *testing.T) {
@@ -102,7 +102,7 @@ title: ""
 go_name: go
 created_at: 2023-01-01T01:12:30Z
 updated_at: 2023-01-01T01:12:30Z
-last_indexed_at: 2023-01-01T01:12:30Z
+indexed_at: 2023-01-01T01:12:30Z
 `)
 		assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
 	})
@@ -121,7 +121,7 @@ last_indexed_at: 2023-01-01T01:12:30Z
   "go_name": "go",
   "created_at": "2023-01-01T01:12:30Z",
   "updated_at": "2023-01-01T01:12:30Z",
-  "last_indexed_at": "2023-01-01T01:12:30Z"
+  "indexed_at": "2023-01-01T01:12:30Z"
 }
 `)
 		assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))

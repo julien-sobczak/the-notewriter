@@ -70,9 +70,9 @@ type Flashcard struct {
 	Back  markdown.Document `yaml:"back" json:"back"`
 
 	// Timestamps to track changes
-	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
-	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
-	LastIndexedAt time.Time `yaml:"last_indexed_at,omitempty" json:"last_indexed_at,omitempty"`
+	CreatedAt time.Time `yaml:"created_at" json:"created_at"`
+	UpdatedAt time.Time `yaml:"updated_at" json:"updated_at"`
+	IndexedAt time.Time `yaml:"indexed_at,omitempty" json:"indexed_at,omitempty"`
 
 	// SRS
 	DueAt     time.Time      `yaml:"due_at,omitempty" json:"due_at,omitempty"`
@@ -169,9 +169,9 @@ func NewFlashcard(packFile *PackFile, file *File, note *Note, parsedFlashcard *P
 		// Wait for first study to initialize SRS fields
 
 		// Timestamps
-		CreatedAt:     packFile.CTime,
-		UpdatedAt:     packFile.CTime,
-		LastIndexedAt: packFile.CTime,
+		CreatedAt: packFile.CTime,
+		UpdatedAt: packFile.CTime,
+		IndexedAt: packFile.CTime,
 	}
 
 	return f, nil
@@ -277,7 +277,7 @@ func (f *Flashcard) update(packFile *PackFile, file *File, note *Note, parsedFla
 	}
 
 	f.PackFileOID = packFile.OID
-	f.LastIndexedAt = packFile.CTime
+	f.IndexedAt = packFile.CTime
 
 	if stale {
 		f.UpdatedAt = packFile.CTime
@@ -300,7 +300,7 @@ func (f *Flashcard) Save() error {
 			back,
 			created_at,
 			updated_at,
-			last_indexed_at
+			indexed_at
 		)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(oid) DO UPDATE SET
@@ -314,7 +314,7 @@ func (f *Flashcard) Save() error {
 			front = ?,
 			back = ?,
 			updated_at = ?,
-			last_indexed_at = ?
+			indexed_at = ?
 		;
 		`
 	_, err := CurrentDB().Client().Exec(query,
@@ -331,7 +331,7 @@ func (f *Flashcard) Save() error {
 		f.Back,
 		timeToSQL(f.CreatedAt),
 		timeToSQL(f.UpdatedAt),
-		timeToSQL(f.LastIndexedAt),
+		timeToSQL(f.IndexedAt),
 		// Update
 		f.PackFileOID,
 		f.FileOID,
@@ -343,7 +343,7 @@ func (f *Flashcard) Save() error {
 		f.Front,
 		f.Back,
 		timeToSQL(f.UpdatedAt),
-		timeToSQL(f.LastIndexedAt),
+		timeToSQL(f.IndexedAt),
 	)
 	if err != nil {
 		return err
@@ -429,7 +429,7 @@ func (r *Repository) FindFlashcardsLastCheckedBefore(point time.Time, path strin
 	if path == "." {
 		path = ""
 	}
-	return QueryFlashcards(CurrentDB().Client(), `WHERE last_indexed_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
+	return QueryFlashcards(CurrentDB().Client(), `WHERE indexed_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 /* SQL Helpers */
@@ -462,7 +462,7 @@ func QueryFlashcard(db SQLClient, whereClause string, args ...any) (*Flashcard, 
 			settings,
 			created_at,
 			updated_at,
-			last_indexed_at
+			indexed_at
 		FROM flashcard
 		%s;`, whereClause), args...).
 		Scan(
@@ -505,7 +505,7 @@ func QueryFlashcard(db SQLClient, whereClause string, args ...any) (*Flashcard, 
 	f.StudiedAt = timeFromNullableSQL(studiedAt)
 	f.CreatedAt = timeFromSQL(createdAt)
 	f.UpdatedAt = timeFromSQL(updatedAt)
-	f.LastIndexedAt = timeFromSQL(lastIndexedAt)
+	f.IndexedAt = timeFromSQL(lastIndexedAt)
 
 	return &f, nil
 }
@@ -530,7 +530,7 @@ func QueryFlashcards(db SQLClient, whereClause string, args ...any) ([]*Flashcar
 			settings,
 			created_at,
 			updated_at,
-			last_indexed_at
+			indexed_at
 		FROM flashcard
 		%s;`, whereClause), args...)
 	if err != nil {
@@ -585,7 +585,7 @@ func QueryFlashcards(db SQLClient, whereClause string, args ...any) ([]*Flashcar
 		f.StudiedAt = timeFromNullableSQL(studiedAt)
 		f.CreatedAt = timeFromSQL(createdAt)
 		f.UpdatedAt = timeFromSQL(updatedAt)
-		f.LastIndexedAt = timeFromSQL(lastIndexedAt)
+		f.IndexedAt = timeFromSQL(lastIndexedAt)
 		flashcards = append(flashcards, &f)
 	}
 

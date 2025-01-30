@@ -57,13 +57,13 @@ A **gopher**.
 * [Gophercon Europe](https://gophercon.eu/) ‛#reminder-2023-06-26‛
 
 `)),
-		BodyLine:      6,
-		Size:          243,
-		Hash:          "45b9ee63ed13a69e2a3cf59afa26c672cacba78a",
-		MTime:         createdAt,
-		CreatedAt:     createdAt,
-		UpdatedAt:     createdAt,
-		LastIndexedAt: createdAt,
+		BodyLine:  6,
+		Size:      243,
+		Hash:      "45b9ee63ed13a69e2a3cf59afa26c672cacba78a",
+		MTime:     createdAt,
+		CreatedAt: createdAt,
+		UpdatedAt: createdAt,
+		IndexedAt: createdAt,
 	}
 
 	// Create
@@ -91,7 +91,7 @@ A **gopher**.
 	assert.WithinDuration(t, file.MTime, actual.MTime, 1*time.Second)
 	assert.WithinDuration(t, createdAt, actual.CreatedAt, 1*time.Second)
 	assert.WithinDuration(t, createdAt, actual.UpdatedAt, 1*time.Second)
-	assert.WithinDuration(t, createdAt, actual.LastIndexedAt, 1*time.Second)
+	assert.WithinDuration(t, createdAt, actual.IndexedAt, 1*time.Second)
 
 	// Force update
 	actual.Title = markdown.Document("Golang")
@@ -132,13 +132,13 @@ func TestFileFormats(t *testing.T) {
 
 [Golang](https://go.dev/doc/ "#go/go") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.
 `)),
-		BodyLine:      6,
-		Size:          243,
-		Hash:          "45b9ee63ed13a69e2a3cf59afa26c672cacba78a",
-		MTime:         createdAt,
-		CreatedAt:     createdAt,
-		UpdatedAt:     createdAt,
-		LastIndexedAt: createdAt,
+		BodyLine:  6,
+		Size:      243,
+		Hash:      "45b9ee63ed13a69e2a3cf59afa26c672cacba78a",
+		MTime:     createdAt,
+		CreatedAt: createdAt,
+		UpdatedAt: createdAt,
+		IndexedAt: createdAt,
 	}
 
 	t.Run("ToYAML", func(t *testing.T) {
@@ -172,7 +172,7 @@ hash: 45b9ee63ed13a69e2a3cf59afa26c672cacba78a
 mtime: 2023-01-01T01:12:30Z
 created_at: 2023-01-01T01:12:30Z
 updated_at: 2023-01-01T01:12:30Z
-last_indexed_at: 2023-01-01T01:12:30Z
+indexed_at: 2023-01-01T01:12:30Z
 `)
 		assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
 	})
@@ -201,7 +201,7 @@ last_indexed_at: 2023-01-01T01:12:30Z
   "mtime": "2023-01-01T01:12:30Z",
   "created_at": "2023-01-01T01:12:30Z",
   "updated_at": "2023-01-01T01:12:30Z",
-  "last_indexed_at": "2023-01-01T01:12:30Z"
+  "indexed_at": "2023-01-01T01:12:30Z"
 }
 `)
 		assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))

@@ -63,9 +63,9 @@ type File struct {
 	// Eager-loaded list of blobs
 	BlobRefs []*BlobRef `yaml:"blobs,omitempty" json:"blobs,omitempty"`
 
-	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
-	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
-	LastIndexedAt time.Time `yaml:"last_indexed_at,omitempty" json:"last_indexed_at,omitempty"`
+	CreatedAt time.Time `yaml:"created_at" json:"created_at"`
+	UpdatedAt time.Time `yaml:"updated_at" json:"updated_at"`
+	IndexedAt time.Time `yaml:"indexed_at,omitempty" json:"indexed_at,omitempty"`
 }
 
 /* Creation */
@@ -95,23 +95,23 @@ func NewOrExistingFile(packFile *PackFile, parsedFile *ParsedFile) (*File, error
 
 func NewFile(packFile *PackFile, parsedFile *ParsedFile) (*File, error) {
 	file := &File{
-		OID:           oid.New(),
-		PackFileOID:   packFile.OID,
-		Slug:          parsedFile.Slug,
-		RelativePath:  parsedFile.RelativePath,
-		Wikilink:      text.TrimExtension(parsedFile.RelativePath),
-		Size:          parsedFile.Markdown.Size,
-		MTime:         parsedFile.Markdown.MTime,
-		Hash:          helpers.Hash(parsedFile.Markdown.Content),
-		Attributes:    parsedFile.FileAttributes,
-		FrontMatter:   parsedFile.Markdown.FrontMatter,
-		Title:         parsedFile.Title,
-		ShortTitle:    parsedFile.ShortTitle,
-		Body:          parsedFile.Markdown.Body,
-		BodyLine:      parsedFile.Markdown.BodyLine,
-		CreatedAt:     packFile.CTime,
-		UpdatedAt:     packFile.CTime,
-		LastIndexedAt: packFile.CTime,
+		OID:          oid.New(),
+		PackFileOID:  packFile.OID,
+		Slug:         parsedFile.Slug,
+		RelativePath: parsedFile.RelativePath,
+		Wikilink:     text.TrimExtension(parsedFile.RelativePath),
+		Size:         parsedFile.Markdown.Size,
+		MTime:        parsedFile.Markdown.MTime,
+		Hash:         helpers.Hash(parsedFile.Markdown.Content),
+		Attributes:   parsedFile.FileAttributes,
+		FrontMatter:  parsedFile.Markdown.FrontMatter,
+		Title:        parsedFile.Title,
+		ShortTitle:   parsedFile.ShortTitle,
+		Body:         parsedFile.Markdown.Body,
+		BodyLine:     parsedFile.Markdown.BodyLine,
+		CreatedAt:    packFile.CTime,
+		UpdatedAt:    packFile.CTime,
+		IndexedAt:    packFile.CTime,
 	}
 
 	return file, nil
@@ -186,7 +186,7 @@ func (f *File) update(packFile *PackFile, parsedFile *ParsedFile) error {
 	}
 
 	f.PackFileOID = packFile.OID
-	f.LastIndexedAt = packFile.CTime
+	f.IndexedAt = packFile.CTime
 
 	if stale {
 		f.UpdatedAt = packFile.CTime
@@ -271,7 +271,7 @@ func (f *File) Save() error {
 			body_line,
 			created_at,
 			updated_at,
-			last_indexed_at,
+			indexed_at,
 			mtime,
 			size,
 			hashsum
@@ -289,7 +289,7 @@ func (f *File) Save() error {
 			body = ?,
 			body_line = ?,
 			updated_at = ?,
-			last_indexed_at = ?,
+			indexed_at = ?,
 			mtime = ?,
 			size = ?,
 			hashsum = ?;
@@ -318,7 +318,7 @@ func (f *File) Save() error {
 		f.BodyLine,
 		timeToSQL(f.CreatedAt),
 		timeToSQL(f.UpdatedAt),
-		timeToSQL(f.LastIndexedAt),
+		timeToSQL(f.IndexedAt),
 		timeToSQL(f.MTime),
 		f.Size,
 		f.Hash,
@@ -334,7 +334,7 @@ func (f *File) Save() error {
 		f.Body,
 		f.BodyLine,
 		timeToSQL(f.UpdatedAt),
-		timeToSQL(f.LastIndexedAt),
+		timeToSQL(f.IndexedAt),
 		timeToSQL(f.MTime),
 		f.Size,
 		f.Hash,
@@ -389,7 +389,7 @@ func (r *Repository) FindFilesLastCheckedBefore(point time.Time, path string) ([
 	if path == "." {
 		path = ""
 	}
-	return QueryFiles(CurrentDB().Client(), `WHERE last_indexed_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
+	return QueryFiles(CurrentDB().Client(), `WHERE indexed_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 // CountFiles returns the total number of files.
@@ -430,7 +430,7 @@ func QueryFile(db SQLClient, whereClause string, args ...any) (*File, error) {
 			body_line,
 			created_at,
 			updated_at,
-			last_indexed_at,
+			indexed_at,
 			mtime,
 			size,
 			hashsum
@@ -469,7 +469,7 @@ func QueryFile(db SQLClient, whereClause string, args ...any) (*File, error) {
 	f.Attributes = attributes.CastOrIgnore(GetSchemaAttributeTypes())
 	f.CreatedAt = timeFromSQL(createdAt)
 	f.UpdatedAt = timeFromSQL(updatedAt)
-	f.LastIndexedAt = timeFromSQL(lastIndexedAt)
+	f.IndexedAt = timeFromSQL(lastIndexedAt)
 	f.MTime = timeFromSQL(mTime)
 
 	return &f, nil
@@ -493,7 +493,7 @@ func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) 
 			body_line,
 			created_at,
 			updated_at,
-			last_indexed_at,
+			indexed_at,
 			mtime,
 			size,
 			hashsum
@@ -542,7 +542,7 @@ func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) 
 		f.Attributes = attributes.CastOrIgnore(GetSchemaAttributeTypes())
 		f.CreatedAt = timeFromSQL(createdAt)
 		f.UpdatedAt = timeFromSQL(updatedAt)
-		f.LastIndexedAt = timeFromSQL(lastIndexedAt)
+		f.IndexedAt = timeFromSQL(lastIndexedAt)
 		f.MTime = timeFromSQL(mTime)
 
 		files = append(files, &f)

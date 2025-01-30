@@ -52,10 +52,10 @@ func TestNote(t *testing.T) {
 ‛@source: https://en.wikipedia.org/wiki/Go_(programming_language)‛
 
 [Golang](https://go.dev/doc/ "#go/go") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.`)),
-		Comment:       "Go was created in 2007",
-		CreatedAt:     createdAt,
-		UpdatedAt:     createdAt,
-		LastIndexedAt: createdAt,
+		Comment:   "Go was created in 2007",
+		CreatedAt: createdAt,
+		UpdatedAt: createdAt,
+		IndexedAt: createdAt,
 	}
 
 	// Save
@@ -85,7 +85,7 @@ func TestNote(t *testing.T) {
 	assert.Equal(t, note.Comment, actual.Comment)
 	assert.WithinDuration(t, clock.Now(), actual.CreatedAt, 1*time.Second)
 	assert.WithinDuration(t, clock.Now(), actual.UpdatedAt, 1*time.Second)
-	assert.WithinDuration(t, clock.Now(), actual.LastIndexedAt, 1*time.Second)
+	assert.WithinDuration(t, clock.Now(), actual.IndexedAt, 1*time.Second)
 
 	// Update
 	actual.Comment = "Golang was created in 2007"
@@ -134,9 +134,9 @@ Golang was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in
 		Body: markdown.Document(UnescapeTestContent(`‛@source: https://en.wikipedia.org/wiki/Go_(programming_language)‛
 
 Golang was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.`)),
-		CreatedAt:     clock.Now(),
-		UpdatedAt:     clock.Now(),
-		LastIndexedAt: clock.Now(),
+		CreatedAt: clock.Now(),
+		UpdatedAt: clock.Now(),
+		IndexedAt: clock.Now(),
 	}
 
 	t.Run("ToYAML", func(t *testing.T) {
@@ -174,7 +174,7 @@ body: |-
   Golang was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.
 created_at: 2023-01-01T01:12:30Z
 updated_at: 2023-01-01T01:12:30Z
-last_indexed_at: 2023-01-01T01:12:30Z
+indexed_at: 2023-01-01T01:12:30Z
 `)
 		assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
 	})
@@ -209,7 +209,7 @@ last_indexed_at: 2023-01-01T01:12:30Z
   "body": "‛@source: https://en.wikipedia.org/wiki/Go_(programming_language)‛\n\nGolang was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.",
   "created_at": "2023-01-01T01:12:30Z",
   "updated_at": "2023-01-01T01:12:30Z",
-  "last_indexed_at": "2023-01-01T01:12:30Z"
+  "indexed_at": "2023-01-01T01:12:30Z"
 }
 `)
 		assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
