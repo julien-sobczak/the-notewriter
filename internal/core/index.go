@@ -129,7 +129,7 @@ func (i *IndexEntry) MatchPathSpecs(pathSpecs []string) bool {
 
 func (i *IndexEntry) ReadPackFile() (*PackFile, error) {
 	objectPath := filepath.Join(CurrentRepository().Path, ".nt/objects", i.PackFileOID.RelativePath()+".pack")
-	return NewPackFileFromPath(objectPath)
+	return LoadPackFileFromPath(objectPath)
 }
 
 // IndexObject represents a single object present in a pack file.
@@ -308,7 +308,7 @@ func (i *Index) ReadPackFile(oid oid.OID) (*PackFile, error) {
 	for _, entry := range i.Entries {
 		if entry.PackFileOID == oid {
 			objectPath := filepath.Join(CurrentRepository().Path, ".nt/objects", oid.RelativePath()+".pack")
-			return NewPackFileFromPath(objectPath)
+			return LoadPackFileFromPath(objectPath)
 		}
 	}
 	return nil, nil
@@ -318,7 +318,7 @@ func (i *Index) ReadPackFile(oid oid.OID) (*PackFile, error) {
 func (i *Index) ReadPackObject(oid oid.OID) (*PackObject, error) {
 	for _, object := range i.Objects {
 		if object.OID == oid {
-			packFile, err := NewPackFileFromPath(object.PackFileOID.RelativePath() + ".pack")
+			packFile, err := LoadPackFileFromPath(object.PackFileOID.RelativePath() + ".pack")
 			if err != nil {
 				return nil, err
 			}
@@ -345,7 +345,7 @@ func (i *Index) ReadObject(oid oid.OID) (Object, error) {
 func (i *Index) ReadBlob(oid oid.OID) (*BlobRef, error) {
 	for _, blob := range i.Blobs {
 		if blob.OID == oid {
-			packFile, err := NewPackFileFromPath(blob.PackFileOID.RelativePath() + ".blob")
+			packFile, err := LoadPackFileFromPath(blob.PackFileOID.RelativePath() + ".blob")
 			if err != nil {
 				return nil, err
 			}

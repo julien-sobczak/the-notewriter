@@ -72,7 +72,6 @@ type Flashcard struct {
 	// Timestamps to track changes
 	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
 	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
-	DeletedAt     time.Time `yaml:"deleted_at,omitempty" json:"deleted_at,omitempty"`
 	LastIndexedAt time.Time `yaml:"last_indexed_at,omitempty" json:"last_indexed_at,omitempty"`
 
 	// SRS
@@ -86,9 +85,6 @@ type Study struct {
 	StartedAt time.Time `yaml:"started_at" json:"started_at"` // Timestamp when the first card was revealed
 	EndedAt   time.Time `yaml:"ended_at" json:"ended_at"`     // Timestamp when the last card was completed
 	Reviews   []*Review `yaml:"reviews" json:"reviews"`
-
-	new   bool // FIXME useful?
-	stale bool // FIXME useful?
 }
 
 /* Format */
@@ -608,8 +604,7 @@ func QueryFlashcards(db SQLClient, whereClause string, args ...any) ([]*Flashcar
 // NewStudy creates a new study.
 func NewStudy(flashcardOID oid.OID) *Study {
 	return &Study{
-		OID:   oid.New(),
-		stale: true,
+		OID: oid.New(),
 	}
 }
 

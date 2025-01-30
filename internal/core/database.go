@@ -482,7 +482,7 @@ func (db *DB) StatsOnDisk() (*StatsOnDisk, error) {
 
 		if _, ok := db.index.GetEntryByPackFileOID(oid); ok {
 			// It's a pack file, check the content to count objects/notes
-			packFile, err := NewPackFileFromPath(file)
+			packFile, err := LoadPackFileFromPath(file)
 			if err != nil {
 				return nil, err
 			}

@@ -134,6 +134,7 @@ func NewPackFile(fileObject FileObject) *PackFile {
 	}
 }
 
+
 // ReadObject recreates the core object from a commit object.
 func (p *PackObject) ReadObject() Object {
 	switch p.Kind {
@@ -169,8 +170,8 @@ func (p *PackObject) ReadObject() Object {
 	return nil
 }
 
-// NewPackFileFromPath reads a pack file file on disk.
-func NewPackFileFromPath(path string) (*PackFile, error) {
+// LoadPackFileFromPath reads a pack file file on disk.
+func LoadPackFileFromPath(path string) (*PackFile, error) {
 	in, err := os.Open(path)
 	if err != nil {
 		return nil, err

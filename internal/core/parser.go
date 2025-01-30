@@ -24,8 +24,10 @@ type Tag string // TODO see if useful in practice (mainly when working with remi
 type ParsedFile struct {
 	Markdown *markdown.File
 
-	RepositoryPath string // FIXME remove
-	AbsolutePath   string // FIXME remove
+	// The root repository path
+	RepositoryPath string
+	// The absolute path of the file
+	AbsolutePath string
 	// The relative path inside the repository
 	RelativePath string
 
@@ -109,6 +111,7 @@ type ParsedReminder struct {
 type ParsedMedia struct {
 	// The path as specified in the file. (Ex: "../medias/pic.png")
 	RawPath string
+
 	// The absolute path
 	AbsolutePath string
 	// The relative path inside the repository
@@ -144,17 +147,19 @@ func (p *ParsedMedia) FileHash() string {
 	return hash
 }
 
-// FIXME delete this method => Move as test helper instead
-func ParseFileFromRelativePath(repositoryAbsolutePath, fileRelativePath string) (*ParsedFile, error) {
-	fileAbsolutePath := filepath.Join(repositoryAbsolutePath, fileRelativePath)
-	markdownFile, err := markdown.ParseFile(fileAbsolutePath)
+func MustParseOrphanFile(md *markdown.File) *ParsedFile {
+	parsedFile, err := ParseOrphanFile(md)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
-	return ParseFile(repositoryAbsolutePath, markdownFile, nil)
+	return parsedFile
 }
 
-func ParseFile(repositoryAbsolutePath string, md *markdown.File, mdParent *markdown.File) (*ParsedFile, error) {
+func ParseOrphanFile(md *markdown.File) (*ParsedFile, error) {
+	return ParseFile(md, markdown.EmptyFile)
+}
+
+func ParseFile(md *markdown.File, mdParent *markdown.File) (*ParsedFile, error) {
 	if mdParent == nil {
 		mdParent = markdown.EmptyFile
 	}
@@ -188,7 +193,7 @@ func ParseFile(repositoryAbsolutePath string, md *markdown.File, mdParent *markd
 	_, _, shortTitle := isSupportedNote(string(title)) // TODO change signature to avoid casts
 
 	// Extract/Generate slug
-	relativePath := RelativePath(repositoryAbsolutePath, md.AbsolutePath)
+	relativePath := CurrentRepository().GetFileRelativePath(md.AbsolutePath)
 	slug := DetermineFileSlug(relativePath)
 	// Slug is explicitely defined?
 	if value, ok := fileAttributes["slug"]; ok {
@@ -200,9 +205,7 @@ func ParseFile(repositoryAbsolutePath string, md *markdown.File, mdParent *markd
 	result := &ParsedFile{
 		Markdown: md,
 
-		RepositoryPath: repositoryAbsolutePath,
-		AbsolutePath:   md.AbsolutePath,
-		RelativePath:   RelativePath(repositoryAbsolutePath, md.AbsolutePath),
+		RelativePath: relativePath,
 
 		// Main Heading
 		Slug:       slug,
@@ -452,7 +455,7 @@ func (p *ParsedFile) GenerateNotes(generator *ParsedNote) ([]*ParsedNote, []*Par
 	if err != nil {
 		return nil, nil, err
 	}
-	generatedFile, err := ParseFile(p.RepositoryPath, mdFile, nil)
+	generatedFile, err := ParseFile(mdFile, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -462,9 +465,6 @@ func (p *ParsedFile) GenerateNotes(generator *ParsedNote) ([]*ParsedNote, []*Par
 	// Use original line number to make easy to jump to the generator note
 	for _, generatedNote := range generatedFile.Notes {
 		generatedNote.Line = generator.Line
-	}
-	for _, generatedMedia := range generatedFile.Medias {
-		generatedMedia.Line = generator.Line
 	}
 
 	return resultsNotes, resultsMedias, nil
@@ -512,9 +512,9 @@ func (p *ParsedFile) extractMedias() ([]*ParsedMedia, error) {
 	matches := regexMedia.FindAllStringSubmatch(string(fileBody), -1)
 	for _, match := range matches {
 		txt := match[0]
-		line := text.LineNumber(string(fileBody), txt)
-
 		rawPath := match[2]
+
+		line := text.LineNumber(string(fileBody), txt)
 
 		// Check for medias referenced multiple times
 		if _, ok := filepaths[rawPath]; ok {
@@ -527,30 +527,34 @@ func (p *ParsedFile) extractMedias() ([]*ParsedMedia, error) {
 			return nil, err
 		}
 
-		medias = append(medias, &ParsedMedia{
-			RawPath:      rawPath,
-			AbsolutePath: absolutePath,
-			RelativePath: RelativePath(p.RepositoryPath, absolutePath),
-			Line:         p.FileLineNumber(line),
-			MediaKind:    DetectMediaKind(rawPath),
-			Extension:    filepath.Ext(rawPath),
-		})
+		newMedia := ParseMedia(p.RepositoryPath, absolutePath)
+		newMedia.RawPath = rawPath
+		newMedia.Line = line
+
+		medias = append(medias, newMedia)
 		filepaths[rawPath] = true // Memorize duplicates
 	}
 
-	// Read files on disk after having caught "easy" errors
-	for _, media := range medias {
-		stat, err := os.Stat(media.AbsolutePath)
-		if errors.Is(err, os.ErrNotExist) {
-			media.Dangling = true
-		} else {
-			media.Dangling = false
-			media.Size = stat.Size()
-			media.MTime = stat.ModTime()
-		}
-	}
-
 	return medias, nil
+}
+
+// ParseMedia parses a media file from its path.
+func ParseMedia(repositoryPath, absolutePath string) *ParsedMedia {
+	parsedMedia := &ParsedMedia{
+		AbsolutePath: absolutePath,
+		RelativePath: RelativePath(repositoryPath, absolutePath),
+		MediaKind:    DetectMediaKind(absolutePath),
+		Extension:    filepath.Ext(absolutePath),
+	}
+	stat, err := os.Stat(parsedMedia.AbsolutePath)
+	if errors.Is(err, os.ErrNotExist) {
+		parsedMedia.Dangling = true
+	} else {
+		parsedMedia.Dangling = false
+		parsedMedia.Size = stat.Size()
+		parsedMedia.MTime = stat.ModTime()
+	}
+	return parsedMedia
 }
 
 func (p *ParsedNote) extractFlashcard() (*ParsedFlashcard, error) {

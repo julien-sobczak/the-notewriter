@@ -61,11 +61,10 @@ type File struct {
 	MTime time.Time `yaml:"mtime" json:"mtime"`
 
 	// Eager-loaded list of blobs
-	BlobRefs []*BlobRef `yaml:"blobs" json:"blobs"`
+	BlobRefs []*BlobRef `yaml:"blobs,omitempty" json:"blobs,omitempty"`
 
 	CreatedAt     time.Time `yaml:"created_at" json:"created_at"`
 	UpdatedAt     time.Time `yaml:"updated_at" json:"updated_at"`
-	DeletedAt     time.Time `yaml:"deleted_at,omitempty" json:"deleted_at,omitempty"`
 	LastIndexedAt time.Time `yaml:"last_indexed_at,omitempty" json:"last_indexed_at,omitempty"`
 }
 
@@ -275,7 +274,7 @@ func (f *File) Save() error {
 			last_indexed_at,
 			mtime,
 			size,
-			hashsum,
+			hashsum
 		)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(oid) DO UPDATE SET
@@ -293,8 +292,7 @@ func (f *File) Save() error {
 			last_indexed_at = ?,
 			mtime = ?,
 			size = ?,
-			hashsum = ?,
-		;
+			hashsum = ?;
 	`
 	frontMatter, err := f.FrontMatter.AsBeautifulYAML()
 	if err != nil {

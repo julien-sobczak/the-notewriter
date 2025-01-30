@@ -1,26 +1,36 @@
 package core
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
-	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestFile(t *testing.T) {
-	root := SetUpRepositoryFromFileContent(t, "go.md", UnescapeTestContent(`---
-tags:
-- go
----
+	SetUpRepositoryFromTempDir(t)
+	FreezeNow(t)
 
-# Go
+	AssertNoFiles(t)
+
+	createdAt := clock.Now()
+	file := &File{
+		OID:          "42d74d967d9b4e989502647ac510777ca1e22f4a",
+		PackFileOID:  "9c0c0682bd18439d992639f19f8d552bde3bd3c0",
+		Slug:         "go",
+		RelativePath: "go.md",
+		Wikilink:     "go",
+		FrontMatter:  markdown.FrontMatter("tags:\n- go\n"),
+		Attributes: AttributeSet(map[string]any{
+			"tags": []string{"go"},
+		}),
+		Title:      markdown.Document("Go"),
+		ShortTitle: markdown.Document("Go"),
+		Body: markdown.Document(UnescapeTestContent(`# Go
 
 ## Reference: Golang History
 
@@ -46,48 +56,17 @@ A **gopher**.
 
 * [Gophercon Europe](https://gophercon.eu/) ‛#reminder-2023-06-26‛
 
-`))
-
-	oid.UseSequence(t)
-	AssertNoFiles(t)
-	c := FreezeNow(t)
-	createdAt := clock.Now()
-
-	// Init the file
-	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
-	require.NoError(t, err)
-
-	dummyPackFile := DummyPackFile()
+`)),
+		BodyLine:      6,
+		Size:          243,
+		Hash:          "45b9ee63ed13a69e2a3cf59afa26c672cacba78a",
+		MTime:         createdAt,
+		CreatedAt:     createdAt,
+		UpdatedAt:     createdAt,
+		LastIndexedAt: createdAt,
+	}
 
 	// Create
-	file, err := NewFile(dummyPackFile, parsedFile)
-	require.NoError(t, err)
-	fileCopy, err := NewFile(dummyPackFile, parsedFile)
-	require.NoError(t, err)
-	require.NotEqual(t, file.OID, fileCopy.OID)
-
-	// Check all fields
-	assert.NotNil(t, file.OID)
-	assert.Equal(t, "go", file.Slug)
-	assert.Equal(t, "go.md", file.RelativePath)
-	assert.Equal(t, "go", file.Wikilink)
-	assert.Equal(t, markdown.FrontMatter("tags:\n- go\n"), file.FrontMatter)
-	assert.Equal(t, AttributeSet(map[string]any{
-		"tags": []string{"go"},
-	}), file.Attributes)
-	assert.Equal(t, markdown.Document("Go"), file.Title)
-	assert.Equal(t, markdown.Document("Go"), file.ShortTitle)
-	assert.True(t, strings.HasPrefix(file.Body.String(), "# Go"))
-	assert.Equal(t, 6, file.BodyLine)
-	assert.Equal(t, parsedFile.Markdown.Size, file.Size)
-	assert.Equal(t, parsedFile.Markdown.MTime, file.MTime)
-	assert.NotEqual(t, parsedFile.Markdown.Body.Hash(), file.Hash) // Must use whole content to determine the hash (including the front matter)
-	assert.Equal(t, clock.Now(), file.CreatedAt)
-	assert.Equal(t, clock.Now(), file.UpdatedAt)
-	assert.Empty(t, file.DeletedAt)
-	assert.Empty(t, file.LastIndexedAt)
-
-	// Save
 	require.NoError(t, file.Save())
 	require.Equal(t, 1, MustCountFiles(t))
 
@@ -96,6 +75,7 @@ A **gopher**.
 	require.NoError(t, err)
 	require.NotNil(t, actual)
 	assert.Equal(t, file.OID, actual.OID)
+	assert.Equal(t, file.PackFileOID, actual.PackFileOID)
 	assert.Equal(t, file.RelativePath, actual.RelativePath)
 	assert.Equal(t, file.Wikilink, actual.Wikilink)
 	expectedFrontMatter, err := file.FrontMatter.AsBeautifulYAML()
@@ -108,104 +88,58 @@ A **gopher**.
 	assert.Equal(t, file.BodyLine, actual.BodyLine)
 	assert.Equal(t, file.Size, actual.Size)
 	assert.Equal(t, file.Hash, actual.Hash)
-	assert.Equal(t, file.MTime, actual.MTime)
-	assert.WithinDuration(t, clock.Now(), actual.CreatedAt, 1*time.Second)
-	assert.WithinDuration(t, clock.Now(), actual.UpdatedAt, 1*time.Second)
-	assert.WithinDuration(t, clock.Now(), actual.LastIndexedAt, 1*time.Second)
-	assert.Empty(t, actual.DeletedAt)
+	assert.WithinDuration(t, file.MTime, actual.MTime, 1*time.Second)
+	assert.WithinDuration(t, createdAt, actual.CreatedAt, 1*time.Second)
+	assert.WithinDuration(t, createdAt, actual.UpdatedAt, 1*time.Second)
+	assert.WithinDuration(t, createdAt, actual.LastIndexedAt, 1*time.Second)
 
 	// Force update
-	updatedAt := c.FastForward(10 * time.Minute)
-	ReplaceLine(t, filepath.Join(root, "go.md"), 19,
-		"What does the **Golang logo** represent?",
-		"What is the **Golang logo**?")
+	actual.Title = markdown.Document("Golang")
+	require.NoError(t, actual.Save())
+	require.Equal(t, 1, MustCountFiles(t))
 
-	// Recreate...
-	parsedFile, err = ParseFileFromRelativePath(root, "go.md")
+	// Recheck
+	actual, err = CurrentRepository().LoadFileByOID(file.OID)
 	require.NoError(t, err)
-	newFile, err := NewOrExistingFile(dummyPackFile, parsedFile)
-	require.NoError(t, err)
-	require.NoError(t, newFile.Save())
-	// ...and compare
-	assert.Equal(t, file.OID, newFile.OID) // Must have found the previous one
-	assert.Contains(t, newFile.Body, "What is the **Golang logo**?")
-
-	// Retrieve
-	updatedFile, err := CurrentRepository().LoadFileByOID(newFile.OID)
-	require.NoError(t, err)
-	// Timestamps must have changed
-	assert.WithinDuration(t, createdAt, updatedFile.CreatedAt, 1*time.Second)
-	assert.WithinDuration(t, updatedAt, updatedFile.UpdatedAt, 1*time.Second)
-	assert.WithinDuration(t, updatedAt, updatedFile.LastIndexedAt, 1*time.Second)
+	assert.Equal(t, "Golang", actual.Title.String())
 
 	// Delete
-	require.NoError(t, file.Delete())
-	assert.Equal(t, clock.Now(), file.DeletedAt)
-
+	require.NoError(t, actual.Delete())
 	AssertNoFiles(t)
 }
 
-func TestFileWithParent(t *testing.T) {
-	parentContent := `---
-tags:
-- go
----`
-
-	childContent := `---
-tags: [programming]
----
-
-# Go
-
-## Reference: Golang History
-
-[Golang](https://go.dev/doc/ "#go/go") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.
-`
-	root := SetUpRepositoryFromTempDir(t)
-	err := os.WriteFile(filepath.Join(root, "index.md"), []byte(UnescapeTestContent(parentContent)), 0644)
-	require.NoError(t, err)
-	err = os.WriteFile(filepath.Join(root, "go.md"), []byte(UnescapeTestContent(childContent)), 0644)
-	require.NoError(t, err)
-
-	// Init the parent
-	mdParent := markdown.MustParseFile(filepath.Join(root, "index.md"))
-	mdChild := markdown.MustParseFile(filepath.Join(root, "go.md"))
-
-	parsedFile, err := ParseFile(root, mdChild, mdParent)
-	require.NoError(t, err)
-
-	dummyPackFile := DummyPackFile()
-	childFile, err := NewFile(dummyPackFile, parsedFile)
-	require.NoError(t, err)
-
-	assert.Equal(t, []string{"go", "programming"}, childFile.Attributes.Tags())
-}
-
 func TestFileFormats(t *testing.T) {
-	oid.UseFixed(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
 	FreezeAt(t, HumanTime(t, "2023-01-01 01:12:30"))
 
-	root := SetUpRepositoryFromFileContent(t, "go.md", UnescapeTestContent(`---
-tags:
-- go
----
-
-# Go
+	createdAt := clock.Now()
+	file := &File{
+		OID:          "42d74d967d9b4e989502647ac510777ca1e22f4a",
+		PackFileOID:  "9c0c0682bd18439d992639f19f8d552bde3bd3c0",
+		Slug:         "go",
+		RelativePath: "go.md",
+		Wikilink:     "go",
+		FrontMatter:  markdown.FrontMatter("tags:\n- go\n"),
+		Attributes: AttributeSet(map[string]any{
+			"tags": []string{"go"},
+		}),
+		Title:      markdown.Document("Go"),
+		ShortTitle: markdown.Document("Go"),
+		Body: markdown.Document(UnescapeTestContent(`# Go
 
 ## Reference: Golang History
 
 ‛@source: https://en.wikipedia.org/wiki/Go_(programming_language)‛
 
 [Golang](https://go.dev/doc/ "#go/go") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.
-`))
-
-	// Init the file
-	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
-	require.NoError(t, err)
-	dummyPackFile := DummyPackFile()
-	file, err := NewFile(dummyPackFile, parsedFile)
-	require.NoError(t, err)
-	file.MTime = clock.Now() // make tests reproductible
+`)),
+		BodyLine:      6,
+		Size:          243,
+		Hash:          "45b9ee63ed13a69e2a3cf59afa26c672cacba78a",
+		MTime:         createdAt,
+		CreatedAt:     createdAt,
+		UpdatedAt:     createdAt,
+		LastIndexedAt: createdAt,
+	}
 
 	t.Run("ToYAML", func(t *testing.T) {
 		actual := file.ToYAML()
@@ -213,6 +147,7 @@ tags:
 		expected := UnescapeTestContent(`
 oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
 slug: go
+packfile_oid: 9c0c0682bd18439d992639f19f8d552bde3bd3c0
 relative_path: go.md
 wikilink: go
 front_matter: |
@@ -232,12 +167,12 @@ body: |
 
   [Golang](https://go.dev/doc/ "#go/go") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.
 body_line: 6
-mode: 493
 size: 243
 hash: 45b9ee63ed13a69e2a3cf59afa26c672cacba78a
 mtime: 2023-01-01T01:12:30Z
 created_at: 2023-01-01T01:12:30Z
 updated_at: 2023-01-01T01:12:30Z
+last_indexed_at: 2023-01-01T01:12:30Z
 `)
 		assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
 	})
@@ -248,6 +183,7 @@ updated_at: 2023-01-01T01:12:30Z
 {
   "oid": "42d74d967d9b4e989502647ac510777ca1e22f4a",
   "slug": "go",
+  "packfile_oid": "9c0c0682bd18439d992639f19f8d552bde3bd3c0",
   "relative_path": "go.md",
   "wikilink": "go",
   "front_matter": "tags:\n- go\n",
@@ -260,13 +196,12 @@ updated_at: 2023-01-01T01:12:30Z
   "short_title": "Go",
   "body": "# Go\n\n## Reference: Golang History\n\n‛@source: https://en.wikipedia.org/wiki/Go_(programming_language)‛\n\n[Golang](https://go.dev/doc/ \"#go/go\") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.\n",
   "body_line": 6,
-  "mode": 493,
   "size": 243,
   "hash": "45b9ee63ed13a69e2a3cf59afa26c672cacba78a",
   "mtime": "2023-01-01T01:12:30Z",
   "created_at": "2023-01-01T01:12:30Z",
   "updated_at": "2023-01-01T01:12:30Z",
-  "deleted_at": "0001-01-01T00:00:00Z"
+  "last_indexed_at": "2023-01-01T01:12:30Z"
 }
 `)
 		assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))

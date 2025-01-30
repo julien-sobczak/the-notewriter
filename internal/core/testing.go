@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/internal/testutil"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/filesystem"
@@ -304,6 +305,53 @@ func HumanTime(t *testing.T, str string) time.Time {
 	}
 	t.Fatalf("No matching pattern for date %q", str)
 	return time.Time{} // zero
+}
+
+/* Creation Helpers */
+
+// ParseFileFromRelativePath creates a ParsedFile from a file in the repository.
+func ParseFileFromRelativePath(t *testing.T, relativePath string) *ParsedFile {
+	absolutePath := CurrentRepository().GetFileAbsolutePath(relativePath)
+
+	// Read the markdown
+	markdownFile, err := markdown.ParseFile(absolutePath)
+	require.NoError(t, err)
+
+	parsedFile, err := ParseOrphanFile(markdownFile)
+	require.NoError(t, err)
+
+	return parsedFile
+}
+
+// NewPackFileFromRelativePath creates a PackFile from a file in the repository.
+// The file can be a Markdown document or a media file.
+// Parent files are not supported when parsing the Markdown file.
+func NewPackFileFromRelativePath(t *testing.T, fileRelativePath string) *PackFile {
+	fileAbsolutePath := CurrentRepository().GetFileAbsolutePath(fileRelativePath)
+
+	// We create pack files for Markdown and media files.
+	// We need to check the kind of file first.
+
+	if filepath.Ext(fileAbsolutePath) == ".md" {
+		// Read the markdown
+		markdownFile, err := markdown.ParseFile(fileAbsolutePath)
+		require.NoError(t, err)
+
+		parsedFile, err := ParseOrphanFile(markdownFile)
+		require.NoError(t, err)
+
+		packFile, err := CurrentRepository().NewPackFileFromParsedFile(parsedFile)
+		require.NoError(t, err)
+
+		return packFile
+	}
+
+	// Read the media
+	parsedMedia := ParseMedia(CurrentRepository().Path, fileAbsolutePath)
+	packFile, err := CurrentRepository().NewPackFileFromParsedMedia(parsedMedia)
+	require.NoError(t, err)
+
+	return packFile
 }
 
 /* Dummy Objects */

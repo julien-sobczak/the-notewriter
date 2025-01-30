@@ -25,8 +25,7 @@ func TestObjectData(t *testing.T) {
 		"\n"+
 		"[ ] Test `ObjectData`\n"), 0644)
 	require.NoError(t, err)
-	parsedFile, err := ParseFileFromRelativePath(root, "project.md")
-	require.NoError(t, err)
+	parsedFile := ParseFileFromRelativePath(t, "project.md")
 
 	dummyPackFile := DummyPackFile()
 
@@ -60,10 +59,9 @@ func TestPackFile(t *testing.T) {
 	FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
 
 	t.Run("New pack file", func(t *testing.T) {
-		root := SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
-		parsedFile, err := ParseFileFromRelativePath(root, "go.md")
-		require.NoError(t, err)
+		parsedFile := ParseFileFromRelativePath(t, "go.md")
 
 		dummyPackFile := DummyPackFile()
 

@@ -54,12 +54,10 @@ func TestParseFile(t *testing.T) {
 				mediaDaVinci, ok := file.FindMediaByFilename("da-vinci-notebook.png")
 				require.True(t, ok)
 				expectedDaVinci := &core.ParsedMedia{
-					RawPath:      "medias/da-vinci-notebook.png",
 					AbsolutePath: filepath.Join(filepath.Dir(file.Markdown.AbsolutePath), "medias/da-vinci-notebook.png"),
 					RelativePath: "medias/da-vinci-notebook.png",
 					Extension:    ".png",
 					MediaKind:    core.KindPicture,
-					Line:         41,
 					// File existence must also be checked
 					Dangling: false,
 				}
@@ -203,7 +201,7 @@ func TestParseFile(t *testing.T) {
 			dirname := testutil.SetUpFromGoldenDirNamed(t, "TestParser")
 			md, err := markdown.ParseFile(filepath.Join(dirname, testcase.golden+".md"))
 			require.NoError(t, err)
-			file, err := core.ParseFile(dirname, md, nil)
+			file, err := core.ParseFile(md, nil)
 			require.NoError(t, err)
 			testcase.test(t, file)
 		})

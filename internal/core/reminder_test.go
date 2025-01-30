@@ -1,64 +1,41 @@
 package core
 
 import (
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
-	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestReminder(t *testing.T) {
-	root := SetUpRepositoryFromFileContent(t, "project.md", UnescapeTestContent(`
-## TODO: Backlog
+	SetUpRepositoryFromTempDir(t)
+	FreezeNow(t)
 
-* [ ] Test ”#reminder-2085-09”
-`))
-	oid.UseSequence(t)
 	AssertNoReminders(t)
-	c := FreezeNow(t)
+
 	createdAt := clock.Now()
+	reminder := &Reminder{
+		OID:         "42d74d967d9b4e989502647ac510777ca1e22f4a",
+		PackFileOID: "9c0c0682bd18439d992639f19f8d552bde3bd3c0",
+		FileOID:     "3e8d915d4e524560ae8a2e5a45553f3034b391a2",
+		NoteOID:     "52d02a28a961471db62c6d40d30639dafe4aba00",
 
-	dummyPackFile := DummyPackFile()
+		RelativePath: "project.md",
+		Description:  "Test",
+		Tag:          "#reminder-2085-09",
 
-	// Init the file
-	parsedFile, err := ParseFileFromRelativePath(root, "project.md")
-	require.NoError(t, err)
-	file, err := NewFile(dummyPackFile, parsedFile)
-	require.NoError(t, err)
-	require.NoError(t, file.Save())
-	parsedNote, ok := parsedFile.FindNoteByTitle("TODO: Backlog")
-	require.True(t, ok)
-	note, err := NewNote(dummyPackFile, file, parsedNote)
-	require.NoError(t, err)
-	require.NoError(t, note.Save())
+		CreatedAt:     createdAt,
+		UpdatedAt:     createdAt,
+		LastIndexedAt: createdAt,
+	}
 
-	// Create
-	parsedReminder, ok := parsedNote.FindReminderByTag("#reminder-2085-09")
-	require.True(t, ok)
-	reminder, err := NewReminder(dummyPackFile, note, parsedReminder)
-	require.NoError(t, err)
-
-	// Check all fields
-	assert.NotNil(t, reminder.OID)
-	assert.Equal(t, note.FileOID, reminder.FileOID)
-	assert.Equal(t, note.OID, reminder.NoteOID)
-	assert.Equal(t, note.RelativePath, reminder.RelativePath)
-	assert.Equal(t, "Test", reminder.Description.String())
-	assert.Equal(t, "#reminder-2085-09", reminder.Tag)
-	assert.Empty(t, reminder.LastPerformedAt)
-	assert.Equal(t, HumanTime(t, "2085-09-01 00:00:00"), reminder.NextPerformedAt)
-	assert.Equal(t, clock.Now(), reminder.CreatedAt)
-	assert.Equal(t, clock.Now(), reminder.UpdatedAt)
-	assert.Empty(t, reminder.DeletedAt)
-	assert.Empty(t, reminder.LastIndexedAt)
-
-	// Save
+	// Process and save the reminder
+	require.NoError(t, reminder.Next())
 	require.NoError(t, reminder.Save())
+
 	require.Equal(t, 1, MustCountReminders(t))
 
 	// Reread and recheck all fields
@@ -66,6 +43,7 @@ func TestReminder(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, actual)
 	assert.Equal(t, reminder.OID, actual.OID)
+	assert.Equal(t, reminder.PackFileOID, actual.PackFileOID)
 	assert.Equal(t, reminder.FileOID, actual.FileOID)
 	assert.Equal(t, reminder.NoteOID, actual.NoteOID)
 	assert.Equal(t, reminder.RelativePath, actual.RelativePath)
@@ -73,83 +51,52 @@ func TestReminder(t *testing.T) {
 	assert.Equal(t, reminder.Tag, actual.Tag)
 	assert.Empty(t, reminder.LastPerformedAt)
 	assert.Equal(t, HumanTime(t, "2085-09-01 00:00:00"), reminder.NextPerformedAt)
-	assert.WithinDuration(t, clock.Now(), actual.CreatedAt, 1*time.Second)
-	assert.WithinDuration(t, clock.Now(), actual.UpdatedAt, 1*time.Second)
-	assert.WithinDuration(t, clock.Now(), actual.LastIndexedAt, 1*time.Second)
-	assert.Empty(t, actual.DeletedAt)
+	assert.WithinDuration(t, createdAt, actual.CreatedAt, 1*time.Second)
+	assert.WithinDuration(t, createdAt, actual.UpdatedAt, 1*time.Second)
+	assert.WithinDuration(t, createdAt, actual.LastIndexedAt, 1*time.Second)
 
 	// Force update
-	updatedAt := c.FastForward(10 * time.Minute)
-	ReplaceLine(t, filepath.Join(root, "project.md"), 4,
-		"* [ ] Test `#reminder-2085-09`",
-		"* [ ] Test `#reminder-2050-01`")
-	parsedFile, err = ParseFileFromRelativePath(root, "project.md")
-	require.NoError(t, err)
-	parsedNote, ok = parsedFile.FindNoteByTitle("TODO: Backlog")
-	require.True(t, ok)
-	newNote, err := NewOrExistingNote(dummyPackFile, file, parsedNote)
-	require.NoError(t, err)
-	require.NoError(t, newNote.Save())
-	parsedReminder, ok = parsedNote.FindReminderByTag("#reminder-2050-01")
-	require.True(t, ok)
-	newReminder, err := NewOrExistingReminder(dummyPackFile, newNote, parsedReminder)
-	require.NoError(t, err)
-	require.NoError(t, newReminder.Save())
+	actual.Tag = "#reminder-2050-01"
+	require.NoError(t, actual.Save())
+	require.Equal(t, 1, MustCountReminders(t))
 
 	// Compare
-	assert.Equal(t, reminder.OID, newReminder.OID) // Must have found the previous one
-	assert.Equal(t, "#reminder-2050-01", newReminder.Tag)
-
-	// Retrieve
-	updatedReminder, err := CurrentRepository().LoadReminderByOID(reminder.OID)
+	actual, err = CurrentRepository().LoadReminderByOID(reminder.OID)
 	require.NoError(t, err)
-	// Timestamps must have changed
-	assert.WithinDuration(t, createdAt, updatedReminder.CreatedAt, 1*time.Second)
-	assert.WithinDuration(t, updatedAt, updatedReminder.UpdatedAt, 1*time.Second)
-	assert.WithinDuration(t, updatedAt, updatedReminder.LastIndexedAt, 1*time.Second)
+	assert.Equal(t, "#reminder-2050-01", actual.Tag)
 
 	// Delete
 	require.NoError(t, reminder.Delete())
-	assert.Equal(t, clock.Now(), reminder.DeletedAt)
-
 	AssertNoReminders(t)
 }
 
 func TestReminderFormats(t *testing.T) {
-	oid.UseFixed(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
 	FreezeAt(t, HumanTime(t, "2023-01-01 01:12:30"))
 
-	root := SetUpRepositoryFromFileContent(t, "project.md", UnescapeTestContent(`
-## TODO: Backlog
+	reminder := &Reminder{
+		OID:         "42d74d967d9b4e989502647ac510777ca1e22f4a",
+		PackFileOID: "9c0c0682bd18439d992639f19f8d552bde3bd3c0",
+		FileOID:     "3e8d915d4e524560ae8a2e5a45553f3034b391a2",
+		NoteOID:     "52d02a28a961471db62c6d40d30639dafe4aba00",
 
-* [ ] Test ”#reminder-2085-09”
-`))
+		RelativePath: "project.md",
+		Description:  "Test",
+		Tag:          "#reminder-2085-09",
 
-	dummyPackFile := DummyPackFile()
-
-	// Init the file
-	parsedFile, err := ParseFileFromRelativePath(root, "project.md")
-	require.NoError(t, err)
-	file, err := NewFile(dummyPackFile, parsedFile)
-	require.NoError(t, err)
-
-	// Init the reminder
-	parsedNote, ok := parsedFile.FindNoteByTitle("TODO: Backlog")
-	require.True(t, ok)
-	note, err := NewNote(dummyPackFile, file, parsedNote)
-	require.NoError(t, err)
-	parsedReminder, ok := parsedNote.FindReminderByTag("#reminder-2085-09")
-	require.True(t, ok)
-	reminder, err := NewReminder(dummyPackFile, note, parsedReminder)
-	require.NoError(t, err)
+		CreatedAt:     clock.Now(),
+		UpdatedAt:     clock.Now(),
+		LastIndexedAt: clock.Now(),
+	}
+	require.NoError(t, reminder.Next())
 
 	t.Run("ToYAML", func(t *testing.T) {
 		actual := reminder.ToYAML()
 
 		expected := UnescapeTestContent(`
 oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
-file_oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
-note_oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
+packfile_oid: 9c0c0682bd18439d992639f19f8d552bde3bd3c0
+file_oid: 3e8d915d4e524560ae8a2e5a45553f3034b391a2
+note_oid: 52d02a28a961471db62c6d40d30639dafe4aba00
 relative_path: project.md
 description: Test
 tag: '#reminder-2085-09'
@@ -157,6 +104,7 @@ last_performed_at: 0001-01-01T00:00:00Z
 next_performed_at: 2085-09-01T00:00:00Z
 created_at: 2023-01-01T01:12:30Z
 updated_at: 2023-01-01T01:12:30Z
+last_indexed_at: 2023-01-01T01:12:30Z
 `)
 		assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
 	})
@@ -166,8 +114,9 @@ updated_at: 2023-01-01T01:12:30Z
 		expected := UnescapeTestContent(`
 {
   "oid": "42d74d967d9b4e989502647ac510777ca1e22f4a",
-  "file_oid": "42d74d967d9b4e989502647ac510777ca1e22f4a",
-  "note_oid": "42d74d967d9b4e989502647ac510777ca1e22f4a",
+  "packfile_oid": "9c0c0682bd18439d992639f19f8d552bde3bd3c0",
+  "file_oid": "3e8d915d4e524560ae8a2e5a45553f3034b391a2",
+  "note_oid": "52d02a28a961471db62c6d40d30639dafe4aba00",
   "relative_path": "project.md",
   "description": "Test",
   "tag": "#reminder-2085-09",
@@ -175,7 +124,7 @@ updated_at: 2023-01-01T01:12:30Z
   "next_performed_at": "2085-09-01T00:00:00Z",
   "created_at": "2023-01-01T01:12:30Z",
   "updated_at": "2023-01-01T01:12:30Z",
-  "deleted_at": "0001-01-01T00:00:00Z"
+  "last_indexed_at": "2023-01-01T01:12:30Z"
 }
 `)
 		assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))

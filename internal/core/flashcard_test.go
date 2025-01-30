@@ -1,69 +1,37 @@
 package core
 
 import (
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
-	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestFlashcard(t *testing.T) {
-	root := SetUpRepositoryFromFileContent(t, "go.md", UnescapeTestContent(`
-# Go
+	SetUpRepositoryFromTempDir(t)
+	FreezeNow(t)
 
-## Flashcard: Golang Logo
-
-What does the **Golang logo** represent?
-
----
-
-A **gopher**.
-
-![Logo](./medias/go.svg)
-`))
-
-	oid.UseSequence(t)
 	AssertNoFlashcards(t)
-	c := FreezeNow(t)
+
 	createdAt := clock.Now()
-
-	dummyPackFile := DummyPackFile()
-
-	// Init the file
-	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
-	require.NoError(t, err)
-	file, err := NewFile(dummyPackFile, parsedFile)
-	require.NoError(t, err)
-	require.NoError(t, file.Save())
-	parsedNote, ok := parsedFile.FindNoteByTitle("Flashcard: Golang Logo")
-	require.True(t, ok)
-	note, err := NewNote(dummyPackFile, file, parsedNote)
-	require.NoError(t, err)
-	require.NoError(t, note.Save())
-
-	// Create
-	flashcard, err := NewFlashcard(dummyPackFile, file, note, parsedNote.Flashcard)
-	require.NoError(t, err)
-
-	// Check all fields
-	assert.NotNil(t, flashcard.OID)
-	assert.Equal(t, file.OID, flashcard.FileOID)
-	assert.Equal(t, note.OID, flashcard.NoteOID)
-	assert.Equal(t, note.RelativePath, flashcard.RelativePath)
-	assert.Equal(t, note.Slug, flashcard.Slug)
-	assert.Equal(t, note.ShortTitle, flashcard.ShortTitle)
-	assert.Equal(t, note.Tags, flashcard.Tags)
-	assert.Equal(t, "What does the **Golang logo** represent?", flashcard.Front.String())
-	assert.Equal(t, "A **gopher**.\n\n![Logo](./medias/go.svg)", flashcard.Back.String())
-	assert.Equal(t, clock.Now(), flashcard.CreatedAt)
-	assert.Equal(t, clock.Now(), flashcard.UpdatedAt)
-	assert.Empty(t, flashcard.DeletedAt)
-	assert.Empty(t, flashcard.LastIndexedAt)
+	flashcard := &Flashcard{
+		OID:           "42d74d967d9b4e989502647ac510777ca1e22f4a",
+		PackFileOID:   "9c0c0682bd18439d992639f19f8d552bde3bd3c0",
+		FileOID:       "3e8d915d4e524560ae8a2e5a45553f3034b391a2",
+		NoteOID:       "52d02a28a961471db62c6d40d30639dafe4aba00",
+		RelativePath:  "project.md",
+		Slug:          "go-flashcard-golang-logo",
+		ShortTitle:    "Golang Logo",
+		Tags:          []string{"go"},
+		Front:         "What does the **Golang logo** represent?",
+		Back:          "A **gopher**.\n\n![Logo](./medias/go.svg)",
+		CreatedAt:     createdAt,
+		UpdatedAt:     createdAt,
+		LastIndexedAt: createdAt,
+	}
 
 	// Save
 	require.NoError(t, flashcard.Save())
@@ -86,89 +54,61 @@ A **gopher**.
 	assert.WithinDuration(t, clock.Now(), actual.CreatedAt, 1*time.Second)
 	assert.WithinDuration(t, clock.Now(), actual.UpdatedAt, 1*time.Second)
 	assert.WithinDuration(t, clock.Now(), actual.LastIndexedAt, 1*time.Second)
-	assert.Empty(t, flashcard.DeletedAt)
 
 	// Force update
-	updatedAt := c.FastForward(10 * time.Minute)
-	ReplaceLine(t, filepath.Join(root, "go.md"), 6,
-		"What does the **Golang logo** represent?",
-		"What is the **Golang logo**?")
-	parsedFile, err = ParseFileFromRelativePath(root, "go.md")
-	require.NoError(t, err)
-	parsedNote, ok = parsedFile.FindNoteByShortTitle("Golang Logo")
-	require.True(t, ok)
-	newNote, err := NewOrExistingNote(dummyPackFile, file, parsedNote)
-	require.NoError(t, err)
-	require.NoError(t, newNote.Save())
-	newFlashcard, err := NewOrExistingFlashcard(dummyPackFile, file, newNote, parsedNote.Flashcard)
-	require.NoError(t, err)
-	require.NoError(t, newFlashcard.Save())
-	// ... and compare
-	assert.Equal(t, flashcard.OID, newFlashcard.OID) // Must have found the previous file
-	assert.Contains(t, newFlashcard.Front, "What is the **Golang logo**?")
+	actual.Front = "What is the **Golang logo**?"
+	require.NoError(t, actual.Save())
+	require.Equal(t, 1, MustCountFlashcards(t))
 
-	// Retrieve
-	updatedFlashcard, err := CurrentRepository().LoadFlashcardByOID(newFlashcard.OID)
+	// ... and compare again
+	actual, err = CurrentRepository().LoadFlashcardByOID(flashcard.OID)
 	require.NoError(t, err)
-	// Timestamps must have changed
-	assert.WithinDuration(t, createdAt, updatedFlashcard.CreatedAt, 1*time.Second)
-	assert.WithinDuration(t, updatedAt, updatedFlashcard.UpdatedAt, 1*time.Second)
-	assert.WithinDuration(t, updatedAt, updatedFlashcard.LastIndexedAt, 1*time.Second)
+	require.NotNil(t, actual)
+	assert.Equal(t, flashcard.OID, actual.OID) // Must have found the previous file
+	assert.Contains(t, actual.Front, "What is the **Golang logo**?")
 
 	// Delete
 	require.NoError(t, flashcard.Delete())
-	assert.Equal(t, clock.Now(), flashcard.DeletedAt)
-
 	AssertNoFlashcards(t)
 }
 
 func TestFlashcardFormats(t *testing.T) {
-	oid.UseFixed(t, "42d74d967d9b4e989502647ac510777ca1e22f4a")
 	FreezeAt(t, HumanTime(t, "2023-01-01 01:12:30"))
 
-	root := SetUpRepositoryFromFileContent(t, "go.md", UnescapeTestContent(`
-# Go
-
-## Flashcard: Golang Logo
-
-What does the **Golang logo** represent?
-
----
-
-A **gopher**.
-`))
-
-	dummyPackFile := DummyPackFile()
-
-	// Init the file
-	parsedFile, err := ParseFileFromRelativePath(root, "go.md")
-	require.NoError(t, err)
-	file, err := NewFile(dummyPackFile, parsedFile)
-	require.NoError(t, err)
-
-	// Init the flashcard
-	parsedNote, ok := parsedFile.FindNoteByTitle("Flashcard: Golang Logo")
-	require.True(t, ok)
-	note, err := NewNote(dummyPackFile, file, parsedNote)
-	require.NoError(t, err)
-	require.NotNil(t, parsedNote.Flashcard)
-	flashcard, err := NewFlashcard(dummyPackFile, file, note, parsedNote.Flashcard)
-	require.NoError(t, err)
+	flashcard := &Flashcard{
+		OID:           "42d74d967d9b4e989502647ac510777ca1e22f4a",
+		PackFileOID:   "9c0c0682bd18439d992639f19f8d552bde3bd3c0",
+		FileOID:       "3e8d915d4e524560ae8a2e5a45553f3034b391a2",
+		NoteOID:       "52d02a28a961471db62c6d40d30639dafe4aba00",
+		RelativePath:  "go.md",
+		Slug:          "go-flashcard-golang-logo",
+		ShortTitle:    "Golang Logo",
+		Tags:          []string{"go"},
+		Front:         "What does the **Golang logo** represent?",
+		Back:          "A **gopher**.",
+		CreatedAt:     clock.Now(),
+		UpdatedAt:     clock.Now(),
+		LastIndexedAt: clock.Now(),
+	}
 
 	t.Run("ToYAML", func(t *testing.T) {
 		actual := flashcard.ToYAML()
 
 		expected := UnescapeTestContent(`
 oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
-file_oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
-note_oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
+packfile_oid: 9c0c0682bd18439d992639f19f8d552bde3bd3c0
+file_oid: 3e8d915d4e524560ae8a2e5a45553f3034b391a2
+note_oid: 52d02a28a961471db62c6d40d30639dafe4aba00
 relative_path: go.md
 slug: go-flashcard-golang-logo
 short_title: Golang Logo
+tags:
+  - go
 front: What does the **Golang logo** represent?
 back: A **gopher**.
 created_at: 2023-01-01T01:12:30Z
 updated_at: 2023-01-01T01:12:30Z
+last_indexed_at: 2023-01-01T01:12:30Z
 `)
 		assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
 	})
@@ -178,16 +118,20 @@ updated_at: 2023-01-01T01:12:30Z
 		expected := UnescapeTestContent(`
 {
   "oid": "42d74d967d9b4e989502647ac510777ca1e22f4a",
-  "file_oid": "42d74d967d9b4e989502647ac510777ca1e22f4a",
-  "note_oid": "42d74d967d9b4e989502647ac510777ca1e22f4a",
+  "packfile_oid": "9c0c0682bd18439d992639f19f8d552bde3bd3c0",
+  "file_oid": "3e8d915d4e524560ae8a2e5a45553f3034b391a2",
+  "note_oid": "52d02a28a961471db62c6d40d30639dafe4aba00",
   "relative_path": "go.md",
   "slug": "go-flashcard-golang-logo",
   "short_title": "Golang Logo",
+  "tags": [
+    "go"
+  ],
   "front": "What does the **Golang logo** represent?",
   "back": "A **gopher**.",
   "created_at": "2023-01-01T01:12:30Z",
   "updated_at": "2023-01-01T01:12:30Z",
-  "deleted_at": "0001-01-01T00:00:00Z",
+  "last_indexed_at": "2023-01-01T01:12:30Z",
   "due_at": "0001-01-01T00:00:00Z",
   "studied_at": "0001-01-01T00:00:00Z"
 }

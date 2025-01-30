@@ -1,0 +1,12 @@
+{
+    "Generate UUID": {
+          "prefix": "uuid",
+          "body": [ "${UUID}" ],
+          "description": "Generate a new UUID"
+      },
+    "Generate OID": {
+          "prefix": "oid",
+          "body": [ "${UUID/[^0-9a-z]//gi}${UUID/^(\\w{8}).*$/$1/}" ],
+          "description": "Generate a new OID"
+      }
+  }

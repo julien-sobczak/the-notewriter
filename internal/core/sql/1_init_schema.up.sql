@@ -2,7 +2,7 @@ CREATE TABLE file (
   oid TEXT PRIMARY KEY,
 
   -- Last known pack file containing this file
-  packfile_oid TEXT PRIMARY KEY,
+  packfile_oid TEXT,
 
   -- Slug
   slug TEXT,
@@ -42,7 +42,7 @@ CREATE TABLE note (
   oid TEXT PRIMARY KEY,
 
   -- Last known pack file containing this note
-  packfile_oid TEXT PRIMARY KEY,
+  packfile_oid TEXT,
 
   -- File containing the note
   file_oid TEXT NOT NULL,
@@ -108,7 +108,7 @@ CREATE TABLE media (
   oid TEXT PRIMARY KEY,
 
   -- Last known pack file containing this media
-  packfile_oid TEXT PRIMARY KEY,
+  packfile_oid TEXT,
 
   -- Relative path
   relative_path TEXT NOT NULL,
@@ -158,7 +158,7 @@ CREATE TABLE link (
   oid TEXT PRIMARY KEY,
 
   -- Last known pack file containing this link
-  packfile_oid TEXT PRIMARY KEY,
+  packfile_oid TEXT,
 
   -- Note representing the link
   note_oid TEXT NOT NULL,
@@ -186,7 +186,7 @@ CREATE TABLE flashcard (
   oid TEXT PRIMARY KEY,
 
   -- Last known pack file containing this flashcard
-  packfile_oid TEXT PRIMARY KEY,
+  packfile_oid TEXT,
 
   -- File representing the flashcard
   file_oid TEXT NOT NULL,
@@ -226,7 +226,7 @@ CREATE TABLE reminder (
   oid TEXT PRIMARY KEY,
 
   -- Last known pack file containing this reminder
-  packfile_oid TEXT PRIMARY KEY,
+  packfile_oid TEXT,
 
   -- File representing the flashcard
   file_oid TEXT NOT NULL,

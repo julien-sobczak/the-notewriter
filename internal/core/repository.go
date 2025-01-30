@@ -76,6 +76,11 @@ func (r *Repository) GetFileRelativePath(fileAbsolutePath string) string {
 	return relativePath
 }
 
+// GetFileAbsolutePath converts a relative path from the repository to an absolute path on disk.
+func (r *Repository) GetFileAbsolutePath(fileRelativePath string) string {
+	return filepath.Join(r.Path, fileRelativePath)
+}
+
 // GetAbsolutePath converts a relative path from the repository to an absolute path on disk.
 func (r *Repository) GetAbsolutePath(path string) string {
 	if strings.HasPrefix(path, r.Path) {
@@ -275,7 +280,7 @@ func (r *Repository) Add(paths ...PathSpec) error {
 		}
 
 		// Reparse the new version
-		parsedFile, err := ParseFile(CurrentConfig().RootDirectory, mdFile, mdParentFile)
+		parsedFile, err := ParseFile(mdFile, mdParentFile)
 		if err != nil {
 			return err
 		}
@@ -545,7 +550,7 @@ func (r *Repository) Lint(ruleNames []string, paths ...PathSpec) (*LintResult, e
 		CurrentLogger().Debugf("Processing %s...\n", mdFile.AbsolutePath)
 
 		// Work without the database
-		file, err := ParseFile(CurrentConfig().RootDirectory, mdFile, nil)
+		file, err := ParseFile(mdFile, nil) // TODO load parent first
 		if err != nil {
 			return err
 		}
