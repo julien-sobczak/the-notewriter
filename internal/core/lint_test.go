@@ -378,7 +378,6 @@ func TestNoAmbiguousWikilink(t *testing.T) {
 }
 
 func TestCheckAttribute(t *testing.T) {
-	// TODO now debug
 	SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
 
 	fileRoot := ParseFileFromRelativePath(t, "check-attribute.md")
@@ -391,7 +390,7 @@ func TestCheckAttribute(t *testing.T) {
 	require.ElementsMatch(t, []*Violation{
 		{
 			Name:         "check-attribute",
-			Message:      `attribute "isbn" in note "Note: _Steve Jobs_ by Walter Isaacson" in file "check-attribute.md" does not match pattern "^([0-9-]{10}|[0-9]{3}-[0-9]{10})$"`,
+			Message:      `attribute "isbn" on note "Note: _Steve Jobs_ by Walter Isaacson" in file "check-attribute.md" does not match pattern "^([0-9-]{10}|[0-9]{3}-[0-9]{10})$"`,
 			RelativePath: "check-attribute.md",
 			Line:         14,
 		},

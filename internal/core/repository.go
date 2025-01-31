@@ -68,12 +68,7 @@ func (r *Repository) GetNoteRelativePath(fileRelativePath string, srcPath string
 
 // GetFileRelativePath converts a relative path of a file to a relative path from the repository.
 func (r *Repository) GetFileRelativePath(fileAbsolutePath string) string {
-	relativePath, err := filepath.Rel(r.Path, fileAbsolutePath)
-	if err != nil {
-		// Must not happen (fail abruptly)
-		log.Fatalf("Unable to determine relative path for %q from root %q: %v", fileAbsolutePath, r.Path, err)
-	}
-	return relativePath
+	return RelativePath(r.Path, fileAbsolutePath)
 }
 
 // GetFileAbsolutePath converts a relative path from the repository to an absolute path on disk.
@@ -123,9 +118,13 @@ func (r *Repository) Walk(pathSpecs PathSpecs, fn func(md *markdown.File) error)
 	var fileInfos = make(map[string]*fs.FileInfo)
 	var filePaths = make(map[string]string)
 
-	filepath.WalkDir(".", func(path string, info fs.DirEntry, err error) error {
+	filepath.WalkDir(CurrentConfig().RootDirectory+"/", func(path string, info fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+
+		if path == "." || path == ".." {
+			return nil
 		}
 
 		dirname := filepath.Base(path)
@@ -137,6 +136,13 @@ func (r *Repository) Walk(pathSpecs PathSpecs, fn func(md *markdown.File) error)
 		}
 
 		relativePath := CurrentRepository().GetFileRelativePath(path)
+		if relativePath == "." || relativePath == ".." {
+			return nil
+		}
+
+		if !pathSpecs.Match(relativePath) {
+			return nil
+		}
 
 		if config.IgnoreFile.MustExcludeFile(relativePath, info.IsDir()) {
 			return nil

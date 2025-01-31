@@ -33,7 +33,6 @@ const (
 const DefaultConfig = `
 [core]
 extensions=["md", "markdown"]
-maxObjectsPerPackfile=100
 
 [medias]
 command="ffmpeg"
@@ -580,7 +579,7 @@ func ReadConfigFromDirectory(path string) (*Config, error) {
 	if os.IsNotExist(err) {
 		lintFile, err = parseLintFile(DefaultLint)
 		if err != nil {
-			return nil, fmt.Errorf("default configuration is broken: %v", err)
+			return nil, fmt.Errorf("default lint configuration is broken: %v", err)
 		}
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to check for .nt/lint file: %v", err)
@@ -602,7 +601,7 @@ func ReadConfigFromDirectory(path string) (*Config, error) {
 	if os.IsNotExist(err) {
 		ignoreFile, err = parseIgnoreFile(DefaultIgnore)
 		if err != nil {
-			return nil, fmt.Errorf("default configuration is broken: %v", err)
+			return nil, fmt.Errorf("default ignore configuration is broken: %v", err)
 		}
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to check for .ntignore file: %v", err)

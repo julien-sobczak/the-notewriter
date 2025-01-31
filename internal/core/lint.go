@@ -621,30 +621,59 @@ func CheckAttribute(file *ParsedFile, args []string) ([]*Violation, error) {
 
 			for _, name := range allowedNames {
 
-				value, ok := note.Attributes[name]
+				// Attributes can be defined in Front Matter or in the note itself
+				// We need to check both (especially if the note override an invalid file attribute, we still want to raise an error).
 
-				// Check type
-				if ok {
+				fileValue, presentOnFile := file.FileAttributes[name]
+				if presentOnFile {
 					found = true
 
 					line := text.LineNumber(string(file.Markdown.Content), name+":")
-					if _, ok := CastAttribute(value, definition.Type); !ok {
+					if _, ok := CastAttribute(fileValue, definition.Type); !ok {
 						violations = append(violations, &Violation{
 							Name:         "check-attribute",
 							RelativePath: file.RelativePath,
-							Message:      fmt.Sprintf("attribute %q on note %q is not a valid %s or cannot be converted", name, file.RelativePath, definition.Type),
+							Message:      fmt.Sprintf("attribute %q in file %q is not a valid %s or cannot be converted", name, file.Title, definition.Type),
 							Line:         line,
 						})
 					} else if definition.Pattern != "" {
 						// Check pattern
 						regexAttribute := regexp.MustCompile(definition.Pattern)
 						// Convert value to string
-						stringValue := fmt.Sprintf("%s", value)
+						stringValue := fmt.Sprintf("%s", fileValue)
 						if !regexAttribute.MatchString(stringValue) {
 							violations = append(violations, &Violation{
 								Name:         "check-attribute",
 								RelativePath: file.RelativePath,
-								Message:      fmt.Sprintf("attribute %q on note %q does not match pattern %q", name, file.RelativePath, definition.Pattern),
+								Message:      fmt.Sprintf("attribute %q in file %q does not match pattern %q", name, file.Title, definition.Pattern),
+								Line:         line,
+							})
+						}
+					}
+				}
+
+				noteValue, presentOnNote := note.NoteAttributes[name]
+				if presentOnNote {
+					found = true
+
+					line := text.LineNumber(string(file.Markdown.Content), name+":")
+					if _, ok := CastAttribute(noteValue, definition.Type); !ok {
+						violations = append(violations, &Violation{
+							Name:         "check-attribute",
+							RelativePath: file.RelativePath,
+							Message:      fmt.Sprintf("attribute %q on note %q in file %q is not a valid %s or cannot be converted", name, note.Title, file.RelativePath, definition.Type),
+							Line:         line,
+						})
+					} else if definition.Pattern != "" {
+						// Check pattern
+						regexAttribute := regexp.MustCompile(definition.Pattern)
+						// Convert value to string
+						stringValue := fmt.Sprintf("%s", noteValue)
+						if !regexAttribute.MatchString(stringValue) {
+							violations = append(violations, &Violation{
+								Name:         "check-attribute",
+								RelativePath: file.RelativePath,
+								Message:      fmt.Sprintf("attribute %q on note %q in file %q does not match pattern %q", name, note.Title, file.RelativePath, definition.Pattern),
 								Line:         line,
 							})
 						}

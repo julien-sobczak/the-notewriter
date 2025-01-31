@@ -62,11 +62,13 @@ type ParsedNote struct {
 	Title      markdown.Document
 	ShortTitle markdown.Document
 
-	Line       int
-	Content    markdown.Document
-	Body       markdown.Document
-	Comment    markdown.Document
-	Attributes AttributeSet
+	Line           int
+	Content        markdown.Document
+	Body           markdown.Document
+	Comment        markdown.Document
+	NoteTags       TagSet       // Tags defined explicitely in the note
+	NoteAttributes AttributeSet // Attributes defined explicitely in the note
+	Attributes     AttributeSet // Attributes defined in the note and inherited from the parent notes/files
 
 	// Extracted objects
 	Flashcard *ParsedFlashcard
@@ -165,16 +167,17 @@ func ParseFile(md *markdown.File, mdParent *markdown.File) (*ParsedFile, error) 
 	}
 
 	// Extract attributes
-	parentFrontMatter, err := mdParent.FrontMatter.AsMap()
+	parentAttributes, err := NewAttributeSetFromMarkdown(mdParent)
 	if err != nil {
 		return nil, err
 	}
-	fileFrontMatter, err := md.FrontMatter.AsMap()
+	parentAttributes = parentAttributes.CastOrIgnore(GetSchemaAttributeTypes())
+	fileAttributes, err := NewAttributeSetFromMarkdown(md)
 	if err != nil {
 		return nil, err
 	}
-	parentAttributes := AttributeSet(parentFrontMatter).CastOrIgnore(GetSchemaAttributeTypes())
-	fileAttributes := parentAttributes.Merge(AttributeSet(fileFrontMatter))
+	fileAttributes = fileAttributes.CastOrIgnore(GetSchemaAttributeTypes())
+	fileAttributes = parentAttributes.Merge(fileAttributes)
 
 	// Check if file must be ignored
 	if fileAttributes.Tags().Includes("ignore") {
@@ -205,7 +208,9 @@ func ParseFile(md *markdown.File, mdParent *markdown.File) (*ParsedFile, error) 
 	result := &ParsedFile{
 		Markdown: md,
 
-		RelativePath: relativePath,
+		RepositoryPath: CurrentRepository().Path,
+		AbsolutePath:   md.AbsolutePath,
+		RelativePath:   relativePath,
 
 		// Main Heading
 		Slug:       slug,
@@ -313,19 +318,21 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		attributes = attributes.Merge(noteAttributes)
 
 		parsedNote := &ParsedNote{
-			Parent:       parentNote,
-			Level:        section.HeadingLevel,
-			Kind:         kind,
-			AbsolutePath: p.AbsolutePath,
-			RelativePath: p.RelativePath,
-			Slug:         slug,
-			Title:        title,
-			ShortTitle:   markdown.Document(shortTitle),
-			Line:         section.FileLineStart,
-			Attributes:   attributes,
-			Content:      noteContent,
-			Body:         body,
-			Comment:      comment,
+			Parent:         parentNote,
+			Level:          section.HeadingLevel,
+			Kind:           kind,
+			AbsolutePath:   p.AbsolutePath,
+			RelativePath:   p.RelativePath,
+			Slug:           slug,
+			Title:          title,
+			ShortTitle:     markdown.Document(shortTitle),
+			Line:           section.FileLineStart,
+			NoteTags:       noteTags,
+			NoteAttributes: noteAttributes,
+			Attributes:     attributes,
+			Content:        noteContent,
+			Body:           body,
+			Comment:        comment,
 		}
 
 		if parsedNote.Kind == KindGenerator {
