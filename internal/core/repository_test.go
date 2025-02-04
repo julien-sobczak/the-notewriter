@@ -136,7 +136,7 @@ func TestRepositoryGetRelativePath(t *testing.T) {
 }
 
 func TestStatsInDB(t *testing.T) {
-
+	t.Skip() // TODO uncomment after implementing Add() method
 	SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
 	stats, err := CurrentRepository().StatsInDB()

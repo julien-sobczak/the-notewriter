@@ -134,7 +134,6 @@ func NewPackFile(fileObject FileObject) *PackFile {
 	}
 }
 
-
 // ReadObject recreates the core object from a commit object.
 func (p *PackObject) ReadObject() Object {
 	switch p.Kind {

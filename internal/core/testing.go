@@ -121,6 +121,30 @@ func FreezeAt(t *testing.T, point time.Time) *clock.TestClock {
 	return now
 }
 
+// FreezeOn wraps the clock API to register the cleanup function at the end of the test.
+func FreezeOn(t *testing.T, date string) *clock.TestClock {
+	point := parseHumanReadableDate(date)
+	require.False(t, point.IsZero())
+	return FreezeAt(t, point)
+}
+
+// parseHumanReadableDate tries to parse a date in a human-readable format using different common formats.
+func parseHumanReadableDate(date string) time.Time {
+	// Try common format (more specific to least specific)
+	formatsToTry := []string{
+		time.RFC3339,  // Ex: "2023-10-15T14:12:00Z"
+		time.DateTime, // Ex: "2023-10-15 14:12:00"
+		time.DateOnly, // Ex: "2023-10-15"
+	}
+	for _, format := range formatsToTry {
+		parsedDate, err := time.Parse(format, date)
+		if err == nil {
+			return parsedDate
+		}
+	}
+	return time.Time{}
+}
+
 /* Test Helpers */
 
 func MustCountFiles(t *testing.T) int {
@@ -309,6 +333,20 @@ func HumanTime(t *testing.T, str string) time.Time {
 
 /* Creation Helpers */
 
+// WriteFileFromRelativePath creates a file in the repository.
+func WriteFileFromRelativePath(t *testing.T, relativePath string, content string) {
+	absolutePath := CurrentRepository().GetFileAbsolutePath(relativePath)
+
+	dir := filepath.Dir(absolutePath)
+
+	// Create intermediate directories if they don't exist
+	err := os.MkdirAll(dir, 0755)
+	require.NoError(t, err)
+
+	err = os.WriteFile(absolutePath, []byte(content), 0644)
+	require.NoError(t, err)
+}
+
 // ParseFileFromRelativePath creates a ParsedFile from a file in the repository.
 func ParseFileFromRelativePath(t *testing.T, relativePath string) *ParsedFile {
 	absolutePath := CurrentRepository().GetFileAbsolutePath(relativePath)
@@ -340,7 +378,7 @@ func NewPackFileFromRelativePath(t *testing.T, fileRelativePath string) *PackFil
 		parsedFile, err := ParseOrphanFile(markdownFile)
 		require.NoError(t, err)
 
-		packFile, err := CurrentRepository().NewPackFileFromParsedFile(parsedFile)
+		packFile, err := NewPackFileFromParsedFile(parsedFile)
 		require.NoError(t, err)
 
 		return packFile
@@ -348,7 +386,7 @@ func NewPackFileFromRelativePath(t *testing.T, fileRelativePath string) *PackFil
 
 	// Read the media
 	parsedMedia := ParseMedia(CurrentRepository().Path, fileAbsolutePath)
-	packFile, err := CurrentRepository().NewPackFileFromParsedMedia(parsedMedia)
+	packFile, err := NewPackFileFromParsedMedia(parsedMedia)
 	require.NoError(t, err)
 
 	return packFile

@@ -254,6 +254,10 @@ func (p PathSpec) Match(path string) bool {
 
 type PathSpecs []PathSpec
 
+// AnyPath is a special pathspec that matches any path.
+// Useful when no path spec is specified (ex: `nt add`).
+var AnyPath = []PathSpec{PathSpec(".")}
+
 // Match tests if a file path satisfies the conditions.
 func (p PathSpecs) Match(path string) bool {
 	foundMatch := false

@@ -291,12 +291,7 @@ func (r *Repository) Add(paths ...PathSpec) error {
 			return err
 		}
 
-		packFile, err := r.NewPackFileFromParsedFile(parsedFile)
-		if err != nil {
-			return err
-		}
-		packFilesToUpsert = append(packFilesToUpsert, packFile)
-
+		// Start with medias (more error-prone) => Better to fail with minimal side-effects
 		for _, parsedMedia := range parsedFile.Medias {
 			// Check if media has already been processed
 			if slices.Contains(traversedPaths, parsedMedia.RelativePath) {
@@ -312,12 +307,19 @@ func (r *Repository) Add(paths ...PathSpec) error {
 				continue
 			}
 
-			packMedia, err := r.NewPackFileFromParsedMedia(parsedMedia)
+			packMedia, err := NewPackFileFromParsedMedia(parsedMedia)
 			if err != nil {
 				return err
 			}
 			packFilesToUpsert = append(packFilesToUpsert, packMedia)
 		}
+
+		// Finish with the file (less error-prone)
+		packFile, err := NewPackFileFromParsedFile(parsedFile)
+		if err != nil {
+			return err
+		}
+		packFilesToUpsert = append(packFilesToUpsert, packFile)
 
 		return nil
 	})
@@ -372,7 +374,7 @@ func (r *Repository) Add(paths ...PathSpec) error {
 	return nil
 }
 
-func (r *Repository) NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFile, error) {
+func NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFile, error) {
 	// Use the hash of the parsed file as OID (if the file changes = new oid.OID)
 	packFileOID := oid.MustParse(parsedFile.Hash())
 
@@ -407,6 +409,7 @@ func (r *Repository) NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFil
 		return nil, err
 	}
 	objects = append(objects, file)
+	file.GenerateBlobs()
 
 	// Process the Note(s)
 	for _, parsedNote := range parsedFile.Notes {
@@ -467,7 +470,7 @@ func (r *Repository) NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFil
 	return packFile, nil
 }
 
-func (r *Repository) NewPackFileFromParsedMedia(parsedMedia *ParsedMedia) (*PackFile, error) {
+func NewPackFileFromParsedMedia(parsedMedia *ParsedMedia) (*PackFile, error) {
 	// Use the hash of the raw original media as OID (if the media is even slightly edited = new oid.OID)
 	packFileOID := oid.MustParse(parsedMedia.FileHash())
 
@@ -498,6 +501,7 @@ func (r *Repository) NewPackFileFromParsedMedia(parsedMedia *ParsedMedia) (*Pack
 	if err != nil {
 		return nil, err
 	}
+	media.GenerateBlobs()
 
 	// Fill the pack file
 	if err := packFile.AppendObject(media); err != nil {

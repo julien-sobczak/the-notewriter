@@ -9,7 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
+	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 )
 
@@ -58,6 +60,7 @@ type IndexEntry struct {
 	StagedSize      int64     `yaml:"staged_size"`
 }
 
+// NewIndexEntry creates a new index entry from a pack file.
 func NewIndexEntry(packFile *PackFile) *IndexEntry {
 	return &IndexEntry{
 		PackFileOID:  packFile.OID,
@@ -65,6 +68,18 @@ func NewIndexEntry(packFile *PackFile) *IndexEntry {
 		MTime:        packFile.FileMTime,
 		Size:         packFile.FileSize,
 	}
+}
+
+// String returns a string representation of the index entry.
+func (i IndexEntry) String() string {
+	tombstoneFlag := ""
+	stagedFlag := ""
+	if i.HasTombstone() {
+		tombstoneFlag = "!"
+	} else if i.Staged {
+		stagedFlag = fmt.Sprintf(" => %s", i.StagedPackFileOID)
+	}
+	return fmt.Sprintf("entry %q (packfile: %s%s%s)", i.RelativePath, tombstoneFlag, i.PackFileOID, stagedFlag)
 }
 
 func (i *IndexEntry) Stage(newPackFile *PackFile) {
@@ -109,25 +124,26 @@ func (i *IndexEntry) Commit() {
 
 func (i *IndexEntry) SetTombstone() {
 	i.Staged = true
-	i.StagedTombstone = time.Now()
+	i.StagedTombstone = clock.Now()
+}
+
+func (i *IndexEntry) HasTombstone() bool {
+	return i.Staged && !i.StagedTombstone.IsZero()
 }
 
 // MatchPathSpecs returns true if the entry matches any of the pathSpecs.
-func (i *IndexEntry) MatchPathSpecs(pathSpecs []string) bool {
+func (i *IndexEntry) MatchPathSpecs(pathSpecs PathSpecs) bool {
 	// return true if relativePath matches any of the pathSpecs
 	// PathSpecs could match parent directories.
 	for _, pathSpec := range pathSpecs {
-		if i.RelativePath == pathSpec {
-			return true
-		}
-		if strings.HasPrefix(i.RelativePath, pathSpec+"/") {
+		if pathSpec.Match(i.RelativePath) {
 			return true
 		}
 	}
 	return false
 }
 
-func (i *IndexEntry) ReadPackFile() (*PackFile, error) {
+func (i *IndexEntry) ReadPackFile() (*PackFile, error) { // TODO really useful?
 	objectPath := filepath.Join(CurrentRepository().Path, ".nt/objects", i.PackFileOID.RelativePath()+".pack")
 	return LoadPackFileFromPath(objectPath)
 }
@@ -144,16 +160,6 @@ type IndexBlob struct {
 	OID         oid.OID `yaml:"oid"`
 	MimeType    string  `yaml:"mime" json:"mime"`
 	PackFileOID oid.OID `yaml:"packfile_oid"`
-}
-
-// ReadIndex reads the index file from the current repository.
-func ReadIndex() *Index {
-	index, err := NewIndexFromPath(CurrentRepository().GetAbsolutePath(".nt/index"))
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to read current .nt/index file: %v", err)
-		os.Exit(1)
-	}
-	return index
 }
 
 // NewIndex instantiates a new index.
@@ -180,6 +186,21 @@ func NewIndexFromPath(path string) (*Index, error) {
 	}
 	in.Close()
 	return index, nil
+}
+
+// ReadIndex reads the index file from the current repository.
+func ReadIndex() (*Index, error) {
+	return NewIndexFromPath(CurrentRepository().GetAbsolutePath(".nt/index"))
+}
+
+// MustReadIndex reads the index file from the current repository or fails otherwise.
+func MustReadIndex() *Index {
+	index, err := ReadIndex()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to read current .nt/index file: %v", err)
+		os.Exit(1)
+	}
+	return index
 }
 
 // Read read an index from the file.
@@ -212,6 +233,7 @@ func (i *Index) Save() error {
 	return i.Write(f)
 }
 
+// GetEntryByPackFileOID returns the entry associated with a pack file OID.
 func (i *Index) GetEntryByPackFileOID(oid oid.OID) (*IndexEntry, bool) {
 	for _, entry := range i.Entries {
 		if entry.PackFileOID == oid {
@@ -221,6 +243,7 @@ func (i *Index) GetEntryByPackFileOID(oid oid.OID) (*IndexEntry, bool) {
 	return nil, false
 }
 
+// GetEntry returns the entry associated with a file path.
 func (i *Index) GetEntry(path string) *IndexEntry {
 	for _, entry := range i.Entries {
 		if entry.RelativePath == path {
@@ -230,19 +253,25 @@ func (i *Index) GetEntry(path string) *IndexEntry {
 	return nil
 }
 
-// GetParentEntry returns the parent entry of a file (
+// GetParentEntry returns the parent entry of a file
 // (which may still not exist in the index).
 // For example, when adding a new file, we need to locate the parent file to inherit attributes.
-func (i *Index) GetParentEntry(path string) *IndexEntry {
+func (i *Index) GetParentEntry(relativePath string) *IndexEntry {
 	// Search for a index.md in the same directory
-	currentDir := filepath.Dir(path)
+	absolutePath := CurrentRepository().GetAbsolutePath(relativePath)
+	currentDir := filepath.Dir(absolutePath)
 	rootDir := CurrentConfig().RootDirectory
 	for {
 		if !strings.HasPrefix(currentDir, rootDir) {
 			return nil
 		}
-		if entry := i.GetEntry(filepath.Join(currentDir, "index.md")); entry != nil {
-			return entry
+		parentAbsolutePath := filepath.Join(currentDir, "index.md")
+		parentRelativePath := CurrentRepository().GetFileRelativePath(parentAbsolutePath)
+		if entry := i.GetEntry(parentRelativePath); entry != nil {
+			if parentRelativePath != relativePath {
+				return entry
+			}
+			// Edge case: the file is an index.md itself, move up
 		}
 		currentDir = filepath.Dir(currentDir)
 	}
@@ -258,6 +287,21 @@ func (i *Index) Stage(packFiles ...*PackFile) error {
 			i.Entries = append(i.Entries, entry)
 		}
 		entry.Stage(packFile)
+		// Update caches
+		for _, packObject := range packFile.PackObjects {
+			i.Objects = append(i.Objects, &IndexObject{
+				OID:         packObject.OID,
+				Kind:        packObject.Kind,
+				PackFileOID: packFile.OID,
+			})
+		}
+		for _, blob := range packFile.BlobRefs {
+			i.Blobs = append(i.Blobs, &IndexBlob{
+				OID:         blob.OID,
+				MimeType:    blob.MimeType,
+				PackFileOID: packFile.OID,
+			})
+		}
 	}
 	return nil
 }
@@ -274,14 +318,50 @@ func (i *Index) SetTombstone(path string) error {
 
 // Commit persists the staged changes to the index.
 func (i *Index) Commit() error {
+	newEntries := []*IndexEntry{}
 	for _, entry := range i.Entries {
-		entry.Commit()
+		if !entry.HasTombstone() {
+			entry.Commit()
+			newEntries = append(newEntries, entry)
+		} else {
+			// to delete
+		}
 	}
+	i.Entries = newEntries
+	i.clearCache()
 	return i.Save()
 }
 
+// clearCache removes objects and blobs not referenced by any pack file.
+func (i *Index) clearCache() {
+	// Collect pack file OIDs from all entries
+	packFileOIDs := []oid.OID{}
+	for _, entry := range i.Entries {
+		packFileOIDs = append(packFileOIDs, entry.PackFileOID)
+		if entry.Staged {
+			packFileOIDs = append(packFileOIDs, entry.StagedPackFileOID)
+		}
+	}
+
+	// Clear objects and blobs not referenced by any pack file
+	newObjects := []*IndexObject{}
+	newBlobs := []*IndexBlob{}
+	for _, object := range i.Objects {
+		if slices.Contains(packFileOIDs, object.PackFileOID) {
+			newObjects = append(newObjects, object)
+		}
+	}
+	for _, blob := range i.Blobs {
+		if slices.Contains(packFileOIDs, blob.PackFileOID) {
+			newBlobs = append(newBlobs, blob)
+		}
+	}
+	i.Objects = newObjects
+	i.Blobs = newBlobs
+}
+
 // Reset clears the staged changes.
-func (i *Index) Reset(pathSpecs ...string) error {
+func (i *Index) Reset(pathSpecs PathSpecs) error {
 	var newEntries []*IndexEntry
 	for _, entry := range i.Entries {
 		if !entry.Staged {
@@ -298,6 +378,7 @@ func (i *Index) Reset(pathSpecs ...string) error {
 		}
 	}
 	i.Entries = newEntries
+	i.clearCache()
 	return i.Save()
 }
 
@@ -318,7 +399,7 @@ func (i *Index) ReadPackFile(oid oid.OID) (*PackFile, error) {
 func (i *Index) ReadPackObject(oid oid.OID) (*PackObject, error) {
 	for _, object := range i.Objects {
 		if object.OID == oid {
-			packFile, err := LoadPackFileFromPath(object.PackFileOID.RelativePath() + ".pack")
+			packFile, err := i.ReadPackFile(object.PackFileOID)
 			if err != nil {
 				return nil, err
 			}
@@ -345,7 +426,7 @@ func (i *Index) ReadObject(oid oid.OID) (Object, error) {
 func (i *Index) ReadBlob(oid oid.OID) (*BlobRef, error) {
 	for _, blob := range i.Blobs {
 		if blob.OID == oid {
-			packFile, err := LoadPackFileFromPath(blob.PackFileOID.RelativePath() + ".blob")
+			packFile, err := i.ReadPackFile(blob.PackFileOID)
 			if err != nil {
 				return nil, err
 			}
@@ -398,4 +479,47 @@ func (i *Index) Modified(relativePath string, mtime time.Time) bool {
 		return true
 	}
 	return mtime.After(entry.MTime)
+}
+
+// ShortOID returns a short version of the OID based on the known OIDs.
+func (idx *Index) ShortOID(oid oid.OID) string {
+	knownOIDs := []string{}
+	for _, entry := range idx.Entries {
+		knownOIDs = append(knownOIDs, entry.PackFileOID.String())
+		if entry.Staged {
+			knownOIDs = append(knownOIDs, entry.StagedPackFileOID.String())
+		}
+	}
+	for _, object := range idx.Objects {
+		knownOIDs = append(knownOIDs, object.OID.String())
+	}
+	for _, blob := range idx.Blobs {
+		knownOIDs = append(knownOIDs, blob.OID.String())
+	}
+
+	// Find the shortest unique prefix
+	shortOID := ShortenToUniquePrefix(oid.String(), knownOIDs)
+	// No
+	if len(shortOID) < 4 { // Minimum 4 characters, like Git short OID
+		return oid.String()[0:4]
+	}
+	return shortOID
+}
+
+// ShortenToUniquePrefix shortens a string to the shortest unique prefix based on a list of string values.
+func ShortenToUniquePrefix(value string, knownValues []string) string {
+	for length := 1; length <= len(value); length++ {
+		prefix := value[:length]
+		unique := true
+		for _, knownValue := range knownValues {
+			if len(knownValue) >= length && knownValue[:length] == prefix {
+				unique = false
+				break
+			}
+		}
+		if unique {
+			return prefix
+		}
+	}
+	return value // If no unique prefix is found, return the original value
 }

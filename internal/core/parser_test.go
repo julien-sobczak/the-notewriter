@@ -199,6 +199,7 @@ func TestParseFile(t *testing.T) {
 	for _, testcase := range testcases {
 		t.Run(testcase.name, func(t *testing.T) {
 			dirname := testutil.SetUpFromGoldenDirNamed(t, "TestParser")
+			// FIXME use NewPackFileXXX method instead and save to index + DB
 			md, err := markdown.ParseFile(filepath.Join(dirname, testcase.golden+".md"))
 			require.NoError(t, err)
 			file, err := core.ParseFile(md, nil)

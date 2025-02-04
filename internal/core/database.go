@@ -47,10 +47,10 @@ type DB struct {
 func CurrentDB() *DB {
 	dbOnce.Do(func() {
 		// Load index
-		index := ReadIndex()
+		index := MustReadIndex()
 
 		// Load refs
-		refs := ReadRefs()
+		refs := MustReadRefs()
 
 		// Create the database
 		dbSingleton = &DB{
@@ -59,6 +59,10 @@ func CurrentDB() *DB {
 		}
 	})
 	return dbSingleton
+}
+
+func CurrentIndex() *Index {
+	return CurrentDB().Index()
 }
 
 func (db *DB) initClient() *sql.DB {
@@ -94,7 +98,7 @@ func (db *DB) initClient() *sql.DB {
 	return dbSingleton.client
 }
 
-func ReadRefs() map[string]string {
+func MustReadRefs() map[string]string {
 	refs := make(map[string]string)
 	refdir := CurrentRepository().GetAbsolutePath(".nt/refs")
 	files, err := os.ReadDir(refdir)
