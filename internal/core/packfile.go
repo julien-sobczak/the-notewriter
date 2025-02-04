@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"gopkg.in/yaml.v3"
 )
@@ -117,21 +116,6 @@ type PackObject struct {
 	CTime       time.Time  `yaml:"ctime" json:"ctime"`
 	Description string     `yaml:"desc" json:"desc"`
 	Data        ObjectData `yaml:"data" json:"data"`
-}
-
-// NewPackFile initializes a new empty pack file.
-func NewPackFile(fileObject FileObject) *PackFile {
-	return &PackFile{
-		OID: fileObject.UniqueOID(),
-
-		// Init file properties
-		FileRelativePath: fileObject.FileRelativePath(),
-		FileMTime:        fileObject.FileMTime(),
-		FileSize:         fileObject.FileSize(),
-
-		// Init pack file properties
-		CTime: clock.Now(),
-	}
 }
 
 // ReadObject recreates the core object from a commit object.
@@ -289,8 +273,17 @@ func (p *PackFile) Write(w io.Writer) error {
 
 // Save writes a new pack file inside .nt/objects.
 func (p *PackFile) Save() error {
-	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects/"+p.OID.RelativePath()+".pack")
-	return p.SaveTo(path)
+	return p.SaveTo(PackFilePath(p.OID))
+}
+
+// ObjectPath returns the path to the pack file in .nt/objects/ directory.
+func (p *PackFile) ObjectPath() string {
+	return PackFilePath(p.OID)
+}
+
+// PackFilePath returns the path to the pack file in .nt/objects/ directory.
+func PackFilePath(oid oid.OID) string {
+	return filepath.Join(CurrentConfig().RootDirectory, ".nt/objects/"+oid.RelativePath()+".pack")
 }
 
 // SaveTo writes a new pack file to the given location.

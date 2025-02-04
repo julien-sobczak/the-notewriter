@@ -33,6 +33,16 @@ func (b *BlobRef) ToMarkdown() string {
 	return fmt.Sprintf("Blob %s %s\n", b.OID, b.MimeType)
 }
 
+// ObjectPath returns the path to the blob file in .nt/objects/ directory.
+func (b *BlobRef) ObjectPath() string {
+	return BlobPath(b.OID)
+}
+
+// BlobPath returns the path to the blob file in .nt/objects/ directory.
+func BlobPath(oid oid.OID) string {
+	return filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", oid.RelativePath()+".blob")
+}
+
 type Dumpable interface {
 	ToYAML() string
 	ToJSON() string

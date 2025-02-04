@@ -5,6 +5,7 @@ import "strings"
 var mimeTypes = map[string]string{
 	// Common MIME types
 	// See https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types
+	".md":     "text/markdown", // Markdown
 	".aac":    "audio/aac",
 	".abw":    "application/x-abiword",                                                     // AbiWord document
 	".arc":    "application/x-freearc",                                                     // Archive document (multiple files embedded)

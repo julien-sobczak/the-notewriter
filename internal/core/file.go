@@ -596,7 +596,7 @@ func (f *File) GenerateBlobs() {
 	oid := oid.NewFromBytes(data)
 	blob := &BlobRef{
 		OID:      oid,
-		MimeType: medias.MimeType(".gz"),
+		MimeType: medias.MimeType(".md"),
 		Tags:     []string{"original", "markdown"},
 	}
 	if err := CurrentDB().WriteBlobOnDisk(blob.OID, data); err != nil {

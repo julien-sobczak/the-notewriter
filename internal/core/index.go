@@ -144,8 +144,7 @@ func (i *IndexEntry) MatchPathSpecs(pathSpecs PathSpecs) bool {
 }
 
 func (i *IndexEntry) ReadPackFile() (*PackFile, error) { // TODO really useful?
-	objectPath := filepath.Join(CurrentRepository().Path, ".nt/objects", i.PackFileOID.RelativePath()+".pack")
-	return LoadPackFileFromPath(objectPath)
+	return LoadPackFileFromPath(PackFilePath(i.PackFileOID))
 }
 
 // IndexObject represents a single object present in a pack file.
@@ -388,8 +387,7 @@ func (i *Index) Reset(pathSpecs PathSpecs) error {
 func (i *Index) ReadPackFile(oid oid.OID) (*PackFile, error) {
 	for _, entry := range i.Entries {
 		if entry.PackFileOID == oid {
-			objectPath := filepath.Join(CurrentRepository().Path, ".nt/objects", oid.RelativePath()+".pack")
-			return LoadPackFileFromPath(objectPath)
+			return LoadPackFileFromPath(PackFilePath(oid))
 		}
 	}
 	return nil, nil
@@ -447,8 +445,7 @@ func (i *Index) ReadBlobData(oid oid.OID) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	blobPath := filepath.Join(CurrentRepository().Path, ".nt/objects", ref.OID.RelativePath()+".blob")
-	data, err := os.ReadFile(blobPath)
+	data, err := os.ReadFile(ref.ObjectPath())
 	if err != nil {
 		return nil, err
 	}

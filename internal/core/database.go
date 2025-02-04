@@ -218,8 +218,7 @@ func (db *DB) DeletePackFiles(packFiles ...*PackFile) error {
 // ReadPackFile reads a pack file on disk.
 func (db *DB) ReadPackFileOnDisk(oid oid.OID) (*PackFile, error) {
 	result := new(PackFile)
-	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", oid.RelativePath()+".pack")
-	in, err := os.Open(path)
+	in, err := os.Open(PackFilePath(oid))
 	if err != nil {
 		return nil, err
 	}
@@ -235,30 +234,28 @@ func (db *DB) WritePackFileOnDisk(packFile *PackFile) error {
 	if err := packFile.Save(); err != nil {
 		return err
 	}
-	CurrentLogger().Infof("💾 Saved pack file %s.pack", packFile.OID)
+	CurrentLogger().Infof("💾 Saved pack file %s", filepath.Base(packFile.ObjectPath()))
 	return nil
 }
 
 // DeletePackFileOnDisk removes a single pack file on disk
 func (db *DB) DeletePackFileOnDisk(packFile *PackFile) error {
-	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", packFile.OID.RelativePath()+".pack")
-	err := os.Remove(path)
+	err := os.Remove(packFile.ObjectPath())
 	if err != nil {
 		return err
 	}
-	CurrentLogger().Infof("💾 Deleted pack file %s.blob", packFile.OID)
+	CurrentLogger().Infof("💾 Deleted pack file %s", filepath.Base(packFile.ObjectPath()))
 	return nil
 }
 
 // ReadBlobOnDisk reads a blob file on disk.
 func (db *DB) ReadBlobOnDisk(oid oid.OID) ([]byte, error) {
-	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", oid.RelativePath()+".blob")
-	return os.ReadFile(path)
+	return os.ReadFile(BlobPath(oid))
 }
 
 // WriteBlobOnDisk writes a blob file on disk
 func (db *DB) WriteBlobOnDisk(oid oid.OID, data []byte) error {
-	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", oid.RelativePath()+".blob")
+	path := BlobPath(oid)
 	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
 		return err
 	}
@@ -281,12 +278,11 @@ func (db *DB) DeleteBlobsOnDisk(media *Media) error {
 
 // DeleteBlobOnDisk removes a single blob on disk
 func (db *DB) DeleteBlobOnDisk(media *Media, blob *BlobRef) error {
-	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", blob.OID.RelativePath()+".blob")
-	err := os.Remove(path)
+	err := os.Remove(blob.ObjectPath())
 	if err != nil {
 		return err
 	}
-	CurrentLogger().Infof("💾 Deleted blob %s", filepath.Base(path))
+	CurrentLogger().Infof("💾 Deleted blob %s", filepath.Base(blob.ObjectPath()))
 	return nil
 }
 
@@ -415,15 +411,13 @@ func (db *DB) Ref(name string) (string, bool) {
 
 // BlobExists checks if a blob exists locally.
 func (db *DB) BlobExists(oid oid.OID) bool {
-	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", oid.RelativePath()+".blob")
-	_, err := os.Stat(path)
+	_, err := os.Stat(BlobPath(oid))
 	return !os.IsNotExist(err)
 }
 
 // PackFileExists checks if a blob exists locally.
 func (db *DB) PackFileExists(oid oid.OID) bool {
-	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", oid.RelativePath()+".pack")
-	_, err := os.Stat(path)
+	_, err := os.Stat(PackFilePath(oid))
 	return !os.IsNotExist(err)
 }
 
