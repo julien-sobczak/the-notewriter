@@ -148,7 +148,7 @@ func (r *Repository) Walk(pathSpecs PathSpecs, fn func(md *markdown.File) error)
 			return nil
 		}
 
-		// We look for only specific extension
+		// We look only for specific extension
 		if !info.IsDir() && !config.ConfigFile.SupportExtension(relativePath) {
 			// Nothing to do
 			return nil
@@ -184,19 +184,12 @@ func (r *Repository) Walk(pathSpecs PathSpecs, fn func(md *markdown.File) error)
 			return err
 		}
 
-		// TODO refactor markdown.FrontMatter.AsAttributeSet(BaseSchema).Tags().Include("ignore")
-		// TODO refactor AttributeSet(markdown.FrontMatter).Tags().Include("ignore")
-		// -> return AttributeSet() range markdown.FrontMatter) + Cast(ReservedAttributesDefinition)
 		frontMatter, err := NewAttributeSetFromMarkdown(md)
 		if err != nil {
 			return err
 		}
-		if value, ok := frontMatter["tags"]; ok {
-			if typedValue, ok := CastAttribute(value, "[]string"); ok {
-				if slices.Contains(typedValue.([]string), "ignore") {
-					continue
-				}
-			}
+		if frontMatter.Tags().Includes("ignore") {
+			continue
 		}
 
 		if err := fn(md); err != nil {
@@ -207,35 +200,19 @@ func (r *Repository) Walk(pathSpecs PathSpecs, fn func(md *markdown.File) error)
 	return nil
 }
 
-// normalizePaths converts to absolute paths.
-func (r *Repository) normalizePaths(paths ...string) []string {
-	if len(paths) == 0 {
-		return []string{CurrentConfig().RootDirectory}
-	}
-	var results []string
-	for _, path := range paths {
-		if path == "." {
-			// Process all files in the root directory
-			path = CurrentConfig().RootDirectory
-		} else if !filepath.IsAbs(path) {
-			path = r.GetAbsolutePath(path)
-		}
-		results = append(results, path)
-	}
-	return results
-}
-
 // Commit implements the command `nt commit`
 func (r *Repository) Commit(msg string) error {
-	return nil
+	if CurrentIndex().NothingToCommit() {
+		fmt.Println("nothing to commit (create/copy files and use \"nt add\" to track")
+		return nil
+	}
+	return CurrentIndex().Commit()
 }
 
 // Add implements the command `nt add`
 func (r *Repository) Add(paths ...PathSpec) error {
 	r.MustLint(paths...)
 
-	// Any object not updated after this date will be considered as deletions
-	buildTime := clock.Now()
 	db := CurrentDB()
 
 	var traversedPaths []string
@@ -326,8 +303,6 @@ func (r *Repository) Add(paths ...PathSpec) error {
 	if err != nil {
 		return err
 	}
-
-	fmt.Println(buildTime)
 
 	// Walk the index to identify old files
 	err = db.Index().Walk(paths, func(entry *IndexEntry) error {
@@ -536,6 +511,8 @@ func (r *Repository) Status() (string, error) {
 	// We only output results.
 	var sb strings.Builder
 
+	// TODO implement
+
 	// Show staging area content
 	sb.WriteString(`Changes to be committed:` + "\n")
 	sb.WriteString(`  (use "nt restore..." to unstage)` + "\n")
@@ -627,6 +604,8 @@ func (r *Repository) CountObjectsByType() (map[string]int, error) {
 func (r *Repository) Diff(staged bool) (string, error) {
 	// Enable dry-run mode to not generate blobs
 	CurrentConfig().DryRun = true
+
+	// TODO implement
 
 	return "", nil
 }

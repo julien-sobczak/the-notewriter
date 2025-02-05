@@ -331,6 +331,16 @@ func (i *Index) Commit() error {
 	return i.Save()
 }
 
+// NothingToCommit returns true if there are no staged changes.
+func (i *Index) NothingToCommit() bool {
+	for _, entry := range i.Entries {
+		if entry.Staged {
+			return false
+		}
+	}
+	return true
+}
+
 // clearCache removes objects and blobs not referenced by any pack file.
 func (i *Index) clearCache() {
 	// Collect pack file OIDs from all entries
