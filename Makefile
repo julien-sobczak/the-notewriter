@@ -5,6 +5,10 @@ GO_PACKAGES = $(shell go list ./... | grep -v .go)
 APP_NAME = github.com/julien-sobczak/the-notewriter
 APP_VERSION = $(shell git rev-parse HEAD)
 
+
+deps:
+	go install github.com/hhatto/gocloc/cmd/gocloc@latest
+
 build:
 	go build --tags "fts5" -o build/nt cmd/nt/*.go
 	go build --tags "fts5" -o build/ntlite cmd/ntlite/*.go
@@ -13,6 +17,15 @@ build:
 
 test:
 	go test --tags "fts5" ./... -count=1 -v
+
+cover:
+	go test -cover --tags "fts5" ./... -count=1
+cover-html:
+	@go test -coverprofile="cover.out" --tags "fts5" ./... -count=1
+	@go tool cover -html=cover.out
+
+cloc:
+	@gocloc --not-match-d="(^website|testdata)" --not-match="_test.go$$" --exclude-ext="json" .
 
 docs:
 	npm run --prefix ./website start

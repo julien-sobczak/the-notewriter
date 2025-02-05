@@ -1,5 +1,9 @@
+# Environment
 .DS_Store
+
+# Build
 build/
+cover.out
 database.db
 
 # Docs
