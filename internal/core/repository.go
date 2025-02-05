@@ -27,61 +27,48 @@ var (
 	repositorySingleton *Repository
 )
 
-type Repository struct {
-	Path string `yaml:"path"`
-}
+type Repository struct{}
 
 func CurrentRepository() *Repository {
 	repositoryOnce.Do(func() {
-		var err error
-		repositorySingleton, err = NewRepository()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Unable to init current repository: %v\n", err)
-			os.Exit(1)
-		}
+		repositorySingleton = NewRepository()
 	})
 	return repositorySingleton
 }
 
-func NewRepository() (*Repository, error) {
-	config := CurrentConfig()
-
-	absolutePath, err := filepath.Abs(config.RootDirectory)
-	if err != nil {
-		return nil, err
-	}
-
-	c := &Repository{
-		Path: absolutePath,
-	}
-	return c, nil
+func NewRepository() *Repository {
+	return &Repository{}
 }
 
 func (r *Repository) Close() {
 	CurrentDB().Close()
 }
 
+func (r *Repository) Path() string {
+	return CurrentConfig().RootDirectory
+}
+
 // GetNoteRelativePath converts a relative path from a note to a relative path from the repository root directory.
 func (r *Repository) GetNoteRelativePath(fileRelativePath string, srcPath string) (string, error) {
-	return filepath.Rel(r.Path, filepath.Join(filepath.Dir(r.GetAbsolutePath(fileRelativePath)), srcPath))
+	return filepath.Rel(r.Path(), filepath.Join(filepath.Dir(r.GetAbsolutePath(fileRelativePath)), srcPath))
 }
 
 // GetFileRelativePath converts a relative path of a file to a relative path from the repository.
 func (r *Repository) GetFileRelativePath(fileAbsolutePath string) string {
-	return RelativePath(r.Path, fileAbsolutePath)
+	return RelativePath(r.Path(), fileAbsolutePath)
 }
 
 // GetFileAbsolutePath converts a relative path from the repository to an absolute path on disk.
 func (r *Repository) GetFileAbsolutePath(fileRelativePath string) string {
-	return filepath.Join(r.Path, fileRelativePath)
+	return filepath.Join(r.Path(), fileRelativePath)
 }
 
 // GetAbsolutePath converts a relative path from the repository to an absolute path on disk.
 func (r *Repository) GetAbsolutePath(path string) string {
-	if strings.HasPrefix(path, r.Path) {
+	if strings.HasPrefix(path, r.Path()) {
 		return path
 	}
-	return filepath.Join(r.Path, path)
+	return filepath.Join(r.Path(), path)
 }
 
 /* Commands */

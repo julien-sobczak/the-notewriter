@@ -8,12 +8,15 @@ import (
 
 	"github.com/julien-sobczak/the-notewriter/internal/core"
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
-	"github.com/julien-sobczak/the-notewriter/internal/testutil"
+	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestParseFile(t *testing.T) {
+	core.FreezeNow(t)
+	core.FreezeNow(t)
+
 	testcases := []struct {
 		name   string
 		golden string
@@ -43,7 +46,7 @@ func TestParseFile(t *testing.T) {
 					"title":  "Basic Note-Taking",
 					"rating": 5,
 					"slug":   "basic-notetaking",
-					"tags":   []any{"thinking"},
+					"tags":   []string{"thinking"},
 				}), file.FileAttributes)
 
 				// Check subobjects
@@ -54,12 +57,16 @@ func TestParseFile(t *testing.T) {
 				mediaDaVinci, ok := file.FindMediaByFilename("da-vinci-notebook.png")
 				require.True(t, ok)
 				expectedDaVinci := &core.ParsedMedia{
+					RawPath:      "medias/da-vinci-notebook.png",
 					AbsolutePath: filepath.Join(filepath.Dir(file.Markdown.AbsolutePath), "medias/da-vinci-notebook.png"),
 					RelativePath: "medias/da-vinci-notebook.png",
 					Extension:    ".png",
 					MediaKind:    core.KindPicture,
 					// File existence must also be checked
 					Dangling: false,
+					MTime:    clock.Now(),
+					Size:     1,
+					Line:     33,
 				}
 				require.EqualExportedValues(t, *expectedDaVinci, *mediaDaVinci)
 				assert.WithinDuration(t, time.Now(), mediaDaVinci.FileMTime(), 1*time.Minute) // test cases are copied in a temp directory
@@ -87,6 +94,13 @@ func TestParseFile(t *testing.T) {
 				require.True(t, ok)
 				require.Equal(t, core.AttributeSet(map[string]any{
 					"author": "Tim Ferris",
+				}), noteTimFerris.NoteAttributes)
+				require.Equal(t, core.AttributeSet(map[string]any{
+					"title":  "Basic Note-Taking",
+					"author": "Tim Ferris",
+					"rating": 5,
+					"slug":   "basic-notetaking",
+					"tags":   []string{"thinking"},
 				}), noteTimFerris.Attributes)
 
 				// Check "Flashcard: Commonplace Book"
@@ -103,6 +117,14 @@ func TestParseFile(t *testing.T) {
 				require.True(t, ok)
 				require.Equal(t, core.AttributeSet(map[string]any{
 					"author": "Leonardo da Vinci",
+					"year":   "~1510",
+				}), noteDaVinci.NoteAttributes)
+				require.Equal(t, core.AttributeSet(map[string]any{
+					"title":  "Basic Note-Taking",
+					"author": "Leonardo da Vinci",
+					"rating": 5,
+					"slug":   "basic-notetaking",
+					"tags":   []string{"thinking"},
 					"year":   "~1510",
 				}), noteDaVinci.Attributes)
 			},
@@ -198,9 +220,8 @@ func TestParseFile(t *testing.T) {
 
 	for _, testcase := range testcases {
 		t.Run(testcase.name, func(t *testing.T) {
-			dirname := testutil.SetUpFromGoldenDirNamed(t, "TestParser")
-			// FIXME use NewPackFileXXX method instead and save to index + DB
-			md, err := markdown.ParseFile(filepath.Join(dirname, testcase.golden+".md"))
+			root := core.SetUpRepositoryFromGoldenDirNamed(t, "TestParser")
+			md, err := markdown.ParseFile(filepath.Join(root, testcase.golden+".md"))
 			require.NoError(t, err)
 			file, err := core.ParseFile(md, nil)
 			require.NoError(t, err)

@@ -14,6 +14,7 @@ import (
 
 	"github.com/julien-sobczak/the-notewriter/internal/helpers"
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
+	"github.com/julien-sobczak/the-notewriter/pkg/filesystem"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
 
@@ -208,7 +209,7 @@ func ParseFile(md *markdown.File, mdParent *markdown.File) (*ParsedFile, error) 
 	result := &ParsedFile{
 		Markdown: md,
 
-		RepositoryPath: CurrentRepository().Path,
+		RepositoryPath: CurrentConfig().RootDirectory,
 		AbsolutePath:   md.AbsolutePath,
 		RelativePath:   relativePath,
 
@@ -553,7 +554,7 @@ func ParseMedia(repositoryPath, absolutePath string) *ParsedMedia {
 		MediaKind:    DetectMediaKind(absolutePath),
 		Extension:    filepath.Ext(absolutePath),
 	}
-	stat, err := os.Stat(parsedMedia.AbsolutePath)
+	stat, err := filesystem.Stat(parsedMedia.AbsolutePath)
 	if errors.Is(err, os.ErrNotExist) {
 		parsedMedia.Dangling = true
 	} else {

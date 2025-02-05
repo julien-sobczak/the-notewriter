@@ -385,7 +385,7 @@ func NewPackFileFromRelativePath(t *testing.T, fileRelativePath string) *PackFil
 	}
 
 	// Read the media
-	parsedMedia := ParseMedia(CurrentRepository().Path, fileAbsolutePath)
+	parsedMedia := ParseMedia(CurrentRepository().Path(), fileAbsolutePath)
 	packFile, err := NewPackFileFromParsedMedia(parsedMedia)
 	require.NoError(t, err)
 
