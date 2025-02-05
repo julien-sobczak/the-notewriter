@@ -143,10 +143,6 @@ func (i *IndexEntry) MatchPathSpecs(pathSpecs PathSpecs) bool {
 	return false
 }
 
-func (i *IndexEntry) ReadPackFile() (*PackFile, error) { // TODO really useful?
-	return LoadPackFileFromPath(PackFilePath(i.PackFileOID))
-}
-
 // IndexObject represents a single object present in a pack file.
 type IndexObject struct {
 	OID         oid.OID `yaml:"oid"`

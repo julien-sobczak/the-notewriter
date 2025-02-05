@@ -25,7 +25,10 @@ cover-html:
 	@go tool cover -html=cover.out
 
 cloc:
+	@echo "Counting lines of code..."
 	@gocloc --not-match-d="(^website|testdata)" --not-match="_test.go$$" --exclude-ext="json" .
+	@echo "Counting lines of code (including tests)..."
+	@gocloc --not-match-d="(^website|testdata)" --exclude-ext="json" .
 
 docs:
 	npm run --prefix ./website start

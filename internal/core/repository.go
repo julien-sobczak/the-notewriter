@@ -219,15 +219,15 @@ func (r *Repository) Add(paths ...PathSpec) error {
 		// - The parent file was modified since the last known timestamp (ex: new attribute to propagate)
 
 		var mdParentFile *markdown.File
-		parentEntry := CurrentDB().Index().GetParentEntry(relativePath)
+		parentEntry := CurrentIndex().GetParentEntry(relativePath)
 		if parentEntry != nil {
-			packFile, err := parentEntry.ReadPackFile()
+			packFile, err := CurrentIndex().ReadPackFile(parentEntry.PackFileOID)
 			if err != nil {
 				return err
 			}
 			blobRef := packFile.FindFirstBlobWithMimeType("text/markdown")
 			if blobRef != nil {
-				blobData, err := CurrentDB().Index().ReadBlobData(blobRef.OID)
+				blobData, err := CurrentIndex().ReadBlobData(blobRef.OID)
 				if err != nil {
 					return err
 				}
@@ -239,10 +239,10 @@ func (r *Repository) Add(paths ...PathSpec) error {
 			}
 		}
 
-		mdFileModified := CurrentDB().Index().Modified(relativePath, mdFile.MTime)
+		mdFileModified := CurrentIndex().Modified(relativePath, mdFile.MTime)
 		mdParentFileModified := false
 		if parentEntry != nil {
-			mdParentFileModified = CurrentDB().Index().Modified(parentEntry.RelativePath, mdFile.MTime)
+			mdParentFileModified = CurrentIndex().Modified(parentEntry.RelativePath, mdFile.MTime)
 		}
 		if !mdFileModified && !mdParentFileModified {
 			// Nothing changed = Nothing to parse
@@ -265,7 +265,7 @@ func (r *Repository) Add(paths ...PathSpec) error {
 			traversedPaths = append(traversedPaths, parsedMedia.RelativePath)
 
 			// Check if media has changed since last indexation
-			mediaFileModified := CurrentDB().Index().Modified(parsedMedia.RelativePath, parsedMedia.MTime)
+			mediaFileModified := CurrentIndex().Modified(parsedMedia.RelativePath, parsedMedia.MTime)
 			if !mediaFileModified {
 				// Media has not changed
 				continue
@@ -302,7 +302,7 @@ func (r *Repository) Add(paths ...PathSpec) error {
 		}
 
 		if !slices.Contains(traversedPaths, entry.RelativePath) {
-			packFile, err := entry.ReadPackFile()
+			packFile, err := CurrentIndex().ReadPackFile(entry.PackFileOID)
 			if err != nil {
 				return err
 			}
@@ -433,8 +433,11 @@ func NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFile, error) {
 }
 
 func NewPackFileFromParsedMedia(parsedMedia *ParsedMedia) (*PackFile, error) {
-	// Use the hash of the raw original media as OID (if the media is even slightly edited = new oid.OID)
-	packFileOID := oid.MustParse(parsedMedia.FileHash())
+	packFileOID := oid.New()
+	if !parsedMedia.Dangling {
+		// Use the hash of the raw original media as OID (if the media is even slightly edited = new oid.OID)
+		packFileOID = oid.MustParse(parsedMedia.FileHash())
+	}
 
 	// Check first if a previous execution already created the pack file
 	// (ex: the command was aborted with Ctrl+C and restarted)

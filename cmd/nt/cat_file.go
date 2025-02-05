@@ -40,7 +40,7 @@ var catFileCmd = &cobra.Command{
 // dumpOID checks if the given OID exists and dumps it
 func dumpOID(oid oid.OID) {
 	// OIDs can represent a pack file, an object inside a pack file, or a blob.
-	packFile, err := core.CurrentDB().Index().ReadPackFile(oid)
+	packFile, err := core.CurrentIndex().ReadPackFile(oid)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to read pack file: %v", err)
 		os.Exit(1)
@@ -49,7 +49,7 @@ func dumpOID(oid oid.OID) {
 		dumpObject(packFile)
 		return
 	}
-	object, err := core.CurrentDB().Index().ReadObject(oid)
+	object, err := core.CurrentIndex().ReadObject(oid)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to read object: %v", err)
 		os.Exit(1)
