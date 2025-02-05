@@ -2,7 +2,6 @@ package core
 
 import (
 	"errors"
-	"fmt"
 	"io/fs"
 	"log"
 	"os"
@@ -10,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
-	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/filesystem"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/julien-sobczak/the-notewriter/pkg/resync"
@@ -71,7 +69,7 @@ func (r *Repository) GetAbsolutePath(path string) string {
 	return filepath.Join(r.Path(), path)
 }
 
-/* Commands */
+/* Commands Helpers */
 
 type MatchedFile struct {
 	Path         string
@@ -187,18 +185,65 @@ func (r *Repository) Walk(pathSpecs PathSpecs, fn func(md *markdown.File) error)
 	return nil
 }
 
-// Commit implements the command `nt commit`
-func (r *Repository) Commit(msg string) error {
-	if CurrentIndex().NothingToCommit() {
-		fmt.Println("nothing to commit (create/copy files and use \"nt add\" to track")
+/* Commands */
+
+// Lint run linter rules on all files under the given paths.
+func (r *Repository) Lint(ruleNames []string, paths PathSpecs) (*LintResult, error) {
+	/*
+	 * Implementation: The linter must only considering local files and
+	 * ignore commits or the staging area completely.
+	 *
+	 * Indeed, the linter can be run initially before any files have been added or committed.
+	 * In the same way, a file can reference a media that existed
+	 * and is still present in the database objects even so the media has been deleted and
+	 * not added since.
+	 */
+	var result LintResult
+
+	err := r.Walk(paths, func(mdFile *markdown.File) error {
+		CurrentLogger().Debugf("Processing %s...\n", mdFile.AbsolutePath)
+
+		// Work without the database
+		file, err := ParseFile(mdFile, nil) // TODO load parent first
+		if err != nil {
+			return err
+		}
+
+		// Check file
+		violations, err := file.Lint(ruleNames)
+		if err != nil {
+			return err
+		}
+		if len(violations) > 0 {
+			result.Append(violations...)
+			result.AffectedFiles += 1
+		}
+		result.AnalyzedFiles += 1
+
 		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	return CurrentIndex().Commit()
+
+	return &result, nil
+}
+
+// MustLint enforces linter rules are respected.
+func (r *Repository) MustLint(paths PathSpecs) {
+	// Start with command linter (do not stage invalid file)
+	linterResult, err := r.Lint(nil, paths)
+	if err != nil {
+		log.Fatalf("Unable to run linter: %v", err)
+	}
+	if len(linterResult.Errors) > 0 {
+		log.Fatalf("%d linter errors detected:\n%s", len(linterResult.Errors), linterResult)
+	}
 }
 
 // Add implements the command `nt add`
-func (r *Repository) Add(paths ...PathSpec) error {
-	r.MustLint(paths...)
+func (r *Repository) Add(paths PathSpecs) error {
+	r.MustLint(paths)
 
 	db := CurrentDB()
 
@@ -336,163 +381,66 @@ func (r *Repository) Add(paths ...PathSpec) error {
 	return nil
 }
 
-func NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFile, error) {
-	// Use the hash of the parsed file as OID (if the file changes = new oid.OID)
-	packFileOID := oid.MustParse(parsedFile.Hash())
+// Reset implements the command `nt reset`
+func (r *Repository) Reset(pathSpecs PathSpecs) error {
+	packFilesOIDToRestore := []oid.OID{}
+	packFilesOIDToDelete := []oid.OID{}
+	CurrentIndex().Walk(pathSpecs, func(entry *IndexEntry) error {
+		if entry.Staged {
+			packFilesOIDToDelete = append(packFilesOIDToDelete, entry.StagedPackFileOID)
+			if entry.PackFileOID != entry.StagedPackFileOID {
+				// A previous packfile existed for this entry
+				packFilesOIDToRestore = append(packFilesOIDToRestore, entry.PackFileOID)
+			}
+		}
+		return nil
+	})
 
-	// Check first if a previous execution already created the pack file
-	// (ex: the command was aborted with Ctrl+C and restarted)
-	existingPackFile, err := CurrentDB().ReadPackFileOnDisk(packFileOID)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return nil, err
-	}
-	if existingPackFile != nil {
-		return existingPackFile, nil
-	}
-
-	packFile := &PackFile{
-		OID: packFileOID,
-
-		// Init file properties
-		FileRelativePath: parsedFile.RelativePath,
-		FileMTime:        parsedFile.Markdown.MTime,
-		FileSize:         parsedFile.Markdown.Size,
-
-		// Init pack file properties
-		CTime: clock.Now(),
-	}
-
-	// Create objects
-	var objects []Object
-
-	// Process the File
-	file, err := NewOrExistingFile(packFile, parsedFile)
-	if err != nil {
-		return nil, err
-	}
-	objects = append(objects, file)
-	file.GenerateBlobs()
-
-	// Process the Note(s)
-	for _, parsedNote := range parsedFile.Notes {
-		note, err := NewOrExistingNote(packFile, file, parsedNote)
+	// Load pack files to restore/delete
+	var packFilesToRestore []*PackFile
+	var packFilesToDelete []*PackFile
+	for _, packFileOID := range packFilesOIDToRestore {
+		packFile, err := CurrentIndex().ReadPackFile(packFileOID)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		objects = append(objects, note)
-
-		// Process the Flashcard
-		if parsedNote.Flashcard != nil {
-			parsedFlashcard := parsedNote.Flashcard
-			flashcard, err := NewOrExistingFlashcard(packFile, file, note, parsedFlashcard)
-			if err != nil {
-				return nil, err
-			}
-			objects = append(objects, flashcard)
+		packFilesToRestore = append(packFilesToRestore, packFile)
+	}
+	for _, packFileOID := range packFilesOIDToDelete {
+		packFile, err := CurrentIndex().ReadPackFile(packFileOID)
+		if err != nil {
+			return err
 		}
-
-		// Process the Reminder(s)
-		for _, parsedReminder := range parsedNote.Reminders {
-			reminder, err := NewOrExistingReminder(packFile, note, parsedReminder)
-			if err != nil {
-				return nil, err
-			}
-			objects = append(objects, reminder)
-		}
-
-		// Process the Golink(s)
-		for _, parsedGoLink := range parsedNote.GoLinks {
-			goLink, err := NewOrExistingGoLink(packFile, note, parsedGoLink)
-			if err != nil {
-				return nil, err
-			}
-			objects = append(objects, goLink)
-		}
+		packFilesToDelete = append(packFilesToDelete, packFile)
 	}
 
-	// Fill the pack file
-	for _, obj := range objects {
-		if statefulObj, ok := obj.(StatefulObject); ok {
-			if err := packFile.AppendObject(statefulObj); err != nil {
-				return nil, err
-			}
-		}
-		if fileObj, ok := obj.(FileObject); ok {
-			if err := packFile.AppendBlobs(fileObj.Blobs()); err != nil {
-				return nil, err
-			}
-		}
+	// Start with DB changes (more error-prone)
+	db := CurrentDB()
+	if err := db.BeginTransaction(); err != nil {
+		return err
+	}
+	db.UpsertPackFiles(packFilesToRestore...)
+	db.DeletePackFiles(packFilesToDelete...)
+
+	// Rewrite index before committing
+	if err := db.Index().Reset(pathSpecs); err != nil {
+		return err
 	}
 
-	// Save the pack file on disk
-	if err := packFile.Save(); err != nil {
-		return nil, err
+	// Don't forget to commit
+	if err := db.CommitTransaction(); err != nil {
+		return err
 	}
 
-	return packFile, nil
+	return nil
 }
 
-func NewPackFileFromParsedMedia(parsedMedia *ParsedMedia) (*PackFile, error) {
-	packFileOID := oid.New()
-	if !parsedMedia.Dangling {
-		// Use the hash of the raw original media as OID (if the media is even slightly edited = new oid.OID)
-		packFileOID = oid.MustParse(parsedMedia.FileHash())
+// Commit implements the command `nt commit`
+func (r *Repository) Commit(msg string) error {
+	if CurrentIndex().NothingToCommit() {
+		return errors.New("nothing to commit (create/copy files and use \"nt add\" to track")
 	}
-
-	// Check first if a previous execution already created the pack file
-	// (ex: the command was aborted with Ctrl+C and restarted)
-	existingPackFile, err := CurrentDB().ReadPackFileOnDisk(packFileOID)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return nil, err
-	}
-	if existingPackFile != nil {
-		return existingPackFile, nil
-	}
-
-	packFile := &PackFile{
-		OID: packFileOID,
-
-		// Init file properties
-		FileRelativePath: parsedMedia.RelativePath,
-		FileMTime:        parsedMedia.MTime,
-		FileSize:         parsedMedia.Size,
-
-		// Init pack file properties
-		CTime: clock.Now(),
-	}
-
-	// Process the Media
-	media, err := NewOrExistingMedia(packFile, parsedMedia)
-	if err != nil {
-		return nil, err
-	}
-	media.GenerateBlobs()
-
-	// Fill the pack file
-	if err := packFile.AppendObject(media); err != nil {
-		return nil, err
-	}
-	if err := packFile.AppendBlobs(media.Blobs()); err != nil {
-		return nil, err
-	}
-
-	// Save the pack file on disk
-	if err := packFile.Save(); err != nil {
-		return nil, err
-	}
-
-	return packFile, nil
-}
-
-func (r *Repository) MustLint(paths ...PathSpec) {
-	// Start with command linter (do not stage invalid file)
-	linterResult, err := r.Lint(nil, paths...)
-	if err != nil {
-		log.Fatalf("Unable to run linter: %v", err)
-	}
-	if len(linterResult.Errors) > 0 {
-		log.Fatalf("%d linter errors detected:\n%s", len(linterResult.Errors), linterResult)
-	}
+	return CurrentIndex().Commit()
 }
 
 // Status displays current objects in staging area.
@@ -510,47 +458,7 @@ func (r *Repository) Status() (string, error) {
 	return sb.String(), nil
 }
 
-// Lint run linter rules on all files under the given paths.
-func (r *Repository) Lint(ruleNames []string, paths ...PathSpec) (*LintResult, error) {
-	/*
-	 * Implementation: The linter must only considering local files and
-	 * ignore commits or the staging area completely.
-	 *
-	 * Indeed, the linter can be run initially before any files have been added or committed.
-	 * In the same way, a file can reference a media that existed
-	 * and is still present in the database objects even so the media has been deleted and
-	 * not added since.
-	 */
-	var result LintResult
-
-	err := r.Walk(paths, func(mdFile *markdown.File) error {
-		CurrentLogger().Debugf("Processing %s...\n", mdFile.AbsolutePath)
-
-		// Work without the database
-		file, err := ParseFile(mdFile, nil) // TODO load parent first
-		if err != nil {
-			return err
-		}
-
-		// Check file
-		violations, err := file.Lint(ruleNames)
-		if err != nil {
-			return err
-		}
-		if len(violations) > 0 {
-			result.Append(violations...)
-			result.AffectedFiles += 1
-		}
-		result.AnalyzedFiles += 1
-
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &result, nil
-}
+/* Stats */
 
 // CountObjectsByType returns the total number of objects for every type.
 func (r *Repository) CountObjectsByType() (map[string]int, error) {

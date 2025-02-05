@@ -359,21 +359,11 @@ func (db *DB) Push() error {
 	return nil
 }
 
-// Reset reverts the latest add command.
-func (db *DB) Reset() error {
-	// Run all queries inside the same transaction
-	err := db.BeginTransaction()
-	if err != nil {
-		return err
-	}
-	defer db.RollbackTransaction()
-
-	return err
-}
-
 // Diff show the changes in the staging area.
 func (db *DB) Diff() (string, error) {
 	var diff strings.Builder
+
+	// TODO implement
 
 	return diff.String(), nil
 }

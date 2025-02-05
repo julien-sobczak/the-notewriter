@@ -14,7 +14,7 @@ func TestRegression(t *testing.T) {
 	t.Skip() // FIXME retry after refactor
 	root := SetUpRepositoryFromGoldenDirNamed(t, "TestComplex")
 
-	err := CurrentRepository().Add(".")
+	err := CurrentRepository().Add(AnyPath)
 	require.NoError(t, err)
 
 	err = CurrentRepository().Commit("initial commit")
@@ -72,10 +72,10 @@ func TestRegression(t *testing.T) {
 			change.Apply(t, root)
 		}
 
-		err := CurrentRepository().Add(".")
+		err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 
-	err = CurrentRepository().Commit("commit")
+		err = CurrentRepository().Commit("commit")
 		require.NoError(t, err)
 
 		if edition.RunGC {

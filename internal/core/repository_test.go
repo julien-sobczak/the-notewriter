@@ -97,7 +97,6 @@ func TestIndexFilesFirst(t *testing.T) {
 	}
 }
 
-
 func TestRepository(t *testing.T) {
 
 	t.Run("GetNoteRelativePath", func(t *testing.T) {
@@ -270,7 +269,7 @@ func TestStatsInDB(t *testing.T) {
 	assert.Equal(t, 0, stats.Objects["link"])
 	assert.Equal(t, 0, stats.Objects["reminder"])
 
-	err = CurrentRepository().Add(".")
+	err = CurrentRepository().Add(AnyPath)
 	require.NoError(t, err)
 
 	stats, err = CurrentRepository().StatsInDB()

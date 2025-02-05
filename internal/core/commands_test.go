@@ -37,7 +37,7 @@ This is a first note
 This is a second note
 `)
 
-		result, err := CurrentRepository().Lint(nil, ".")
+		result, err := CurrentRepository().Lint(nil, AnyPath)
 		require.NoError(t, err)
 		require.NotNil(t, result)
 
@@ -56,7 +56,7 @@ func TestCommandAdd(t *testing.T) {
 	t.Run("Basic", func(t *testing.T) {
 		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
-		err := CurrentRepository().Add("go.md")
+		err := CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
 
 		// Check index file
@@ -93,7 +93,7 @@ func TestCommandAdd(t *testing.T) {
 	t.Run("Add Media", func(t *testing.T) {
 		SetUpRepositoryFromGoldenDirNamed(t, "TestMedias")
 
-		err := CurrentRepository().Add(".")
+		err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 
 		// Check referenced blobs are present
@@ -139,7 +139,7 @@ func TestCommandAdd(t *testing.T) {
 	t.Run("Repetitive", func(t *testing.T) {
 		root := SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
-		err := CurrentRepository().Add("go.md")
+		err := CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
 		err = CurrentRepository().Commit("Initial commit")
 		require.NoError(t, err)
@@ -151,11 +151,11 @@ func TestCommandAdd(t *testing.T) {
 
 		// Check 1: Try to add the same file edited several times
 		ReplaceLine(t, filepath.Join(root, "go.md"), 19, "What does the **Golang logo** represent?", "(Go) What does the **Golang logo** represent?")
-		err = CurrentRepository().Add("go.md")
+		err = CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
 		// Edit again before the commit
 		ReplaceLine(t, filepath.Join(root, "go.md"), 19, "(Go) What does the **Golang logo** represent?", "(Go) What does the **logo** represent?")
-		err = CurrentRepository().Add("go.md")
+		err = CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
 
 		err = CurrentRepository().Commit("First commit")
@@ -163,12 +163,12 @@ func TestCommandAdd(t *testing.T) {
 
 		// Check 2: Try to commit the same file repeatability
 		ReplaceLine(t, filepath.Join(root, "go.md"), 19, "(Go) What does the **logo** represent?", "What is the **logo**?")
-		err = CurrentRepository().Add("go.md")
+		err = CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
 		err = CurrentRepository().Commit("Second commit")
 		require.NoError(t, err)
 		ReplaceLine(t, filepath.Join(root, "go.md"), 19, "What is the **logo**?", "What represents the **logo**?")
-		err = CurrentRepository().Add("go.md")
+		err = CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
 		err = CurrentRepository().Commit("Third commit")
 		require.NoError(t, err)
@@ -178,6 +178,89 @@ func TestCommandAdd(t *testing.T) {
 		assert.Len(t, idx.Entries, 2)
 		assert.Len(t, idx.Objects, 8)
 		assert.Len(t, idx.Blobs, 4)
+	})
+
+}
+
+func TestCommandReset(t *testing.T) {
+
+	t.Run("Basic", func(t *testing.T) {
+		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+
+		CurrentLogger().SetVerboseLevel(VerboseDebug)
+
+		err := CurrentRepository().Add(PathSpecs{"go.md"})
+		require.NoError(t, err)
+
+		// Check index file
+		idx := MustReadIndex()
+		// Entries have been staged
+		require.Greater(t, len(idx.Entries), 0)
+		require.Greater(t, len(idx.Objects), 0)
+		require.Greater(t, len(idx.Blobs), 0)
+		firstEntry := idx.Entries[0]
+		firstEntryPath := PackFilePath(firstEntry.StagedPackFileOID)
+		assert.FileExists(t, firstEntryPath)
+
+		// Check database
+		// Staged entries are added in database before commit
+		file, err := CurrentRepository().FindFileByRelativePath("go.md")
+		require.NoError(t, err)
+		require.NotNil(t, file)
+
+		// Reset
+		err = CurrentRepository().Reset(AnyPath)
+		require.NoError(t, err)
+
+		// Check index again
+		idx = MustReadIndex()
+		require.Empty(t, idx.Entries)
+		require.Empty(t, idx.Objects)
+		require.Empty(t, idx.Blobs)
+		assert.FileExists(t, firstEntryPath) // We don't delete the pack files.
+		// If the add command is rerun, the packfile will be reused.
+		// (= great for medias to avoid regenerating the blobs)
+
+		// Check database is empty
+		file, err = CurrentRepository().FindFileByRelativePath("go.md")
+		require.NoError(t, err)
+		require.Nil(t, file)
+	})
+
+}
+
+func TestCommandCommit(t *testing.T) {
+
+	t.Run("Basic", func(t *testing.T) {
+		root := SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+
+		err := CurrentRepository().Add(PathSpecs{"go.md"})
+		require.NoError(t, err)
+
+		err = CurrentRepository().Commit("initial commit")
+		require.NoError(t, err)
+
+		require.NoFileExists(t, filepath.Join(root, "python.md"))
+		MustWriteFile(t, "python.md", `# Python
+
+## Flashcard: Python's creator
+
+Who invented Python?
+
+---
+
+Guido van Rossum
+`)
+
+		err = CurrentRepository().Commit("empty commit")
+		require.ErrorContains(t, err, "nothing to commit")
+
+		// Create a second commit
+		err = CurrentRepository().Add(PathSpecs{"python.md"})
+		require.NoError(t, err)
+
+		err = CurrentRepository().Commit("second commit")
+		require.NoError(t, err)
 	})
 
 }

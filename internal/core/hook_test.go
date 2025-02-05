@@ -12,7 +12,7 @@ func TestHooks(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		SetUpRepositoryFromGoldenDirNamed(t, "TestHooks")
 
-		err := CurrentRepository().Add(".")
+		err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 
 		notes, err := CurrentRepository().SearchNotes(`@title:dup`)
@@ -26,7 +26,7 @@ func TestHooks(t *testing.T) {
 	t.Run("Missing", func(t *testing.T) {
 		SetUpRepositoryFromGoldenDirNamed(t, "TestHooks")
 
-		err := CurrentRepository().Add(".")
+		err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 
 		notes, err := CurrentRepository().SearchNotes(`@title:missing`)
@@ -40,7 +40,7 @@ func TestHooks(t *testing.T) {
 	t.Run("Not executable", func(t *testing.T) {
 		SetUpRepositoryFromGoldenDirNamed(t, "TestHooks")
 
-		err := CurrentRepository().Add(".")
+		err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 
 		notes, err := CurrentRepository().SearchNotes(`@title:program`)
@@ -54,7 +54,7 @@ func TestHooks(t *testing.T) {
 	t.Run("Multiple executables", func(t *testing.T) {
 		SetUpRepositoryFromGoldenDirNamed(t, "TestHooks")
 
-		err := CurrentRepository().Add(".")
+		err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 
 		notes, err := CurrentRepository().SearchNotes(`@title:multiple`)
@@ -68,7 +68,7 @@ func TestHooks(t *testing.T) {
 	t.Run("Error", func(t *testing.T) {
 		SetUpRepositoryFromGoldenDirNamed(t, "TestHooks")
 
-		err := CurrentRepository().Add(".")
+		err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 
 		notes, err := CurrentRepository().SearchNotes(`@title:error`)

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/zlib"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"gopkg.in/yaml.v3"
 )
@@ -338,4 +340,154 @@ func (p PackFileRefs) OIDs() []oid.OID {
 		results = append(results, packFileRef.OID)
 	}
 	return results
+}
+
+/* PackFile creation */
+
+func NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFile, error) {
+	// Use the hash of the parsed file as OID (if the file changes = new oid.OID)
+	packFileOID := oid.MustParse(parsedFile.Hash())
+
+	// Check first if a previous execution already created the pack file
+	// (ex: the command was aborted with Ctrl+C and restarted)
+	existingPackFile, err := CurrentDB().ReadPackFileOnDisk(packFileOID)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	if existingPackFile != nil {
+		return existingPackFile, nil
+	}
+
+	packFile := &PackFile{
+		OID: packFileOID,
+
+		// Init file properties
+		FileRelativePath: parsedFile.RelativePath,
+		FileMTime:        parsedFile.Markdown.MTime,
+		FileSize:         parsedFile.Markdown.Size,
+
+		// Init pack file properties
+		CTime: clock.Now(),
+	}
+
+	// Create objects
+	var objects []Object
+
+	// Process the File
+	file, err := NewOrExistingFile(packFile, parsedFile)
+	if err != nil {
+		return nil, err
+	}
+	objects = append(objects, file)
+	file.GenerateBlobs()
+
+	// Process the Note(s)
+	for _, parsedNote := range parsedFile.Notes {
+		note, err := NewOrExistingNote(packFile, file, parsedNote)
+		if err != nil {
+			return nil, err
+		}
+		objects = append(objects, note)
+
+		// Process the Flashcard
+		if parsedNote.Flashcard != nil {
+			parsedFlashcard := parsedNote.Flashcard
+			flashcard, err := NewOrExistingFlashcard(packFile, file, note, parsedFlashcard)
+			if err != nil {
+				return nil, err
+			}
+			objects = append(objects, flashcard)
+		}
+
+		// Process the Reminder(s)
+		for _, parsedReminder := range parsedNote.Reminders {
+			reminder, err := NewOrExistingReminder(packFile, note, parsedReminder)
+			if err != nil {
+				return nil, err
+			}
+			objects = append(objects, reminder)
+		}
+
+		// Process the Golink(s)
+		for _, parsedGoLink := range parsedNote.GoLinks {
+			goLink, err := NewOrExistingGoLink(packFile, note, parsedGoLink)
+			if err != nil {
+				return nil, err
+			}
+			objects = append(objects, goLink)
+		}
+	}
+
+	// Fill the pack file
+	for _, obj := range objects {
+		if statefulObj, ok := obj.(StatefulObject); ok {
+			if err := packFile.AppendObject(statefulObj); err != nil {
+				return nil, err
+			}
+		}
+		if fileObj, ok := obj.(FileObject); ok {
+			if err := packFile.AppendBlobs(fileObj.Blobs()); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	// Save the pack file on disk
+	if err := packFile.Save(); err != nil {
+		return nil, err
+	}
+
+	return packFile, nil
+}
+
+func NewPackFileFromParsedMedia(parsedMedia *ParsedMedia) (*PackFile, error) {
+	packFileOID := oid.New()
+	if !parsedMedia.Dangling {
+		// Use the hash of the raw original media as OID (if the media is even slightly edited = new oid.OID)
+		packFileOID = oid.MustParse(parsedMedia.FileHash())
+	}
+
+	// Check first if a previous execution already created the pack file
+	// (ex: the command was aborted with Ctrl+C and restarted)
+	existingPackFile, err := CurrentDB().ReadPackFileOnDisk(packFileOID)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	if existingPackFile != nil {
+		return existingPackFile, nil
+	}
+
+	packFile := &PackFile{
+		OID: packFileOID,
+
+		// Init file properties
+		FileRelativePath: parsedMedia.RelativePath,
+		FileMTime:        parsedMedia.MTime,
+		FileSize:         parsedMedia.Size,
+
+		// Init pack file properties
+		CTime: clock.Now(),
+	}
+
+	// Process the Media
+	media, err := NewOrExistingMedia(packFile, parsedMedia)
+	if err != nil {
+		return nil, err
+	}
+	media.GenerateBlobs()
+
+	// Fill the pack file
+	if err := packFile.AppendObject(media); err != nil {
+		return nil, err
+	}
+	if err := packFile.AppendBlobs(media.Blobs()); err != nil {
+		return nil, err
+	}
+
+	// Save the pack file on disk
+	if err := packFile.Save(); err != nil {
+		return nil, err
+	}
+
+	return packFile, nil
 }
