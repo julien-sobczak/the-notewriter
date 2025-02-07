@@ -7,7 +7,6 @@ import (
 )
 
 func TestHooks(t *testing.T) {
-	t.Skip() // TODO FIXME
 
 	t.Run("Valid", func(t *testing.T) {
 		SetUpRepositoryFromGoldenDirNamed(t, "TestHooks")
@@ -15,7 +14,7 @@ func TestHooks(t *testing.T) {
 		err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 
-		notes, err := CurrentRepository().SearchNotes(`@title:dup`)
+		notes, err := CurrentRepository().SearchNotes(`slug:hooks-todo-dup`)
 		require.NoError(t, err)
 		require.Len(t, notes, 1)
 		note := notes[0]
@@ -29,7 +28,7 @@ func TestHooks(t *testing.T) {
 		err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 
-		notes, err := CurrentRepository().SearchNotes(`@title:missing`)
+		notes, err := CurrentRepository().SearchNotes(`slug:hooks-note-missing`)
 		require.NoError(t, err)
 		require.Len(t, notes, 1)
 		note := notes[0]
@@ -43,7 +42,7 @@ func TestHooks(t *testing.T) {
 		err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 
-		notes, err := CurrentRepository().SearchNotes(`@title:program`)
+		notes, err := CurrentRepository().SearchNotes(`slug:hooks-note-program`)
 		require.NoError(t, err)
 		require.Len(t, notes, 1)
 		note := notes[0]
@@ -57,7 +56,7 @@ func TestHooks(t *testing.T) {
 		err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 
-		notes, err := CurrentRepository().SearchNotes(`@title:multiple`)
+		notes, err := CurrentRepository().SearchNotes(`slug:hooks-note-multiple`)
 		require.NoError(t, err)
 		require.Len(t, notes, 1)
 		note := notes[0]
@@ -71,7 +70,7 @@ func TestHooks(t *testing.T) {
 		err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 
-		notes, err := CurrentRepository().SearchNotes(`@title:error`)
+		notes, err := CurrentRepository().SearchNotes(`slug:hooks-note-error`)
 		require.NoError(t, err)
 		require.Len(t, notes, 1)
 		note := notes[0]

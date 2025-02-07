@@ -785,6 +785,9 @@ func (r *Repository) SearchNotes(q string) ([]*Note, error) {
 	querySQL.WriteString("FROM note_fts ")
 	querySQL.WriteString("JOIN note on note.oid = note_fts.oid ")
 	querySQL.WriteString("WHERE note.oid IS NOT NULL ") // useless but simplify the query building
+	if query.Slug != "" {
+		querySQL.WriteString(fmt.Sprintf("AND note.slug = '%s' ", query.Slug))
+	}
 	if len(query.Kinds) > 0 {
 		var kindsSQL []string
 		for _, kind := range query.Kinds {
