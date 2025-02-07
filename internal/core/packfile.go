@@ -278,14 +278,24 @@ func (p *PackFile) Save() error {
 	return p.SaveTo(PackFilePath(p.OID))
 }
 
-// ObjectPath returns the path to the pack file in .nt/objects/ directory.
+// ObjectPath returns the absolute path to the pack file in .nt/objects/ directory.
 func (p *PackFile) ObjectPath() string {
 	return PackFilePath(p.OID)
 }
 
+// ObjectRelativePath returns the relative path to the pack file inside .nt/ directory.
+func (p *PackFile) ObjectRelativePath() string {
+	return PackFileRelativePath(p.OID)
+}
+
 // PackFilePath returns the path to the pack file in .nt/objects/ directory.
 func PackFilePath(oid oid.OID) string {
-	return filepath.Join(CurrentConfig().RootDirectory, ".nt/objects/"+oid.RelativePath()+".pack")
+	return filepath.Join(CurrentConfig().RootDirectory, ".nt", PackFileRelativePath(oid))
+}
+
+// PackFileRelativePath returns the path to the pack file in .nt/objects/ directory.
+func PackFileRelativePath(oid oid.OID) string {
+	return "objects/" + oid.RelativePath() + ".pack"
 }
 
 // SaveTo writes a new pack file to the given location.
@@ -326,14 +336,30 @@ func (p *PackFile) ToMarkdown() string {
  */
 
 type PackFileRef struct {
-	RelativePath string    `yaml:"relative_path" json:"relative_path"`
 	OID          oid.OID   `yaml:"oid" json:"oid"`
+	RelativePath string    `yaml:"relative_path" json:"relative_path"`
 	CTime        time.Time `yaml:"ctime" json:"ctime"`
+}
+
+// ObjectOID returns the OID of the blob.
+func (b PackFileRef) ObjectOID() oid.OID {
+	return b.OID
+}
+
+// ObjectPath returns the absolute path to the pack file in .nt/objects/ directory.
+func (p PackFileRef) ObjectPath() string {
+	return PackFilePath(p.OID)
+}
+
+// ObjectRelativePath returns the relative path to the pack file inside .nt/ directory.
+func (p PackFileRef) ObjectRelativePath() string {
+	return PackFileRelativePath(p.OID)
 }
 
 // Convenient type to add methods
 type PackFileRefs []PackFileRef
 
+// OIDs returns the list of OIDs.
 func (p PackFileRefs) OIDs() []oid.OID {
 	var results []oid.OID
 	for _, packFileRef := range p {

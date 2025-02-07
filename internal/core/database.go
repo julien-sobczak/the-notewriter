@@ -239,7 +239,7 @@ func (db *DB) WritePackFileOnDisk(packFile *PackFile) error {
 }
 
 // DeletePackFileOnDisk removes a single pack file on disk
-func (db *DB) DeletePackFileOnDisk(packFile *PackFile) error {
+func (db *DB) DeletePackFileOnDisk(packFile PackFileRef) error {
 	err := os.Remove(packFile.ObjectPath())
 	if err != nil {
 		return err
@@ -266,18 +266,8 @@ func (db *DB) WriteBlobOnDisk(oid oid.OID, data []byte) error {
 	return nil
 }
 
-// DeleteBlobsOnDisk removes all blobs on disk from a media
-func (db *DB) DeleteBlobsOnDisk(media *Media) error {
-	for _, blob := range media.BlobRefs {
-		if err := db.DeleteBlobOnDisk(media, blob); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// DeleteBlobOnDisk removes a single blob on disk
-func (db *DB) DeleteBlobOnDisk(media *Media, blob *BlobRef) error {
+// DeleteBlobOnDisk removes a blob on disk
+func (db *DB) DeleteBlobOnDisk(blob BlobRef) error {
 	err := os.Remove(blob.ObjectPath())
 	if err != nil {
 		return err
@@ -328,37 +318,6 @@ func (db *DB) Origin() Remote {
 	return db.origin
 }
 
-// Pull retrieves remote objects.
-func (db *DB) Pull() error {
-	origin := db.Origin()
-	if origin == nil {
-		return errors.New("no remote found")
-	}
-
-	// Read remote's commit-graph to find new commits to pull
-	data, err := origin.GetObject("index")
-	if errors.Is(err, ErrObjectNotExist) {
-		// Nothing to pull
-		return nil
-	}
-	fmt.Print(data) // TODO read remote index
-
-	return nil
-}
-
-// Push pushes new objects remotely.
-func (db *DB) Push() error {
-	// Implementation: We don't use a locking mechanism to prevent another repository to push at the same time.
-	// The NoteWriter is a personal tool and you are not expected to push from two repositories at the same time.
-
-	origin := db.Origin()
-	if origin == nil {
-		return errors.New("no remote found")
-	}
-
-	return nil
-}
-
 // Diff show the changes in the staging area.
 func (db *DB) Diff() (string, error) {
 	var diff strings.Builder
@@ -379,14 +338,13 @@ func (db *DB) GC() error {
 	// * Notes can embed medias. Notes can later be rewritten and no longer reference this media. The media is maybe
 	//   referenced by another note. It's not easy to find out when adding the edited note.
 	//   The GC searches for all these orphan blobs at once.
-	//
-	// Implementation: We use a multi-stage algorithm even when a single pass would be possible.
-	// The only motivation is to keep the code approachable for every stage.
-
-	// Stage 1: Blob reclaiming
-	// -------
+	// * Pack files are created when running 'nt add' but are not deleted on disk when running 'nt reset' (only removed in index)
+	//   to avoid recreating blobs (especially using for medias which require conversion).
+	//   If a file never added again, the packfile can be safely removed.
 
 	CurrentLogger().Info("Reclaiming blobs...")
+
+
 
 	return nil
 }
@@ -448,7 +406,7 @@ func NewStatsOnDiskEmpty() *StatsOnDisk {
 
 // StatsOnDisk returns various statistics about the .nt/objects directory.
 func (db *DB) StatsOnDisk() (*StatsOnDisk, error) {
-	objectsPath := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects/")
+	objectsPath := CurrentIndex().ObjectsDir()
 
 	// Ensure the objects directory exists
 	if _, err := os.Stat(objectsPath); os.IsNotExist(err) {

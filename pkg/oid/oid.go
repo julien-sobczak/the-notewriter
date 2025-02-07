@@ -59,3 +59,8 @@ func ParseOrNil(s string) OID {
 	}
 	return OID(s)
 }
+
+// Test creates a "valid" OID for testing purposes.
+func Test(short string) OID {
+	return MustParse(fmt.Sprintf("%040s", short))
+}

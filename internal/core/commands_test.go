@@ -265,6 +265,94 @@ Guido van Rossum
 
 }
 
+func TestCommandPushPull(t *testing.T) {
+
+	t.Run("Push", func(t *testing.T) {
+		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		// Configure origin
+		origin := t.TempDir()
+		CurrentConfig().ConfigFile.Remote = ConfigRemote{
+			Type: "fs",
+			Dir:  origin,
+		}
+
+		// Push
+		err := CurrentRepository().Add(AnyPath)
+		require.NoError(t, err)
+		err = CurrentRepository().Commit("initial commit")
+		require.NoError(t, err)
+		err = CurrentRepository().Push(false, false)
+		require.NoError(t, err)
+
+		// Check origin
+		require.FileExists(t, filepath.Join(origin, "index"))
+		// require.FileExists(t, filepath.Join(origin, "config")) // TODO push config
+		CurrentIndex().Walk(AnyPath, func(entry *IndexEntry, objects []*IndexObject, blobs []*IndexBlob) error {
+			// The origin FS must contains a file for every pack file and blob
+			assert.FileExists(t, filepath.Join(origin, entry.Ref().ObjectRelativePath()))
+			for _, blob := range blobs {
+				assert.FileExists(t, filepath.Join(origin, blob.Ref().ObjectRelativePath()))
+			}
+			return nil
+		})
+		countEntries := len(CurrentIndex().Entries)
+		countObjects := len(CurrentIndex().Objects)
+		countBlobs := len(CurrentIndex().Blobs)
+
+		// Force a new temp repository
+		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		// but with the same origin
+		CurrentConfig().ConfigFile.Remote = ConfigRemote{
+			Type: "fs",
+			Dir:  origin,
+		}
+		err = CurrentRepository().Pull(false, false)
+		require.NoError(t, err)
+		// We must now have the same number of entries, objects and blobs as pushed before
+		assert.Equal(t, countEntries, len(CurrentIndex().Entries))
+		assert.Equal(t, countObjects, len(CurrentIndex().Objects))
+		assert.Equal(t, countBlobs, len(CurrentIndex().Blobs))
+	})
+
+	t.Run("Push/Pull with staged changes", func(t *testing.T) {
+		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		// Configure origin
+		origin := t.TempDir()
+		CurrentConfig().ConfigFile.Remote = ConfigRemote{
+			Type: "fs",
+			Dir:  origin,
+		}
+
+		// Commit
+		err := CurrentRepository().Add(AnyPath)
+		require.NoError(t, err)
+		err = CurrentRepository().Commit("initial commit")
+		require.NoError(t, err)
+
+		// Stage a few changes
+		MustWriteFile(t, "python.md", `# Python
+
+## Flashcard: Python's creator
+
+Who invented Python?
+
+---
+
+Guido van Rossum
+`)
+		err = CurrentRepository().Add(AnyPath)
+		require.NoError(t, err)
+
+		// Push
+		err = CurrentRepository().Push(false, false)
+		require.ErrorContains(t, err, "changes not commited")
+		// Pull
+		err = CurrentRepository().Pull(false, false)
+		require.ErrorContains(t, err, "changes not commited")
+	})
+
+}
+
 /* Learning Tests */
 
 func TestSourcegraphGoDiff(t *testing.T) {

@@ -17,6 +17,10 @@ var verboseTrace bool
 
 var parallel int
 
+// Common flags used by multiple commands
+var force bool
+var interactive bool
+
 var rootCmd = &cobra.Command{
 	Use:   "nt",
 	Short: "The NoteWriter is a file-based note management tool",

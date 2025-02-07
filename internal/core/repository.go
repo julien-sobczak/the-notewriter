@@ -1,7 +1,9 @@
 package core
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log"
 	"os"
@@ -337,7 +339,7 @@ func (r *Repository) Add(paths PathSpecs) error {
 	}
 
 	// Walk the index to identify old files
-	err = db.Index().Walk(paths, func(entry *IndexEntry) error {
+	err = db.Index().Walk(paths, func(entry *IndexEntry, objects []*IndexObject, blobs []*IndexBlob) error {
 		// Ignore medias.
 		if !strings.HasSuffix(entry.RelativePath, ".md") {
 			// We may not have found reference to a media in the processed markdown files
@@ -385,7 +387,7 @@ func (r *Repository) Add(paths PathSpecs) error {
 func (r *Repository) Reset(pathSpecs PathSpecs) error {
 	packFilesOIDToRestore := []oid.OID{}
 	packFilesOIDToDelete := []oid.OID{}
-	CurrentIndex().Walk(pathSpecs, func(entry *IndexEntry) error {
+	CurrentIndex().Walk(pathSpecs, func(entry *IndexEntry, objects []*IndexObject, blobs []*IndexBlob) error {
 		if entry.Staged {
 			packFilesOIDToDelete = append(packFilesOIDToDelete, entry.StagedPackFileOID)
 			if entry.PackFileOID != entry.StagedPackFileOID {
@@ -456,6 +458,157 @@ func (r *Repository) Status() (string, error) {
 	sb.WriteString(`  (use "nt restore..." to unstage)` + "\n")
 
 	return sb.String(), nil
+}
+
+// Push pushes new objects remotely.
+func (r *Repository) Push(interactive, force bool) error {
+	// Implementation: We don't use a locking mechanism to prevent another repository to push at the same time.
+	// The NoteWriter is a personal tool and you are not expected to push from two repositories at the same time.
+
+	if CurrentIndex().SomethingToCommit() {
+		return errors.New("changes not commited (commit first and retry)")
+	}
+
+	origin := CurrentDB().Origin()
+	if origin == nil {
+		return errors.New("no remote found")
+	}
+
+	// Read the origin index
+	data, err := origin.GetObject("index")
+
+	originIndex := NewIndex()
+	if errors.Is(err, ErrObjectNotExist) {
+		// First time we push
+	} else if err != nil {
+		return err
+	} else {
+		if err := originIndex.Read(bytes.NewReader(data)); err != nil {
+			return err
+		}
+		if originIndex == nil {
+			return errors.New("failed to read origin index")
+		}
+		if !originIndex.CommittedAt.IsZero() && originIndex.CommittedAt.After(CurrentIndex().CommittedAt) && !force {
+			return fmt.Errorf("failed to push to origin as index has been modified since")
+		}
+	}
+
+	diff := originIndex.Diff(CurrentIndex())
+	diffReverse := CurrentIndex().Diff(originIndex)
+
+	for _, missingPackFile := range diff.MissingPackFiles {
+		data, err := CurrentIndex().ReadPackFileData(missingPackFile.OID)
+		if err != nil {
+			return err
+		}
+		if err := origin.PutObject(missingPackFile.ObjectRelativePath(), data); err != nil {
+			return err
+		}
+	}
+	for _, missingBlob := range diff.MissingBlobs {
+		data, err := CurrentIndex().ReadBlobData(missingBlob.OID)
+		if err != nil {
+			return err
+		}
+		if err := origin.PutObject(missingBlob.ObjectRelativePath(), data); err != nil {
+			return err
+		}
+	}
+
+	// Override origin index with the local one
+	buf := new(bytes.Buffer)
+	if err := CurrentIndex().Write(buf); err != nil {
+		return err
+	}
+	if err := origin.PutObject("index", buf.Bytes()); err != nil {
+		return err
+	}
+
+	// Cleanup obsolete files
+	for _, missingPackFile := range diffReverse.MissingPackFiles {
+		_ = origin.DeleteObject(missingPackFile.ObjectRelativePath())
+		// Ignore error as the file may have been deleted in a prior execution
+	}
+	for _, missingBlob := range diffReverse.MissingBlobs {
+		_ = origin.DeleteObject(missingBlob.ObjectRelativePath())
+		// Ignore error as the file may have been deleted in a prior execution
+	}
+
+	return nil
+}
+
+// Pull retrieves remote objects.
+func (r *Repository) Pull(interactive, force bool) error {
+	// Implementation: We don't use a locking mechanism to prevent another repository to push at the same time.
+	// The NoteWriter is a personal tool and you are not expected to push/pull at the same time.
+
+	if CurrentIndex().SomethingToCommit() {
+		return errors.New("changes not commited (commit first and retry)")
+	}
+
+	origin := CurrentDB().Origin()
+	if origin == nil {
+		return errors.New("no remote found")
+	}
+
+	// Read the origin index
+	data, err := origin.GetObject("index")
+
+	originIndex := NewIndex()
+	if errors.Is(err, ErrObjectNotExist) {
+		// First time we push
+	} else if err != nil {
+		return err
+	} else {
+		if err := originIndex.Read(bytes.NewReader(data)); err != nil {
+			return err
+		}
+		if originIndex == nil {
+			return errors.New("failed to read origin index")
+		}
+		if !originIndex.CommittedAt.IsZero() && originIndex.CommittedAt.After(CurrentIndex().CommittedAt) && !force {
+			return fmt.Errorf("failed to push to origin as index has been modified since")
+		}
+	}
+
+	diff := CurrentIndex().Diff(originIndex)
+	diffReverse := originIndex.Diff(CurrentIndex())
+
+	for _, missingPackFile := range diff.MissingPackFiles {
+		data, err := origin.GetObject(missingPackFile.ObjectRelativePath())
+		if err != nil {
+			return err
+		}
+		writeObject(missingPackFile, data)
+	}
+	for _, missingBlob := range diff.MissingBlobs {
+		data, err := origin.GetObject(missingBlob.ObjectRelativePath())
+		if err != nil {
+			return err
+		}
+		writeObject(missingBlob, data)
+	}
+
+	// Override local index with the remote one
+	if err := originIndex.Save(); err != nil {
+		return err
+	}
+	if err := CurrentIndex().Reload(); err != nil {
+		return err
+	}
+
+	// Cleanup obsolete files
+	for _, missingPackFile := range diffReverse.MissingPackFiles {
+		_ = CurrentDB().DeletePackFileOnDisk(missingPackFile)
+		// Ignore error as the file may have been deleted in a prior
+	}
+	for _, missingBlob := range diffReverse.MissingBlobs {
+		_ = CurrentDB().DeleteBlobOnDisk(missingBlob)
+		// Ignore error as the file may have been deleted in a prior
+	}
+
+	return nil
 }
 
 /* Stats */
@@ -612,4 +765,28 @@ func (r *Repository) Stats() (*Stats, error) {
 		OnDisk: statsOnDisk,
 		InDB:   statsInDB,
 	}, nil
+}
+
+/* Helpers */
+
+// TODO move elsewhere
+func writeObject(ref ObjectRef, data []byte) error {
+	return writeBytesToFile(ref.ObjectPath(), data)
+}
+
+func writeBytesToFile(filePath string, data []byte) error {
+	// Create the file if it doesn't exist, or truncate it if it does
+	file, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// Write the byte slice to the file
+	_, err = file.Write(data)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

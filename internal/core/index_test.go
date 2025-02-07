@@ -352,7 +352,7 @@ func TestIndex(t *testing.T) {
 
 		t.Run("Match all entries", func(t *testing.T) {
 			var matchedEntries []*IndexEntry
-			err := idx.Walk(AnyPath, func(entry *IndexEntry) error {
+			err := idx.Walk(AnyPath, func(entry *IndexEntry, objects []*IndexObject, blobs []*IndexBlob) error {
 				matchedEntries = append(matchedEntries, entry)
 				return nil
 			})
@@ -362,7 +362,7 @@ func TestIndex(t *testing.T) {
 
 		t.Run("Match specific entries", func(t *testing.T) {
 			var matchedEntries []*IndexEntry
-			err := idx.Walk(PathSpecs{"skills/*"}, func(entry *IndexEntry) error {
+			err := idx.Walk(PathSpecs{"skills/*"}, func(entry *IndexEntry, objects []*IndexObject, blobs []*IndexBlob) error {
 				matchedEntries = append(matchedEntries, entry)
 				return nil
 			})
@@ -374,7 +374,7 @@ func TestIndex(t *testing.T) {
 
 		t.Run("Match no entries", func(t *testing.T) {
 			var matchedEntries []*IndexEntry
-			err := idx.Walk(PathSpecs{"nonexistent/*"}, func(entry *IndexEntry) error {
+			err := idx.Walk(PathSpecs{"nonexistent/*"}, func(entry *IndexEntry, objects []*IndexObject, blobs []*IndexBlob) error {
 				matchedEntries = append(matchedEntries, entry)
 				return nil
 			})
@@ -384,7 +384,7 @@ func TestIndex(t *testing.T) {
 
 		t.Run("Error in callback", func(t *testing.T) {
 			expectedErr := fmt.Errorf("callback error")
-			err := idx.Walk(AnyPath, func(entry *IndexEntry) error {
+			err := idx.Walk(AnyPath, func(entry *IndexEntry, objects []*IndexObject, blobs []*IndexBlob) error {
 				return expectedErr
 			})
 			assert.Equal(t, expectedErr, err)
@@ -453,6 +453,114 @@ func TestIndex(t *testing.T) {
 			})
 		}
 	})
+
+}
+
+func TestIndexDiff(t *testing.T) {
+
+	t.Run("Empty", func(t *testing.T) {
+		idx1 := NewIndex()
+		idx1.Entries = []*IndexEntry{
+			CreateCommitedEntry("go.md", oid.Test("12345")),
+			CreateStagedEntry("python.md", oid.Test("22222"), oid.Test("33333")),
+			CreateDeletedEntry("java.md", oid.Test("44444")),
+		}
+		idx1.Blobs = []*IndexBlob{
+			CreateIndexBlob(oid.Test("b22222"), oid.Test("22222")),
+			CreateIndexBlob(oid.Test("b33333"), oid.Test("33333")),
+		}
+		idx2 := NewIndex()
+
+		// idx2 is empty, so nothing is missing
+		diff := idx1.Diff(idx2)
+		assert.Empty(t, diff.MissingPackFiles)
+		assert.Empty(t, diff.MissingBlobs)
+
+		// idx2 is empty, so everything is missing
+		diff = idx2.Diff(idx1)
+		assert.ElementsMatch(t, diff.MissingPackFiles.OIDs(), []oid.OID{
+			oid.Test("12345"),
+			oid.Test("22222"),
+			oid.Test("44444"),
+		})
+		assert.ElementsMatch(t, diff.MissingBlobs.OIDs(), []oid.OID{
+			oid.Test("b22222"),
+		})
+		// Deleted changes are ignored (still not committed)
+		// Staged changes are ignored too
+	})
+
+	t.Run("Same", func(t *testing.T) {
+		idx1 := NewIndex()
+		idx1.Entries = []*IndexEntry{
+			CreateCommitedEntry("go.md", oid.Test("12345")),
+			CreateStagedEntry("python.md", oid.Test("22222"), oid.Test("33333")),
+			CreateDeletedEntry("java.md", oid.Test("44444")),
+		}
+		idx1.Blobs = []*IndexBlob{
+			CreateIndexBlob(oid.Test("b22222"), oid.Test("22222")),
+			CreateIndexBlob(oid.Test("b33333"), oid.Test("33333")),
+		}
+
+		idx2 := NewIndex()
+		idx2.Entries = []*IndexEntry{
+			CreateCommitedEntry("go.md", oid.Test("12345")),
+			CreateStagedEntry("python.md", oid.Test("22222"), oid.Test("33333")),
+			CreateDeletedEntry("java.md", oid.Test("44444")),
+		}
+		idx2.Blobs = []*IndexBlob{
+			CreateIndexBlob(oid.Test("b22222"), oid.Test("22222")),
+			CreateIndexBlob(oid.Test("b33333"), oid.Test("33333")),
+		}
+
+		// Both indexes are the same, so nothing is missing
+		diff := idx1.Diff(idx2)
+		assert.Empty(t, diff.MissingPackFiles)
+		assert.Empty(t, diff.MissingBlobs)
+
+		diff = idx2.Diff(idx1)
+		assert.Empty(t, diff.MissingPackFiles)
+		assert.Empty(t, diff.MissingBlobs)
+	})
+
+	t.Run("Different", func(t *testing.T) {
+		idx1 := NewIndex()
+		idx1.Entries = []*IndexEntry{
+			CreateCommitedEntry("go.md", oid.Test("12345")),
+			CreateStagedEntry("python.md", oid.Test("22222"), oid.Test("33333")),
+		}
+		idx1.Blobs = []*IndexBlob{
+			CreateIndexBlob(oid.Test("b22222"), oid.Test("22222")),
+		}
+
+		idx2 := NewIndex()
+		idx2.Entries = []*IndexEntry{
+			CreateCommitedEntry("go.md", oid.Test("12345")),
+			CreateStagedEntry("java.md", oid.Test("44444"), oid.Test("55555")),
+		}
+		idx2.Blobs = []*IndexBlob{
+			CreateIndexBlob(oid.Test("b44444"), oid.Test("44444")),
+		}
+
+		// idx1 is missing java.md and its blob
+		diff := idx1.Diff(idx2)
+		assert.ElementsMatch(t, diff.MissingPackFiles.OIDs(), []oid.OID{
+			oid.Test("44444"),
+		})
+		assert.ElementsMatch(t, diff.MissingBlobs.OIDs(), []oid.OID{
+			oid.Test("b44444"),
+		})
+
+		// idx2 is missing python.md and its blob
+		diff = idx2.Diff(idx1)
+		assert.ElementsMatch(t, diff.MissingPackFiles.OIDs(), []oid.OID{
+			oid.Test("22222"),
+		})
+		assert.ElementsMatch(t, diff.MissingBlobs.OIDs(), []oid.OID{
+			oid.Test("b22222"),
+		})
+	})
+
 }
 
 func TestIndexOnDisk(t *testing.T) {
@@ -593,6 +701,83 @@ func NewTestGoLink(packFile *PackFile, newOID oid.OID) *GoLink {
 func NewTestBlob(packFile *PackFile, newOID oid.OID) *BlobRef {
 	return &BlobRef{
 		OID:        newOID,
+		MimeType:   "application/octet-stream",
+		Attributes: nil,
+		Tags:       nil,
+	}
+}
+
+func CreateCommitedEntry(relativePath string, newOID oid.OID) *IndexEntry {
+	return &IndexEntry{
+		RelativePath: relativePath,
+		PackFileOID:  newOID,
+		MTime:        clock.Now(),
+		Size:         1,
+		Staged:       false,
+	}
+}
+
+func CreateNewStagedEntry(relativePath string, newOID oid.OID) *IndexEntry {
+	return &IndexEntry{
+		RelativePath:      relativePath,
+		PackFileOID:       newOID,
+		MTime:             clock.Now(),
+		Size:              1,
+		Staged:            true,
+		StagedPackFileOID: newOID,
+		StagedMTime:       clock.Now(),
+		StagedSize:        1,
+		StagedTombstone:   time.Time{},
+	}
+}
+
+func CreateStagedEntry(relativePath string, oldOID, newOID oid.OID) *IndexEntry {
+	return &IndexEntry{
+		RelativePath:      relativePath,
+		PackFileOID:       oldOID,
+		MTime:             clock.Now(),
+		Size:              1,
+		Staged:            true,
+		StagedPackFileOID: newOID,
+		StagedMTime:       clock.Now(),
+		StagedSize:        1,
+		StagedTombstone:   time.Time{},
+	}
+}
+
+func CreateDeletedEntry(relativePath string, oldOID oid.OID) *IndexEntry {
+	return &IndexEntry{
+		RelativePath:      relativePath,
+		PackFileOID:       oldOID,
+		MTime:             clock.Now(),
+		Size:              1,
+		Staged:            true,
+		StagedPackFileOID: oid.Nil,
+		StagedMTime:       clock.Now(),
+		StagedSize:        0,
+		StagedTombstone:   clock.Now(),
+	}
+}
+
+func CreateIndexBlob(blobOID, packFileOID oid.OID) *IndexBlob {
+	return &IndexBlob{
+		OID:         blobOID,
+		MimeType:    "application/octet-stream",
+		PackFileOID: packFileOID,
+	}
+}
+
+func CreatePackFileRef(oid oid.OID, relativePath string) PackFileRef {
+	return PackFileRef{
+		OID:          oid,
+		RelativePath: relativePath,
+		CTime:        clock.Now(),
+	}
+}
+
+func CreateBlobRef(oid oid.OID) BlobRef {
+	return BlobRef{
+		OID:        oid,
 		MimeType:   "application/octet-stream",
 		Attributes: nil,
 		Tags:       nil,

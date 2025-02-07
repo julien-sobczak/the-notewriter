@@ -13,6 +13,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type ObjectRef interface {
+	ObjectOID() oid.OID
+	ObjectPath() string
+	ObjectRelativePath() string
+}
+
 type BlobRef struct {
 	// OID to locate the blob file in .nt/objects
 	OID        oid.OID      `yaml:"oid" json:"oid"`
@@ -33,14 +39,29 @@ func (b *BlobRef) ToMarkdown() string {
 	return fmt.Sprintf("Blob %s %s\n", b.OID, b.MimeType)
 }
 
-// ObjectPath returns the path to the blob file in .nt/objects/ directory.
-func (b *BlobRef) ObjectPath() string {
+// ObjectOID returns the OID of the blob.
+func (b BlobRef) ObjectOID() oid.OID {
+	return b.OID
+}
+
+// ObjectPath returns the absolute path to the blob file in .nt/objects/ directory.
+func (b BlobRef) ObjectPath() string {
 	return BlobPath(b.OID)
+}
+
+// ObjectRelativePath returns the relative path to the blob file inside .nt/ directory.
+func (b BlobRef) ObjectRelativePath() string {
+	return BlobRelativePath(b.OID)
 }
 
 // BlobPath returns the path to the blob file in .nt/objects/ directory.
 func BlobPath(oid oid.OID) string {
-	return filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", oid.RelativePath()+".blob")
+	return filepath.Join(CurrentConfig().RootDirectory, ".nt", BlobRelativePath(oid))
+}
+
+// BlobRelativePath returns the path to the blob file in .nt/objects/ directory.
+func BlobRelativePath(oid oid.OID) string {
+	return "objects/" + oid.RelativePath() + ".blob"
 }
 
 type Dumpable interface {
@@ -153,6 +174,7 @@ func (c *BlobFile) Save() error {
 // Convenient type to add methods
 type BlobRefs []BlobRef
 
+// OIDs returns the list of OIDs.
 func (r BlobRefs) OIDs() []oid.OID {
 	var results []oid.OID
 	for _, ref := range r {

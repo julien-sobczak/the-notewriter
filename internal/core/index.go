@@ -82,6 +82,15 @@ func (i IndexEntry) String() string {
 	return fmt.Sprintf("entry %q (packfile: %s%s%s)", i.RelativePath, tombstoneFlag, i.PackFileOID, stagedFlag)
 }
 
+// Ref returns a PackFileRef from the index entry.
+func (i *IndexEntry) Ref() PackFileRef {
+	return PackFileRef{
+		OID:          i.PackFileOID,
+		RelativePath: i.RelativePath,
+		CTime:        i.MTime,
+	}
+}
+
 func (i *IndexEntry) Stage(newPackFile *PackFile) {
 	i.Staged = true
 	i.StagedPackFileOID = newPackFile.OID
@@ -91,7 +100,7 @@ func (i *IndexEntry) Stage(newPackFile *PackFile) {
 }
 
 func (i *IndexEntry) NeverCommitted() bool {
-	return i.PackFileOID == i.StagedPackFileOID
+	return i.PackFileOID == oid.Nil || i.PackFileOID == i.StagedPackFileOID
 }
 
 func (i *IndexEntry) Reset() {
@@ -157,11 +166,20 @@ type IndexBlob struct {
 	PackFileOID oid.OID `yaml:"packfile_oid"`
 }
 
+// ObjectPath returns the path to the object on disk.
+func (i *IndexBlob) Ref() BlobRef {
+	return BlobRef{
+		OID:      i.OID,
+		MimeType: i.MimeType,
+	}
+}
+
 // NewIndex instantiates a new index.
 func NewIndex() *Index {
 	return &Index{
 		Entries: []*IndexEntry{},
 		Objects: []*IndexObject{},
+		Blobs:   []*IndexBlob{},
 	}
 }
 
@@ -196,6 +214,16 @@ func MustReadIndex() *Index {
 		os.Exit(1)
 	}
 	return index
+}
+
+// Reload reloads the index from the file.
+func (i *Index) Reload() error {
+	newIndex, err := NewIndexFromPath(filepath.Join(CurrentConfig().RootDirectory, ".nt/index"))
+	if err != nil {
+		return err
+	}
+	*i = *newIndex
+	return nil
 }
 
 // Read read an index from the file.
@@ -327,14 +355,19 @@ func (i *Index) Commit() error {
 	return i.Save()
 }
 
-// NothingToCommit returns true if there are no staged changes.
-func (i *Index) NothingToCommit() bool {
+// SomethingToCommit returns true if there are staged changes.
+func (i *Index) SomethingToCommit() bool {
 	for _, entry := range i.Entries {
 		if entry.Staged {
-			return false
+			return true
 		}
 	}
-	return true
+	return false
+}
+
+// NothingToCommit returns true if there are no staged changes.
+func (i *Index) NothingToCommit() bool {
+	return !i.SomethingToCommit()
 }
 
 // clearCache removes objects and blobs not referenced by any pack file.
@@ -387,6 +420,57 @@ func (i *Index) Reset(pathSpecs PathSpecs) error {
 	return i.Save()
 }
 
+// ObjectsDir returns the directory where objects are stored.
+func (i *Index) ObjectsDir() string {
+	return filepath.Join(CurrentConfig().RootDirectory, ".nt/objects/")
+}
+
+// GC reclaims objects not referenced by any pack file in the current index.
+func (i *Index) GC() error {
+	// Collect known OIDs for lookup later
+	knownOIDs := make(map[oid.OID]bool)
+	for _, entry := range i.Entries {
+		knownOIDs[entry.PackFileOID] = true
+		if entry.Staged {
+			knownOIDs[entry.StagedPackFileOID] = true
+		}
+	}
+	for _, blob := range i.Blobs {
+		knownOIDs[blob.OID] = true
+	}
+
+	// Directory to traverse
+	dir := CurrentIndex().ObjectsDir()
+
+	// Traverse the directory
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Check if the file has a .blob or .pack extension
+		if strings.HasSuffix(info.Name(), ".blob") || strings.HasSuffix(info.Name(), ".pack") {
+			// Get the filename without the extension
+			filenameWithoutExt := strings.TrimSuffix(info.Name(), filepath.Ext(info.Name()))
+
+			// Check if the filename without the extension is in knownOIDs
+			if _, exists := knownOIDs[oid.OID(filenameWithoutExt)]; !exists {
+				// Delete the file if it is not in knownOIDs
+				if err := os.Remove(path); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 /* Extracting objects */
 
 // ReadPackFile reads a pack file from the index.
@@ -397,6 +481,19 @@ func (i *Index) ReadPackFile(oid oid.OID) (*PackFile, error) {
 		}
 	}
 	return nil, nil
+}
+
+// ReadPackFileData reads a pack file from the index.
+func (i *Index) ReadPackFileData(oid oid.OID) ([]byte, error) {
+	entry, ok := i.GetEntryByPackFileOID(oid)
+	if !ok {
+		return nil, fmt.Errorf("packfile %q is unknown", oid)
+	}
+	data, err := os.ReadFile(PackFilePath(entry.PackFileOID))
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
 }
 
 // ReadPackObject reads a pack object from the index.
@@ -460,11 +557,35 @@ func (i *Index) ReadBlobData(oid oid.OID) ([]byte, error) {
 
 /* Walk */
 
+// getPackFileObjects returns all objects for a pack file.
+func (i *Index) getPackFileObjects(packFileOID oid.OID) []*IndexObject {
+	objects := []*IndexObject{}
+	for _, object := range i.Objects {
+		if object.PackFileOID == packFileOID {
+			objects = append(objects, object)
+		}
+	}
+	return objects
+}
+
+// getPackFileBlobs returns all blobs for a pack file.
+func (i *Index) getPackFileBlobs(packFileOID oid.OID) []*IndexBlob {
+	blobs := []*IndexBlob{}
+	for _, blob := range i.Blobs {
+		if blob.PackFileOID == packFileOID {
+			blobs = append(blobs, blob)
+		}
+	}
+	return blobs
+}
+
 // Walk iterates over the index entries matching one of the path specs and applies the given function.
-func (i *Index) Walk(pathSpecs PathSpecs, fn func(entry *IndexEntry) error) error {
+func (i *Index) Walk(pathSpecs PathSpecs, fn func(entry *IndexEntry, objects []*IndexObject, blobs []*IndexBlob) error) error {
 	for _, entry := range i.Entries {
 		if pathSpecs.Match(entry.RelativePath) {
-			err := fn(entry)
+			objects := i.getPackFileObjects(entry.PackFileOID)
+			blobs := i.getPackFileBlobs(entry.PackFileOID)
+			err := fn(entry, objects, blobs)
 			if err != nil {
 				return err
 			}
@@ -525,4 +646,51 @@ func ShortenToUniquePrefix(value string, knownValues []string) string {
 		}
 	}
 	return value // If no unique prefix is found, return the original value
+}
+
+/* Diff */
+
+type IndexDiff struct {
+	MissingPackFiles PackFileRefs
+	MissingBlobs     BlobRefs
+}
+
+// Diff compares two indexes and returns what is missing in the first one.
+// Invert the arguments to get what is missing in the second one.
+func (i *Index) Diff(remote *Index) *IndexDiff {
+	knownPackFileOIDs := make(map[oid.OID]bool)
+	knownBlobOIDs := make(map[oid.OID]bool)
+
+	// Collect known OIDs for lookup
+	for _, entry := range i.Entries {
+		if entry.NeverCommitted() {
+			continue
+		}
+		knownPackFileOIDs[entry.PackFileOID] = true
+	}
+	for _, blob := range i.Blobs {
+		if _, ok := knownPackFileOIDs[blob.PackFileOID]; ok {
+			knownBlobOIDs[blob.OID] = true
+		}
+	}
+
+	var diff IndexDiff
+
+	// Traverse remote index
+	missingPackFilesOID := make(map[oid.OID]bool)
+	for _, remoteEntry := range remote.Entries {
+		if _, ok := knownPackFileOIDs[remoteEntry.PackFileOID]; !ok {
+			// Pack file is missing
+			diff.MissingPackFiles = append(diff.MissingPackFiles, remoteEntry.Ref())
+			missingPackFilesOID[remoteEntry.PackFileOID] = true
+		}
+	}
+	for _, remoteBlob := range remote.Blobs {
+		if _, ok := missingPackFilesOID[remoteBlob.PackFileOID]; ok {
+			// Blob is missing
+			diff.MissingBlobs = append(diff.MissingBlobs, remoteBlob.Ref())
+		}
+	}
+
+	return &diff
 }
