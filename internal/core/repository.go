@@ -8,8 +8,10 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
+	"github.com/fatih/color"
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/filesystem"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
@@ -446,16 +448,154 @@ func (r *Repository) Commit(msg string) error {
 }
 
 // Status displays current objects in staging area.
-func (r *Repository) Status() (string, error) {
+func (r *Repository) Status(paths PathSpecs) (string, error) {
 	// No side-effect with this command.
 	// We only output results.
 	var sb strings.Builder
 
-	// TODO implement
+	index := CurrentIndex()
 
-	// Show staging area content
-	sb.WriteString(`Changes to be committed:` + "\n")
-	sb.WriteString(`  (use "nt restore..." to unstage)` + "\n")
+	// Staged changes are easy to determine using the index
+	if index.SomethingToCommit() {
+		// Show staging area content
+		sb.WriteString(`Changes to be committed:` + "\n")
+		sb.WriteString(`  (use "nt restore..." to unstage)` + "\n")
+
+		for _, entry := range index.SortedEntries() {
+			if !entry.MatchPathSpecs(paths) {
+				// Ignore
+				continue
+			}
+			if entry.Staged {
+				objectsAdded := 0
+				objectsModified := 0
+				objectsDeleted := 0
+				verb := "modified"
+				if entry.NeverCommitted() {
+					verb = "added"
+					objectsAdded += len(index.getPackFileObjects(entry.StagedPackFileOID))
+				} else if entry.HasTombstone() {
+					verb = "deleted"
+					objectsDeleted += len(index.getPackFileObjects(entry.PackFileOID))
+				}
+				if verb == "modified" {
+					// Check the pack file content to understand the number of changes
+					packFile, err := index.ReadPackFile(entry.StagedPackFileOID)
+					if err != nil {
+						return "", err
+					}
+					for _, object := range packFile.PackObjects {
+						if !object.CTime.Before(packFile.CTime) {
+							objectsModified += 1
+						}
+					}
+				}
+				sb.WriteString(fmt.Sprintf(`  %10s: %s (`, verb, entry.RelativePath))
+				first := true
+				if objectsDeleted > 0 {
+					sb.WriteString(color.RedString("-%d", objectsDeleted))
+					first = false
+				}
+				if objectsModified > 0 {
+					if !first {
+						sb.WriteString("/")
+					}
+					sb.WriteString(color.BlueString("%d", objectsModified))
+					first = false
+				}
+				if objectsAdded > 0 {
+					if !first {
+						sb.WriteString("/")
+					}
+					sb.WriteString(color.GreenString("+%d", objectsAdded))
+					first = false
+				}
+				sb.WriteString(")\n")
+			}
+		}
+	}
+
+	// Finding changes not staged required to traverse the file
+	var traversedEntryPaths []string
+
+	entryVerbs := make(map[string]string) // path -> verb
+
+	err := r.Walk(paths, func(mdFile *markdown.File) error {
+		CurrentLogger().Debugf("Processing %s...\n", mdFile.AbsolutePath)
+
+		relativePath := RelativePath(CurrentConfig().RootDirectory, mdFile.AbsolutePath)
+
+		traversedEntryPaths = append(traversedEntryPaths, relativePath)
+
+		// We ignore changes on parents
+
+		mdFileModified := CurrentIndex().Modified(relativePath, mdFile.MTime)
+		if !mdFileModified {
+			// Nothing changed = Nothing to parse
+			return nil
+		}
+		parsedFile, err := ParseFile(mdFile, markdown.EmptyFile)
+		if err != nil {
+			return err
+		}
+
+		if !index.Exists(relativePath) {
+			entryVerbs[relativePath] = "added"
+		} else if index.Modified(relativePath, mdFile.MTime) {
+			entryVerbs[relativePath] = "modified"
+		}
+
+		// Don't forget referenced medias
+		for _, parsedMedia := range parsedFile.Medias {
+			// Check if media has already been processed
+			if !slices.Contains(traversedEntryPaths, parsedMedia.RelativePath) {
+				traversedEntryPaths = append(traversedEntryPaths, parsedMedia.RelativePath)
+				// Check if media has changed since last indexation
+				if !index.Exists(parsedMedia.RelativePath) {
+					entryVerbs[parsedMedia.RelativePath] = "added"
+				} else if index.Modified(parsedMedia.RelativePath, parsedMedia.MTime) {
+					entryVerbs[parsedMedia.RelativePath] = "modified"
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+
+	// Walk the index to identify old files
+	err = index.Walk(paths, func(entry *IndexEntry, objects []*IndexObject, blobs []*IndexBlob) error {
+		// Ignore medias.
+		if !strings.HasSuffix(entry.RelativePath, ".md") {
+			// See comment in Add() method
+			return nil
+		}
+
+		if !slices.Contains(traversedEntryPaths, entry.RelativePath) {
+			entryVerbs[entry.RelativePath] = "deleted"
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+
+	changesNotStaged := len(entryVerbs) > 0
+	if changesNotStaged {
+		sb.WriteString("\n")
+		sb.WriteString(`Changes not staged for commit:` + "\n")
+		sb.WriteString(`  (use "nt add <file>..." to update what will be committed)` + "\n")
+		var keys []string
+		for key := range entryVerbs {
+			keys = append(keys, key)
+		}
+		for _, relativePath := range sort.StringSlice(keys) {
+			verb := entryVerbs[relativePath]
+			sb.WriteString(fmt.Sprintf(`  %10s: %s`+"\n", verb, relativePath))
+		}
+
+	}
 
 	return sb.String(), nil
 }

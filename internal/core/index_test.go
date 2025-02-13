@@ -671,6 +671,61 @@ func TestShortenToUniquePrefix(t *testing.T) {
 	}
 }
 
+func TestSortedEntries(t *testing.T) {
+
+	t.Run("Empty Index", func(t *testing.T) {
+		idx := NewIndex()
+		sortedEntries := idx.SortedEntries()
+		assert.Empty(t, sortedEntries)
+	})
+
+	t.Run("Single Entry", func(t *testing.T) {
+		idx := NewIndex()
+		entry := CreateCommitedEntry("go.md", oid.Test("12345"))
+		idx.Entries = []*IndexEntry{
+			entry,
+		}
+		sortedEntries := idx.SortedEntries()
+		require.Len(t, sortedEntries, 1)
+		assert.Equal(t, "go.md", sortedEntries[0].RelativePath)
+	})
+
+	t.Run("Multiple Entries", func(t *testing.T) {
+		idx := NewIndex()
+		idx.Entries = []*IndexEntry{
+			CreateCommitedEntry("b.md", oid.Test("12345")),
+			CreateCommitedEntry("a.md", oid.Test("67890")),
+			CreateCommitedEntry("c.md", oid.Test("54321")),
+		}
+
+		sortedEntries := idx.SortedEntries()
+		require.Len(t, sortedEntries, 3)
+		assert.Equal(t, "a.md", sortedEntries[0].RelativePath)
+		assert.Equal(t, "b.md", sortedEntries[1].RelativePath)
+		assert.Equal(t, "c.md", sortedEntries[2].RelativePath)
+
+		// Original entries must not have been modified
+		assert.Equal(t, "b.md", idx.Entries[0].RelativePath)
+		assert.Equal(t, "a.md", idx.Entries[1].RelativePath)
+		assert.Equal(t, "c.md", idx.Entries[2].RelativePath)
+	})
+
+	t.Run("Entries with Subdirectories", func(t *testing.T) {
+		idx := NewIndex()
+		idx.Entries = []*IndexEntry{
+			CreateCommitedEntry("dir/b.md", oid.Test("12345")),
+			CreateCommitedEntry("a.md", oid.Test("67890")),
+			CreateCommitedEntry("dir/a.md", oid.Test("54321")),
+		}
+
+		sortedEntries := idx.SortedEntries()
+		require.Len(t, sortedEntries, 3)
+		assert.Equal(t, "a.md", sortedEntries[0].RelativePath)
+		assert.Equal(t, "dir/a.md", sortedEntries[1].RelativePath)
+		assert.Equal(t, "dir/b.md", sortedEntries[2].RelativePath)
+	})
+}
+
 /* Helpers */
 
 func NewTestPackFile(newOID oid.OID) *PackFile {

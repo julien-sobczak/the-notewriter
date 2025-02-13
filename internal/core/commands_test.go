@@ -3,9 +3,11 @@ package core
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	godiffpatch "github.com/sourcegraph/go-diff-patch"
 
 	"github.com/stretchr/testify/assert"
@@ -349,6 +351,94 @@ Guido van Rossum
 		// Pull
 		err = CurrentRepository().Pull(false, false)
 		require.ErrorContains(t, err, "changes not commited")
+	})
+
+}
+
+func TestCommandStatus(t *testing.T) {
+
+	t.Run("Basic", func(t *testing.T) {
+		oid.UseSequence(t)
+
+		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+
+		// Add
+		err := CurrentRepository().Add([]PathSpec{"go.md"})
+		require.NoError(t, err)
+
+		// Edit a new file
+		MustWriteFile(t, "python.md", `# Python
+
+## Flashcard: Python's creator
+
+Who invented Python?
+
+---
+
+Guido van Rossum
+`)
+		require.NoError(t, err)
+
+		output, err := CurrentRepository().Status(AnyPath)
+		require.NoError(t, err)
+		assert.Equal(t, strings.TrimSpace(`
+Changes to be committed:
+  (use "nt restore..." to unstage)
+       added: go.md (+7)
+       added: medias/go.svg (+1)
+
+Changes not staged for commit:
+  (use "nt add <file>..." to update what will be committed)
+       added: python.md
+		`), strings.TrimSpace(output))
+
+		// Reset
+		err = CurrentRepository().Reset(AnyPath)
+		require.NoError(t, err)
+
+		// Status must report no change
+		output, err = CurrentRepository().Status(AnyPath)
+		require.NoError(t, err)
+		assert.Equal(t, strings.TrimSpace(`
+Changes not staged for commit:
+  (use "nt add <file>..." to update what will be committed)
+       added: go.md
+       added: medias/go.svg
+       added: python.md
+		`), strings.TrimSpace(output))
+
+		// Add a new file
+		err = CurrentRepository().Add([]PathSpec{"python.md"})
+		require.NoError(t, err)
+
+		// Status must report only the new files
+		output, err = CurrentRepository().Status(AnyPath)
+		require.NoError(t, err)
+		assert.Equal(t, strings.TrimSpace(`
+Changes to be committed:
+  (use "nt restore..." to unstage)
+       added: python.md (+3)
+
+Changes not staged for commit:
+  (use "nt add <file>..." to update what will be committed)
+       added: go.md
+       added: medias/go.svg
+		`), strings.TrimSpace(output))
+
+		// Add the old file
+		err = CurrentRepository().Add([]PathSpec{"go.md"})
+		require.NoError(t, err)
+
+		// Status must report both files
+		output, err = CurrentRepository().Status(AnyPath)
+		require.NoError(t, err)
+		assert.Equal(t, strings.TrimSpace(`
+Changes to be committed:
+  (use "nt restore..." to unstage)
+       added: go.md (+7)
+       added: medias/go.svg (+1)
+       added: python.md (+3)
+		`), strings.TrimSpace(output))
 	})
 
 }

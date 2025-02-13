@@ -162,7 +162,7 @@ type IndexObject struct {
 // IndexBlob represents a single blob.
 type IndexBlob struct {
 	OID         oid.OID `yaml:"oid"`
-	MimeType    string  `yaml:"mime" json:"mime"`
+	MimeType    string  `yaml:"mime"`
 	PackFileOID oid.OID `yaml:"packfile_oid"`
 }
 
@@ -368,6 +368,15 @@ func (i *Index) SomethingToCommit() bool {
 // NothingToCommit returns true if there are no staged changes.
 func (i *Index) NothingToCommit() bool {
 	return !i.SomethingToCommit()
+}
+
+// SortedEntries returns the entries sorted alphabetically by path.
+func (i *Index) SortedEntries() []*IndexEntry {
+	results := slices.Clone(i.Entries)
+	slices.SortFunc(results, func(a, b *IndexEntry) bool {
+		return a.RelativePath < b.RelativePath
+	})
+	return results
 }
 
 // clearCache removes objects and blobs not referenced by any pack file.
@@ -595,6 +604,12 @@ func (i *Index) Walk(pathSpecs PathSpecs, fn func(entry *IndexEntry, objects []*
 }
 
 /* Utilities */
+
+// Exists returns true if the file is known in index.
+func (i *Index) Exists(relativePath string) bool {
+	entry := i.GetEntry(relativePath)
+	return entry != nil
+}
 
 // Modified returns true if the file has been modified since last indexation.
 func (i *Index) Modified(relativePath string, mtime time.Time) bool {
