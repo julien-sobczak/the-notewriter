@@ -9,9 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"slices"
+
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
-	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 )
 
@@ -101,6 +102,10 @@ func (i *IndexEntry) Stage(newPackFile *PackFile) {
 
 func (i *IndexEntry) NeverCommitted() bool {
 	return i.PackFileOID == oid.Nil || i.PackFileOID == i.StagedPackFileOID
+}
+
+func (i *IndexEntry) AlreadyCommitted() bool {
+	return !i.NeverCommitted()
 }
 
 func (i *IndexEntry) Reset() {
@@ -276,6 +281,28 @@ func (i *Index) GetEntry(path string) *IndexEntry {
 	return nil
 }
 
+// ReadLastPackFile reads the last pack file associated with a file
+// (the staged pack file, the indexed pack file or ni)
+func (i *Index) ReadLastPackFile(path string) (*PackFile, error) {
+	entry := i.GetEntry(path)
+	if entry == nil {
+		return nil, nil
+	}
+	if entry.Staged {
+		return i.ReadPackFile(entry.StagedPackFileOID)
+	}
+	return i.ReadPackFile(entry.PackFileOID)
+}
+
+// MustReadLastPackFile reads the last pack file associated with a file or fails abruptly.
+func (i *Index) MustReadLastPackFile(path string) *PackFile {
+	packFile, err := i.ReadLastPackFile(path)
+	if err != nil {
+		panic(err)
+	}
+	return packFile
+}
+
 // GetParentEntry returns the parent entry of a file
 // (which may still not exist in the index).
 // For example, when adding a new file, we need to locate the parent file to inherit attributes.
@@ -373,8 +400,22 @@ func (i *Index) NothingToCommit() bool {
 // SortedEntries returns the entries sorted alphabetically by path.
 func (i *Index) SortedEntries() []*IndexEntry {
 	results := slices.Clone(i.Entries)
-	slices.SortFunc(results, func(a, b *IndexEntry) bool {
-		return a.RelativePath < b.RelativePath
+	slices.SortFunc(results, func(a, b *IndexEntry) int {
+		return strings.Compare(a.RelativePath, b.RelativePath)
+	})
+	return results
+}
+
+// SortedEntriesMatching returns the entries sorted alphabetically by path.
+func (i *Index) SortedEntriesMatching(paths PathSpecs) []*IndexEntry {
+	var results []*IndexEntry
+	for _, entry := range i.Entries {
+		if entry.MatchPathSpecs(paths) {
+			results = append(results, entry)
+		}
+	}
+	slices.SortFunc(results, func(a, b *IndexEntry) int {
+		return strings.Compare(a.RelativePath, b.RelativePath)
 	})
 	return results
 }
@@ -492,6 +533,15 @@ func (i *Index) ReadPackFile(oid oid.OID) (*PackFile, error) {
 	return nil, nil
 }
 
+// MustReadPackFile reads a pack file from the index or fails abruptly.
+func (i *Index) MustReadPackFile(oid oid.OID) *PackFile {
+	packFile, err := i.ReadPackFile(oid)
+	if err != nil {
+		panic(err)
+	}
+	return packFile
+}
+
 // ReadPackFileData reads a pack file from the index.
 func (i *Index) ReadPackFileData(oid oid.OID) ([]byte, error) {
 	entry, ok := i.GetEntryByPackFileOID(oid)
@@ -566,8 +616,18 @@ func (i *Index) ReadBlobData(oid oid.OID) ([]byte, error) {
 
 /* Walk */
 
-// getPackFileObjects returns all objects for a pack file.
-func (i *Index) getPackFileObjects(packFileOID oid.OID) []*IndexObject {
+// GetPackFileObject returns a object.
+func (i *Index) GetPackFileObject(objectOID oid.OID) *IndexObject {
+	for _, object := range i.Objects {
+		if object.OID == objectOID {
+			return object
+		}
+	}
+	return nil
+}
+
+// GetPackFileObjects returns all objects for a pack file.
+func (i *Index) GetPackFileObjects(packFileOID oid.OID) []*IndexObject {
 	objects := []*IndexObject{}
 	for _, object := range i.Objects {
 		if object.PackFileOID == packFileOID {
@@ -577,8 +637,18 @@ func (i *Index) getPackFileObjects(packFileOID oid.OID) []*IndexObject {
 	return objects
 }
 
-// getPackFileBlobs returns all blobs for a pack file.
-func (i *Index) getPackFileBlobs(packFileOID oid.OID) []*IndexBlob {
+// GetPackFileBlob returns a blob.
+func (i *Index) GetPackFileBlob(blobOID oid.OID) *IndexBlob {
+	for _, blob := range i.Blobs {
+		if blob.OID == blobOID {
+			return blob
+		}
+	}
+	return nil
+}
+
+// GetPackFileBlobs returns all blobs for a pack file.
+func (i *Index) GetPackFileBlobs(packFileOID oid.OID) []*IndexBlob {
 	blobs := []*IndexBlob{}
 	for _, blob := range i.Blobs {
 		if blob.PackFileOID == packFileOID {
@@ -592,8 +662,8 @@ func (i *Index) getPackFileBlobs(packFileOID oid.OID) []*IndexBlob {
 func (i *Index) Walk(pathSpecs PathSpecs, fn func(entry *IndexEntry, objects []*IndexObject, blobs []*IndexBlob) error) error {
 	for _, entry := range i.Entries {
 		if pathSpecs.Match(entry.RelativePath) {
-			objects := i.getPackFileObjects(entry.PackFileOID)
-			blobs := i.getPackFileBlobs(entry.PackFileOID)
+			objects := i.GetPackFileObjects(entry.PackFileOID)
+			blobs := i.GetPackFileBlobs(entry.PackFileOID)
 			err := fn(entry, objects, blobs)
 			if err != nil {
 				return err

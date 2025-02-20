@@ -179,6 +179,10 @@ func NewFlashcard(packFile *PackFile, file *File, note *Note, parsedFlashcard *P
 
 /* Object */
 
+func (f *Flashcard) FileRelativePath() string {
+	return f.RelativePath
+}
+
 func (f *Flashcard) Kind() string {
 	return "flashcard"
 }

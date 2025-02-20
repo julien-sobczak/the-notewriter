@@ -4,10 +4,11 @@ import (
 	"path/filepath"
 	"testing"
 
+	"slices"
+
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 )
 
 func TestIndexFilesFirst(t *testing.T) {

@@ -16,7 +16,7 @@ import (
 	"github.com/julien-sobczak/the-notewriter/pkg/resync"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	godiffpatch "github.com/sourcegraph/go-diff-patch"
-	"golang.org/x/exp/slices"
+	"slices"
 )
 
 const ReferenceKindBook = "book"

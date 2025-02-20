@@ -11,12 +11,13 @@ import (
 	"strings"
 	"time"
 
+	"slices"
+
 	"github.com/julien-sobczak/the-notewriter/internal/helpers"
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/internal/medias"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
-	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 )
 
@@ -620,8 +621,5 @@ func (f *File) FileHash() string {
 	return f.Hash
 }
 func (f *File) Blobs() []*BlobRef {
-	if len(f.BlobRefs) == 0 {
-		f.GenerateBlobs()
-	}
 	return f.BlobRefs
 }

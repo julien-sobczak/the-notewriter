@@ -73,6 +73,10 @@ func NewGoLink(packFile *PackFile, note *Note, parsedLink *ParsedGoLink) *GoLink
 
 /* Object */
 
+func (l *GoLink) FileRelativePath() string {
+	return l.RelativePath
+}
+
 func (l *GoLink) Kind() string {
 	return "link"
 }

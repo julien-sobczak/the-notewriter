@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	godiffpatch "github.com/sourcegraph/go-diff-patch"
+
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"gopkg.in/yaml.v3"
@@ -101,6 +103,17 @@ func (od ObjectData) Unmarshal(target interface{}) error {
 /*
  * PackFile
  */
+
+// NilPackFile implements the Null Object Pattern for PackFile.
+var NilPackFile = &PackFile{
+	OID:              oid.Nil,
+	FileRelativePath: "",
+	FileMTime:        time.Time{},
+	FileSize:         0,
+	CTime:            time.Time{},
+	PackObjects:      nil,
+	BlobRefs:         nil,
+}
 
 type PackFile struct {
 	OID              oid.OID       `yaml:"oid" json:"oid"`
@@ -275,6 +288,9 @@ func (p *PackFile) Write(w io.Writer) error {
 
 // Save writes a new pack file inside .nt/objects.
 func (p *PackFile) Save() error {
+	if CurrentConfig().DryRun {
+		return nil
+	}
 	return p.SaveTo(PackFilePath(p.OID))
 }
 
@@ -309,6 +325,204 @@ func (p *PackFile) SaveTo(path string) error {
 	}
 	defer f.Close()
 	return p.Write(f)
+}
+
+/* Diff */
+
+type ObjectDiff struct {
+	Before ParsedObject
+	After  ParsedObject
+}
+
+func (o *ObjectDiff) Kind() string {
+	return o.AfterOrBefore().Kind()
+}
+
+func (o *ObjectDiff) RelativePath() string {
+	return o.AfterOrBefore().FileRelativePath()
+}
+
+// Modified returns true if the object has been modified.
+func (o *ObjectDiff) Modified() bool {
+	return o.Before != nil && o.After != nil
+}
+
+// Added returns true if the object has been added.
+func (o *ObjectDiff) Added() bool {
+	return o.Before == nil && o.After != nil
+}
+
+// Deleted returns true if the object has been deleted.
+func (o *ObjectDiff) Deleted() bool {
+	return o.Before != nil && o.After == nil
+}
+
+// Patch returns a diff patch for the object.
+func (o *ObjectDiff) Patch() string {
+	changeDescription := fmt.Sprintf("%s [%s]", o.RelativePath(), o.Kind())
+	before := ""
+	after := ""
+	if o.Before != nil {
+		before = o.Before.ToYAML()
+	}
+	if o.After != nil {
+		after = o.After.ToYAML()
+	}
+	patch := godiffpatch.GeneratePatch(
+		changeDescription,
+		before,
+		after,
+	)
+	return patch
+}
+
+// AfterOrBefore returns the first non-nil object prefering the after one.
+func (o *ObjectDiff) AfterOrBefore() ParsedObject {
+	if o.After != nil {
+		return o.After
+	}
+	return o.Before
+}
+
+// BeforeOrAfter returns the first non-nil object prefering the before one.
+func (o *ObjectDiff) BeforeOrAfter() ParsedObject {
+	if o.Before != nil {
+		return o.Before
+	}
+	return o.After
+}
+
+// ObjectDiffs represents a list of ObjectDiff with helper methods to extract diff objects.
+type ObjectDiffs []*ObjectDiff
+
+// FindMedia returns the diff for a media.
+func (d ObjectDiffs) FindMedia(relativePath string) *ObjectDiff {
+	for _, diff := range d {
+		if diff.Kind() == "media" && diff.RelativePath() == relativePath {
+			return diff
+		}
+	}
+	return nil
+}
+
+// FindFileByTitle returns the diff for a file with a given title.
+func (d ObjectDiffs) FindFileByTitle(relativePath string, title string) *ObjectDiff {
+	for _, diff := range d {
+		if diff.Kind() == "file" && diff.RelativePath() == relativePath {
+			file := diff.AfterOrBefore().(*File)
+			if file.Title.String() == title {
+				return diff
+			}
+		}
+	}
+	return nil
+}
+
+// FindNoteByTitle returns the diff for a note with a given title.
+func (d ObjectDiffs) FindNoteByTitle(relativePath string, title string) *ObjectDiff {
+	for _, diff := range d {
+		if diff.Kind() == "note" && diff.RelativePath() == relativePath {
+			note := diff.AfterOrBefore().(*Note)
+			if note.Title.String() == title {
+				return diff
+			}
+		}
+	}
+	return nil
+}
+
+// FindGoLinkByName returns the diff for a go link with a given name.
+func (d ObjectDiffs) FindGoLinkByName(relativePath string, name string) *ObjectDiff {
+	for _, diff := range d {
+		if diff.Kind() == "link" && diff.RelativePath() == relativePath {
+			goLink := diff.AfterOrBefore().(*GoLink)
+			if goLink.GoName == name {
+				return diff
+			}
+		}
+	}
+	return nil
+}
+
+// FindFlashcardByShortTitle returns the diff for a flashcard with a given title.
+func (d ObjectDiffs) FindFlashcardByShortTitle(relativePath string, shortTitle string) *ObjectDiff {
+	for _, diff := range d {
+		if diff.Kind() == "flashcard" && diff.RelativePath() == relativePath {
+			flashcard := diff.AfterOrBefore().(*Flashcard)
+			if flashcard.ShortTitle.String() == shortTitle {
+				return diff
+			}
+		}
+	}
+	return nil
+}
+
+// FindReminderWithTag returns the diff for a reminder matching a given tag.
+func (d ObjectDiffs) FindReminderWithTag(relativePath string, tag string) *ObjectDiff {
+	for _, diff := range d {
+		if diff.Kind() == "reminder" && diff.RelativePath() == relativePath {
+			reminder := diff.AfterOrBefore().(*Reminder)
+			if reminder.Tag == tag {
+				return diff
+			}
+		}
+	}
+	return nil
+}
+
+// Diff compares two pack files and returns the differences.
+func (p *PackFile) Diff(other *PackFile) ObjectDiffs {
+	var result ObjectDiffs
+
+	for _, beforePackObject := range p.PackObjects {
+		beforeObject := beforePackObject.ReadObject()
+		beforeParsedObject, ok := beforeObject.(ParsedObject)
+		if !ok {
+			// We diff only objects extracted from Markdown files
+			continue
+		}
+		afterPackObject, ok := other.GetPackObject(beforePackObject.OID)
+		if ok {
+			if beforePackObject.CTime.Equal(afterPackObject.CTime) {
+				// Ignore object not changed between two pack files
+				continue
+			}
+
+			afterObject := afterPackObject.ReadObject()
+			if afterParsedObject, ok := afterObject.(ParsedObject); ok {
+				// Compare both
+				result = append(result, &ObjectDiff{
+					Before: beforeParsedObject,
+					After:  afterParsedObject,
+				})
+			}
+		} else {
+			// Deleted
+			result = append(result, &ObjectDiff{
+				Before: beforeParsedObject,
+				After:  nil,
+			})
+		}
+	}
+	for _, afterPackObject := range other.PackObjects {
+		_, ok := p.GetPackObject(afterPackObject.OID)
+		if ok {
+			// Already compared above
+			continue
+		}
+
+		afterObject := afterPackObject.ReadObject()
+		if afterParsedObject, ok := afterObject.(ParsedObject); ok {
+			// Added
+			result = append(result, &ObjectDiff{
+				Before: nil,
+				After:  afterParsedObject,
+			})
+
+		}
+	}
+
+	return result
 }
 
 /* Interface Dumpable */

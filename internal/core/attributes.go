@@ -10,9 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"slices"
+
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
-	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 )
 

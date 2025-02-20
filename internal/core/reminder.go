@@ -88,6 +88,10 @@ func NewReminder(packFile *PackFile, note *Note, parsedReminder *ParsedReminder)
 
 /* Object */
 
+func (r *Reminder) FileRelativePath() string {
+	return r.RelativePath
+}
+
 func (r *Reminder) Kind() string {
 	return "reminder"
 }

@@ -10,12 +10,13 @@ import (
 	"runtime"
 	"strings"
 
+	"slices"
+
 	"github.com/julien-sobczak/the-notewriter/internal/medias"
 	"github.com/julien-sobczak/the-notewriter/internal/reference"
 	"github.com/julien-sobczak/the-notewriter/pkg/resync"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"github.com/pelletier/go-toml/v2"
-	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 )
 
@@ -401,12 +402,12 @@ func (l *LintFile) GetAttributeDefinition(name string, filter func(schema Config
 	}
 
 	// Sort from most specific to least specific
-	slices.SortFunc(matchingSchemas, func(a, b ConfigLintSchema) bool {
+	slices.SortFunc(matchingSchemas, func(a, b ConfigLintSchema) int {
 		// Most specific path first
 		if a.Path != b.Path {
-			return strings.HasPrefix(a.Path, b.Path)
+			return strings.Compare(a.Path, b.Path)
 		}
-		return false // The last must win but SortFunc is not stable...
+		return 1 // The last must win but SortFunc is not stable...
 	})
 
 	schemaToUse := matchingSchemas[0]

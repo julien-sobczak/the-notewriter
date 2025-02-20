@@ -5,9 +5,10 @@ import (
 	"os"
 	"strings"
 
+	"slices"
+
 	"github.com/julien-sobczak/the-notewriter/internal/core"
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/slices"
 )
 
 var lintRules string
@@ -29,12 +30,7 @@ var lintCmd = &cobra.Command{
 			rules = []string{}
 		}
 
-		var pathSpecs []core.PathSpec
-		for _, arg := range args {
-			pathSpecs = append(pathSpecs, core.PathSpec(arg))
-		}
-
-		result, err := core.CurrentRepository().Lint(rules, pathSpecs)
+		result, err := core.CurrentRepository().Lint(argsToPathSpecs(args), rules)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

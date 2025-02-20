@@ -60,7 +60,7 @@ func TestPackFile(t *testing.T) {
 		packFile, err := NewPackFileFromParsedFile(parsedFile)
 		require.NoError(t, err)
 
-		// Pack must have been save to disk
+		// Pack must have been saved to disk
 		assert.FileExists(t, packFile.ObjectPath())
 
 		// A blob must have been created for the original file
@@ -71,6 +71,23 @@ func TestPackFile(t *testing.T) {
 		// The same blob can be found searching by mimetype
 		blob := packFile.FindFirstBlobWithMimeType("text/markdown")
 		assert.NotNil(t, blob)
+	})
+
+	t.Run("NewPackFileFromParsedFile_DryRun", func(t *testing.T) {
+		oid.UseSequence(t)
+		FreezeNow(t)
+		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		CurrentConfig().DryRun = true
+
+		parsedFile := ParseFileFromRelativePath(t, "go.md")
+
+		packFile, err := NewPackFileFromParsedFile(parsedFile)
+		require.NoError(t, err)
+
+		// Pack must have been saved to disk
+		assert.NoFileExists(t, packFile.ObjectPath())
+		// No blobs have been generated
+		assert.Empty(t, packFile.BlobRefs)
 	})
 
 	t.Run("NewPackFileFromParsedMedia", func(t *testing.T) {
@@ -92,6 +109,24 @@ func TestPackFile(t *testing.T) {
 		for _, blob := range packFile.BlobRefs {
 			assert.FileExists(t, blob.ObjectPath())
 		}
+	})
+
+	t.Run("NewPackFileFromParsedMedia_DryRun", func(t *testing.T) {
+		oid.UseSequence(t)
+		FreezeNow(t)
+		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		CurrentConfig().DryRun = true
+
+		parsedFile := ParseFileFromRelativePath(t, "go.md")
+		require.Len(t, parsedFile.Medias, 1)
+		parsedMedia := parsedFile.Medias[0]
+		packFile, err := NewPackFileFromParsedMedia(parsedMedia)
+		require.NoError(t, err)
+
+		// Pack must have been save to disk
+		assert.NoFileExists(t, packFile.ObjectPath())
+		// No blobs must have been generated
+		assert.Empty(t, packFile.BlobRefs)
 	})
 
 	t.Run("LoadPackFileFromPath", func(t *testing.T) {

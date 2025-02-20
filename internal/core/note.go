@@ -12,10 +12,11 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"slices"
+
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
-	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 )
 
@@ -145,6 +146,10 @@ func NewOrExistingNote(packFile *PackFile, f *File, parsedNote *ParsedNote) (*No
 }
 
 /* Object */
+
+func (n *Note) FileRelativePath() string {
+	return n.RelativePath
+}
 
 func (n *Note) Kind() string {
 	return "note"

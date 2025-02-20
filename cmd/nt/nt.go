@@ -77,3 +77,17 @@ func Execute() {
 func main() {
 	Execute()
 }
+
+/* Utilities */
+
+// argsToPathSpecs converts a list of arguments to a list of PathSpecs.
+func argsToPathSpecs(args []string) core.PathSpecs {
+	var pathSpecs []core.PathSpec
+	for _, arg := range args {
+		pathSpecs = append(pathSpecs, core.PathSpec(arg))
+	}
+	if len(pathSpecs) == 0 {
+		pathSpecs = core.AnyPath
+	}
+	return pathSpecs
+}

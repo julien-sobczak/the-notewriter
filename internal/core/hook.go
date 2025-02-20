@@ -9,8 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"slices"
+
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
-	"golang.org/x/exp/slices"
 )
 
 // RunHooks triggers all hooks on the note.

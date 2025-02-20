@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -17,7 +18,6 @@ import (
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/julien-sobczak/the-notewriter/pkg/resync"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
-	"golang.org/x/exp/slices"
 )
 
 const ReferenceKindBook = "book"
@@ -83,21 +83,21 @@ type MatchedFile struct {
 }
 
 // IndexFilesFirst ensures index files are processed first.
-var IndexFilesFirst = func(a, b string) bool {
+var IndexFilesFirst = func(a, b string) int {
 	dirA := filepath.Dir(a)
 	dirB := filepath.Dir(b)
 	if dirA != dirB {
-		return a < b
+		return strings.Compare(a, b)
 	}
 	baseA := text.TrimExtension(filepath.Base(a))
 	baseB := text.TrimExtension(filepath.Base(b))
 	// move index files up
 	if strings.EqualFold(baseA, "index") {
-		return true
+		return -1
 	} else if strings.EqualFold(baseB, "index") {
-		return false
+		return 1
 	}
-	return a < b // os.WalkDir already returns file in lexical order
+	return strings.Compare(a, b) // os.WalkDir already returns file in lexical order
 }
 
 func (r *Repository) Walk(pathSpecs PathSpecs, fn func(md *markdown.File) error) error {
@@ -192,7 +192,7 @@ func (r *Repository) Walk(pathSpecs PathSpecs, fn func(md *markdown.File) error)
 /* Commands */
 
 // Lint run linter rules on all files under the given paths.
-func (r *Repository) Lint(ruleNames []string, paths PathSpecs) (*LintResult, error) {
+func (r *Repository) Lint(paths PathSpecs, ruleNames []string) (*LintResult, error) {
 	/*
 	 * Implementation: The linter must only considering local files and
 	 * ignore commits or the staging area completely.
@@ -236,7 +236,7 @@ func (r *Repository) Lint(ruleNames []string, paths PathSpecs) (*LintResult, err
 // MustLint enforces linter rules are respected.
 func (r *Repository) MustLint(paths PathSpecs) {
 	// Start with command linter (do not stage invalid file)
-	linterResult, err := r.Lint(nil, paths)
+	linterResult, err := r.Lint(paths, nil)
 	if err != nil {
 		log.Fatalf("Unable to run linter: %v", err)
 	}
@@ -248,6 +248,8 @@ func (r *Repository) MustLint(paths PathSpecs) {
 // Add implements the command `nt add`
 func (r *Repository) Add(paths PathSpecs) error {
 	r.MustLint(paths)
+
+	CurrentConfig().DryRun = false
 
 	db := CurrentDB()
 
@@ -444,13 +446,17 @@ func (r *Repository) Commit(msg string) error {
 	if CurrentIndex().NothingToCommit() {
 		return errors.New("nothing to commit (create/copy files and use \"nt add\" to track")
 	}
+
+	CurrentConfig().DryRun = false
 	return CurrentIndex().Commit()
 }
 
 // Status displays current objects in staging area.
 func (r *Repository) Status(paths PathSpecs) (string, error) {
-	// No side-effect with this command.
-	// We only output results.
+	// No side-effect with this command
+	CurrentConfig().DryRun = true
+
+	// We only output results
 	var sb strings.Builder
 
 	index := CurrentIndex()
@@ -461,11 +467,7 @@ func (r *Repository) Status(paths PathSpecs) (string, error) {
 		sb.WriteString(`Changes to be committed:` + "\n")
 		sb.WriteString(`  (use "nt restore..." to unstage)` + "\n")
 
-		for _, entry := range index.SortedEntries() {
-			if !entry.MatchPathSpecs(paths) {
-				// Ignore
-				continue
-			}
+		for _, entry := range index.SortedEntriesMatching(paths) {
 			if entry.Staged {
 				objectsAdded := 0
 				objectsModified := 0
@@ -473,10 +475,10 @@ func (r *Repository) Status(paths PathSpecs) (string, error) {
 				verb := "modified"
 				if entry.NeverCommitted() {
 					verb = "added"
-					objectsAdded += len(index.getPackFileObjects(entry.StagedPackFileOID))
+					objectsAdded += len(index.GetPackFileObjects(entry.StagedPackFileOID))
 				} else if entry.HasTombstone() {
 					verb = "deleted"
-					objectsDeleted += len(index.getPackFileObjects(entry.PackFileOID))
+					objectsDeleted += len(index.GetPackFileObjects(entry.PackFileOID))
 				}
 				if verb == "modified" {
 					// Check the pack file content to understand the number of changes
@@ -515,7 +517,7 @@ func (r *Repository) Status(paths PathSpecs) (string, error) {
 		}
 	}
 
-	// Finding changes not staged required to traverse the file
+	// Finding changes not staged required to traverse the repository files
 	var traversedEntryPaths []string
 
 	entryVerbs := make(map[string]string) // path -> verb
@@ -602,6 +604,8 @@ func (r *Repository) Status(paths PathSpecs) (string, error) {
 
 // Push pushes new objects remotely.
 func (r *Repository) Push(interactive, force bool) error {
+	CurrentConfig().DryRun = true
+
 	// Implementation: We don't use a locking mechanism to prevent another repository to push at the same time.
 	// The NoteWriter is a personal tool and you are not expected to push from two repositories at the same time.
 
@@ -680,6 +684,8 @@ func (r *Repository) Push(interactive, force bool) error {
 
 // Pull retrieves remote objects.
 func (r *Repository) Pull(interactive, force bool) error {
+	CurrentConfig().DryRun = false
+
 	// Implementation: We don't use a locking mechanism to prevent another repository to push at the same time.
 	// The NoteWriter is a personal tool and you are not expected to push/pull at the same time.
 
@@ -792,13 +798,141 @@ func (r *Repository) CountObjectsByType() (map[string]int, error) {
 }
 
 // Diff show changes between commits and working tree.
-func (r *Repository) Diff(staged bool) (string, error) {
+func (r *Repository) Diff(paths PathSpecs, staged bool) (ObjectDiffs, error) {
 	// Enable dry-run mode to not generate blobs
 	CurrentConfig().DryRun = true
 
-	// TODO implement
+	if staged {
+		return r.diffStaged(paths)
+	} else {
+		return r.diffUnstaged(paths)
+	}
+}
 
-	return "", nil
+func (r *Repository) diffStaged(paths PathSpecs) (ObjectDiffs, error) {
+	index := CurrentIndex()
+
+	if index.NothingToCommit() {
+		return nil, nil
+	}
+
+	var result ObjectDiffs
+
+	for _, entry := range index.SortedEntriesMatching(paths) {
+		if !entry.Staged {
+			continue
+		}
+
+		before := NilPackFile
+		after := NilPackFile
+
+		if entry.HasTombstone() || entry.AlreadyCommitted() {
+			before = index.MustReadPackFile(entry.PackFileOID)
+		}
+		if !entry.HasTombstone() {
+			after = index.MustReadPackFile(entry.StagedPackFileOID)
+		}
+
+		result = append(result, before.Diff(after)...)
+	}
+
+	return result, nil
+}
+
+func (r *Repository) diffUnstaged(paths PathSpecs) (ObjectDiffs, error) {
+	// Finding changes not staged required to traverse the repository files
+	var traversedEntryPaths []string
+
+	index := CurrentIndex()
+
+	var result ObjectDiffs
+
+	err := r.Walk(paths, func(mdFile *markdown.File) error {
+		CurrentLogger().Debugf("Processing %s...\n", mdFile.AbsolutePath)
+
+		relativePath := RelativePath(CurrentConfig().RootDirectory, mdFile.AbsolutePath)
+
+		traversedEntryPaths = append(traversedEntryPaths, relativePath)
+
+		// We ignore changes on parents
+
+		mdFileModified := index.Modified(relativePath, mdFile.MTime)
+		if !mdFileModified {
+			// Nothing changed = Nothing to parse
+			return nil
+		}
+
+		before := NilPackFile
+		if index.Exists(relativePath) {
+			before = index.MustReadLastPackFile(relativePath)
+		}
+
+		parsedFile, err := ParseFile(mdFile, markdown.EmptyFile)
+		if err != nil {
+			return err
+		}
+		after, err := NewPackFileFromParsedFile(parsedFile)
+		if err != nil {
+			return err
+		}
+
+		result = append(result, before.Diff(after)...)
+
+		// Don't forget referenced medias
+		for _, parsedMedia := range parsedFile.Medias {
+			// Check if media has already been processed
+			if slices.Contains(traversedEntryPaths, parsedMedia.RelativePath) {
+				continue
+			}
+			traversedEntryPaths = append(traversedEntryPaths, parsedMedia.RelativePath)
+
+			// Check if media has not changed
+			if !index.Modified(parsedMedia.RelativePath, parsedMedia.MTime) {
+				continue
+			}
+
+			before := NilPackFile
+			after, err := NewPackFileFromParsedMedia(parsedMedia)
+			if err != nil {
+				return err
+			}
+
+			if index.Exists(parsedMedia.RelativePath) {
+				before = index.MustReadLastPackFile(parsedMedia.RelativePath)
+			}
+
+			result = append(result, before.Diff(after)...)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Walk the index to identify old files
+	err = index.Walk(paths, func(entry *IndexEntry, objects []*IndexObject, blobs []*IndexBlob) error {
+		// Ignore medias.
+		if !strings.HasSuffix(entry.RelativePath, ".md") {
+			// See comment in Add() method
+			return nil
+		}
+
+		if !slices.Contains(traversedEntryPaths, entry.RelativePath) {
+			before := index.MustReadLastPackFile(entry.RelativePath)
+			after := NilPackFile
+			result = append(result, before.Diff(after)...)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	slices.SortFunc(result, func(a, b *ObjectDiff) int {
+		return strings.Compare(a.RelativePath(), b.RelativePath())
+	})
+
+	return result, nil
 }
 
 /* Statistics */

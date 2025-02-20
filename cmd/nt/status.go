@@ -18,7 +18,7 @@ var statusCmd = &cobra.Command{
 	Long:  `Show the staging area.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		CheckConfig()
-		output, err := core.CurrentRepository().Status()
+		output, err := core.CurrentRepository().Status(argsToPathSpecs(args))
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

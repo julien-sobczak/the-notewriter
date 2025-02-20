@@ -23,12 +23,7 @@ var addCmd = &cobra.Command{
 
 		CheckConfig()
 
-		var pathSpecs []core.PathSpec
-		for _, arg := range args {
-			pathSpecs = append(pathSpecs, core.PathSpec(arg))
-		}
-
-		err := core.CurrentRepository().Add(pathSpecs)
+		err := core.CurrentRepository().Add(argsToPathSpecs(args))
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

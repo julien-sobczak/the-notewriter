@@ -19,12 +19,7 @@ var resetCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		CheckConfig()
 
-		var pathSpecs []core.PathSpec
-		for _, arg := range args {
-			pathSpecs = append(pathSpecs, core.PathSpec(arg))
-		}
-
-		err := core.CurrentRepository().Reset(pathSpecs)
+		err := core.CurrentRepository().Reset(argsToPathSpecs(args))
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

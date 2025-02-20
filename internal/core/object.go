@@ -97,6 +97,15 @@ type Object interface {
 	// Update website/guides/devolopers/presentation.md
 }
 
+// ParseObject to represent the subset of objects that was parsed from a Markdown file.
+// For example, studies are not based on Markdown.
+type ParsedObject interface {
+	Object
+
+	// RelativePath containing the version of this object.
+	FileRelativePath() string
+}
+
 // StatefulObject to represent the subset of updatable objects persisted in database.
 type StatefulObject interface {
 	Object

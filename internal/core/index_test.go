@@ -675,8 +675,9 @@ func TestSortedEntries(t *testing.T) {
 
 	t.Run("Empty Index", func(t *testing.T) {
 		idx := NewIndex()
-		sortedEntries := idx.SortedEntries()
-		assert.Empty(t, sortedEntries)
+
+		actual := idx.SortedEntries()
+		assert.Empty(t, actual)
 	})
 
 	t.Run("Single Entry", func(t *testing.T) {
@@ -685,9 +686,10 @@ func TestSortedEntries(t *testing.T) {
 		idx.Entries = []*IndexEntry{
 			entry,
 		}
-		sortedEntries := idx.SortedEntries()
-		require.Len(t, sortedEntries, 1)
-		assert.Equal(t, "go.md", sortedEntries[0].RelativePath)
+
+		actual := idx.SortedEntries()
+		require.Len(t, actual, 1)
+		assert.Equal(t, "go.md", actual[0].RelativePath)
 	})
 
 	t.Run("Multiple Entries", func(t *testing.T) {
@@ -698,16 +700,17 @@ func TestSortedEntries(t *testing.T) {
 			CreateCommitedEntry("c.md", oid.Test("54321")),
 		}
 
-		sortedEntries := idx.SortedEntries()
-		require.Len(t, sortedEntries, 3)
-		assert.Equal(t, "a.md", sortedEntries[0].RelativePath)
-		assert.Equal(t, "b.md", sortedEntries[1].RelativePath)
-		assert.Equal(t, "c.md", sortedEntries[2].RelativePath)
+		actual := idx.SortedEntries()
+		require.Len(t, actual, 3)
+		assert.Equal(t, "a.md", actual[0].RelativePath)
+		assert.Equal(t, "b.md", actual[1].RelativePath)
+		assert.Equal(t, "c.md", actual[2].RelativePath)
 
 		// Original entries must not have been modified
-		assert.Equal(t, "b.md", idx.Entries[0].RelativePath)
-		assert.Equal(t, "a.md", idx.Entries[1].RelativePath)
-		assert.Equal(t, "c.md", idx.Entries[2].RelativePath)
+		original := idx.Entries
+		assert.Equal(t, "b.md", original[0].RelativePath)
+		assert.Equal(t, "a.md", original[1].RelativePath)
+		assert.Equal(t, "c.md", original[2].RelativePath)
 	})
 
 	t.Run("Entries with Subdirectories", func(t *testing.T) {
@@ -718,11 +721,83 @@ func TestSortedEntries(t *testing.T) {
 			CreateCommitedEntry("dir/a.md", oid.Test("54321")),
 		}
 
-		sortedEntries := idx.SortedEntries()
-		require.Len(t, sortedEntries, 3)
-		assert.Equal(t, "a.md", sortedEntries[0].RelativePath)
-		assert.Equal(t, "dir/a.md", sortedEntries[1].RelativePath)
-		assert.Equal(t, "dir/b.md", sortedEntries[2].RelativePath)
+		actual := idx.SortedEntries()
+		require.Len(t, actual, 3)
+		assert.Equal(t, "a.md", actual[0].RelativePath)
+		assert.Equal(t, "dir/a.md", actual[1].RelativePath)
+		assert.Equal(t, "dir/b.md", actual[2].RelativePath)
+	})
+}
+
+func TestSortedEntriesMatching(t *testing.T) {
+
+	t.Run("Empty Index", func(t *testing.T) {
+		idx := NewIndex()
+
+		actual := idx.SortedEntriesMatching(PathSpecs{"*"})
+		assert.Empty(t, actual)
+	})
+
+	t.Run("Single Entry Matching", func(t *testing.T) {
+		idx := NewIndex()
+		idx.Entries = []*IndexEntry{
+			CreateCommitedEntry("go.md", oid.Test("12345")),
+		}
+
+		actual := idx.SortedEntriesMatching(PathSpecs{"go.md"})
+		require.Len(t, actual, 1)
+		assert.Equal(t, "go.md", actual[0].RelativePath)
+	})
+
+	t.Run("Single Entry Not Matching", func(t *testing.T) {
+		idx := NewIndex()
+		idx.Entries = []*IndexEntry{
+			CreateCommitedEntry("go.md", oid.Test("12345")),
+		}
+
+		actual := idx.SortedEntriesMatching(PathSpecs{"python.md"})
+		assert.Empty(t, actual)
+	})
+
+	t.Run("Multiple Entries Matching", func(t *testing.T) {
+		idx := NewIndex()
+		idx.Entries = []*IndexEntry{
+			CreateCommitedEntry("b.md", oid.Test("12345")),
+			CreateCommitedEntry("a.md", oid.Test("67890")),
+			CreateCommitedEntry("c.md", oid.Test("54321")),
+		}
+
+		actual := idx.SortedEntriesMatching(PathSpecs{"*.md"})
+		require.Len(t, actual, 3)
+		assert.Equal(t, "a.md", actual[0].RelativePath)
+		assert.Equal(t, "b.md", actual[1].RelativePath)
+		assert.Equal(t, "c.md", actual[2].RelativePath)
+	})
+
+	t.Run("Entries with Subdirectories Matching", func(t *testing.T) {
+		idx := NewIndex()
+		idx.Entries = []*IndexEntry{
+			CreateCommitedEntry("dir/b.md", oid.Test("12345")),
+			CreateCommitedEntry("a.md", oid.Test("67890")),
+			CreateCommitedEntry("dir/a.md", oid.Test("54321")),
+		}
+
+		actual := idx.SortedEntriesMatching(PathSpecs{"dir/*"})
+		require.Len(t, actual, 2)
+		assert.Equal(t, "dir/a.md", actual[0].RelativePath)
+		assert.Equal(t, "dir/b.md", actual[1].RelativePath)
+	})
+
+	t.Run("Entries with Subdirectories Not Matching", func(t *testing.T) {
+		idx := NewIndex()
+		idx.Entries = []*IndexEntry{
+			CreateCommitedEntry("dir/b.md", oid.Test("12345")),
+			CreateCommitedEntry("a.md", oid.Test("67890")),
+			CreateCommitedEntry("dir/a.md", oid.Test("54321")),
+		}
+
+		actual := idx.SortedEntriesMatching(PathSpecs{"nonexistent/*"})
+		assert.Empty(t, actual)
 	})
 }
 

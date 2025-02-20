@@ -39,7 +39,7 @@ This is a first note
 This is a second note
 `)
 
-		result, err := CurrentRepository().Lint(nil, AnyPath)
+		result, err := CurrentRepository().Lint(AnyPath, nil)
 		require.NoError(t, err)
 		require.NotNil(t, result)
 
@@ -439,6 +439,108 @@ Changes to be committed:
        added: medias/go.svg (+1)
        added: python.md (+3)
 		`), strings.TrimSpace(output))
+	})
+
+}
+
+func TestCommandDiff(t *testing.T) {
+
+	t.Run("Diff", func(t *testing.T) {
+		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		oid.UseSequence(t)
+		c := FreezeNow(t)
+
+		// Step 1: Nothing staged
+
+		diffs, err := CurrentRepository().Diff(AnyPath, true)
+		require.NoError(t, err)
+		assert.Empty(t, diffs)
+
+		diffs, err = CurrentRepository().Diff(AnyPath, false) // Must contains all new objects
+		require.NoError(t, err)
+
+		assert.NotNil(t, diffs.FindFileByTitle("go.md", "Go"))
+		assert.NotNil(t, diffs.FindNoteByTitle("go.md", "Reference: Golang History"))
+		assert.NotNil(t, diffs.FindGoLinkByName("go.md", "go"))
+		assert.NotNil(t, diffs.FindNoteByTitle("go.md", "Flashcard: Golang Logo"))
+		assert.NotNil(t, diffs.FindFlashcardByShortTitle("go.md", "Golang Logo"))
+		assert.NotNil(t, diffs.FindNoteByTitle("go.md", "TODO: Conferences"))
+		assert.NotNil(t, diffs.FindReminderWithTag("go.md", "#reminder-2023-06-26"))
+		assert.NotNil(t, diffs.FindMedia("medias/go.svg"))
+
+		// Step 2: Add a file
+
+		err = CurrentRepository().Add([]PathSpec{"go.md"})
+		require.NoError(t, err)
+
+		diffs, err = CurrentRepository().Diff(AnyPath, true) // Only the file staged must be returned
+		require.NoError(t, err)
+		assert.NotNil(t, diffs.FindFileByTitle("go.md", "Go"))
+		assert.NotNil(t, diffs.FindNoteByTitle("go.md", "Reference: Golang History"))
+		assert.NotNil(t, diffs.FindGoLinkByName("go.md", "go"))
+		assert.NotNil(t, diffs.FindNoteByTitle("go.md", "Flashcard: Golang Logo"))
+		assert.NotNil(t, diffs.FindFlashcardByShortTitle("go.md", "Golang Logo"))
+		assert.NotNil(t, diffs.FindNoteByTitle("go.md", "TODO: Conferences"))
+		assert.NotNil(t, diffs.FindReminderWithTag("go.md", "#reminder-2023-06-26"))
+		// And also the media as referenced
+		assert.NotNil(t, diffs.FindMedia("medias/go.svg"))
+
+		diffs, err = CurrentRepository().Diff(AnyPath, false) // No other file are present, must be empty
+		require.NoError(t, err)
+		assert.Empty(t, diffs)
+
+		// Step 3: Commit the staged file
+
+		err = CurrentRepository().Commit("initial commit")
+		require.NoError(t, err)
+
+		diffs, err = CurrentRepository().Diff(AnyPath, true) // Staging area is empty = must be empty
+		require.NoError(t, err)
+		assert.Empty(t, diffs)
+
+		diffs, err = CurrentRepository().Diff(AnyPath, false) // No local change = must be empty too
+		require.NoError(t, err)
+		assert.Empty(t, diffs)
+
+		// Step 4: Edit a single note file
+
+		MustWriteFile(t, "go.md", `
+# Go
+
+## Reference: Golang History
+
+[Golang](https://go.dev/doc/ "#go/go") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.
+
+
+## TODO: Conferences
+
+* [Gophercon Europe](https://gophercon.eu/) `+"`#reminder-2023-06-26`"+`
+`)
+
+		c.FastForward(1 * time.Minute) // Force a new timestamp when creating the new pack file
+
+		diffs, err = CurrentRepository().Diff(AnyPath, true) // Staging area is empty = must be empty
+		require.NoError(t, err)
+		assert.Empty(t, diffs)
+
+		diffs, err = CurrentRepository().Diff(AnyPath, false) // Must report the updated and deleted notes
+		require.NoError(t, err)
+
+		// The file must have been modified
+		diff := diffs.FindFileByTitle("go.md", "Go")
+		assert.NotNil(t, diff)
+		assert.True(t, diff.Modified())
+		// The edited note must have been modified
+		diff = diffs.FindNoteByTitle("go.md", "Reference: Golang History")
+		assert.NotNil(t, diff)
+		assert.True(t, diff.Modified())
+		// The flashcard must have been deleted (and the associated note)
+		diff = diffs.FindNoteByTitle("go.md", "Flashcard: Golang Logo")
+		assert.NotNil(t, diff)
+		assert.True(t, diff.Deleted())
+		diff = diffs.FindFlashcardByShortTitle("go.md", "Golang Logo")
+		assert.NotNil(t, diff)
+		assert.True(t, diff.Deleted())
 	})
 
 }
