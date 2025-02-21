@@ -3,7 +3,6 @@ package core
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -379,66 +378,105 @@ Guido van Rossum
 `)
 		require.NoError(t, err)
 
-		output, err := CurrentRepository().Status(AnyPath)
+		result, err := CurrentRepository().Status(AnyPath)
 		require.NoError(t, err)
-		assert.Equal(t, strings.TrimSpace(`
-Changes to be committed:
-  (use "nt restore..." to unstage)
-       added: go.md (+7)
-       added: medias/go.svg (+1)
+		assert.NotNil(t, result)
 
-Changes not staged for commit:
-  (use "nt add <file>..." to update what will be committed)
-       added: python.md
-		`), strings.TrimSpace(output))
+		assert.Equal(t, FileStatuses{
+			{
+				RelativePath: "go.md",
+				Status:       "added",
+				ObjectsAdded: 7,
+			},
+			{
+				RelativePath: "medias/go.svg",
+				Status:       "added",
+				ObjectsAdded: 1,
+			},
+		}, result.ChangesStaged)
+		assert.Equal(t, FileStatuses{
+			{
+				RelativePath: "python.md",
+				Status:       "added",
+			},
+		}, result.ChangesNotStaged)
 
 		// Reset
 		err = CurrentRepository().Reset(AnyPath)
 		require.NoError(t, err)
 
 		// Status must report no change
-		output, err = CurrentRepository().Status(AnyPath)
+		result, err = CurrentRepository().Status(AnyPath)
 		require.NoError(t, err)
-		assert.Equal(t, strings.TrimSpace(`
-Changes not staged for commit:
-  (use "nt add <file>..." to update what will be committed)
-       added: go.md
-       added: medias/go.svg
-       added: python.md
-		`), strings.TrimSpace(output))
+		require.NotNil(t, result)
+
+		assert.Empty(t, result.ChangesStaged)
+		assert.Equal(t, FileStatuses{
+			{
+				RelativePath: "go.md",
+				Status:       "added",
+			},
+			{
+				RelativePath: "medias/go.svg",
+				Status:       "added",
+			},
+			{
+				RelativePath: "python.md",
+				Status:       "added",
+			},
+		}, result.ChangesNotStaged)
 
 		// Add a new file
 		err = CurrentRepository().Add([]PathSpec{"python.md"})
 		require.NoError(t, err)
 
 		// Status must report only the new files
-		output, err = CurrentRepository().Status(AnyPath)
+		result, err = CurrentRepository().Status(AnyPath)
 		require.NoError(t, err)
-		assert.Equal(t, strings.TrimSpace(`
-Changes to be committed:
-  (use "nt restore..." to unstage)
-       added: python.md (+3)
-
-Changes not staged for commit:
-  (use "nt add <file>..." to update what will be committed)
-       added: go.md
-       added: medias/go.svg
-		`), strings.TrimSpace(output))
+		require.NotNil(t, result)
+		assert.Equal(t, FileStatuses{
+			{
+				RelativePath: "python.md",
+				Status:       "added",
+				ObjectsAdded: 3,
+			},
+		}, result.ChangesStaged)
+		assert.Equal(t, FileStatuses{
+			{
+				RelativePath: "go.md",
+				Status:       "added",
+			},
+			{
+				RelativePath: "medias/go.svg",
+				Status:       "added",
+			},
+		}, result.ChangesNotStaged)
 
 		// Add the old file
 		err = CurrentRepository().Add([]PathSpec{"go.md"})
 		require.NoError(t, err)
 
 		// Status must report both files
-		output, err = CurrentRepository().Status(AnyPath)
+		result, err = CurrentRepository().Status(AnyPath)
 		require.NoError(t, err)
-		assert.Equal(t, strings.TrimSpace(`
-Changes to be committed:
-  (use "nt restore..." to unstage)
-       added: go.md (+7)
-       added: medias/go.svg (+1)
-       added: python.md (+3)
-		`), strings.TrimSpace(output))
+		assert.Equal(t, FileStatuses{
+			{
+				RelativePath: "go.md",
+				Status:       "added",
+				ObjectsAdded: 7,
+			},
+			{
+				RelativePath: "medias/go.svg",
+				Status:       "added",
+				ObjectsAdded: 1,
+			},
+			{
+				RelativePath: "python.md",
+				Status:       "added",
+				ObjectsAdded: 3,
+			},
+		}, result.ChangesStaged)
+		assert.Empty(t, result.ChangesNotStaged)
 	})
 
 }

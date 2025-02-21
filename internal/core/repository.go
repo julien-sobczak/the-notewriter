@@ -12,7 +12,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/fatih/color"
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/filesystem"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
@@ -451,22 +450,40 @@ func (r *Repository) Commit(msg string) error {
 	return CurrentIndex().Commit()
 }
 
+type FileStatus struct {
+	RelativePath    string
+	Status          string
+	ObjectsAdded    int
+	ObjectsModified int
+	ObjectsDeleted  int
+}
+
+type FileStatuses []*FileStatus
+
+func (fs FileStatuses) Sort() {
+	slices.SortFunc(fs, func(a, b *FileStatus) int {
+		return strings.Compare(a.RelativePath, b.RelativePath)
+	})
+}
+
+type StatusResult struct {
+	ChangesStaged    FileStatuses
+	ChangesNotStaged FileStatuses
+}
+
 // Status displays current objects in staging area.
-func (r *Repository) Status(paths PathSpecs) (string, error) {
+func (r *Repository) Status(paths PathSpecs) (*StatusResult, error) {
 	// No side-effect with this command
 	CurrentConfig().DryRun = true
 
 	// We only output results
-	var sb strings.Builder
+	var result StatusResult
 
 	index := CurrentIndex()
 
 	// Staged changes are easy to determine using the index
 	if index.SomethingToCommit() {
-		// Show staging area content
-		sb.WriteString(`Changes to be committed:` + "\n")
-		sb.WriteString(`  (use "nt restore..." to unstage)` + "\n")
-
+		// Traverse staging area content
 		for _, entry := range index.SortedEntriesMatching(paths) {
 			if entry.Staged {
 				objectsAdded := 0
@@ -484,7 +501,7 @@ func (r *Repository) Status(paths PathSpecs) (string, error) {
 					// Check the pack file content to understand the number of changes
 					packFile, err := index.ReadPackFile(entry.StagedPackFileOID)
 					if err != nil {
-						return "", err
+						return nil, err
 					}
 					for _, object := range packFile.PackObjects {
 						if !object.CTime.Before(packFile.CTime) {
@@ -492,27 +509,13 @@ func (r *Repository) Status(paths PathSpecs) (string, error) {
 						}
 					}
 				}
-				sb.WriteString(fmt.Sprintf(`  %10s: %s (`, verb, entry.RelativePath))
-				first := true
-				if objectsDeleted > 0 {
-					sb.WriteString(color.RedString("-%d", objectsDeleted))
-					first = false
-				}
-				if objectsModified > 0 {
-					if !first {
-						sb.WriteString("/")
-					}
-					sb.WriteString(color.BlueString("%d", objectsModified))
-					first = false
-				}
-				if objectsAdded > 0 {
-					if !first {
-						sb.WriteString("/")
-					}
-					sb.WriteString(color.GreenString("+%d", objectsAdded))
-					first = false
-				}
-				sb.WriteString(")\n")
+				result.ChangesStaged = append(result.ChangesStaged, &FileStatus{
+					RelativePath:    entry.RelativePath,
+					Status:          verb,
+					ObjectsAdded:    objectsAdded,
+					ObjectsModified: objectsModified,
+					ObjectsDeleted:  objectsDeleted,
+				})
 			}
 		}
 	}
@@ -563,7 +566,7 @@ func (r *Repository) Status(paths PathSpecs) (string, error) {
 		return nil
 	})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// Walk the index to identify old files
@@ -580,26 +583,28 @@ func (r *Repository) Status(paths PathSpecs) (string, error) {
 		return nil
 	})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	changesNotStaged := len(entryVerbs) > 0
 	if changesNotStaged {
-		sb.WriteString("\n")
-		sb.WriteString(`Changes not staged for commit:` + "\n")
-		sb.WriteString(`  (use "nt add <file>..." to update what will be committed)` + "\n")
 		var keys []string
 		for key := range entryVerbs {
 			keys = append(keys, key)
 		}
 		for _, relativePath := range sort.StringSlice(keys) {
 			verb := entryVerbs[relativePath]
-			sb.WriteString(fmt.Sprintf(`  %10s: %s`+"\n", verb, relativePath))
+			result.ChangesNotStaged = append(result.ChangesNotStaged, &FileStatus{
+				RelativePath: relativePath,
+				Status:       verb,
+			})
 		}
-
 	}
 
-	return sb.String(), nil
+	result.ChangesNotStaged.Sort()
+	result.ChangesStaged.Sort()
+
+	return &result, nil
 }
 
 // Push pushes new objects remotely.
