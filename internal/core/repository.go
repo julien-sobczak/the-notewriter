@@ -372,7 +372,7 @@ func (r *Repository) Add(paths PathSpecs) error {
 	db.DeletePackFiles(packFilesToDelete...)
 	// TODO Create .bak if Commit fails?
 	db.Index().Stage(packFilesToUpsert...)
-	db.Index().Stage(packFilesToDelete...)
+	db.Index().Stage(packFilesToDelete...) // FIXME: Should be deleted from the index??????
 
 	// Don't forget to commit
 	if err := db.CommitTransaction(); err != nil {

@@ -583,6 +583,73 @@ func TestCommandDiff(t *testing.T) {
 
 }
 
+func TestCommandGC(t *testing.T) {
+
+	t.Run("Reset File", func(t *testing.T) {
+		SetUpRepositoryFromTempDir(t)
+
+		// Add a new file without committing
+		MustWriteFile(t, "go.md", `# Go`)
+		err := CurrentRepository().Add(AnyPath)
+		require.NoError(t, err)
+
+		// A pack file must have been created
+		indexEntry := CurrentIndex().GetEntry("go.md")
+		require.NotNil(t, indexEntry)
+		assert.FileExists(t, indexEntry.Ref().ObjectPath())
+
+		// Reset
+		err = CurrentRepository().Reset(AnyPath)
+		require.NoError(t, err)
+
+		// The pack file must no longer be present in the index
+		require.Nil(t, CurrentIndex().GetEntry("go.md"))
+		// But the raw pack file still exists to speed up the next add
+		assert.FileExists(t, indexEntry.Ref().ObjectPath())
+
+		err = CurrentDB().GC()
+		require.NoError(t, err)
+
+		// GC must have reclaimed the pack file
+		assert.NoFileExists(t, indexEntry.Ref().ObjectPath())
+	})
+
+	t.Run("Unreferenced media", func(t *testing.T) {
+		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+
+		// Add
+		err := CurrentRepository().Add(AnyPath)
+		require.NoError(t, err)
+		err = CurrentRepository().Commit("Initial commit")
+		require.NoError(t, err)
+
+		entryMarkdown := CurrentIndex().GetEntry("go.md")
+		require.NotNil(t, entryMarkdown)
+		entryMedia := CurrentIndex().GetEntry("medias/go.svg")
+		require.NotNil(t, entryMedia)
+		assert.FileExists(t, entryMarkdown.Ref().ObjectPath())
+		assert.FileExists(t, entryMedia.Ref().ObjectPath())
+
+		// Rewrite the file without referencing the media
+		MustWriteFile(t, "go.md", `# Go`)
+		err = CurrentRepository().Add(AnyPath)
+		require.NoError(t, err)
+
+		// The media must have been removed from the index
+		require.Nil(t, CurrentIndex().GetEntry("medias/go.svg"))
+		// But the file has not been reclaimed
+		assert.FileExists(t, entryMedia.Ref().ObjectPath())
+
+		err = CurrentDB().GC()
+		require.NoError(t, err)
+
+		// GC must have reclaimed the media files but not the markdown file
+		assert.FileExists(t, entryMarkdown.Ref().ObjectPath())
+		assert.NoFileExists(t, entryMedia.Ref().ObjectPath())
+	})
+
+}
+
 /* Learning Tests */
 
 func TestSourcegraphGoDiff(t *testing.T) {

@@ -6,9 +6,11 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -344,7 +346,61 @@ func (db *DB) GC() error {
 
 	CurrentLogger().Info("Reclaiming blobs...")
 
+	index := CurrentIndex()
+	objectDir := index.ObjectsDir()
 
+	var reclaimedFiles []string
+
+	// Traverse the file system to find orphan blobs and orphan pack files
+	err := filepath.WalkDir(objectDir, func(path string, info fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+
+		if strings.HasSuffix(info.Name(), ".pack") {
+			oid := oid.MustParse(strings.TrimSuffix(info.Name(), ".pack"))
+			if _, ok := index.GetEntryByPackFileOID(oid); !ok {
+				// This packFile is not longer present in the index.
+				// We will remove it. But first, let check for blobs
+				packFile, err := LoadPackFileFromPath(PackFilePath(oid))
+				if err != nil {
+					return err
+				}
+				// Delete blobs first
+				for _, blobRef := range packFile.BlobRefs {
+					reclaimedFiles = append(reclaimedFiles, blobRef.ObjectPath())
+				}
+				// Delete pack file last
+				reclaimedFiles = append(reclaimedFiles, packFile.ObjectPath())
+			}
+		}
+
+		if strings.HasSuffix(info.Name(), ".blob") {
+			oid := oid.MustParse(strings.TrimSuffix(info.Name(), ".blob"))
+			blob := index.GetPackFileBlob(oid)
+			if blob == nil {
+				// This blob is not longer present in the index.
+				reclaimedFiles = append(reclaimedFiles, BlobPath(oid))
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	// Batch the deletions having having remove duplicates
+	slices.Sort(reclaimedFiles)
+	reclaimedFiles = slices.Compact(reclaimedFiles)
+	for _, path := range reclaimedFiles {
+		if err := SafeRemove(path); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -453,4 +509,16 @@ func (db *DB) StatsOnDisk() (*StatsOnDisk, error) {
 	result.TotalSizeKB = totalSize / filesystem.KB
 
 	return result, nil
+}
+
+/* Helpers */
+
+// SafeRemove removes a file only if it's under the root directory.
+// Same as os.Remove but with a guard to avoid deleting files outside the repository.
+func SafeRemove(path string) error {
+	if !strings.HasPrefix(path, CurrentConfig().RootDirectory) {
+		panic("Unsafe path to delete")
+	}
+	CurrentLogger().Infof("🗑️ Delete file %s", path)
+	return os.Remove(path)
 }

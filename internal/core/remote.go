@@ -31,6 +31,7 @@ type Remote interface {
 	GetObject(key string) ([]byte, error)
 	PutObject(key string, content []byte) error
 	DeleteObject(key string) error
+	GC() error
 	// Note: File permissions are not important concerning object. MTime, etc. must be stored inside the object definitions if useful.
 }
 
@@ -81,6 +82,11 @@ func (r *FSRemote) DeleteObject(key string) error {
 		return ErrObjectNotExist
 	}
 	return os.Remove(path)
+}
+
+func (r *FSRemote) GC() error {
+	// Not implemented
+	return nil
 }
 
 /* S3 */
@@ -143,6 +149,11 @@ func (r *S3Remote) DeleteObject(key string) error {
 		return err
 	}
 	return r.minioClient.RemoveObject(context.Background(), r.bucketName, key, minio.RemoveObjectOptions{})
+}
+
+func (r *S3Remote) GC() error {
+	// Not implemented
+	return nil
 }
 
 /* Storj */
@@ -242,5 +253,10 @@ func (r *StorjRemote) DeleteObject(key string) error {
 	if err != nil {
 		return err
 	}
+return nil
+}
+
+func (r *StorjRemote) GC() error {
+	// Not implemented
 	return nil
 }
