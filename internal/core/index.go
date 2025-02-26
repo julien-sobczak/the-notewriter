@@ -83,6 +83,11 @@ func (i IndexEntry) String() string {
 	return fmt.Sprintf("entry %q (packfile: %s%s%s)", i.RelativePath, tombstoneFlag, i.PackFileOID, stagedFlag)
 }
 
+// MarkdownBased returns if the entry if a Markdown-based file.
+func (i *IndexEntry) MarkdownBased() bool {
+	return strings.HasSuffix(i.RelativePath, ".md")
+}
+
 // Ref returns a PackFileRef from the index entry.
 func (i *IndexEntry) Ref() PackFileRef {
 	return PackFileRef{
@@ -353,6 +358,19 @@ func (i *Index) Stage(packFiles ...*PackFile) error {
 			})
 		}
 	}
+	return nil
+}
+
+// Unstage remove existing pack files from the index.
+func (i *Index) Unstage(packFiles ...*PackFile) error {
+	for _, packFile := range packFiles {
+		entry := i.GetEntry(packFile.FileRelativePath)
+		if entry == nil {
+			// Nothing to remove
+		}
+		entry.SetTombstone()
+	}
+	i.clearCache()
 	return nil
 }
 

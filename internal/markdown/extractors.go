@@ -2,6 +2,8 @@ package markdown
 
 import (
 	"bytes"
+	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
@@ -172,4 +174,157 @@ func (m Document) ExtractQuote() Quote {
 		Text:        Document(quote.String()),
 		Attribution: Document(attribution),
 	}
+}
+
+// Image represents an image inside a Markdown document
+type Image struct {
+	Text  Document
+	URL   string
+	Title string
+	Line  int
+}
+
+func (i Image) Internal() bool {
+	return !i.External()
+}
+
+func (i Image) External() bool {
+	schemaRegex := regexp.MustCompile(`^\w+://`)
+	return schemaRegex.MatchString(i.URL)
+}
+
+// ImageTransformer applies changes on a Markdown image
+type ImageTransformer func(image Image) (Image, error)
+
+// Transform applies transformers successively to create a new Markdown document
+func (i Image) Transform(transformers ...ImageTransformer) (Image, error) {
+	result := i
+	for _, transformer := range transformers {
+		resultTransformed, err := transformer(result)
+		if err != nil {
+			return result, err
+		}
+		result = resultTransformed
+	}
+	return result, nil
+}
+
+// MustTransform is similar to Transform but does not expect an error
+func (i Image) MustTransform(transformers ...ImageTransformer) Image {
+	result, err := i.Transform(transformers...)
+	if err != nil {
+		panic(err)
+	}
+	return result
+}
+
+// ResolveAbsoluteURL resolves the raw URL if relative to absolute URLs
+func ResolveAbsoluteURL(mdAbsolutePath string) ImageTransformer {
+	return func(image Image) (Image, error) {
+		if image.External() {
+			// External links
+			return image, nil
+
+		}
+		if strings.HasPrefix(image.URL, "/") {
+			// Already absolute path
+			return image, nil
+		}
+
+		// Ex: /some/path/to/markdown.md + ../index.md => /some/path/to/../markdown.md
+		absolutePath, err := filepath.Abs(filepath.Join(filepath.Dir(mdAbsolutePath), image.URL))
+		if err != nil {
+			return image, err
+		}
+
+		image.URL = absolutePath
+		return image, nil
+	}
+}
+
+// ResolveRelativeURL resolves the raw URL if absolute to relative URLs
+func ResolveRelativeURL(rootPath string) ImageTransformer {
+	return func(image Image) (Image, error) {
+		if image.External() {
+			// External links
+			return image, nil
+		}
+
+		relativePath, err := filepath.Rel(rootPath, image.URL)
+		if err != nil {
+			return image, err
+		}
+
+		image.URL = relativePath
+		return image, nil
+	}
+}
+
+type Images []Image
+
+// Transform applies transformers successively to create new Markdown images
+func (i Images) Transform(transformers ...ImageTransformer) (Images, error) {
+	var results Images
+
+	for _, image := range i {
+		for _, transformer := range transformers {
+			transformedImage, err := transformer(image)
+			if err != nil {
+				return nil, err
+			}
+			image = transformedImage
+		}
+		results = append(results, image)
+	}
+
+	return results, nil
+}
+
+// URLs returns the URLs of all images
+func (i Images) URLs() []string {
+	var urls []string
+	for _, img := range i {
+		urls = append(urls, img.URL)
+	}
+	return urls
+}
+
+// ExtractImages extracts all images present in a Markdown document
+func (m Document) ExtractImages() Images {
+	var results []Image
+
+	// Ignore images inside code blocks (ex: a sample Markdown code block)
+	doc := m.MustTransform(StripCodeBlocks())
+
+	r := regexp.MustCompile(`!\[(.*?)\]\((\S*?)(?:\s+"(.*?)")?\)`)
+	matches := r.FindAllStringSubmatch(string(doc), -1)
+	for _, match := range matches {
+
+		m := match[0]
+		txt := match[1]
+		url := match[2]
+		title := match[3]
+
+		line := text.LineNumber(string(doc), m)
+
+		results = append(results, Image{
+			Text:  Document(txt),
+			URL:   url,
+			Title: title,
+			Line:  line,
+		})
+	}
+
+	return results
+}
+
+// ExtractInternalImages extracts all intenral images present in a Markdown document
+func (m Document) ExtractInternalImages() Images {
+	var results []Image
+	for _, img := range m.ExtractImages() {
+		if img.Internal() {
+			results = append(results, img)
+		}
+	}
+	return results
 }

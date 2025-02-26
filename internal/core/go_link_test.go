@@ -7,6 +7,7 @@ import (
 
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -91,7 +92,7 @@ func TestGoLinkFormats(t *testing.T) {
 	t.Run("ToYAML", func(t *testing.T) {
 		actual := goLink.ToYAML()
 
-		expected := UnescapeTestContent(`
+		expected := text.UnescapeTestContent(`
 oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
 packfile_oid: 9c0c0682bd18439d992639f19f8d552bde3bd3c0
 note_oid: 52d02a28a961471db62c6d40d30639dafe4aba00
@@ -109,7 +110,7 @@ indexed_at: 2023-01-01T01:12:30Z
 
 	t.Run("ToJSON", func(t *testing.T) {
 		actual := goLink.ToJSON()
-		expected := UnescapeTestContent(`
+		expected := text.UnescapeTestContent(`
 {
   "oid": "42d74d967d9b4e989502647ac510777ca1e22f4a",
   "packfile_oid": "9c0c0682bd18439d992639f19f8d552bde3bd3c0",
@@ -129,7 +130,7 @@ indexed_at: 2023-01-01T01:12:30Z
 
 	t.Run("ToMarkdown", func(t *testing.T) {
 		actual := goLink.ToMarkdown()
-		expected := UnescapeTestContent(`[Golang](https://go.dev/doc/)`)
+		expected := text.UnescapeTestContent(`[Golang](https://go.dev/doc/)`)
 		assert.Equal(t, expected, actual)
 	})
 

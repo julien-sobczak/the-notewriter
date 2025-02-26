@@ -7,6 +7,7 @@ import (
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,7 +31,7 @@ func TestFile(t *testing.T) {
 		}),
 		Title:      markdown.Document("Go"),
 		ShortTitle: markdown.Document("Go"),
-		Body: markdown.Document(UnescapeTestContent(`# Go
+		Body: markdown.Document(text.UnescapeTestContent(`# Go
 
 ## Reference: Golang History
 
@@ -124,7 +125,7 @@ func TestFileFormats(t *testing.T) {
 		}),
 		Title:      markdown.Document("Go"),
 		ShortTitle: markdown.Document("Go"),
-		Body: markdown.Document(UnescapeTestContent(`# Go
+		Body: markdown.Document(text.UnescapeTestContent(`# Go
 
 ## Reference: Golang History
 
@@ -144,7 +145,7 @@ func TestFileFormats(t *testing.T) {
 	t.Run("ToYAML", func(t *testing.T) {
 		actual := file.ToYAML()
 
-		expected := UnescapeTestContent(`
+		expected := text.UnescapeTestContent(`
 oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
 slug: go
 packfile_oid: 9c0c0682bd18439d992639f19f8d552bde3bd3c0
@@ -179,7 +180,7 @@ indexed_at: 2023-01-01T01:12:30Z
 
 	t.Run("ToJSON", func(t *testing.T) {
 		actual := file.ToJSON()
-		expected := UnescapeTestContent(`
+		expected := text.UnescapeTestContent(`
 {
   "oid": "42d74d967d9b4e989502647ac510777ca1e22f4a",
   "slug": "go",
@@ -209,7 +210,7 @@ indexed_at: 2023-01-01T01:12:30Z
 
 	t.Run("ToMarkdown", func(t *testing.T) {
 		actual := file.ToMarkdown()
-		expected := UnescapeTestContent(`
+		expected := text.UnescapeTestContent(`
 ---
 tags:
 - go

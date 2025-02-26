@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -110,7 +111,7 @@ func TestMediaFormats(t *testing.T) {
 	t.Run("ToYAML", func(t *testing.T) {
 		actual := media.ToYAML()
 
-		expected := UnescapeTestContent(`
+		expected := text.UnescapeTestContent(`
 oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
 packfile_oid: a1ea23ae1287416c8796a0981f558206690b8a76
 relative_path: go.svg
@@ -148,7 +149,7 @@ indexed_at: 2023-01-01T01:12:30Z
 
 	t.Run("ToJSON", func(t *testing.T) {
 		actual := media.ToJSON()
-		expected := UnescapeTestContent(`
+		expected := text.UnescapeTestContent(`
 {
   "oid": "42d74d967d9b4e989502647ac510777ca1e22f4a",
   "packfile_oid": "a1ea23ae1287416c8796a0981f558206690b8a76",

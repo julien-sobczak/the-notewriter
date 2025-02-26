@@ -9,7 +9,7 @@ import (
 )
 
 // Transformer applies changes on a Markdown document
-type Transformer func(document Document) (Document, error)
+type Transformer func(document Document) (Document, error) // TODO rename to DocumentTransformer
 
 // Transform applies transformers successively to create a new Markdown document
 func (m Document) Transform(transformers ...Transformer) (Document, error) {

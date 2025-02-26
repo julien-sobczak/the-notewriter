@@ -253,6 +253,7 @@ func (r *Repository) Add(paths PathSpecs) error {
 	db := CurrentDB()
 
 	var traversedPaths []string
+	var referencedMediaPaths []string // List of media paths present in Markdown files
 	var packFilesToUpsert []*PackFile
 	var packFilesToDelete []*PackFile
 
@@ -262,7 +263,18 @@ func (r *Repository) Add(paths PathSpecs) error {
 
 		relativePath := RelativePath(CurrentConfig().RootDirectory, mdFile.AbsolutePath)
 
+		mdMedias := mdFile.Body.ExtractInternalImages()
+		// Convert to relative paths
+		mdMedias, err := mdMedias.Transform(
+			markdown.ResolveAbsoluteURL(mdFile.AbsolutePath),
+			markdown.ResolveRelativeURL(CurrentConfig().RootDirectory),
+		)
+		if err != nil {
+			return err
+		}
+
 		traversedPaths = append(traversedPaths, relativePath)
+		referencedMediaPaths = append(referencedMediaPaths, mdMedias.URLs()...)
 
 		// A Markdown file must be parsed again if
 		// - The file was modified since the last known timestamp
@@ -343,20 +355,30 @@ func (r *Repository) Add(paths PathSpecs) error {
 
 	// Walk the index to identify old files
 	err = db.Index().Walk(paths, func(entry *IndexEntry, objects []*IndexObject, blobs []*IndexBlob) error {
-		// Ignore medias.
-		if !strings.HasSuffix(entry.RelativePath, ".md") {
-			// We may not have found reference to a media in the processed markdown files
-			// but some markdown files outside the path specs may still reference it.
-			// The command `nt gc` is used to reclaim orphan medias instead.
-			return nil
-		}
-
-		if !slices.Contains(traversedPaths, entry.RelativePath) {
-			packFile, err := CurrentIndex().ReadPackFile(entry.PackFileOID)
-			if err != nil {
-				return err
+		// Process medias only when adding all files ("nt add .")
+		if !entry.MarkdownBased() { // medias
+			if !paths.MatchAll() {
+				// We may not have found reference to a media in the processed markdown files
+				// but some markdown files outside the path specs may still reference it.
+				// The command `nt gc` is used to reclaim orphan medias instead.
+				return nil
 			}
-			packFilesToDelete = append(packFilesToDelete, packFile)
+
+			if !slices.Contains(referencedMediaPaths, entry.RelativePath) {
+				packFile, err := CurrentIndex().ReadPackFile(entry.PackFileOID)
+				if err != nil {
+					return err
+				}
+				packFilesToDelete = append(packFilesToDelete, packFile)
+			}
+		} else { // Markdown files
+			if !slices.Contains(traversedPaths, entry.RelativePath) {
+				packFile, err := CurrentIndex().ReadPackFile(entry.PackFileOID)
+				if err != nil {
+					return err
+				}
+				packFilesToDelete = append(packFilesToDelete, packFile)
+			}
 		}
 		return nil
 	})
@@ -372,7 +394,7 @@ func (r *Repository) Add(paths PathSpecs) error {
 	db.DeletePackFiles(packFilesToDelete...)
 	// TODO Create .bak if Commit fails?
 	db.Index().Stage(packFilesToUpsert...)
-	db.Index().Stage(packFilesToDelete...) // FIXME: Should be deleted from the index??????
+	db.Index().Unstage(packFilesToDelete...)
 
 	// Don't forget to commit
 	if err := db.CommitTransaction(); err != nil {

@@ -634,6 +634,8 @@ func TestCommandGC(t *testing.T) {
 		MustWriteFile(t, "go.md", `# Go`)
 		err = CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
+		err = CurrentRepository().Commit("Second commit")
+		require.NoError(t, err)
 
 		// The media must have been removed from the index
 		require.Nil(t, CurrentIndex().GetEntry("medias/go.svg"))

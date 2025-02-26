@@ -193,6 +193,7 @@ func (db *DB) UpsertPackFiles(packFiles ...*PackFile) error {
 					return err
 				}
 			}
+			CurrentLogger().Infof("💾 Upserted pack file %s", filepath.Base(packFile.ObjectPath()))
 		}
 	}
 	return nil
@@ -207,6 +208,7 @@ func (db *DB) DeletePackFiles(packFiles ...*PackFile) error {
 				if err := statefulObj.Delete(); err != nil {
 					return err
 				}
+				CurrentLogger().Infof("💾 Deleted pack file %s", filepath.Base(packFile.ObjectPath()))
 			}
 		}
 	}

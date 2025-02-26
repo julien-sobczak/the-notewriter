@@ -513,34 +513,27 @@ func (p *ParsedFile) extractMedias() ([]*ParsedMedia, error) {
 	// Avoid returning duplicates if a media is included twice
 	filepaths := make(map[string]bool)
 
-	// Ignore medias inside code blocks (ex: a sample Markdown code block)
-	fileBody := p.Markdown.Body.MustTransform(markdown.StripCodeBlocks())
-
-	regexMedia := regexp.MustCompile(`!\[(.*?)\]\((\S*?)(?:\s+"(.*?)")?\)`)
-	matches := regexMedia.FindAllStringSubmatch(string(fileBody), -1)
-	for _, match := range matches {
-		txt := match[0]
-		rawPath := match[2]
-
-		line := text.LineNumber(string(fileBody), txt)
-
-		// Check for medias referenced multiple times
-		if _, ok := filepaths[rawPath]; ok {
+	for _, mdMedia := range p.Markdown.Body.ExtractImages() {
+		if mdMedia.External() {
+			// External medias aren't processed and we simply rendered using the URL
 			continue
 		}
-
-		// Ex: /some/path/to/markdown.md + ../index.md => /some/path/to/../markdown.md
-		absolutePath, err := filepath.Abs(filepath.Join(filepath.Dir(p.AbsolutePath), rawPath))
+		mdMediaAbsolute, err := mdMedia.Transform(markdown.ResolveAbsoluteURL(p.AbsolutePath))
 		if err != nil {
 			return nil, err
 		}
 
-		newMedia := ParseMedia(p.RepositoryPath, absolutePath)
-		newMedia.RawPath = rawPath
-		newMedia.Line = line
+		// Check for medias referenced multiple times
+		if _, ok := filepaths[mdMediaAbsolute.URL]; ok {
+			continue
+		}
+
+		newMedia := ParseMedia(p.RepositoryPath, mdMediaAbsolute.URL)
+		newMedia.RawPath = mdMedia.URL
+		newMedia.Line = mdMedia.Line
 
 		medias = append(medias, newMedia)
-		filepaths[rawPath] = true // Memorize duplicates
+		filepaths[mdMediaAbsolute.URL] = true // Memorize duplicates
 	}
 
 	return medias, nil

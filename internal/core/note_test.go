@@ -7,6 +7,7 @@ import (
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -35,7 +36,7 @@ func TestNote(t *testing.T) {
 		}),
 		Tags: TagSet([]string{"go"}),
 		Line: 8,
-		Content: markdown.Document(UnescapeTestContent(`
+		Content: markdown.Document(text.UnescapeTestContent(`
 ## Reference: Golang History
 
 ‛#history‛
@@ -47,7 +48,7 @@ func TestNote(t *testing.T) {
 > Go was created in 2007
 `)),
 		Hash: "40411b52dcd5eccdb5845ef8e8fc18bbff3c3411",
-		Body: markdown.Document(UnescapeTestContent(`‛#history‛
+		Body: markdown.Document(text.UnescapeTestContent(`‛#history‛
 
 ‛@source: https://en.wikipedia.org/wiki/Go_(programming_language)‛
 
@@ -125,13 +126,13 @@ func TestNoteFormats(t *testing.T) {
 		}),
 		Tags: TagSet([]string{"go"}),
 		Line: 8,
-		Content: markdown.Document(UnescapeTestContent(`## Reference: Golang History
+		Content: markdown.Document(text.UnescapeTestContent(`## Reference: Golang History
 
 ‛@source: https://en.wikipedia.org/wiki/Go_(programming_language)‛
 
 Golang was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.`)),
 		Hash: "40411b52dcd5eccdb5845ef8e8fc18bbff3c3411",
-		Body: markdown.Document(UnescapeTestContent(`‛@source: https://en.wikipedia.org/wiki/Go_(programming_language)‛
+		Body: markdown.Document(text.UnescapeTestContent(`‛@source: https://en.wikipedia.org/wiki/Go_(programming_language)‛
 
 Golang was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.`)),
 		CreatedAt: clock.Now(),
@@ -142,7 +143,7 @@ Golang was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in
 	t.Run("ToYAML", func(t *testing.T) {
 		actual := note.ToYAML()
 
-		expected := UnescapeTestContent(`
+		expected := text.UnescapeTestContent(`
 oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
 slug: go-reference-golang-history
 packfile_oid: 9c0c0682bd18439d992639f19f8d552bde3bd3c0
@@ -181,7 +182,7 @@ indexed_at: 2023-01-01T01:12:30Z
 
 	t.Run("ToJSON", func(t *testing.T) {
 		actual := note.ToJSON()
-		expected := UnescapeTestContent(`
+		expected := text.UnescapeTestContent(`
 {
   "oid": "42d74d967d9b4e989502647ac510777ca1e22f4a",
   "slug": "go-reference-golang-history",
@@ -217,7 +218,7 @@ indexed_at: 2023-01-01T01:12:30Z
 
 	t.Run("ToMarkdown", func(t *testing.T) {
 		actual := note.ToMarkdown()
-		expected := UnescapeTestContent(`
+		expected := text.UnescapeTestContent(`
 # Reference: Golang History
 
 ‛@source: https://en.wikipedia.org/wiki/Go_(programming_language)‛

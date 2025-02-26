@@ -13,6 +13,7 @@ import (
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/filesystem"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -254,26 +255,8 @@ func MustFindNoteByPathAndTitle(t *testing.T, relativePath, longTitle string) *N
 func MustWriteFile(t *testing.T, path string, content string) {
 	root := CurrentConfig().RootDirectory
 	newFilepath := filepath.Join(root, path)
-	err := os.WriteFile(newFilepath, []byte(UnescapeTestContent(content)), 0644)
+	err := os.WriteFile(newFilepath, []byte(text.UnescapeTestContent(content)), 0644)
 	require.NoError(t, err)
-}
-
-// UnescapeTestContent supports content using a special character instead of backticks.
-func UnescapeTestContent(content string) string {
-	// We support a special syntax for backticks in content.
-	// Backticks are used to define note attributes (= common syntax with The NoteWriter) but
-	// multiline strings in Golang cannot contains backticks.
-
-	// We allow the ” character instead as suggested here: https://stackoverflow.com/a/59900008
-	//
-	// Example: ”@slug: toto” will become `@slug: toto`
-	result := strings.ReplaceAll(content, "”", "`")
-
-	// We allow the ‛ character
-	// Example: ‛@slug: toto‛ will become `@slug: toto`
-	result = strings.ReplaceAll(result, "‛", "`")
-
-	return result
 }
 
 // MustDeleteFile remove a file iin the current repository.
