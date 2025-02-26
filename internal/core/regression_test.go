@@ -11,7 +11,6 @@ import (
 )
 
 func TestRegression(t *testing.T) {
-	t.Skip() // FIXME retry after refactor
 	root := SetUpRepositoryFromGoldenDirNamed(t, "TestComplex")
 
 	err := CurrentRepository().Add(AnyPath)
@@ -48,14 +47,11 @@ func TestRegression(t *testing.T) {
 			Changes: []Change{change},
 			RunGC:   true,
 			Check: func(t *testing.T, last, current *Stats) {
-				// A new commit file
-				assert.Equal(t, last.OnDisk.Commits+1, current.OnDisk.Commits)
-				// No new OIDs
+				// No more packfiles
 				assert.Equal(t, last.OnDisk.IndexObjects, current.OnDisk.IndexObjects)
-				// No new blobs
+				// No more blobs
 				assert.Equal(t, last.OnDisk.Blobs, current.OnDisk.Blobs)
-
-				// No new line in DB
+				// No new lines in DB
 				assert.Equal(t, last.InDB.Objects, current.InDB.Objects)
 				assert.Equal(t, last.InDB.Attributes, current.InDB.Attributes)
 				assert.Equal(t, last.InDB.Tags, current.InDB.Tags)

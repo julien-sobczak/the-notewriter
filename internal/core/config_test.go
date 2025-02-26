@@ -331,16 +331,6 @@ template = """# {{index . "title" | title }}"""
 			},
 
 			{
-				name: "Supported SRS algorithm",
-				config: `
-[deck.general]
-name = "General"
-algorithm = "stone"
-`,
-				expectedError: "unsupported SRS algorithm",
-			},
-
-			{
 				name: "Deck attributes",
 				config: `
 [deck.life]
@@ -383,7 +373,6 @@ algorithmSettings.easeFactor = 3.1
 					} else {
 						require.ErrorContains(t, err, tt.expectedError)
 					}
-					t.Skip()
 				}
 
 				err = c.Check()

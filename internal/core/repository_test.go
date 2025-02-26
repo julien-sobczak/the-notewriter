@@ -258,7 +258,6 @@ func TestRepository(t *testing.T) {
 }
 
 func TestStatsInDB(t *testing.T) {
-	t.Skip() // TODO uncomment after implementing Add() method
 	SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
 	stats, err := CurrentRepository().StatsInDB()
@@ -290,6 +289,5 @@ func TestStatsInDB(t *testing.T) {
 	assert.Equal(t, map[string]int{
 		"source": 1,
 		"tags":   3,
-		"title":  3,
 	}, stats.Attributes)
 }

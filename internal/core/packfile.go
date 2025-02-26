@@ -170,6 +170,7 @@ func (p *PackObject) ReadObject() Object {
 
 // LoadPackFileFromPath reads a pack file file on disk.
 func LoadPackFileFromPath(path string) (*PackFile, error) {
+	CurrentLogger().Infof("🤓 Loading pack file %s", path)
 	in, err := os.Open(path)
 	if err != nil {
 		return nil, err

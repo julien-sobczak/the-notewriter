@@ -19,6 +19,7 @@ import (
 	"github.com/julien-sobczak/the-notewriter/pkg/filesystem"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/julien-sobczak/the-notewriter/pkg/resync"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
 
 //go:embed sql/*.sql
@@ -480,18 +481,21 @@ func (db *DB) StatsOnDisk() (*StatsOnDisk, error) {
 	result := NewStatsOnDiskEmpty()
 
 	for _, file := range files {
-		oid := oid.MustParse(filepath.Base(file))
+		oid := oid.MustParse(text.TrimExtension(filepath.Base(file)))
 
 		result.ObjectFiles++
 
-		if _, ok := db.index.GetEntryByPackFileOID(oid); ok {
-			// It's a pack file, check the content to count objects/notes
-			packFile, err := LoadPackFileFromPath(file)
-			if err != nil {
-				return nil, err
-			}
-			for _, object := range packFile.PackObjects {
-				result.Objects[object.Kind]++
+		if strings.HasSuffix(file, ".pack") {
+			// It's a pack file
+			if _, ok := db.index.GetEntryByPackFileOID(oid); ok {
+				// It's a pack file, check the content to count objects/notes
+				packFile, err := LoadPackFileFromPath(file)
+				if err != nil {
+					return nil, err
+				}
+				for _, object := range packFile.PackObjects {
+					result.Objects[object.Kind]++
+				}
 			}
 		} else {
 			// Must be a blob

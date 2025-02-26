@@ -7,6 +7,7 @@ import (
 
 	"github.com/julien-sobczak/the-notewriter/internal/core"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"github.com/spf13/cobra"
 )
 
@@ -87,7 +88,7 @@ func dumpPath(path string) {
 		fmt.Fprintf(os.Stderr, "Path is a directory: %s", path)
 		os.Exit(1)
 	}
-	filename := filepath.Base(path)
+	filename := text.TrimExtension(filepath.Base(path))
 	if !isOID(filename) {
 		fmt.Fprintf(os.Stderr, "Path to an invalid file: %s", path)
 		os.Exit(1)

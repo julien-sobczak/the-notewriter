@@ -65,7 +65,7 @@ commits:
 }
 
 func TestStorjRemote(t *testing.T) {
-	t.Skip() // The test does not execute the closure...
+	t.Skip() // TODO The test does not execute the closure...
 
 	// See https://raw.githubusercontent.com/wiki/storj/storj/code/Testing.md
 	testplanet.Run(t, testplanet.Config{

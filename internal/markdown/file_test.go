@@ -179,8 +179,7 @@ func TestParseMarkdown(t *testing.T) {
 			name:   "Front Matter",
 			golden: "front-matter",
 			test: func(t *testing.T, md *markdown.File) {
-				t.Skip() // FIXME remove
-				assert.Equal(t, "# A comment\ntitle: Title\ntags: [tag1, tag2]\nrating: 3\nlinks:\n- https://github.com\n", md.FrontMatter)
+				assert.Equal(t, markdown.FrontMatter("# A comment\ntitle: Title\ntags: [tag1, tag2]\nrating: 3\nlinks:\n- https://github.com\n"), md.FrontMatter)
 				fmMap, err := md.FrontMatter.AsMap()
 				require.NoError(t, err)
 				assert.Equal(t, map[string]any{
@@ -301,7 +300,6 @@ func TestParseMarkdown(t *testing.T) {
 			name:   "Code Blocks",
 			golden: "code-block",
 			test: func(t *testing.T, md *markdown.File) {
-				t.Skip() // FIXME remove
 				sections, err := md.GetSections()
 				require.NoError(t, err)
 				assert.Len(t, sections, 3)
