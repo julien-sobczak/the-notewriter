@@ -72,7 +72,7 @@ func TestReminder(t *testing.T) {
 }
 
 func TestReminderFormats(t *testing.T) {
-	FreezeAt(t, HumanTime(t, "2023-01-01 01:12:30"))
+	FreezeOn(t, "2023-01-01 01:12:30")
 
 	reminder := &Reminder{
 		OID:         "42d74d967d9b4e989502647ac510777ca1e22f4a",
@@ -140,8 +140,7 @@ indexed_at: 2023-01-01T01:12:30Z
 }
 
 func TestEvaluateTimeExpression(t *testing.T) {
-	clock.FreezeAt(time.Date(2023, time.Month(7), 1, 1, 12, 30, 0, time.UTC))
-	defer clock.Unfreeze()
+	FreezeOn(t, "2023-07-01 12:30")
 
 	var tests = []struct {
 		name     string    // name

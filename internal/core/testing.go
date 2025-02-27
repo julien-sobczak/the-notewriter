@@ -124,26 +124,9 @@ func FreezeAt(t *testing.T, point time.Time) *clock.TestClock {
 
 // FreezeOn wraps the clock API to register the cleanup function at the end of the test.
 func FreezeOn(t *testing.T, date string) *clock.TestClock {
-	point := parseHumanReadableDate(date)
+	point := HumanTime(t, date)
 	require.False(t, point.IsZero())
 	return FreezeAt(t, point)
-}
-
-// parseHumanReadableDate tries to parse a date in a human-readable format using different common formats.
-func parseHumanReadableDate(date string) time.Time {
-	// Try common format (more specific to least specific)
-	formatsToTry := []string{
-		time.RFC3339,  // Ex: "2023-10-15T14:12:00Z"
-		time.DateTime, // Ex: "2023-10-15 14:12:00"
-		time.DateOnly, // Ex: "2023-10-15"
-	}
-	for _, format := range formatsToTry {
-		parsedDate, err := time.Parse(format, date)
-		if err == nil {
-			return parsedDate
-		}
-	}
-	return time.Time{}
 }
 
 /* Test Helpers */
@@ -296,6 +279,7 @@ func AppendLines(t *testing.T, path string, text string) {
 
 /* Date Management */
 
+// HumanTime parses a string into a time.Time supporting different formats to make tests more readable.
 func HumanTime(t *testing.T, str string) time.Time {
 	patterns := map[string]string{
 		"2006-01-02":              `^\d{4}-\d{2}-\d{2}$`,

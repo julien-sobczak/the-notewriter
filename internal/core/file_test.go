@@ -110,7 +110,7 @@ A **gopher**.
 }
 
 func TestFileFormats(t *testing.T) {
-	FreezeAt(t, HumanTime(t, "2023-01-01 01:12:30"))
+	FreezeOn(t, "2023-01-01 01:12:30")
 
 	createdAt := clock.Now()
 	file := &File{

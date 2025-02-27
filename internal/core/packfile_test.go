@@ -168,7 +168,7 @@ func TestPackFile(t *testing.T) {
 
 	t.Run("YAML", func(t *testing.T) {
 		oid.UseSequence(t)
-		FreezeOn(t, "2023-01-01 12:30:00")
+		FreezeOn(t, "2023-01-01 12:30")
 		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
 		parsedFile := ParseFileFromRelativePath(t, "go.md")

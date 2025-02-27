@@ -98,8 +98,4 @@ func DetermineNoteSlug(fileSlug string, attributeSlug string, kind NoteKind, sho
 * [ ] `Pull` `Push` in `Repository` or `DB`?
 * [ ] Add a "Cheatsheet: Fixtures using `testdata`" + "Cheatsheet: Fixtures using raw files" in notes
 * [ ] Move `NewOrExistingXXX`, `NewPackFileXXX` to `Repository`, etc.
-* [ ] Merge `MustWriteFile` (old, better) and `MustWriteFileFromRelativePath` (new) together
-* [ ] Search for `os.WriteFile` in tests and replace by `WriteFileFromRelativePath` instead
-* [ ] Search for `clock.FreezeAt` and replace by more human-friendly `clock.FreezeOn` instead (but check first `FreezeAt(t, HumanTime(t, "2023-01-01 01:12:30"))`)
-* [ ] Use `x.` in `UPSERT` (methods `Save()`) to avoid duplicating fields `@source: https://www.sqlite.org/lang_upsert.html`
-* [ ] Writer custom assertion to compare `ToJSON` and `ToYAML` ignore spaces
+* [ ] Write custom assertion to compare `ToJSON` and `ToYAML` ignore spaces

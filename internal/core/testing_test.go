@@ -18,7 +18,8 @@ func TestSetUpRepositoryFromGoldenDirNamed(t *testing.T) {
 func TestReplaceLine(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "test.txt")
-	os.WriteFile(path, []byte("Hello\nWorld"), 0644)
+	err := os.WriteFile(path, []byte("Hello\nWorld"), 0644)
+	require.NoError(t, err)
 
 	ReplaceLine(t, path, 1, "Hello", "Hi")
 
@@ -36,7 +37,8 @@ func TestReplaceLine(t *testing.T) {
 func TestAppendLines(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "test.txt")
-	os.WriteFile(path, []byte("Hello\nWorld"), 0644)
+	err := os.WriteFile(path, []byte("Hello\nWorld"), 0644)
+	require.NoError(t, err)
 
 	AppendLines(t, path, "Hi")
 

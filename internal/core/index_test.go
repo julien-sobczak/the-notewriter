@@ -15,7 +15,7 @@ import (
 func TestIndexEntry(t *testing.T) {
 
 	t.Run("String", func(t *testing.T) {
-		FreezeOn(t, "2023-01-01 12:30:00")
+		FreezeOn(t, "2023-01-01 12:30")
 
 		entry := &IndexEntry{
 			RelativePath: "go.md",
@@ -66,7 +66,7 @@ func TestIndex(t *testing.T) {
 	t.Run("Empty/Stage/Commit", func(t *testing.T) {
 		// Make tests reproductible
 		oid.UseSequence(t)
-		FreezeOn(t, "2023-01-01 12:30:00")
+		FreezeOn(t, "2023-01-01 12:30")
 		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
 		idx := NewIndex()
@@ -128,7 +128,7 @@ func TestIndex(t *testing.T) {
 	t.Run("Existing/Stage/Commit", func(t *testing.T) {
 		// Make tests reproductible
 		oid.UseSequence(t)
-		FreezeOn(t, "2023-01-01 12:30:00")
+		FreezeOn(t, "2023-01-01 12:30")
 		SetUpRepositoryFromTempDir(t)
 
 		idx := NewIndex()
@@ -167,7 +167,7 @@ func TestIndex(t *testing.T) {
 	t.Run("Reset", func(t *testing.T) {
 		// Make tests reproductible
 		oid.UseSequence(t)
-		FreezeOn(t, "2023-01-01 12:30:00")
+		FreezeOn(t, "2023-01-01 12:30")
 		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
 		idx := NewIndex()
@@ -267,7 +267,7 @@ func TestIndex(t *testing.T) {
 	t.Run("GetParentEntry", func(t *testing.T) {
 		// Make tests reproductible
 		oid.UseSequence(t)
-		FreezeOn(t, "2023-01-01 12:30:00")
+		FreezeOn(t, "2023-01-01 12:30")
 		SetUpRepositoryFromTempDir(t)
 
 		idx := NewIndex()
@@ -302,7 +302,7 @@ func TestIndex(t *testing.T) {
 	t.Run("Tombstone", func(t *testing.T) {
 		// Make tests reproductible
 		oid.UseSequence(t)
-		FreezeOn(t, "2023-01-01 12:30:00")
+		FreezeOn(t, "2023-01-01 12:30")
 		SetUpRepositoryFromTempDir(t)
 
 		idx := NewIndex()

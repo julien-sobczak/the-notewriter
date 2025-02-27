@@ -50,7 +50,6 @@ func TestDirSize(t *testing.T) {
 	assert.Less(t, size, int64(16*KB))
 }
 
-
 func TestListFiles(t *testing.T) {
 	dir := t.TempDir()
 
@@ -77,7 +76,7 @@ func TestListFiles(t *testing.T) {
 /* Test Helpers */
 
 func randomTextFile(t *testing.T, path string, n int) {
-	rand.Seed(time.Now().UnixNano())
+	rand.NewSource(time.Now().UnixNano())
 	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 	b := make([]rune, n)
 	for i := range b {
