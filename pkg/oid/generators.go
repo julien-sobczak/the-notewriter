@@ -135,7 +135,10 @@ func NewSequenceGenerator() *SequenceGenerator {
 
 func (g *SequenceGenerator) New() OID {
 	g.count++
-	return OID(fmt.Sprintf("%040d", g.count))
+	// Prefer 1000..0000 to 0000...0001 to generate short OIDs
+	prefix := fmt.Sprintf("%d", g.count)
+	suffix := strings.Repeat("0", 40-len(prefix))
+	return OID(prefix + suffix)
 }
 
 func (g *SequenceGenerator) NewFromBytes(b []byte) OID {

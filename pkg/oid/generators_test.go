@@ -106,8 +106,8 @@ func TestSequenceGenerator(t *testing.T) {
 
 		require.NotNil(t, oid1)
 		require.NotNil(t, oid2)
-		assert.Equal(t, oid.OID("0000000000000000000000000000000000000001"), oid1)
-		assert.Equal(t, oid.OID("0000000000000000000000000000000000000002"), oid2)
+		assert.Equal(t, oid.OID("1000000000000000000000000000000000000000"), oid1)
+		assert.Equal(t, oid.OID("2000000000000000000000000000000000000000"), oid2)
 	})
 
 	t.Run("NewFromBytes", func(t *testing.T) {
@@ -118,7 +118,7 @@ func TestSequenceGenerator(t *testing.T) {
 
 		require.NotNil(t, oid1)
 		require.NotNil(t, oid2)
-		assert.Equal(t, oid.OID("0000000000000000000000000000000000000001"), oid1)
-		assert.Equal(t, oid.OID("0000000000000000000000000000000000000002"), oid2)
+		assert.Equal(t, oid.OID("1000000000000000000000000000000000000000"), oid1)
+		assert.Equal(t, oid.OID("2000000000000000000000000000000000000000"), oid2)
 	})
 }
