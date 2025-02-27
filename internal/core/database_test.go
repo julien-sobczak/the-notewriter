@@ -42,7 +42,7 @@ func TestStatsOnDisk(t *testing.T) {
 	assert.Greater(t, statsAdd.TotalSizeKB, int64(0))
 
 	// Commit
-	err = CurrentRepository().Commit("")
+	err = CurrentRepository().Commit()
 	require.NoError(t, err)
 	statsCommit, err := CurrentDB().StatsOnDisk()
 	require.NoError(t, err)

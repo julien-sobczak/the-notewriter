@@ -463,7 +463,7 @@ func (r *Repository) Reset(pathSpecs PathSpecs) error {
 }
 
 // Commit implements the command `nt commit`
-func (r *Repository) Commit(msg string) error {
+func (r *Repository) Commit() error {
 	if CurrentIndex().NothingToCommit() {
 		return errors.New("nothing to commit (create/copy files and use \"nt add\" to track")
 	}

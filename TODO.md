@@ -95,9 +95,7 @@ func DetermineNoteSlug(fileSlug string, attributeSlug string, kind NoteKind, sho
 
 ## TODO: Improvement
 
-* [ ] Use or remove parameter `msg` in `nt commit`
 * [ ] Rework `oid.UseSequence()` to invert the digits to support `ShortOID`. Ex: `"0000000000000000000000000000000000000002` => `2000000000000000000000000000000000000000`
-* [ ] Exploit `if CurrentConfig().DryRun` in `NewPackFileFromXXX` to avoid bool `saveOnDisk`
 * [ ] Try to remove `BlobPath` and `PackFilePath` by `BlobRef.ObjectPath()` and `PackFileRef.ObjectPath()` instead
 * [ ] `Pull` `Push` in `Repository` or `DB`?
 * [ ] Add a "Cheatsheet: Fixtures using `testdata`" + "Cheatsheet: Fixtures using raw files" in notes

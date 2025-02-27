@@ -8,10 +8,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var commitMessage string
 
 func init() {
-	commitCmd.Flags().StringVarP(&commitMessage, "message", "m", "", "commit message")
 	rootCmd.AddCommand(commitCmd)
 }
 
@@ -20,7 +18,7 @@ var commitCmd = &cobra.Command{
 	Short: "Commit",
 	Run: func(cmd *cobra.Command, args []string) {
 		CheckConfig()
-		err := core.CurrentRepository().Commit(commitMessage)
+		err := core.CurrentRepository().Commit()
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

@@ -74,7 +74,7 @@ func TestCommandAdd(t *testing.T) {
 		assert.FileExists(t, PackFilePath(entry2.StagedPackFileOID))
 
 		// Commit
-		err = CurrentRepository().Commit("initial commit")
+		err = CurrentRepository().Commit()
 		require.NoError(t, err)
 
 		// Check index file
@@ -142,7 +142,7 @@ func TestCommandAdd(t *testing.T) {
 
 		err := CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
-		err = CurrentRepository().Commit("Initial commit")
+		err = CurrentRepository().Commit()
 		require.NoError(t, err)
 
 		idx := MustReadIndex()
@@ -159,19 +159,19 @@ func TestCommandAdd(t *testing.T) {
 		err = CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
 
-		err = CurrentRepository().Commit("First commit")
+		err = CurrentRepository().Commit()
 		require.NoError(t, err)
 
 		// Check 2: Try to commit the same file repeatability
 		ReplaceLine(t, filepath.Join(root, "go.md"), 19, "(Go) What does the **logo** represent?", "What is the **logo**?")
 		err = CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
-		err = CurrentRepository().Commit("Second commit")
+		err = CurrentRepository().Commit()
 		require.NoError(t, err)
 		ReplaceLine(t, filepath.Join(root, "go.md"), 19, "What is the **logo**?", "What represents the **logo**?")
 		err = CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
-		err = CurrentRepository().Commit("Third commit")
+		err = CurrentRepository().Commit()
 		require.NoError(t, err)
 
 		// Check the file is still listed only once
@@ -238,7 +238,7 @@ func TestCommandCommit(t *testing.T) {
 		err := CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
 
-		err = CurrentRepository().Commit("initial commit")
+		err = CurrentRepository().Commit()
 		require.NoError(t, err)
 
 		require.NoFileExists(t, filepath.Join(root, "python.md"))
@@ -253,14 +253,14 @@ Who invented Python?
 Guido van Rossum
 `)
 
-		err = CurrentRepository().Commit("empty commit")
+		err = CurrentRepository().Commit()
 		require.ErrorContains(t, err, "nothing to commit")
 
 		// Create a second commit
 		err = CurrentRepository().Add(PathSpecs{"python.md"})
 		require.NoError(t, err)
 
-		err = CurrentRepository().Commit("second commit")
+		err = CurrentRepository().Commit()
 		require.NoError(t, err)
 	})
 
@@ -280,7 +280,7 @@ func TestCommandPushPull(t *testing.T) {
 		// Push
 		err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
-		err = CurrentRepository().Commit("initial commit")
+		err = CurrentRepository().Commit()
 		require.NoError(t, err)
 		err = CurrentRepository().Push(false, false)
 		require.NoError(t, err)
@@ -327,7 +327,7 @@ func TestCommandPushPull(t *testing.T) {
 		// Commit
 		err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
-		err = CurrentRepository().Commit("initial commit")
+		err = CurrentRepository().Commit()
 		require.NoError(t, err)
 
 		// Stage a few changes
@@ -529,7 +529,7 @@ func TestCommandDiff(t *testing.T) {
 
 		// Step 3: Commit the staged file
 
-		err = CurrentRepository().Commit("initial commit")
+		err = CurrentRepository().Commit()
 		require.NoError(t, err)
 
 		diffs, err = CurrentRepository().Diff(AnyPath, true) // Staging area is empty = must be empty
@@ -620,7 +620,7 @@ func TestCommandGC(t *testing.T) {
 		// Add
 		err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
-		err = CurrentRepository().Commit("Initial commit")
+		err = CurrentRepository().Commit()
 		require.NoError(t, err)
 
 		entryMarkdown := CurrentIndex().GetEntry("go.md")
@@ -634,7 +634,7 @@ func TestCommandGC(t *testing.T) {
 		MustWriteFile(t, "go.md", `# Go`)
 		err = CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
-		err = CurrentRepository().Commit("Second commit")
+		err = CurrentRepository().Commit()
 		require.NoError(t, err)
 
 		// The media must have been removed from the index
