@@ -2,7 +2,6 @@
 
 ## TODO: Sprint
 
-* [ ] Cleanup `.bak` files
 * [ ] Merge branch?
 * [ ] Implement `GC()` on remotes
 * [ ] Rework `nt cat-file`
