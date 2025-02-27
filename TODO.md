@@ -95,7 +95,6 @@ func DetermineNoteSlug(fileSlug string, attributeSlug string, kind NoteKind, sho
 
 ## TODO: Improvement
 
-* [ ] Try to remove `BlobPath` and `PackFilePath` by `BlobRef.ObjectPath()` and `PackFileRef.ObjectPath()` instead
 * [ ] `Pull` `Push` in `Repository` or `DB`?
 * [ ] Add a "Cheatsheet: Fixtures using `testdata`" + "Cheatsheet: Fixtures using raw files" in notes
 * [ ] Move `NewOrExistingXXX`, `NewPackFileXXX` to `Repository`, etc.

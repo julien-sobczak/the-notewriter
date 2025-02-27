@@ -312,7 +312,7 @@ func PackFilePath(oid oid.OID) string {
 
 // PackFileRelativePath returns the path to the pack file in .nt/objects/ directory.
 func PackFileRelativePath(oid oid.OID) string {
-	return "objects/" + oid.RelativePath() + ".pack"
+	return "objects/" + oid.RelativePath(".pack")
 }
 
 // SaveTo writes a new pack file to the given location.

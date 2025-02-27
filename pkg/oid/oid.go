@@ -21,11 +21,10 @@ func (o OID) Prefix() string {
 	return string(o)[0:2]
 }
 
-// RelativePath returns the relative path inside .nt/objects.
-func (o OID) RelativePath() string {
+func (o OID) RelativePath(extension string) string {
 	// We use the first two characters to spread objects into different directories
 	// (same as .git/objects/) to avoid having a large unpractical directory.
-	return fmt.Sprintf("%s/%s", o.Prefix(), o)
+	return fmt.Sprintf("%s/%s%s", o.Prefix(), o, extension)
 }
 
 // String returns the OID as a string.

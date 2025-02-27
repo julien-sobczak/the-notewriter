@@ -61,7 +61,7 @@ func BlobPath(oid oid.OID) string {
 
 // BlobRelativePath returns the path to the blob file in .nt/objects/ directory.
 func BlobRelativePath(oid oid.OID) string {
-	return "objects/" + oid.RelativePath() + ".blob"
+	return "objects/" + oid.RelativePath(".blob")
 }
 
 type Dumpable interface {
@@ -168,7 +168,7 @@ func (c *BlobFile) Write(w io.Writer) error {
 
 // Save writes a new file inside .nt/objects.
 func (c *BlobFile) Save() error {
-	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", c.Ref.OID.RelativePath())
+	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", c.Ref.OID.RelativePath("..blob"))
 	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
 		return err
 	}
