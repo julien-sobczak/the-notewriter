@@ -2,6 +2,8 @@ package core
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -90,6 +92,41 @@ func TestPackFile(t *testing.T) {
 		assert.Empty(t, packFile.BlobRefs)
 	})
 
+	t.Run("NewPackFileFromParsedFile_Retry", func(t *testing.T) {
+		FreezeNow(t)
+		SetUpRepositoryFromTempDir(t)
+
+		MustWriteFile(t, "go.md", "# Go")
+
+		// Create a pack file from a parsed file
+		parsedFile := ParseFileFromRelativePath(t, "go.md")
+		packFile, err := NewPackFileFromParsedFile(parsedFile)
+		require.NoError(t, err)
+		assert.Len(t, packFile.BlobRefs, 1)
+		blob := packFile.BlobRefs[0]
+
+		// Reread the same file must not trigger a new pack file
+		parsedFile = ParseFileFromRelativePath(t, "go.md")
+		newPackFile, err := NewPackFileFromParsedFile(parsedFile)
+		require.NoError(t, err)
+		assert.Equal(t, packFile.OID, newPackFile.OID) // Same pack file
+		assert.Len(t, newPackFile.BlobRefs, 1)
+		newBlob := newPackFile.BlobRefs[0]
+		assert.Equal(t, blob.OID, newBlob.OID) // Same blobs
+
+		// Edit the Markdown file
+		MustWriteFile(t, "go.md", "# Golang")
+
+		// An updated file must trigger a new pack file
+		parsedFile = ParseFileFromRelativePath(t, "go.md")
+		newPackFile, err = NewPackFileFromParsedFile(parsedFile)
+		require.NoError(t, err)
+		assert.NotEqual(t, packFile.OID, newPackFile.OID) // New pack file
+		assert.Len(t, newPackFile.BlobRefs, 1)
+		newBlob = newPackFile.BlobRefs[0]
+		assert.NotEqual(t, blob.OID, newBlob.OID) // New blob
+	})
+
 	t.Run("NewPackFileFromParsedMedia", func(t *testing.T) {
 		oid.UseSequence(t)
 		FreezeNow(t)
@@ -127,6 +164,41 @@ func TestPackFile(t *testing.T) {
 		assert.NoFileExists(t, packFile.ObjectPath())
 		// No blobs must have been generated
 		assert.Empty(t, packFile.BlobRefs)
+	})
+
+	t.Run("NewPackFileFromParsedMedia_Retry", func(t *testing.T) {
+		root := SetUpRepositoryFromTempDir(t)
+		FreezeNow(t)
+
+		pathGif := filepath.Join(root, "smallest.gif")
+		err := os.WriteFile(pathGif, smallestGIF, 0644)
+		require.NoError(t, err)
+
+		convertionDone := false
+		CurrentConfig().Converter().OnPreGeneration(func(cmd string, args ...string) {
+			convertionDone = true
+		})
+		parsedMedia := ParseMedia(root, pathGif)
+		packFile, err := NewPackFileFromParsedMedia(parsedMedia)
+		require.NoError(t, err)
+		assert.True(t, convertionDone)
+
+		// Reread the same file must not trigger a new pack file, neither new conversions
+		convertionDone = false
+		newPackFile, err := NewPackFileFromParsedMedia(parsedMedia)
+		require.NoError(t, err)
+		assert.Equal(t, packFile.OID, newPackFile.OID) // Same pack file
+		assert.False(t, convertionDone)                // No convertion was done
+
+		// An updated media must trigger a new pack file
+		invalidGif := []byte("invalid gif")
+		err = os.WriteFile(pathGif, invalidGif, 0644)
+		require.NoError(t, err)
+		convertionDone = false
+		newPackFile, err = NewPackFileFromParsedMedia(parsedMedia)
+		require.NoError(t, err)
+		assert.NotEqual(t, packFile.OID, newPackFile.OID) // Different files, different pack files
+		assert.True(t, convertionDone)                    // Reconvertion
 	})
 
 	t.Run("LoadPackFileFromPath", func(t *testing.T) {

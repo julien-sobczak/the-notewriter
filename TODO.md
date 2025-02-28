@@ -7,22 +7,6 @@
 * [ ] Rework `nt cat-file`
 * [ ] Implement option `-i` in `nt pull`/`nt push`
 * [ ] Add tests on `ObjectDiffs` for `Patch`/etc.
-* [ ] Reread my comment + Add logic in `GenerateBlobs()` to reread from `.nt/objects` first
-    ```go
-	// BUG?
-	// packfile are created before objects (File, Note) to have the pack file OID when creating the object
-	// When to generate blobs?
-	// - PackFile is created in memory but not on disk
-	// - File/Media are created in memory and appended to PackFile
-	// - GenerateBlobs() creates blob files on disk using file content hash as OID
-	//   => 💥 If the command crashes, some blobs will have been created on disk.
-	//         When relaunching the command, the method GenerateBlobs() must find previous blobs but how?
-	//         Solution: In NewOrExistingFile/Media, Load by searching for file hash (same Markdown, same media file) = same object
-	// - PackFile is saved on disk
-	// ...
-	// When all packfiles are saved
-	// - PackFile is saved in DB
-	```
 * [ ] Rework `nt hook`
 * [ ] Add many many many more tests in `parser_test.go` 💪
 * [ ] Check how the slug is evaluated in `ParseNote()`. Here is the old code in `note.go`:

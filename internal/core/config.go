@@ -92,6 +92,9 @@ var (
 	// Lazy-load configuration and ensure a single read
 	configOnce      resync.Once
 	configSingleton *Config
+
+	converterOnce      resync.Once
+	converterSingleton medias.Converter
 )
 
 // Note: Fields must be public for toml package to unmarshall
@@ -488,25 +491,28 @@ func (c *Config) TempDir() string {
 
 // Converter returns the convertor to use when creating blobs from media files.
 func (c *Config) Converter() medias.Converter {
-	mediaConfig := c.ConfigFile.Medias
-	switch mediaConfig.Command {
-	case "":
-		fallthrough
-	case "ffmpeg":
-		preset := mediaConfig.Preset
-		converter, err := medias.NewFFmpegConverter(preset)
-		if err != nil {
-			log.Fatal(err)
+	converterOnce.Do(func() {
+		var err error
+		mediaConfig := c.ConfigFile.Medias
+		switch mediaConfig.Command {
+		case "":
+			fallthrough
+		case "ffmpeg":
+			preset := mediaConfig.Preset
+			converterSingleton, err = medias.NewFFmpegConverter(preset)
+			if err != nil {
+				log.Fatal(err)
+			}
+			converterSingleton.OnPreGeneration(func(cmd string, args ...string) {
+				CurrentLogger().Debugf("Running command %q", cmd+" "+strings.Join(args, " "))
+			})
+		case "random":
+			converterSingleton = medias.NewRandomConverter()
+		default:
+			log.Fatalf("Unsupported converter %q", c.ConfigFile.Medias.Command)
 		}
-		converter.OnPreGeneration(func(cmd string, args ...string) {
-			CurrentLogger().Debugf("Running command %q", cmd+" "+strings.Join(args, " "))
-		})
-		return converter
-	case "random":
-		return medias.NewRandomConverter()
-	}
-	log.Fatalf("Unsupported converter %q", c.ConfigFile.Medias.Command)
-	return nil
+	})
+	return converterSingleton
 }
 
 func currentHome() string {

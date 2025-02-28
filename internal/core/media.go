@@ -520,6 +520,15 @@ func (r *Repository) LoadMediaByOID(oid oid.OID) (*Media, error) {
 }
 
 func (r *Repository) FindMatchingMedia(parsedMedia *ParsedMedia) (*Media, error) {
+	// Find by hash (ex: file was renamed)
+	media, err := r.FindMediaByHash(parsedMedia.FileHash())
+	if err != nil {
+		return nil, err
+	}
+	if media != nil {
+		return media, nil
+	}
+
 	// Find by relative path
 	relativePath := r.GetFileRelativePath(parsedMedia.AbsolutePath)
 	return r.FindMediaByRelativePath(relativePath)

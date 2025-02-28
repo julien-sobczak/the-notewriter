@@ -22,6 +22,7 @@ import (
 func Reset() {
 	repositoryOnce.Reset()
 	configOnce.Reset()
+	converterOnce.Reset()
 	dbRemoteOnce.Reset()
 	dbClientOnce.Reset()
 	dbOnce.Reset()

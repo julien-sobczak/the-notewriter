@@ -11,66 +11,76 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// https://stackoverflow.com/a/36605651
+var smallestGIF = []byte{
+	71, 73, 70, 56, 57, 97, 1, 0, 1, 0, 0, 0, 0, 33, 249, 4, 1, 10, 0, 1, 0, 44, 0, 0, 0, 0, 1, 0, 1, 0, 0, 2, 2, 76, 1, 0, 59,
+}
+
+
 func TestMedia(t *testing.T) {
-	SetUpRepositoryFromTempDir(t)
-	FreezeNow(t)
 
-	media := &Media{
-		OID:          "42d74d967d9b4e989502647ac510777ca1e22f4a",
-		PackFileOID:  "a1ea23ae1287416c8796a0981f558206690b8a76",
-		RelativePath: "go.svg",
-		MediaKind:    KindPicture,
-		Dangling:     true,
-		Extension:    ".svg",
-		MTime:        time.Time{},
-		Hash:         "",
-		Size:         0,
-		CreatedAt:    clock.Now(),
-		UpdatedAt:    clock.Now(),
-		IndexedAt:    clock.Now(),
-	}
+	t.Run("Basic", func(t *testing.T) {
+		SetUpRepositoryFromTempDir(t)
+		FreezeNow(t)
 
-	// Save
-	require.NoError(t, media.Save())
-	require.Equal(t, 1, MustCountMedias(t))
+		media := &Media{
+			OID:          "42d74d967d9b4e989502647ac510777ca1e22f4a",
+			PackFileOID:  "a1ea23ae1287416c8796a0981f558206690b8a76",
+			RelativePath: "go.svg",
+			MediaKind:    KindPicture,
+			Dangling:     true,
+			Extension:    ".svg",
+			MTime:        time.Time{},
+			Hash:         "",
+			Size:         0,
+			CreatedAt:    clock.Now(),
+			UpdatedAt:    clock.Now(),
+			IndexedAt:    clock.Now(),
+		}
 
-	// Check
-	actual, err := CurrentRepository().LoadMediaByOID(media.OID)
-	require.NoError(t, err)
-	require.NotNil(t, actual)
-	assert.Equal(t, media.OID, actual.OID)
-	assert.Equal(t, media.PackFileOID, actual.PackFileOID)
-	assert.Equal(t, media.RelativePath, actual.RelativePath)
-	assert.Equal(t, media.MediaKind, actual.MediaKind)
-	assert.Equal(t, media.Extension, actual.Extension)
-	assert.Equal(t, media.Dangling, actual.Dangling)
-	assert.Equal(t, media.MTime, actual.MTime)
-	assert.Equal(t, media.Hash, actual.Hash)
-	assert.Equal(t, media.Size, actual.Size)
-	assert.WithinDuration(t, clock.Now(), actual.CreatedAt, 1*time.Second)
-	assert.WithinDuration(t, clock.Now(), actual.UpdatedAt, 1*time.Second)
-	assert.WithinDuration(t, clock.Now(), actual.IndexedAt, 1*time.Second)
+		// Save
+		require.NoError(t, media.Save())
+		require.Equal(t, 1, MustCountMedias(t))
 
-	// Update
-	actual.Dangling = false
-	actual.Hash = "da39a3ee5e6b4b0d3255bfef95601890afd80709"
-	actual.MTime = clock.Now()
-	actual.Size = 42
-	require.NoError(t, actual.Save())
-	require.Equal(t, 1, MustCountMedias(t))
+		// Check
+		actual, err := CurrentRepository().LoadMediaByOID(media.OID)
+		require.NoError(t, err)
+		require.NotNil(t, actual)
+		assert.Equal(t, media.OID, actual.OID)
+		assert.Equal(t, media.PackFileOID, actual.PackFileOID)
+		assert.Equal(t, media.RelativePath, actual.RelativePath)
+		assert.Equal(t, media.MediaKind, actual.MediaKind)
+		assert.Equal(t, media.Extension, actual.Extension)
+		assert.Equal(t, media.Dangling, actual.Dangling)
+		assert.Equal(t, media.MTime, actual.MTime)
+		assert.Equal(t, media.Hash, actual.Hash)
+		assert.Equal(t, media.Size, actual.Size)
+		assert.WithinDuration(t, clock.Now(), actual.CreatedAt, 1*time.Second)
+		assert.WithinDuration(t, clock.Now(), actual.UpdatedAt, 1*time.Second)
+		assert.WithinDuration(t, clock.Now(), actual.IndexedAt, 1*time.Second)
 
-	// Check again
-	actual, err = CurrentRepository().LoadMediaByOID(media.OID)
-	require.NoError(t, err)
-	require.NotNil(t, actual)
-	assert.Equal(t, media.OID, actual.OID) // Must have found the previous one
-	assert.False(t, actual.Dangling)
-	assert.Equal(t, "da39a3ee5e6b4b0d3255bfef95601890afd80709", actual.Hash)
-	assert.Equal(t, int64(42), actual.Size)
+		// Update
+		actual.Dangling = false
+		actual.Hash = "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+		actual.MTime = clock.Now()
+		actual.Size = 42
+		require.NoError(t, actual.Save())
+		require.Equal(t, 1, MustCountMedias(t))
 
-	// Delete
-	require.NoError(t, media.Delete())
-	AssertNoReminders(t)
+		// Check again
+		actual, err = CurrentRepository().LoadMediaByOID(media.OID)
+		require.NoError(t, err)
+		require.NotNil(t, actual)
+		assert.Equal(t, media.OID, actual.OID) // Must have found the previous one
+		assert.False(t, actual.Dangling)
+		assert.Equal(t, "da39a3ee5e6b4b0d3255bfef95601890afd80709", actual.Hash)
+		assert.Equal(t, int64(42), actual.Size)
+
+		// Delete
+		require.NoError(t, media.Delete())
+		AssertNoMedias(t)
+	})
+
 }
 
 func TestMediaFormats(t *testing.T) {
