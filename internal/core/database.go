@@ -308,13 +308,6 @@ func (db *DB) Origin() Remote {
 				os.Exit(1)
 			}
 			db.origin = remote
-		case "storj":
-			remote, err := NewStorjRemoteWithCredentials(configRemote.BucketName, configRemote.AccessKey)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Unable to init Storj remote: %v\n", err)
-				os.Exit(1)
-			}
-			db.origin = remote
 		default:
 			fmt.Fprintf(os.Stderr, "Unknow remote type %q\n", configRemote.Type)
 			os.Exit(1)
@@ -433,8 +426,6 @@ func (db *DB) PackFileExists(oid oid.OID) bool {
 type StatsOnDisk struct {
 	// Number of files under .nt/objects
 	ObjectFiles int
-	// Number of commits in .nt/commit-graph
-	Commits int
 	// Number of blobs under .nt/objects
 	Blobs int
 	// Number of objects (file, note, etc.) present in commits
@@ -448,7 +439,6 @@ type StatsOnDisk struct {
 func NewStatsOnDiskEmpty() *StatsOnDisk {
 	return &StatsOnDisk{
 		ObjectFiles: 0,
-		Commits:     0,
 		Blobs:       0,
 		Objects: map[string]int{
 			"file":      0,

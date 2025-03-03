@@ -21,49 +21,39 @@ func TestS3Remote(t *testing.T) {
 	r, _ := SetUpS3Remote(t)
 
 	// Add a file
-	err := r.PutObject("info/commit-graph", []byte(`
-updated_at: 2023-01-01T01:14:30Z
-commits:
-	- a757e67f5ae2a8df3a4634c96c16af5c8491bea2
+	err := r.PutObject("index", []byte(`
+committed_at: 2023-01-01T01:14:30Z
 `))
 	require.NoError(t, err)
 
 	// Read the wrong file
-	_, err = r.GetObject("commit-graph")
+	_, err = r.GetObject("info/index")
 	require.Error(t, err)
 
 	// Read the correct file
-	data, err := r.GetObject("info/commit-graph")
+	data, err := r.GetObject("index")
 	require.NoError(t, err)
 	require.Equal(t, []byte(`
-updated_at: 2023-01-01T01:14:30Z
-commits:
-	- a757e67f5ae2a8df3a4634c96c16af5c8491bea2
+committed_at: 2023-01-01T01:14:30Z
 `), data)
 
 	// Update the file
-	r.PutObject("info/commit-graph", []byte(`
-updated_at: 2023-01-01T01:14:30Z
-commits:
-	- a757e67f5ae2a8df3a4634c96c16af5c8491bea2
-	- a04d20dec96acfc2f9785802d7e3708721005d5d
+	r.PutObject("index", []byte(`
+committed_at: 2023-11-11T11:14:30Z
 `))
 	// Reread the file
-	data, err = r.GetObject("info/commit-graph")
+	data, err = r.GetObject("index")
 	require.NoError(t, err)
 	require.Equal(t, []byte(`
-updated_at: 2023-01-01T01:14:30Z
-commits:
-	- a757e67f5ae2a8df3a4634c96c16af5c8491bea2
-	- a04d20dec96acfc2f9785802d7e3708721005d5d
+committed_at: 2023-11-11T11:14:30Z
 `), data)
 
 	// Delete the file
-	err = r.DeleteObject("info/commit-graph")
+	err = r.DeleteObject("index")
 	require.NoError(t, err)
 
 	// Delete a missing file
-	err = r.DeleteObject("info/commit-graph")
+	err = r.DeleteObject("index")
 	require.Error(t, err)
 }
 
