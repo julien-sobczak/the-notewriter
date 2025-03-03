@@ -238,8 +238,14 @@ func MustFindNoteByPathAndTitle(t *testing.T, relativePath, longTitle string) *N
 // MustWriteFile edits the file in the current repository to force the given content.
 func MustWriteFile(t *testing.T, path string, content string) {
 	root := CurrentConfig().RootDirectory
+	if root == "" {
+		t.Fatal("No repository configured")
+	}
 	newFilepath := filepath.Join(root, path)
-	err := os.WriteFile(newFilepath, []byte(text.UnescapeTestContent(content)), 0644)
+	err := os.MkdirAll(filepath.Dir(newFilepath), 0755)
+	require.NoError(t, err)
+	t.Logf("Writing file %s...", newFilepath)
+	err = os.WriteFile(newFilepath, []byte(text.UnescapeTestContent(content)), 0644)
 	require.NoError(t, err)
 }
 

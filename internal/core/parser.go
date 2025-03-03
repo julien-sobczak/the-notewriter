@@ -9,8 +9,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"regexp/syntax"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/julien-sobczak/the-notewriter/internal/helpers"
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
@@ -62,6 +64,7 @@ type ParsedNote struct {
 	Slug       string
 	Title      markdown.Document
 	ShortTitle markdown.Document
+	LongTitle  markdown.Document
 
 	Line           int
 	Content        markdown.Document
@@ -194,7 +197,7 @@ func ParseFile(md *markdown.File, mdParent *markdown.File) (*ParsedFile, error) 
 	if topSection != nil {
 		title = topSection.HeadingText
 	}
-	_, _, shortTitle := isSupportedNote(string(title)) // TODO change signature to avoid casts
+	_, _, shortTitle := isSupportedNote(string(title))
 
 	// Extract/Generate slug
 	relativePath := CurrentRepository().GetFileRelativePath(md.AbsolutePath)
@@ -216,7 +219,7 @@ func ParseFile(md *markdown.File, mdParent *markdown.File) (*ParsedFile, error) 
 		// Main Heading
 		Slug:       slug,
 		Title:      title,
-		ShortTitle: markdown.Document(shortTitle),
+		ShortTitle: shortTitle,
 
 		// File attributes extracted from the Front Matter
 		FileAttributes: fileAttributes,
@@ -300,7 +303,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		i := len(notes) - 1
 		var previousNote *ParsedNote
 		var parentNote *ParsedNote
-		for i > 0 {
+		for i >= 0 {
 			previousNote = notes[i]
 			if previousNote.Level < section.HeadingLevel {
 				parentNote = previousNote
@@ -311,12 +314,23 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 
 		body, comment := postProcessedNoteBody.ExtractComment()
 
+		// Determine attributes
 		attributes := FilterNonInheritableAttributes(p.FileAttributes, p.RelativePath, kind)
 		if parentNote != nil {
 			parentAttributes := FilterNonInheritableAttributes(parentNote.Attributes, p.RelativePath, kind)
 			attributes = attributes.Merge(parentAttributes)
 		}
 		attributes = attributes.Merge(noteAttributes)
+
+		// Determine the long title
+		var titles []markdown.Document
+		if parentNote != nil {
+			titles = append(titles, parentNote.LongTitle)
+		} else if p.ShortTitle != "" {
+			titles = append(titles, p.ShortTitle)
+		}
+		titles = append(titles, shortTitle)
+		longTitle := FormatLongTitle(titles...)
 
 		parsedNote := &ParsedNote{
 			Parent:         parentNote,
@@ -326,7 +340,8 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 			RelativePath:   p.RelativePath,
 			Slug:           slug,
 			Title:          title,
-			ShortTitle:     markdown.Document(shortTitle),
+			ShortTitle:     shortTitle,
+			LongTitle:      longTitle,
 			Line:           section.FileLineStart,
 			NoteTags:       noteTags,
 			NoteAttributes: noteAttributes,
@@ -788,4 +803,63 @@ func StripSubNotesTransformer(document markdown.Document) (markdown.Document, er
 
 	// No sub-note found, simply returns the original document
 	return document, nil
+}
+
+// FormatLongTitle formats the long title of a note.
+func FormatLongTitle(titles ...markdown.Document) markdown.Document {
+
+	// Some titles may already have been formated (ex: "Go / Goroutines")
+	// Explode everything and start from scratch.
+	var explodedTitles []string
+	for _, title := range titles {
+		explodedTitles = append(explodedTitles, strings.Split(string(title), NoteLongTitleSeparator)...)
+	}
+
+	// Implementation: We concatenate the titles but we must avoid duplication.
+	//
+	// Ex:
+	//     # Subject
+	//     ## Note: Technique A
+	//     ### Flashcard: Technique A
+	//
+	// The long title must be "Subject / Technique A", not "Subject / Technique A / Technique A".
+	//
+	// Ex:
+	//     # Go
+	//     ## Note: Goroutines
+	//     ## Note: Go History
+	//
+	// The long titles must be "Go / Goroutines" & "Go History".
+
+	prevTitle := ""
+	longTitle := ""
+
+	for i := len(explodedTitles) - 1; i >= 0; i-- {
+		title := explodedTitles[i]
+
+		if text.IsBlank(title) { // Empty
+			continue
+		}
+
+		if prevTitle == title { // Duplicate
+			continue
+		}
+
+		if strings.HasPrefix(longTitle, title) { // Common prefix
+			// Beware "false" common prefixes. Ex: "Go" and "Goroutines" must result in "Go / Goroutines"
+			nextCharacter, _ := utf8.DecodeRuneInString(strings.TrimPrefix(longTitle, title))
+			if !syntax.IsWordChar(nextCharacter) {
+				continue
+			}
+		}
+
+		if longTitle == "" {
+			longTitle = title
+		} else {
+			longTitle = title + NoteLongTitleSeparator + longTitle
+		}
+		prevTitle = title
+	}
+
+	return markdown.Document(longTitle)
 }

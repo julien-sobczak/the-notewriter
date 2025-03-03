@@ -7,16 +7,13 @@ import (
 	"log"
 	"reflect"
 	"regexp"
-	"regexp/syntax"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"slices"
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
-	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"gopkg.in/yaml.v3"
 )
 
@@ -425,38 +422,38 @@ func (n *Note) HasTag(name string) bool {
 	return slices.Contains(n.GetTags(), name)
 }
 
-func isSupportedNote(text string) (bool, NoteKind, string) {
+func isSupportedNote(text string) (bool, NoteKind, markdown.Document) {
 	if m := regexReference.FindStringSubmatch(text); m != nil {
-		return true, KindReference, m[1]
+		return true, KindReference, markdown.Document(m[1])
 	}
 	if m := regexNote.FindStringSubmatch(text); m != nil {
-		return true, KindNote, m[1]
+		return true, KindNote, markdown.Document(m[1])
 	}
 	if m := regexCheatsheet.FindStringSubmatch(text); m != nil {
-		return true, KindCheatsheet, m[1]
+		return true, KindCheatsheet, markdown.Document(m[1])
 	}
 	if m := regexFlashcard.FindStringSubmatch(text); m != nil {
-		return true, KindFlashcard, m[1]
+		return true, KindFlashcard, markdown.Document(m[1])
 	}
 	if m := regexQuote.FindStringSubmatch(text); m != nil {
-		return true, KindQuote, m[1]
+		return true, KindQuote, markdown.Document(m[1])
 	}
 	if m := regexTodo.FindStringSubmatch(text); m != nil {
-		return true, KindTodo, m[1]
+		return true, KindTodo, markdown.Document(m[1])
 	}
 	if m := regexArtwork.FindStringSubmatch(text); m != nil {
-		return true, KindArtwork, m[1]
+		return true, KindArtwork, markdown.Document(m[1])
 	}
 	if m := regexSnippet.FindStringSubmatch(text); m != nil {
-		return true, KindArtwork, m[1]
+		return true, KindArtwork, markdown.Document(m[1])
 	}
 	if m := regexChecklist.FindStringSubmatch(text); m != nil {
-		return true, KindArtwork, m[1]
+		return true, KindArtwork, markdown.Document(m[1])
 	}
 	if m := regexJournal.FindStringSubmatch(text); m != nil {
-		return true, KindJournal, m[1]
+		return true, KindJournal, markdown.Document(m[1])
 	}
-	return false, "", text
+	return false, "", markdown.Document(text)
 }
 
 /* State Management */
@@ -1024,55 +1021,4 @@ func (n *Note) ToMarkdown() string {
 	sb.WriteRune('\n')
 	sb.WriteString(string(n.Body))
 	return sb.String()
-}
-
-// FormatLongTitle formats the long title of a note.
-func FormatLongTitle(titles ...markdown.Document) markdown.Document {
-	// Implementation: We concatenate the titles but we must avoid duplication.
-	//
-	// Ex:
-	//     # Subject
-	//     ## Note: Technique A
-	//     ### Flashcard: Technique A
-	//
-	// The long title must be "Subject / Technique A", not "Subject / Technique A / Technique A".
-	//
-	// Ex:
-	//     # Go
-	//     ## Note: Goroutines
-	//     ## Note: Go History
-	//
-	// The long titles must be "Go / Goroutines" & "Go History".
-
-	prevTitle := ""
-	longTitle := ""
-
-	for i := len(titles) - 1; i >= 0; i-- {
-		title := string(titles[i])
-
-		if text.IsBlank(title) { // Empty
-			continue
-		}
-
-		if prevTitle == title { // Duplicate
-			continue
-		}
-
-		if strings.HasPrefix(longTitle, title) { // Common prefix
-			// Beware "false" common prefixes. Ex: "Go" and "Goroutines" must result in "Go / Goroutines"
-			nextCharacter, _ := utf8.DecodeRuneInString(strings.TrimPrefix(longTitle, title))
-			if !syntax.IsWordChar(nextCharacter) {
-				continue
-			}
-		}
-
-		if longTitle == "" {
-			longTitle = title
-		} else {
-			longTitle = title + NoteLongTitleSeparator + longTitle
-		}
-		prevTitle = title
-	}
-
-	return markdown.Document(longTitle)
 }

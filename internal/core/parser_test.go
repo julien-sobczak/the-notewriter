@@ -13,8 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestParseFile(t *testing.T) {
-	core.FreezeNow(t)
+func TestParseFileWithTestdata(t *testing.T) {
 	core.FreezeNow(t)
 
 	testcases := []struct {
@@ -230,6 +229,176 @@ func TestParseFile(t *testing.T) {
 	}
 }
 
+func TestParseFileWithTempdir(t *testing.T) {
+
+	t.Run("Slug", func(t *testing.T) {
+		core.FreezeNow(t)
+
+		root := core.SetUpRepositoryFromTempDir(t)
+		core.MustWriteFile(t, "dira/index.md", `
+# Index A
+
+## Note: Note in index A
+
+This is a note in index A.
+`)
+		core.MustWriteFile(t, "dira/a.md", `
+# File A
+
+## Note: First note in file A
+
+This is a note in file A.
+
+## Note: Second note in file A
+
+‛@slug: note-a‛
+
+This is a note in file A.
+
+`)
+		core.MustWriteFile(t, "dirb/index.md", `
+---
+slug: b
+---
+# Index B
+
+## Note: Note in Index B
+
+This is a note in index B.`)
+		core.MustWriteFile(t, "dirb/b.md", `
+---
+slug: b
+---
+# File B
+
+## Note: Note in file B
+
+This is a note in file B.`)
+
+		mdIndexA := markdown.MustParseFile(filepath.Join(root, "dira/index.md"))
+		mdA := markdown.MustParseFile(filepath.Join(root, "dira/a.md"))
+		mdIndexB := markdown.MustParseFile(filepath.Join(root, "dirb/index.md"))
+		mdB := markdown.MustParseFile(filepath.Join(root, "dirb/b.md"))
+
+		indexA, err := core.ParseFile(mdIndexA, nil)
+		require.NoError(t, err)
+		indexB, err := core.ParseFile(mdIndexB, nil)
+		require.NoError(t, err)
+		fileA, err := core.ParseFile(mdA, mdIndexA)
+		require.NoError(t, err)
+		fileB, err := core.ParseFile(mdB, mdIndexB)
+		require.NoError(t, err)
+
+		require.Len(t, indexA.Notes, 1)
+		require.Len(t, fileA.Notes, 2)
+		require.Len(t, indexB.Notes, 1)
+		require.Len(t, fileB.Notes, 1)
+
+		// Check file slugs
+		assert.Equal(t, "dira", indexA.Slug)
+		assert.Equal(t, "dira-a", fileA.Slug)
+		assert.Equal(t, "b", indexB.Slug)
+		assert.Equal(t, "b", fileB.Slug)
+
+		// Check note slugs
+		assert.Equal(t, "dira-note-note-in-index-a", indexA.Notes[0].Slug)
+		assert.Equal(t, "dira-a-note-first-note-in-file-a", fileA.Notes[0].Slug)
+		assert.Equal(t, "note-a", fileA.Notes[1].Slug)
+		assert.Equal(t, "b-note-note-in-index-b", indexB.Notes[0].Slug)
+		assert.Equal(t, "b-note-note-in-file-b", fileB.Notes[0].Slug)
+	})
+
+	t.Run("LongTitle", func(t *testing.T) {
+		core.FreezeNow(t)
+
+		root := core.SetUpRepositoryFromTempDir(t)
+		core.MustWriteFile(t, "a.md", `
+# File A
+
+## Note: Short title
+
+This is a note.
+
+### Flashcard: Quiz time
+
+Titles are concatenated with [...].
+
+---
+
+Titles are concatenated with **the parent note**.
+
+## Note: Title with a long name
+
+This is a note.
+
+### Flashcard: Title with a long name
+
+Except when [...].
+
+---
+
+Except when **identical to the parent note**.
+`)
+
+		md := markdown.MustParseFile(filepath.Join(root, "a.md"))
+		file, err := core.ParseFile(md, nil)
+		require.NoError(t, err)
+
+		notes := file.Notes
+		require.Len(t, notes, 4)
+
+		note := notes[0]
+		assert.Equal(t, "Note: Short title", note.Title.String())
+		assert.Equal(t, "Short title", note.ShortTitle.String())
+		assert.Equal(t, "File A / Short title", note.LongTitle.String())
+
+		note = notes[1]
+		assert.Equal(t, "Flashcard: Quiz time", notes[1].Title.String())
+		assert.Equal(t, "Quiz time", note.ShortTitle.String())
+		assert.Equal(t, "File A / Short title / Quiz time", note.LongTitle.String())
+
+		note = notes[2]
+		assert.Equal(t, "Note: Title with a long name", note.Title.String())
+		assert.Equal(t, "Title with a long name", note.ShortTitle.String())
+		assert.Equal(t, "File A / Title with a long name", note.LongTitle.String())
+
+		note = notes[3]
+		assert.Equal(t, "Flashcard: Title with a long name", note.Title.String())
+		assert.Equal(t, "Title with a long name", note.ShortTitle.String())
+		assert.Equal(t, "File A / Title with a long name", note.LongTitle.String())
+
+		// Let's try with a more subtle example where titles have a common prefix
+		core.MustWriteFile(t, "b.md", `
+# Go
+
+## Note: Golang
+
+This is a note.
+
+### Note: Goroutines
+
+This is a sub-note
+`)
+
+		md = markdown.MustParseFile(filepath.Join(root, "b.md"))
+		file, err = core.ParseFile(md, nil)
+		require.NoError(t, err)
+
+		notes = file.Notes
+		require.Len(t, notes, 2)
+
+		note = notes[0]
+		assert.Equal(t, "Note: Golang", note.Title.String())
+		assert.Equal(t, "Golang", note.ShortTitle.String())
+		assert.Equal(t, "Go / Golang", note.LongTitle.String())
+
+		note = notes[1]
+		assert.Equal(t, "Note: Goroutines", note.Title.String())
+		assert.Equal(t, "Goroutines", note.ShortTitle.String())
+		assert.Equal(t, "Go / Golang / Goroutines", note.LongTitle.String())
+	})
+}
+
 func TestDetermineFileSlug(t *testing.T) {
 	tests := []struct {
 		path string // input
@@ -340,4 +509,44 @@ A simple note
 
 	})
 
+}
+
+func TestFormatLongTitle(t *testing.T) {
+	tests := []struct {
+		name      string
+		titles    []markdown.Document // input
+		longTitle markdown.Document   // output
+	}{
+		{
+			name:      "Basic",
+			titles:    []markdown.Document{"Go", "History"},
+			longTitle: "Go / History",
+		},
+		{
+			name:      "Empty titles",
+			titles:    []markdown.Document{"", "History"},
+			longTitle: "History",
+		},
+		{
+			name:      "Duplicate titles",
+			titles:    []markdown.Document{"Go", "History", "History"},
+			longTitle: "Go / History",
+		},
+		{
+			name:      "Common prefix",
+			titles:    []markdown.Document{"Go", "Go History"},
+			longTitle: "Go History",
+		},
+		{
+			name:      "Not common prefix",
+			titles:    []markdown.Document{"Go", "Goroutines"},
+			longTitle: "Go / Goroutines",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := core.FormatLongTitle(tt.longTitle)
+			assert.Equal(t, tt.longTitle, actual)
+		})
+	}
 }
