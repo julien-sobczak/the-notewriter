@@ -3,13 +3,10 @@ package main
 import (
 	"database/sql"
 	"io"
-	"io/fs"
-	"log"
-	"os"
-	"path/filepath"
-	"strings"
 	"time"
 
+	"github.com/julien-sobczak/the-notewriter/internal/helpers"
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"gopkg.in/yaml.v3"
 )
 
@@ -17,8 +14,10 @@ import (
 
 type File struct {
 	// A unique identifier among all files
-	OID string `yaml:"oid"`
+	OID oid.OID `yaml:"oid"`
 
+	// Pack file where this object belongs
+	PackFileOID oid.OID `yaml:"packfile_oid" json:"packfile_oid"`
 	// A relative path to the repository root directory
 	RelativePath string `yaml:"relative_path"`
 
@@ -33,128 +32,77 @@ type File struct {
 
 	CreatedAt time.Time `yaml:"created_at"`
 	UpdatedAt time.Time `yaml:"updated_at"`
-	DeletedAt time.Time `yaml:"deleted_at,omitempty"`
 	IndexedAt time.Time `yaml:"-"`
-
-	new   bool
-	stale bool
 }
 
-func NewOrExistingFile(relativePath string) (*File, error) {
-	existingFile, err := CurrentRepository().LoadFileByPath(relativePath)
-	if err != nil {
-		log.Fatal(err)
+func NewFile(packFile *PackFile, parsedFile *ParsedFile) (*File, error) {
+	file := &File{
+		OID:          oid.New(),
+		PackFileOID:  packFile.OID,
+		RelativePath: parsedFile.RelativePath,
+		Size:         parsedFile.Markdown.Size,
+		MTime:        parsedFile.Markdown.MTime,
+		Hash:         helpers.Hash(parsedFile.Markdown.Content),
+		Body:         parsedFile.Markdown.Body.String(),
+		CreatedAt:    packFile.CTime,
+		UpdatedAt:    packFile.CTime,
+		IndexedAt:    packFile.CTime,
 	}
 
-	if existingFile != nil {
-		existingFile.update()
-		return existingFile, nil
-	}
+	return file, nil
+}
 
-	parsedFile, err := ParseFile(relativePath)
+func NewOrExistingFile(packFile *PackFile, parsedFile *ParsedFile) (*File, error) {
+	// Try to find an existing object (instead of recreating it from scratch after every change)
+	existingFile, err := CurrentRepository().LoadFileByPath(parsedFile.RelativePath)
 	if err != nil {
 		return nil, err
 	}
-	return NewFileFromParsedFile(parsedFile), nil
+	if existingFile != nil {
+		err := existingFile.update(packFile, parsedFile)
+		return existingFile, err
+	}
+	return NewFile(packFile, parsedFile)
 }
 
-func NewFileFromParsedFile(parsedFile *ParsedFile) *File {
-	return &File{
-		OID:          NewOID(),
-		RelativePath: parsedFile.RelativePath,
-		Size:         parsedFile.Stat.Size(),
-		Hash:         Hash(parsedFile.Bytes),
-		MTime:        parsedFile.Stat.ModTime(),
-		Body:         parsedFile.Body,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
-		stale:        true,
-		new:          true,
-	}
-}
+func (f *File) update(packFile *PackFile, parsedFile *ParsedFile) error { // TODO useful?
+	stale := false
 
-func (f *File) update() error {
-	absolutePath := filepath.Join(CurrentRepository().Path, f.RelativePath)
-	parsedFile, err := ParseFile(absolutePath)
-	if err != nil {
-		return err
-	}
+	md := parsedFile.Markdown
 
 	// Check if local file has changed
-	if f.MTime != parsedFile.Stat.ModTime() || f.Size != parsedFile.Stat.Size() {
-		f.Size = parsedFile.Stat.Size()
-		f.Hash = Hash(parsedFile.Bytes)
-		f.MTime = parsedFile.Stat.ModTime()
-		f.Body = parsedFile.Body
-		f.stale = true
+	if f.MTime != md.MTime || f.Size != md.Size {
+		stale = true
+
+		f.Size = md.Size
+		f.MTime = md.MTime
+		f.Hash = helpers.Hash(md.Content)
+		f.Body = md.Body.String()
+	}
+
+	f.PackFileOID = packFile.OID
+	f.IndexedAt = packFile.CTime
+
+	if stale {
+		f.UpdatedAt = packFile.CTime
 	}
 
 	return nil
-}
-
-type ParsedFile struct {
-	// The paths to the file
-	AbsolutePath string
-	RelativePath string
-
-	// Stat
-	Stat fs.FileInfo
-
-	// The raw file bytes
-	Bytes []byte
-
-	// The body
-	Body string
-}
-
-// ParseFile contains the main logic to parse a raw note file.
-func ParseFile(relativePath string) (*ParsedFile, error) {
-	absolutePath := filepath.Join(CurrentRepository().Path, relativePath)
-
-	lstat, err := os.Lstat(absolutePath)
-	if err != nil {
-		return nil, err
-	}
-
-	contentBytes, err := os.ReadFile(absolutePath)
-	if err != nil {
-		return nil, err
-	}
-
-	body := strings.TrimSpace(string(contentBytes))
-	return &ParsedFile{
-		AbsolutePath: absolutePath,
-		RelativePath: relativePath,
-		Stat:         lstat,
-		Bytes:        contentBytes,
-		Body:         body,
-	}, nil
 }
 
 func (f *File) Kind() string {
 	return "file"
 }
 
-func (f *File) UniqueOID() string {
+func (f *File) UniqueOID() oid.OID {
 	return f.OID
 }
 
-func (f *File) State() State {
-	if !f.DeletedAt.IsZero() {
-		return Deleted
-	}
-	if f.new {
-		return Added
-	}
-	if f.stale {
-		return Modified
-	}
-	return None
-}
-
-func (f *File) ModificationTime() time.Time {
+func (f *File) ModificationTime() time.Time { // TODO useful?
 	return f.MTime
 }
+
+/* Index Management */
 
 func (f *File) Read(r io.Reader) error {
 	err := yaml.NewDecoder(r).Decode(f)
@@ -173,57 +121,13 @@ func (f *File) Write(w io.Writer) error {
 	return err
 }
 
-func (f *File) GetNotes() []*Note {
-	parsedNotes := ParseNotes(f.Body)
-	if len(parsedNotes) == 0 {
-		return nil
-	}
-
-	var notes []*Note
-	for _, parsedNote := range parsedNotes {
-		note := NewOrExistingNote(f, parsedNote)
-		notes = append(notes, note)
-	}
-
-	return notes
-}
-
-func (f *File) SubObjects() []StatefulObject {
-	var objs []StatefulObject
-
-	for _, object := range f.GetNotes() {
-		objs = append(objs, object)
-		objs = append(objs, object.SubObjects()...)
-	}
-	return objs
-}
+/* DB Management */
 
 func (f *File) Save() error {
-	var err error
-	f.UpdatedAt = time.Now()
-	f.IndexedAt = time.Now()
-	switch f.State() {
-	case Added:
-		err = f.Insert()
-	case Modified:
-		err = f.Update()
-	case Deleted:
-		err = f.Delete()
-	default:
-		err = f.Check()
-	}
-	if err != nil {
-		return err
-	}
-	f.new = false
-	f.stale = false
-	return nil
-}
-
-func (f *File) Insert() error {
 	query := `
 		INSERT INTO file(
 			oid,
+			packfile_oid,
 			relative_path,
 			body,
 			created_at,
@@ -233,13 +137,33 @@ func (f *File) Insert() error {
 			size,
 			hashsum
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(oid) DO UPDATE SET
+			packfile_oid = ?,
+			relative_path = ?,
+			body = ?,
+			updated_at = ?,
+			indexed_at = ?,
+			mtime = ?,
+			size = ?,
+			hashsum = ?;
 	`
 	_, err := CurrentDB().Client().Exec(query,
+		// Insert
 		f.OID,
+		f.PackFileOID,
 		f.RelativePath,
 		f.Body,
 		timeToSQL(f.CreatedAt),
+		timeToSQL(f.UpdatedAt),
+		timeToSQL(f.IndexedAt),
+		timeToSQL(f.MTime),
+		f.Size,
+		f.Hash,
+		// Update
+		f.PackFileOID,
+		f.RelativePath,
+		f.Body,
 		timeToSQL(f.UpdatedAt),
 		timeToSQL(f.IndexedAt),
 		timeToSQL(f.MTime),
@@ -253,69 +177,18 @@ func (f *File) Insert() error {
 	return nil
 }
 
-func (f *File) Update() error {
-	query := `
-		UPDATE file
-		SET
-			relative_path = ?,
-			body = ?,
-			updated_at = ?,
-			indexed_at = ?,
-			mtime = ?,
-			size = ?,
-			hashsum = ?
-		WHERE oid = ?;
-	`
-	_, err := CurrentDB().Client().Exec(query,
-		f.RelativePath,
-		f.Body,
-		timeToSQL(f.UpdatedAt),
-		timeToSQL(f.IndexedAt),
-		timeToSQL(f.MTime),
-		f.Size,
-		f.Hash,
-		f.OID,
-	)
-	return err
-}
-
-func (f *File) Delete() error {
-	query := `DELETE FROM file WHERE oid = ?;`
-	_, err := CurrentDB().Client().Exec(query, f.OID)
-	return err
-}
-
-func (f *File) Check() error {
-	client := CurrentDB().Client()
-	f.IndexedAt = time.Now()
-	query := `
-		UPDATE file
-		SET indexed_at = ?
-		WHERE oid = ?;`
-	if _, err := client.Exec(query, timeToSQL(f.IndexedAt), f.OID); err != nil {
-		return err
-	}
-	query = `
-		UPDATE note
-		SET indexed_at = ?
-		WHERE file_oid = ?;`
-	if _, err := client.Exec(query, timeToSQL(f.IndexedAt), f.OID); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (r *Repository) LoadFileByPath(relativePath string) (*File, error) {
+func (r *Repository) LoadFileByPath(relativePath string) (*File, error) { // TODO useful?
 	var f File
 	var createdAt string
 	var updatedAt string
-	var lastIndexedAt string
+	var indexedAt string
 	var mTime string
 
 	// Query for a value based on a single row.
 	if err := CurrentDB().Client().QueryRow(`
 		SELECT
 			oid,
+			packfile_oid,
 			relative_path,
 			body,
 			created_at,
@@ -328,11 +201,12 @@ func (r *Repository) LoadFileByPath(relativePath string) (*File, error) {
 		WHERE relative_path = ?;`, relativePath).
 		Scan(
 			&f.OID,
+			&f.PackFileOID,
 			&f.RelativePath,
 			&f.Body,
 			&createdAt,
 			&updatedAt,
-			&lastIndexedAt,
+			&indexedAt,
 			&mTime,
 			&f.Size,
 			&f.Hash,
@@ -345,7 +219,7 @@ func (r *Repository) LoadFileByPath(relativePath string) (*File, error) {
 
 	f.CreatedAt = timeFromSQL(createdAt)
 	f.UpdatedAt = timeFromSQL(updatedAt)
-	f.IndexedAt = timeFromSQL(lastIndexedAt)
+	f.IndexedAt = timeFromSQL(indexedAt)
 	f.MTime = timeFromSQL(mTime)
 
 	return &f, nil

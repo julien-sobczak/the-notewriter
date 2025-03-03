@@ -16,6 +16,7 @@ import (
 const schema = `
 CREATE TABLE file (
 	oid TEXT PRIMARY KEY,
+	packfile_oid TEXT NOT NULL,
 	relative_path TEXT NOT NULL,
 	body TEXT NOT NULL,
 	created_at TEXT NOT NULL,
@@ -28,11 +29,11 @@ CREATE TABLE file (
 
 CREATE TABLE note (
 	oid TEXT PRIMARY KEY,
+	packfile_oid TEXT NOT NULL,
 	file_oid TEXT NOT NULL,
 	relative_path TEXT NOT NULL,
 	title TEXT NOT NULL,
 	content_raw TEXT NOT NULL,
-	hashsum TEXT NOT NULL,
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL,
 	indexed_at TEXT
@@ -61,6 +62,10 @@ func CurrentDB() *DB {
 		}
 	})
 	return dbSingleton
+}
+
+func CurrentIndex() *Index {
+	return CurrentDB().index
 }
 
 // Client returns the client to use to query the database.
@@ -132,49 +137,17 @@ func (db *DB) CommitTransaction() error {
 	return nil
 }
 
-func (db *DB) StageObject(obj StatefulObject) error {
-	return db.index.StageObject(obj)
-}
-
-// Commit creates a new commit object and clear the staging area.
-func (db *DB) Commit() error {
-	// Convert the staging area to object files under .nt/objects
-	for _, indexObject := range db.index.StagingArea {
-		var object Object
-
-		switch indexObject.Kind {
-		case "file":
-			var file File
-			if err := indexObject.Data.Unmarshal(&file); err != nil {
-				return err
+// UpsertPackFiles inserts or updates pack files in the database.
+func (db *DB) UpsertPackFiles(packFiles ...*PackFile) error {
+	for _, packFile := range packFiles {
+		for _, object := range packFile.PackObjects {
+			obj := object.ReadObject()
+			if statefulObj, ok := obj.(StatefulObject); ok {
+				if err := statefulObj.Save(); err != nil {
+					return err
+				}
 			}
-			object = &file
-		case "note":
-			var note Note
-			if err := indexObject.Data.Unmarshal(&note); err != nil {
-				return err
-			}
-			object = &note
 		}
-		objectPath := filepath.Join(CurrentRepository().Path, ".nt/objects", OIDToPath(indexObject.OID))
-		if err := os.MkdirAll(filepath.Dir(objectPath), os.ModePerm); err != nil {
-			return err
-		}
-		f, err := os.Create(objectPath)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		err = object.Write(f)
-		if err != nil {
-			return err
-		}
-	}
-	db.index.ClearStagingArea()
-
-	// Save .nt/index
-	if err := db.index.Save(); err != nil {
-		return err
 	}
 	return nil
 }

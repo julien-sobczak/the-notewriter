@@ -1,49 +1,80 @@
 package main
 
 import (
-	"bytes"
-	"compress/zlib"
-	"encoding/base64"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"gopkg.in/yaml.v3"
 )
 
 // Lite version of internal/core/index.go
 
-// State describes an object status.
-type State string
-
-const (
-	None     State = "none"
-	Added    State = "added"
-	Modified State = "modified"
-	Deleted  State = "deleted"
-)
-
-/* Index */
-
+// The index file is used to determine if an object is new
+// and to quickly locate the pack file containing the object otherwise.
+// The index is useful when running any command.
+//
+// See also https://git-scm.com/book/en/v2/Git-Tools-Reset-Demystified
 type Index struct {
-	Objects     []*IndexObject   `yaml:"objects"`
-	StagingArea []*StagingObject `yaml:"staging"`
+	// Last commit date
+	CommittedAt time.Time `yaml:"committed_at"`
+	// List of files known in the index
+	Entries []*IndexEntry `yaml:"entries"`
 }
 
-type IndexObject struct {
-	OID   string    `yaml:"oid"`
-	Kind  string    `yaml:"kind"`
+// IndexEntry is a file entry in the index.
+type IndexEntry struct {
+	// Path to the file in working directory
+	RelativePath string `yaml:"relative_path"`
+
+	// Pack file OID representing this file under .nt/objects
+	PackFileOID oid.OID `yaml:"packfile_oid"`
+	// File last modification date
 	MTime time.Time `yaml:"mtime"`
+	// Size of the file (can be useful to detect changes)
+	Size int64 `yaml:"size" json:"size"`
+
+	// True when a file has been staged
+	Staged bool `yaml:"staged"`
+	// Save but when the file has been staged (= different object under .nt/objects)
+	StagedPackFileOID oid.OID   `yaml:"staged_packfile_oid"`
+	StagedMTime       time.Time `yaml:"staged_mtime"`
+	StagedSize        int64     `yaml:"staged_size"`
 }
 
-type StagingObject struct {
-	IndexObject
-	State State      `yaml:"state"`
-	Data  ObjectData `yaml:"data"`
+// NewIndexEntry creates a new index entry from a pack file.
+func NewIndexEntry(packFile *PackFile) *IndexEntry {
+	return &IndexEntry{
+		PackFileOID:  packFile.OID,
+		RelativePath: packFile.FileRelativePath,
+		MTime:        packFile.FileMTime,
+		Size:         packFile.FileSize,
+	}
+}
+
+func (i *IndexEntry) Stage(newPackFile *PackFile) {
+	i.Staged = true
+	i.StagedPackFileOID = newPackFile.OID
+	i.StagedMTime = newPackFile.FileMTime
+	i.StagedSize = newPackFile.FileSize
+}
+
+func (i *IndexEntry) Commit() {
+	if !i.Staged {
+		return
+	}
+	i.Staged = false
+	i.PackFileOID = i.StagedPackFileOID
+	i.MTime = i.StagedMTime
+	i.Size = i.StagedSize
+	// Clear staged values
+	i.StagedPackFileOID = ""
+	i.StagedMTime = time.Time{}
+	i.StagedSize = 0
 }
 
 // ReadIndex loads the index file.
@@ -52,7 +83,9 @@ func ReadIndex() *Index {
 	in, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
 		// First use
-		return &Index{}
+		return &Index{
+			Entries: []*IndexEntry{},
+		}
 	}
 	if err != nil {
 		log.Fatalf("Unable to open index: %v", err)
@@ -95,89 +128,45 @@ func (i *Index) Write(w io.Writer) error {
 	return err
 }
 
-// StageObject registers a changed object into the staging area
-func (i *Index) StageObject(obj StatefulObject) error {
-	objData, err := NewObjectData(obj)
-	if err != nil {
-		return err
+// GetEntry returns the entry associated with a file path.
+func (i *Index) GetEntry(path string) *IndexEntry { // TODO inline?
+	for _, entry := range i.Entries {
+		if entry.RelativePath == path {
+			return entry
+		}
 	}
-
-	// Update staging area
-	stagingObject := &StagingObject{
-		IndexObject: IndexObject{
-			OID:   obj.UniqueOID(),
-			Kind:  obj.Kind(),
-			MTime: obj.ModificationTime(),
-		},
-		State: obj.State(),
-		Data:  objData,
-	}
-
-	i.StagingArea = append(i.StagingArea, stagingObject)
-
 	return nil
 }
 
-// ClearStagingArea empties the staging area.
-func (i *Index) ClearStagingArea() {
-	for _, obj := range i.StagingArea {
-		i.Objects = append(i.Objects, &obj.IndexObject)
+// Modified returns true if the file has been modified since last indexation.
+func (i *Index) Modified(relativePath string, mtime time.Time) bool { // TODO inline?
+	entry := i.GetEntry(relativePath)
+	if entry == nil {
+		return true
 	}
-	i.StagingArea = nil
+	return mtime.After(entry.MTime)
 }
 
-// ObjectData serializes any Object to base64 after zlib compression.
-type ObjectData []byte // alias to serialize to YAML easily
-
-// NewObjectData creates a compressed-string representation of the object.
-func NewObjectData(obj Object) (ObjectData, error) {
-	b := new(bytes.Buffer)
-	if err := obj.Write(b); err != nil {
-		return nil, err
+// Stage indexes new pack files.
+// The pack files can match files already indexed by a previous pack file.
+func (i *Index) Stage(packFiles ...*PackFile) error {
+	for _, packFile := range packFiles {
+		entry := i.GetEntry(packFile.FileRelativePath)
+		if entry == nil {
+			entry = NewIndexEntry(packFile)
+			i.Entries = append(i.Entries, entry)
+		}
+		entry.Stage(packFile)
 	}
-	in := b.Bytes()
-
-	zb := new(bytes.Buffer)
-	w := zlib.NewWriter(zb)
-	w.Write(in)
-	w.Close()
-	return ObjectData(zb.Bytes()), nil
-}
-
-func (od ObjectData) MarshalYAML() (interface{}, error) {
-	return base64.StdEncoding.EncodeToString(od), nil
-}
-
-func (od *ObjectData) UnmarshalYAML(node *yaml.Node) error {
-	value := node.Value
-	ba, err := base64.StdEncoding.DecodeString(value)
-	if err != nil {
-		return err
-	}
-	*od = ba
 	return nil
 }
 
-func (od ObjectData) Unmarshal(target interface{}) error {
-	if target == nil {
-		return fmt.Errorf("cannot unmarshall in nil target")
+// Commit persists the staged changes to the index.
+func (i *Index) Commit() error {
+	for _, entry := range i.Entries {
+		if entry.Staged {
+			entry.Commit()
+		}
 	}
-	src := bytes.NewReader(od)
-	dest := new(bytes.Buffer)
-	r, err := zlib.NewReader(src)
-	if err != nil {
-		return err
-	}
-	io.Copy(dest, r)
-	r.Close()
-
-	if f, ok := target.(*File); ok {
-		f.Read(dest)
-		return nil
-	}
-	if n, ok := target.(*Note); ok {
-		n.Read(dest)
-		return nil
-	}
-	return fmt.Errorf("unsupported type %T", target)
+	return i.Save()
 }

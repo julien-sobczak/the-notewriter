@@ -1,7 +1,6 @@
 package main
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -23,16 +22,10 @@ func TestLite(t *testing.T) {
 	require.NoError(t, err)
 	// Check index
 	index := ReadIndex()
-	assert.Empty(t, index.Objects, 0)
-	assert.Len(t, index.StagingArea, 3) // 1 file + 2 notes
-
-	// nt commit
-	err = CurrentDB().Commit()
-	require.NoError(t, err)
-	// Check index
-	index = ReadIndex()
-	assert.Len(t, index.Objects, 3)
-	assert.Empty(t, index.StagingArea)
+	require.Len(t, index.Entries, 1) // 1 pack file
+	uniqueEntry := index.Entries[0]
+	assert.True(t, uniqueEntry.Staged)
+	assert.FileExists(t, filepath.Join(CurrentRepository().Path, ".nt/objects", OIDToPath(uniqueEntry.PackFileOID)))
 
 	// Check relational database
 	note1, err := CurrentRepository().FindNoteByTitle("notes.md", "Note: Example 1")
@@ -42,15 +35,26 @@ func TestLite(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, note2)
 
-	assert.Equal(t, "A first note.", note1.Content)
-	assert.Equal(t, "A second note.", note2.Content)
+	// nt commit
+	err = CurrentRepository().Commit()
+	require.NoError(t, err)
+	// Check index
+	index = ReadIndex()
+	assert.Len(t, index.Entries, 1) // Still the same pack file
+	uniqueEntry = index.Entries[0]
+	assert.False(t, uniqueEntry.Staged)
+
+	// Check relational database again
+	note1, err = CurrentRepository().FindNoteByTitle("notes.md", "Note: Example 1")
+	require.NoError(t, err)
+	require.NotNil(t, note1)
+	note2, err = CurrentRepository().FindNoteByTitle("notes.md", "Note: Example 2")
+	require.NoError(t, err)
+	require.NotNil(t, note2)
+
+	assert.Equal(t, "## Note: Example 1\n\nA first note.", note1.Content)
+	assert.Equal(t, "## Note: Example 2\n\nA second note.", note2.Content)
 
 	// Check object database
 	require.FileExists(t, filepath.Join(CurrentRepository().Path, ".nt/index"))
-	require.FileExists(t, filepath.Join(CurrentRepository().Path, ".nt/objects", OIDToPath(note1.OID)))
-	require.FileExists(t, filepath.Join(CurrentRepository().Path, ".nt/objects", OIDToPath(note2.OID)))
-	// Check a single object
-	data, err := os.ReadFile(filepath.Join(CurrentRepository().Path, ".nt/objects", OIDToPath(note1.OID)))
-	require.NoError(t, err)
-	assert.Contains(t, string(data), "title: 'Note: Example 1")
 }

@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 	"time"
+
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 )
 
 func main() {
@@ -17,7 +19,7 @@ func main() {
 	case "add":
 		CurrentRepository().Add()
 	case "commit":
-		CurrentDB().Commit()
+		CurrentRepository().Commit()
 	default:
 		log.Fatalf("Unsupported command %q", command)
 	}
@@ -26,10 +28,10 @@ func main() {
 /* Helpers */
 
 // OIDToPath converts an oid to a file path.
-func OIDToPath(oid string) string {
+func OIDToPath(oid oid.OID) string {
 	// We use the first two characters to spread objects into different directories
 	// (same as .git/objects/) to avoid having a large unpractical directory.
-	return oid[0:2] + "/" + oid
+	return oid.String()[0:2] + "/" + oid.String() + ".pack"
 }
 
 // Hash is an utility to determine a MD5 hash (acceptable as not used for security reasons).

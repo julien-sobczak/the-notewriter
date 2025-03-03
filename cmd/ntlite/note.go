@@ -3,61 +3,21 @@ package main
 import (
 	"database/sql"
 	"io"
-	"strings"
 	"time"
 
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"gopkg.in/yaml.v3"
 )
 
 // Lite version of internal/core/note.go
 
-// ParsedNote represents a single raw note inside a file.
-type ParsedNote struct {
-	Title   string
-	Content string
-}
-
-// ParseNotes extracts the notes from a file body.
-func ParseNotes(fileBody string) []*ParsedNote {
-	var noteTitle string
-	var noteContent strings.Builder
-
-	var results []*ParsedNote
-
-	for _, line := range strings.Split(fileBody, "\n") {
-		// Minimalist implementation. Only search for ## headings
-		if strings.HasPrefix(line, "## ") {
-			if noteTitle != "" {
-				results = append(results, &ParsedNote{
-					Title:   noteTitle,
-					Content: strings.TrimSpace(noteContent.String()),
-				})
-			}
-			noteTitle = strings.TrimPrefix(line, "## ")
-			noteContent.Reset()
-			continue
-		}
-
-		if noteTitle != "" {
-			noteContent.WriteString(line)
-			noteContent.WriteRune('\n')
-		}
-	}
-	if noteTitle != "" {
-		results = append(results, &ParsedNote{
-			Title:   noteTitle,
-			Content: strings.TrimSpace(noteContent.String()),
-		})
-	}
-
-	return results
-}
-
 type Note struct {
-	OID string `yaml:"oid"`
+	OID oid.OID `yaml:"oid"`
 
+	// Pack file where this object belongs
+	PackFileOID oid.OID `yaml:"packfile_oid" json:"packfile_oid"`
 	// File containing the note
-	FileOID string `yaml:"file_oid"`
+	FileOID oid.OID `yaml:"file_oid"` // TODO useful?
 
 	// Title of the note without leading # characters
 	Title string `yaml:"title"`
@@ -66,53 +26,68 @@ type Note struct {
 	RelativePath string `yaml:"relative_path"`
 
 	Content string `yaml:"content_raw"`
-	Hash    string `yaml:"content_hash"`
 
 	CreatedAt time.Time `yaml:"created_at"`
 	UpdatedAt time.Time `yaml:"updated_at"`
-	DeletedAt time.Time `yaml:"deleted_at,omitempty"`
 	IndexedAt time.Time `yaml:"-"`
+}
 
-	new   bool
-	stale bool
+// NewNote creates a new note.
+func NewNote(packFile *PackFile, file *File, parsedNote *ParsedNote) (*Note, error) {
+	// Set basic properties
+	n := &Note{
+		OID:          oid.New(),
+		PackFileOID:  packFile.OID,
+		FileOID:      file.OID,
+		Title:        parsedNote.Title,
+		RelativePath: file.RelativePath,
+		Content:      parsedNote.Content,
+		CreatedAt:    packFile.CTime,
+		UpdatedAt:    packFile.CTime,
+		IndexedAt:    packFile.CTime,
+	}
+
+	return n, nil
 }
 
 // NewOrExistingNote loads and updates an existing note or creates a new one if new.
-func NewOrExistingNote(f *File, parsedNote *ParsedNote) *Note {
-	note, _ := CurrentRepository().FindNoteByTitle(f.RelativePath, parsedNote.Title)
-	if note != nil {
-		note.update(f, parsedNote)
-		return note
+func NewOrExistingNote(packFile *PackFile, f *File, parsedNote *ParsedNote) (*Note, error) {
+	// Try to find an existing note (instead of recreating it from scratch after every change)
+	existingNote, err := CurrentRepository().FindNoteByTitle(f.RelativePath, parsedNote.Title)
+	if err != nil {
+		return nil, err
 	}
-
-	return NewNoteFromParsedNote(f, parsedNote)
+	if existingNote != nil {
+		existingNote.update(packFile, f, parsedNote)
+		return existingNote, nil
+	}
+	return NewNote(packFile, f, parsedNote)
 }
 
-func NewNoteFromParsedNote(f *File, parsedNote *ParsedNote) *Note {
-	return &Note{
-		OID:          NewOID(),
-		FileOID:      f.OID,
-		Title:        parsedNote.Title,
-		RelativePath: f.RelativePath,
-		Content:      parsedNote.Content,
-		Hash:         Hash([]byte(parsedNote.Content)),
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
-		stale:        true,
-		new:          true,
-	}
-}
+func (n *Note) update(packFile *PackFile, f *File, parsedNote *ParsedNote) {
+	stale := false
 
-func (n *Note) update(f *File, parsedNote *ParsedNote) {
-	if f.OID != n.FileOID {
+	// Set basic properties
+	if n.FileOID != f.OID {
 		n.FileOID = f.OID
-		n.stale = true
+		n.RelativePath = f.RelativePath
+		stale = true
 	}
 
+	if n.Title != parsedNote.Title {
+		n.Title = parsedNote.Title
+		stale = true
+	}
 	if n.Content != parsedNote.Content {
 		n.Content = parsedNote.Content
-		n.Hash = Hash([]byte(parsedNote.Content))
-		n.stale = true
+		stale = true
+	}
+
+	n.PackFileOID = packFile.OID
+	n.IndexedAt = packFile.CTime
+
+	if stale {
+		n.UpdatedAt = packFile.CTime
 	}
 }
 
@@ -120,26 +95,15 @@ func (n *Note) Kind() string {
 	return "note"
 }
 
-func (n *Note) UniqueOID() string {
+func (n *Note) UniqueOID() oid.OID {
 	return n.OID
 }
 
-func (n *Note) ModificationTime() time.Time {
+func (n *Note) ModificationTime() time.Time { // TODO useful?
 	return n.UpdatedAt
 }
 
-func (n *Note) State() State {
-	if !n.DeletedAt.IsZero() {
-		return Deleted
-	}
-	if n.new {
-		return Added
-	}
-	if n.stale {
-		return Modified
-	}
-	return None
-}
+/* Index Management */
 
 func (n *Note) Read(r io.Reader) error {
 	err := yaml.NewDecoder(r).Decode(n)
@@ -158,55 +122,47 @@ func (n *Note) Write(w io.Writer) error {
 	return err
 }
 
-func (n *Note) SubObjects() []StatefulObject {
-	// Usually return flashcards, medias, links, etc.
-	return nil
-}
+/* DB Management */
 
 func (n *Note) Save() error {
-	var err error
-	n.UpdatedAt = time.Now()
-	n.IndexedAt = time.Now()
-	switch n.State() {
-	case Added:
-		err = n.Insert()
-	case Modified:
-		err = n.Update()
-	case Deleted:
-		err = n.Delete()
-	default:
-		err = n.Check()
-	}
-	if err != nil {
-		return err
-	}
-	n.new = false
-	n.stale = false
-	return nil
-}
-
-func (n *Note) Insert() error {
 	query := `
 		INSERT INTO note(
 			oid,
+			packfile_oid,
 			file_oid,
 			relative_path,
 			title,
 			content_raw,
-			hashsum,
 			created_at,
 			updated_at,
 			indexed_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(oid) DO UPDATE SET
+			packfile_oid = ?,
+			file_oid = ?,
+			relative_path = ?,
+			title = ?,
+			content_raw = ?,
+			updated_at = ?,
+			indexed_at = ?;
 	`
 	_, err := CurrentDB().Client().Exec(query,
+		// Insert
 		n.OID,
+		n.PackFileOID,
 		n.FileOID,
 		n.RelativePath,
 		n.Title,
 		n.Content,
-		n.Hash,
 		timeToSQL(n.CreatedAt),
+		timeToSQL(n.UpdatedAt),
+		timeToSQL(n.IndexedAt),
+		// Update
+		n.PackFileOID,
+		n.FileOID,
+		n.RelativePath,
+		n.Title,
+		n.Content,
 		timeToSQL(n.UpdatedAt),
 		timeToSQL(n.IndexedAt),
 	)
@@ -217,68 +173,21 @@ func (n *Note) Insert() error {
 	return nil
 }
 
-func (n *Note) Update() error {
-	query := `
-		UPDATE note
-		SET
-			file_oid = ?,
-			relative_path = ?,
-			title = ?,
-			content_raw = ?,
-			hashsum = ?,
-			updated_at = ?,
-			indexed_at = ?
-		WHERE oid = ?;
-	`
-
-	_, err := CurrentDB().Client().Exec(query,
-		n.FileOID,
-		n.RelativePath,
-		n.Title,
-		n.Content,
-		n.Hash,
-		timeToSQL(n.UpdatedAt),
-		timeToSQL(n.IndexedAt),
-		n.OID,
-	)
-
-	return err
-}
-
-func (n *Note) Delete() error {
-	query := `DELETE FROM note WHERE oid = ?;`
-	_, err := CurrentDB().Client().Exec(query, n.OID)
-	return err
-}
-
-func (n *Note) Check() error {
-	n.IndexedAt = time.Now()
-	query := `
-		UPDATE note
-		SET indexed_at = ?
-		WHERE oid = ?;`
-	if _, err := CurrentDB().Client().Exec(query, timeToSQL(n.IndexedAt), n.OID); err != nil {
-		return err
-	}
-	// Mark all sub-objects as checked too
-	return nil
-}
-
-func (r *Repository) FindNoteByTitle(relativePath, title string) (*Note, error) {
+func (r *Repository) FindNoteByTitle(relativePath, title string) (*Note, error) { // TODO useful?
 	var n Note
 	var createdAt string
 	var updatedAt string
-	var lastIndexedAt string
+	var indexedAt string
 
 	// Query for a value based on a single row.
 	if err := CurrentDB().Client().QueryRow(`
 		SELECT
 			oid,
+			packfile_oid,
 			file_oid,
 			relative_path,
 			title,
 			content_raw,
-			hashsum,
 			created_at,
 			updated_at,
 			indexed_at
@@ -286,14 +195,14 @@ func (r *Repository) FindNoteByTitle(relativePath, title string) (*Note, error) 
 		WHERE relative_path = ? and title = ?;`, relativePath, title).
 		Scan(
 			&n.OID,
+			&n.PackFileOID,
 			&n.FileOID,
 			&n.RelativePath,
 			&n.Title,
 			&n.Content,
-			&n.Hash,
 			&createdAt,
 			&updatedAt,
-			&lastIndexedAt,
+			&indexedAt,
 		); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -303,7 +212,7 @@ func (r *Repository) FindNoteByTitle(relativePath, title string) (*Note, error) 
 
 	n.CreatedAt = timeFromSQL(createdAt)
 	n.UpdatedAt = timeFromSQL(updatedAt)
-	n.IndexedAt = timeFromSQL(lastIndexedAt)
+	n.IndexedAt = timeFromSQL(indexedAt)
 
 	return &n, nil
 }

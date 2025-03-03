@@ -1,13 +1,14 @@
 package main
 
 import (
-	"fmt"
 	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 )
 
 // Lite version of internal/core/repository.go
@@ -41,10 +42,14 @@ func CurrentRepository() *Repository {
 	return repositorySingleton
 }
 
-func (r *Repository) walk(fn func(path string, stat fs.FileInfo) error) error {
-	filepath.WalkDir(r.Path, func(path string, info fs.DirEntry, err error) error {
+func (r *Repository) walk(fn func(md *markdown.File) error) error {
+	return filepath.WalkDir(r.Path, func(path string, info fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+
+		if path == "." || path == ".." {
+			return nil
 		}
 
 		dirname := filepath.Base(path)
@@ -52,79 +57,58 @@ func (r *Repository) walk(fn func(path string, stat fs.FileInfo) error) error {
 			return fs.SkipDir // NB fs.SkipDir skip the parent dir when path is a file
 		}
 
-		relativePath, err := filepath.Rel(r.Path, path)
-		if err != nil {
-			// ignore the file
+		// We look for Markdown files
+		if info.IsDir() || !strings.HasSuffix(info.Name(), ".md") {
 			return nil
 		}
 
-		// We look for only specific extension
-		if !info.IsDir() && !strings.HasSuffix(relativePath, ".md") {
-			// Nothing to do
-			return nil
+		// A file found to process!
+		md, err := markdown.ParseFile(path)
+		if err != nil {
+			return err
 		}
 
-		// Ignore certain file modes like symlinks
-		fileInfo, err := os.Lstat(path) // NB: os.Stat follows symlinks
-		if err != nil {
-			// Ignore the file
-			return nil
-		}
-		if !fileInfo.Mode().IsRegular() {
-			// Exclude any file with a mode bit set (device, socket, named pipe, ...)
-			// See https://pkg.go.dev/io/fs#FileMode
-			return nil
-		}
-
-		// A file found to process using the callback
-		err = fn(relativePath, fileInfo)
-		if err != nil {
+		if err := fn(md); err != nil {
 			return err
 		}
 
 		return nil
 	})
-
-	return nil
 }
 
 // Add implements the command `nt add`.`
 func (r *Repository) Add() error {
 	db := CurrentDB()
+	index := CurrentIndex()
 
-	// Run all queries inside the same transaction
-	err := db.BeginTransaction()
-	if err != nil {
-		return err
-	}
-	defer db.RollbackTransaction()
+	var traversedPaths []string
+	var packFilesToUpsert []*PackFile
 
-	// Traverse all files
-	err = r.walk(func(relativePath string, stat fs.FileInfo) error {
-		file, err := NewOrExistingFile(relativePath)
+	// Traverse all given paths to detected updated medias/files
+	err := r.walk(func(mdFile *markdown.File) error {
+		relativePath, err := filepath.Rel(r.Path, mdFile.AbsolutePath)
+		if err != nil {
+			log.Fatalf("Unable to determine relative path: %v", err)
+		}
+
+		traversedPaths = append(traversedPaths, relativePath)
+
+		if !index.Modified(relativePath, mdFile.MTime) {
+			// Nothing changed = Nothing to parse
+			return nil
+		}
+
+		// Reparse the new version
+		parsedFile, err := ParseFile(relativePath, mdFile)
 		if err != nil {
 			return err
 		}
 
-		if file.State() != None {
-			if err := db.StageObject(file); err != nil {
-				return fmt.Errorf("unable to stage modified object %s: %v", file.RelativePath, err)
-			}
+		packFile, err := NewPackFileFromParsedFile(parsedFile)
+		if err != nil {
+			return err
 		}
-		if err := file.Save(); err != nil {
-			return nil
-		}
-
-		for _, object := range file.SubObjects() {
-			if object.State() != None {
-				if err := db.StageObject(object); err != nil {
-					return fmt.Errorf("unable to stage modified object %s: %v", object, err)
-				}
-			}
-			if err := object.Save(); err != nil {
-				return err
-			}
-		}
+		packFilesToUpsert = append(packFilesToUpsert, packFile)
 
 		return nil
 	})
@@ -132,17 +116,26 @@ func (r *Repository) Add() error {
 		return err
 	}
 
-	// (Not implemented) Find objects to delete by querying
-	// the different tables for rows with indexed_at < :execution_time
+	// We saved pack files on disk before starting a new transaction to keep it short
+	if err := db.BeginTransaction(); err != nil {
+		return err
+	}
+	db.UpsertPackFiles(packFilesToUpsert...)
+	index.Stage(packFilesToUpsert...)
 
 	// Don't forget to commit
 	if err := db.CommitTransaction(); err != nil {
 		return err
 	}
 	// And to persist the index
-	if err := db.index.Save(); err != nil {
+	if err := index.Save(); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// Commit implements the command `nt commit`
+func (r *Repository) Commit() error {
+	return CurrentIndex().Commit()
 }
