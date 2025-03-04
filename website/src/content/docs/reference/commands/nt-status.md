@@ -4,7 +4,7 @@ title: "nt status"
 
 ## Name
 
-`the-notewriter status` — Show the working tree status.
+`nt status` — Show the working tree status.
 
 ## Synopsis
 

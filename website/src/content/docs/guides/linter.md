@@ -19,7 +19,7 @@ rules:
 - name: no-dead-wikilink
 ```
 
-Rules are declared under the attribute `rules`. Some rules accept arguments using the attribute `args` (array of primitive values) and all rules can be restricted to apply on a subset of your notes using the attribute `includes` (array of glob path expressions).
+Rules are declared under the attribute `rules`. Some rules accept arguments using the attribute `args` (array of primitive values) and you may restrict a rule to a subset of your notes using the attribute `includes` (array of glob path expressions).
 
 
 ## Rules

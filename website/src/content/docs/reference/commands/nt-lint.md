@@ -4,7 +4,7 @@ title: "nt lint"
 
 ## Name
 
-`the-notewriter lint` — Check all rules for possible violations.
+`nt lint` — Check all rules for possible violations.
 
 ## Synopsys
 

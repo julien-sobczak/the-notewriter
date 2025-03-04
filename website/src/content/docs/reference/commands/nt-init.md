@@ -4,7 +4,7 @@ title: "nt init"
 
 ## Name
 
-`the-notewriter init` — Create an empty _The NoteWriter_ repository.
+`nt init` — Create an empty _The NoteWriter_ repository.
 
 ## Synopsis
 
@@ -18,7 +18,7 @@ Flags:
 
 ## Description
 
-This command creates an empty _The NoteWriter_ repository — basically a `.nt` directory with subdirectories for `objects`, `refs`, and default configuration files. A default index without any commits will be created.
+This command creates an empty _The NoteWriter_ repository — basically a `.nt` directory with a subdirectory for `objects`, and default configuration files. A default index will be created.
 
 Running `nt init` in an existing repository is safe. It will not overwrite things that are already there.
 

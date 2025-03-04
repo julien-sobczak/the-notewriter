@@ -4,7 +4,7 @@ title: "nt pull"
 
 ## Name
 
-`the-notewriter pull` - Fetch recent commits and objects from a remote ref to a local ref.
+`nt pull` - Fetch recent missing packfiles and blobs from a remote locally.
 
 ## Synopsis
 
@@ -17,13 +17,13 @@ Flags:
 
 ## Description
 
-Incorporates changes from a remote into the current repository. If commits are missing locally, there will be applied.
+Incorporates changes from a remote into the current repository. If objects or blobs are missing locally, there will be retrieved.
 
-No conflicts can occurs when pulling changes. The `.nt/index` file will be merged to incorporate misssing and new commits and all missing objects will be downloaded.
+No conflicts can occur when pulling changes. The `.nt/index` file will be merged to incorporate changes.
 
 ## Configuration
 
-See [`nt-push`](./nt-push) for "Configuration.
+See [`nt-push`](./nt-push) for "Configuration".
 
 ## Examples
 

@@ -4,7 +4,7 @@ title: "nt commit"
 
 ## Name
 
-`the-notewriter commit` — Record changes to the repository.
+`nt commit` — Record changes to the repository.
 
 ## Synopsis
 
@@ -19,18 +19,10 @@ Flags:
 
 ## Description
 
-Create a new commit containing the current contents of the index and the given log message describing the changes. The new commit is a direct child of the last known commit.
+Create a new commit containing the current contents of the staging area.
 
-The content to be committed can be specified in several ways:
+The content to be committed can be specified by using `nt add` to incrementally "add" changes to the index before using the `commit` command (Note: even modified files must be "added").
 
-* by using `nt add` to incrementally "add" changes to the index before using the `commit` command (Note: even modified files must be "added").
-
-No other was are currently supported.
-
-## Options
-
-* `-m <msg>`, ` --message=<msg>`
-  * Use the given `<msg>` as the commit message. No multiple `-m` are supported.
 
 ## Examples
 
@@ -39,10 +31,10 @@ When recording your own work, the contents of modified files in your working tre
 ```shell
 $ edit hello.md
 $ nt add hello.md
-$ nt commit -m "Add hello.md"
+$ nt commit
 ```
 
-A commit doesn't have an author. Use Git to version your files and preserve the history.
+A commit doesn't have an author or a message. Use Git to version your files and preserve the history.
 
 ## See Also
 

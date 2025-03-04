@@ -54,7 +54,7 @@ $ nt run-hook --vvv "todo.md#Reference: Reading List"
 
 ## Example
 
-Let's write the hook `gist` that synchronize the note content (usually stored in a private GitHub repository) with a Gist that can be freely share.
+Let's write the hook `gist` that synchronize the note content (usually stored in a private GitHub repository) with a Gist that can be shared publicly.
 
 ```md title=todo.md
 ## TODO: Reading List

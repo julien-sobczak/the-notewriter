@@ -5,7 +5,7 @@ title: Flashcards
 
 :::important
 
-Flashcards can (for now) only be studied using _The NoteWriter Nomad_, which means you must configure a [remote](./remote.md).
+Flashcards can (for now) only be studied using _The NoteWriter Desktop_. Support in _The NoteWriter Nomad_ is planned. A [remote](./remote.md) will be required in this case.
 
 :::
 

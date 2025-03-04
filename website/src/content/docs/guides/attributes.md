@@ -26,7 +26,6 @@ All notes inherit attributes defined in the YAML front matter (restrictions can 
 
 Attributes can also be defined in Markdown using the syntax `@name: value`. The previous example can be rewritten like this:
 
-
 ```md title=meditations.md
 # Notes
 

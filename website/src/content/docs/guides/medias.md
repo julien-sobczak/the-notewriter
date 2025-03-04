@@ -2,7 +2,7 @@
 title: Medias
 ---
 
-Notes can include medias (images, videos, audios) using the usual Markdown syntax.
+Notes can include medias (images, videos, audios) using the usual Markdown image syntax.
 
 ```md
 ## Reference: Me
@@ -26,6 +26,6 @@ Original files are not used directly (= not stored in `.nt/objects`). The applic
 
 :::tip
 
-Place your medias in a `medias/` directory present along your note file to navigate easily in your editor.
+Place your medias in a `medias/` directory present along your note files to navigate easily in your editor.
 
 :::

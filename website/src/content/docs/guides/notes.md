@@ -143,24 +143,11 @@ Use `Journal` for tasks you need to perform.
       * [x] Add doc about the different kinds of note
       * [ ] Add doc about attributes and tags
 
-### `Artwork` … to get delighted
-
-Use `Artwork` for artworks that resonate with you.
-
-**TODO**
-
-
-
-### Free notes … for everything else
-
-Notes can omit the kind prefix. Their are called "free" notes and are processed like any other notes (they are searchable).
-
-In practice, defining the note kind adds metadata that can be useful when searching in your notes. In addition, some notes like flashcards requires the kind to be defined.
 
 :::tip
 
+* **Use Markdown files as notebooks**. Group your notes inside a file like you would group them in a physical notebook.
 * **Use kinds to classify your notes**, to make easy to retrieve them or to restrict when searching for specific notes.
-* **Use the [linter](linter.md) rule `no-free-note`** if you want to enforce a kind on all notes.
 
 :::
 
@@ -171,7 +158,7 @@ In practice, defining the note kind adds metadata that can be useful when search
 
 ### Ignore Files
 
-Files or notes with a tag `ignore` are ignored and not present in the index, that is not searchable.
+Files or notes with a tag `ignore` are ignored and not present in the index. They aren't searchable.
 
 ```md
 ---

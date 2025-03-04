@@ -4,7 +4,7 @@ title: "nt add"
 
 ## Name
 
-`the-notewriter add` — Add file contents to the database.
+`nt add` — Add files to the index.
 
 ## Synopsis
 
@@ -18,9 +18,9 @@ Flags:
 
 ## Description
 
-This command updates the index (`.nt/index`) and the database (`.nt/objects`) to place new objects in the staging area, to prepare the content staged for the next commit.
+This command updates the index (`.nt/index`) and the database (`.nt/objects`) to create new pack files and append them in the staging area, to prepare the content staged for the next commit.
 
-The "index" holds a snapshot of the content of the working tree, and it is this snapshot that is taken as the contents of the next commit. Thus after making any changes to the working tree, and before running the `commit` command, you must use the `add` command to add any new or modified files to the index.
+The "index" holds a snapshot of the content of the working tree, and it is this snapshot that is taken as the content of the next commit. Thus after making any changes to the working tree, and before running the `commit` command, you must use the `add` command to add any new or modified files to the index.
 
 This command can be performed multiple times before a commit. It only adds the content of the specified file(s) at the time the add command is run; if you want subsequent changes included in the next commit, then you must run `nt add` again to add the new content to the index.
 

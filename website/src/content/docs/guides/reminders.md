@@ -4,11 +4,11 @@ title: Reminders
 
 Reminders are special tags that determine a timestamp when a note must be reviewed.
 
-Reminders are displayed when planning your day using the commands `nt bye` and `nt hi`.
+Reminders are displayed when planning your day using the commands `nt-journal hi` and `nt-journal bye`.
 
 ## Syntax
 
-The syntax must follow `#reminder-{expr}`. Recurring reminders must use the additional keyword `every-` like this `#reminder-every-{expr}`.
+The syntax must follow `#reminder-{expr}`. Recurring reminders must use the additional keyword `every-` like `#reminder-every-{expr}`.
 
 ## Examples
 
@@ -31,6 +31,6 @@ Timestamps are always relative. For this documentation, we consider today is 202
 
 :::tip
 
-Use reminders for notes only actionable in the future: places to visit with your kids, conference to attend, travel ticket registration, ...
+Use reminders for notes only actionable in the future: places to visit with your kids, conferences to attend, booking registrations, ...
 
 :::

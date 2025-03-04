@@ -89,7 +89,7 @@ A note.
 
 ## Go Links
 
-Markdown links can include in their title was is called a _Go link_, that is a memorable name for a hard-to-remember URL.
+Markdown links can include in their title was is called a _Go link_. A Go link is a memorable name for a hard-to-remember URL.
 
 The syntax must follow the convention `#go/{name}`.
 
@@ -100,7 +100,7 @@ The syntax must follow the convention `#go/{name}`.
 * [Go Playground](https://go.dev/play/ "#go/go/playground") is useful to share snippets.
 ```
 
-Go links can be browse directly from the terminal:
+Go links can be browsed directly from the terminal:
 
 ```shell
 $ nt go go
@@ -115,7 +115,7 @@ You can also use Go links (more conveniently) from _The NoteWriter Desktop_ (no 
 
 :::tip
 
-Use Go links for URL that you must visit frequently (ex: internal tools at work).
+Use Go links for URLs that you must visit frequently (ex: internal tools at work).
 
 :::
 

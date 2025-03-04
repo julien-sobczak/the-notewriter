@@ -4,7 +4,7 @@ title: "nt push"
 
 ## Name
 
-`the-notewriter push` — Update the remote ref along with associated objects.
+`nt push` — Update the remote ref along with associated objects.
 
 ## Synopsis
 
@@ -18,11 +18,9 @@ Flags:
 
 ## Description
 
-Updates the remote ref using the local ref, while sending objects necessary to complete the given ref.
+Updates the remote using the local index, sending missing objects in remote index.
 
-If the remote ref contains objects not present in the local ref, the command is aborted. Run `nt pull` first.
-
-If objects were reclaimed by `nt gc`, they will be reclaimed in the remote ref too.
+If the remote contains objects not present in the local ref, the command is aborted. Run `nt pull` first.
 
 ## Configuration
 
@@ -30,7 +28,6 @@ Remotes are declared inside the `.nt/config` file. Several remote implementation
 
 * `file`
 * `s3`
-* `git`
 
 **TODO** complete
 

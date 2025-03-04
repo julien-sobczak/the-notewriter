@@ -2,10 +2,9 @@
 title: Presentation
 ---
 
+_The NoteWriter_ is a CLI to extract objects like notes from Markdown files.
 
-_The NoteWriter_ is a CLI to generate notes from files.
-
-Users edit files in Markdown (with a few extensions). _The NoteWriter_ parses these files to extract different objects (note, flashcard, reminder, etc.).
+Users edit Markdown files (with a few extensions). _The NoteWriter_ parses these files to extract different objects (note, flashcard, reminder, etc.).
 
 
 ## Code Organization
@@ -14,6 +13,7 @@ Users edit files in Markdown (with a few extensions). _The NoteWriter_ parses th
 .
 ├── cmd             # Viper commands
 ├── internal        # The NoteWriter-specific code
+│   ├── markdown    # Markdown parsing
 │   ├── core        # Main logic
 │   ├── medias      # Media processing
 │   ├── reference   # Reference processing
@@ -43,7 +43,7 @@ The repository also contains additional directories not directly related to the 
 
 Most of the code (and most of the tests) is present in this package.
 
-A `Repository` (`repository.go`) is the parent container. A _repository_ traverses directories to find Markdown `File` (`file.go`). A _file_ can contains `Note` defined using Markdown headings (`note.go`), some of which can be `Flashcard` when using the corresponding kind (`flashcard.go`), `Media` resources referenced using Markdown link (`media.go`), special `Link` when using convention on Markdown link's titles (`link.go`), and `Reminder` when using special tags (`reminder.go`).
+A `Repository` (`repository.go`) is the parent container. A _repository_ traverses directories to find `markdown.File` (`markdown/file.go`). A _file_ can contains `Note` defined using Markdown headings (`note.go`), some of which can be `Flashcard` when using the corresponding kind (`flashcard.go`), `Media` resources referenced using Markdown link (`media.go`), special `Link` when using convention on Markdown link's titles (`link.go`), and `Reminder` when using special tags (`reminder.go`).
 
 `File`, `Note`, `Flashcard`, `Media`, `Link`, `Reminder` represents the `Object` (`object.go`) managed by _The NoteWriter_ and stored inside `.nt/objects` indirectly using commits. (Blobs are also stored inside this directory.)
 

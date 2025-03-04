@@ -5,7 +5,7 @@ title: "nt reset"
 
 ## Name
 
-`the-notewriter reset` — Reset staging area.
+`nt reset` — Reset staging area.
 
 ## Synopsis
 

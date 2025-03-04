@@ -4,7 +4,7 @@ title: "nt cat-file"
 
 ## Name
 
-`the-notewriter cat-file` — Provide content information for repository objects.
+`nt cat-file` — Provide content information for repository objects.
 
 ## Synopsis
 

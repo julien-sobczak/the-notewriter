@@ -3,9 +3,9 @@ title: Guidelines
 ---
 
 
-After reading several planning/productivity/note-taking/journaling systems, I concluded the motivations (and principles) are always similar. Everybody has goals to achieve by completing tasks that requires knowledge and insights.
+After reading several planning/productivity/note-taking/journaling systems, I observe the motivations (and principles) are always similar. Everybody has goals to achieve by completing tasks that requires knowledge and insights.
 
-In addition, no system is useful when working on the wrong thing. Therefore, planning and reflection must be integrated to any workflow.
+In addition, no system is useful when working on the wrong thing. Therefore, planning and reflection must be an integral part of any workflow.
 
 This page regroups the best ideas in my readings and the lessons I learned the hard way.
 
@@ -57,7 +57,7 @@ Schemas must be used sparingly. You must find the right balance between chaos an
 
 ### Classify information
 
-_The NoteWriter_ uses files and directories to organize notes, which means you can very quickly end up with a completely disorganized notebook 😓.
+_The NoteWriter_ uses files and directories to organize notes, which means you can very quickly end up with a completely disorganized note system 😓.
 
 The best system I encountered is the PARA system, introduce by Tiago Forte. Only a few categories is enough to encompass all the information in your life:
 
