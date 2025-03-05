@@ -14,7 +14,7 @@ The source code is available in this same repository under the directory `cmd/nt
 
 ## The Model
 
-_The NoteWriter_ extract objects from Markdown files that will be stored inside `nt/objects` in YAML and inside `nt/database.db` using SQL tables (useful for speed up queries + the full-text search support).
+_The NoteWriter_ extract objects from Markdown files that will be stored inside `nt/objects` in YAML and inside `nt/database.db` using SQL tables (useful to speed up queries and benefit from the full-text search support).
 
 For example:
 
@@ -37,10 +37,14 @@ This document generates 3 objects: 1 _file_ (`notes.md`) and 2 _notes_ (`Note: E
 Here is the definition of the object `File` simplified for this document:
 
 ```go
+import "github.com/julien-sobczak/the-notewriter/pkg/oid"
+
 type File struct {
 	// A unique identifier among all files
-	OID string `yaml:"oid"`
+	OID oid.OID `yaml:"oid"`
 
+	// Pack file where this object belongs
+	PackFileOID oid.OID `yaml:"packfile_oid" json:"packfile_oid"`
 	// A relative path to the repository root directory
 	RelativePath string `yaml:"relative_path"`
 
@@ -52,14 +56,6 @@ type File struct {
 	MTime time.Time `yaml:"mtime"`
 
 	Body string `yaml:"body"`
-
-	CreatedAt     time.Time `yaml:"created_at"`
-	UpdatedAt     time.Time `yaml:"updated_at"`
-	DeletedAt     time.Time `yaml:"deleted_at,omitempty"`
-	IndexedAt time.Time `yaml:"-"`
-
-	new   bool
-	stale bool
 }
 ```
 
@@ -72,20 +68,21 @@ The complete model `File` contains additional fields like a reference to a paren
 Basically, we persist various metadata about the file to quickly determine if a file has changed when running the command `ntlite add`. In addition:
 
 * Each object get assigned an OID (a unique 40-character string like the hash of Git objects). This OID is used as the primary key inside the SQL database and can be used with the official command `nt cat-file <oid>` to get the full information about an object.
-* Each object includes various timestamps. The creation and last modification dates are mostly informative. The timestamp `IndexedAt` is updated every time an object is traversed (even if the object hasn't changed) and is useful to quickly find all deleted objects.
 * Each object uses Go struct tags to make easy to serialize them in YAML.
-* Each object includes the fields `new` and `stale` to determine if a change must be saved and if the object must be inserted or updated.
+
 
 ### `Note`
 
 Here is the definition of the similar struct `Note`:
 
 ```go
-type Note struct {
-	OID string `yaml:"oid"`
+import "github.com/julien-sobczak/the-notewriter/pkg/oid"
 
-	// File containing the note
-	FileOID string `yaml:"file_oid"`
+type Note struct {
+	OID oid.OID `yaml:"oid"`
+
+	// Pack file where this object belongs
+	PackFileOID oid.OID `yaml:"packfile_oid" json:"packfile_oid"`
 
 	// Title of the note without leading # characters
 	Title string `yaml:"title"`
@@ -94,193 +91,329 @@ type Note struct {
 	RelativePath string `yaml:"relative_path"`
 
 	Content string `yaml:"content_raw"`
-	Hash    string `yaml:"content_hash"`
-
-	CreatedAt     time.Time `yaml:"created_at"`
-	UpdatedAt     time.Time `yaml:"updated_at"`
-	DeletedAt     time.Time `yaml:"deleted_at,omitempty"`
-	IndexedAt time.Time `yaml:"-"`
-
-	new   bool
-	stale bool
 }
 ```
 
 :::note
 
-The complete model `Note` contains a lot more fields. Notes represent the core abstraction. They can have a list of attributes, tags, a parent note (when notes are nested to inherit from parent's attributes), and their content is converted into different representations (Markdown/HTML/Text) to render them easily in various contexts.
+The complete model `Note` contains a lot more fields. Notes are the main building blocks of the application. They can have a list of attributes, tags, a parent note (when notes are nested to inherit from parent attributes).
 
 :::
 
 ### `ParsedXXX`
 
-The structs `File` and `Note` must be populated by parsing Markdown files but to make easy to test the parsing logic, we will use basic structs to ignore some of the complexity (for example, `Note` contains the logic to enrich the Markdown and convert it to HTML). This is the intent behind the structs `ParsedXXX`:
+The structs `File` and `Note` must be populated by parsing Markdown files but to make easy to test the parsing logic, we will use basic structs to ignore some of the complexity (id generation, database management, serialization). This is the intent behind the structs `ParsedXXX`:
 
 ```go
+import "github.com/julien-sobczak/the-notewriter/internal/markdown"
+
 type ParsedFile struct {
+	Markdown *markdown.File
+
 	// The paths to the file
 	AbsolutePath string
 	RelativePath string
 
-	// Stat
-	Stat fs.FileInfo
-
-	// The raw content bytes
-	Bytes []byte
-
-	// The file content
-	Body string
+	// Notes inside the file
+	Notes []*ParsedNote
 }
 
 type ParsedNote struct {
 	// Heading
 	Title   string
-	// Content inside the heading
 	Content string
 }
 ```
 
-The logic to initialize a `ParsedFile` simply uses the standard Go librairies:
+The logic to initialize a `ParsedFile` is relatively trivial, in particular when using the custom abstraction `markdown.File` (we hide the logic to parse a Markdown document, this component is ommitted from this document as there is nothing specific to _The NoteWriter_):
 
 ```go
 // ParseFile contains the main logic to parse a raw note file.
-func ParseFile(relativePath string) (*ParsedFile, error) {
-	absolutePath := filepath.Join(CurrentRepository().Path, relativePath)
-
-	lstat, err := os.Lstat(absolutePath)
-	if err != nil {
-		return nil, err
-	}
-
-	contentBytes, err := os.ReadFile(absolutePath)
-	if err != nil {
-		return nil, err
-	}
-
-	body := strings.TrimSpace(string(contentBytes))
-	return &ParsedFile{
-		AbsolutePath: absolutePath,
+func ParseFile(relativePath string, md *markdown.File) *ParsedFile {
+	result := &ParsedFile{
+		Markdown:     md,
+		AbsolutePath: md.AbsolutePath,
 		RelativePath: relativePath,
-		Stat:         lstat,
-		Bytes:        contentBytes,
-		Body:         body,
-	}, nil
+	}
+
+	// Extract sub-objects
+	result.Notes = result.extractNotes()
+	return result
 }
-```
 
-:::note
+func (p *ParsedFile) extractNotes() []*ParsedNote {
+	// All notes collected until now
+	var notes []*ParsedNote
 
-_The NoteWriter_ supports attributes and tags using a YAML Front Matter and a special syntax. The actual parser extracts these metadata used to enrich notes and make them easily searchable.
+	sections, err := p.Markdown.GetSections()
+	if err != nil {
+		return nil
+	}
 
-:::
-
-The logic to initialize `ParsedNote` is slightly more elaborate:
-
-```go
-
-// ParseNotes extracts the notes from a file body.
-func ParseNotes(fileBody string) []*ParsedNote {
-	var noteTitle string
-	var noteContent strings.Builder
-
-	var results []*ParsedNote
-
-	for _, line := range strings.Split(fileBody, "\n") {
+	for _, section := range sections {
 		// Minimalist implementation. Only search for ## headings
-		if strings.HasPrefix(line, "## ") {
-			if noteTitle != "" {
-				results = append(results, &ParsedNote{
-					Title:   noteTitle,
-					Content: strings.TrimSpace(noteContent.String()),
-				})
-			}
-			noteTitle = strings.TrimPrefix(line, "## ")
-			noteContent.Reset()
+		if section.HeadingLevel != 2 {
 			continue
 		}
 
-		if noteTitle != "" {
-			noteContent.WriteString(line)
-			noteContent.WriteRune('\n')
-		}
-	}
-	if noteTitle != "" {
-		results = append(results, &ParsedNote{
-			Title:   noteTitle,
-			Content: strings.TrimSpace(noteContent.String()),
+		title := section.HeadingText
+		body := section.ContentText
+
+		notes = append(notes, &ParsedNote{
+			Title:   title.String(),
+			Content: strings.TrimSpace(body.String()),
 		})
 	}
 
-	return results
+	return notes
 }
 ```
 
 :::note
 
-_The NoteWriter_ supports nested notes (you can define notes at any level in your Markdown documents) which makes the actual parsing logic more obscure. In addition, the actual logic must also ignore code blocks where `#` is a common character that must not be considered as valid Markdown heading.
+_The NoteWriter_ supports attributes and tags using a YAML Front Matter and a special syntax. The actual parser extracts these metadata to enrich notes and make them easily searchable.
+
+_The NoteWriter_ also supports nested notes (you can define notes at any level in your Markdown documents) which makes the actual parsing logic slightly more complicated. In addition, the actual logic must also ignore code blocks where `#` is a common character that must not be considered as valid Markdown heading.
 
 :::
 
-The target objects can be initalized from these structs easily:
+`ParsedFile` and `ParsedNote` makes it easy to create `File` and `Note`:
 
 ```go
-func NewFileFromParsedFile(parsedFile *ParsedFile) *File {
+func NewFile(parsedFile *ParsedFile) *File {
 	return &File{
-		OID:          NewOID(),
+		OID:          oid.New(),
 		RelativePath: parsedFile.RelativePath,
-		Size:         parsedFile.Stat.Size(),
-		Hash:         Hash(parsedFile.Bytes),
-		MTime:        parsedFile.Stat.ModTime(),
-		Body:         parsedFile.Body,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
-		stale:        true,
-		new:          true,
+		Size:         parsedFile.Markdown.Size,
+		MTime:        parsedFile.Markdown.MTime,
+		Hash:         helpers.Hash(parsedFile.Markdown.Content),
+		Body:         parsedFile.Markdown.Body.String(),
 	}
 }
 
-func NewNoteFromParsedNote(f *File, parsedNote *ParsedNote) *Note {
+func NewNote(file *File, parsedNote *ParsedNote) *Note {
 	return &Note{
-		OID:          NewOID(),
-		FileOID:      f.OID,
+		OID:          oid.New(),
 		Title:        parsedNote.Title,
-		RelativePath: f.RelativePath,
+		RelativePath: file.RelativePath,
 		Content:      parsedNote.Content,
-		Hash:         Hash([]byte(parsedNote.Content)),
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
-		stale:        true,
-		new:          true,
 	}
 }
 ```
 
-As explained before, the OIDs uses the same format as Git (SHA1) but are not determined from a hash of the content. If the content of a note (or a flashcard) is edited, we want to update the old object (when Git stores a new file in this case). Therefore, the OID are in fact disguised UUID under the hood:
+OIDs for objects are not determined from a hash of the content (unlike OIDs for pack files and blobs that we will introduce later). If the content of a note (or a flashcard) is edited, we want to update the old object even if the note was slighly edited or moved. (This differs from Git which stores a new file in this case).
+
+
+### `PackFile`
+
+Objects like `File` or `Note` are not persisted directly on disk. A repository may contains thousands of notes. We don't want to create thousands of files on disk. Objects are instead packaged inside pack files (similar in principle to [Git packfiles](https://git-scm.com/book/en/v2/Git-Internals-Packfiles)). Objects extracted from the same file are packed inside the same pack file. If a Markdown file contains thousands of notes, a single pack file will be stored on disk.
+
+_The NoteWriter_ extracts different kinds of objects. We cover `File` and `Note` in this document but the actual code support even more object kinds. All these objects satisfy a common interface `Object`:
 
 ```go
-func NewOID() string {
-	// Ex (Git): 5e3f1b351782c017590b4b70fee709bf9c83b050
-	// Ex (UUIDv4): 123e4567-e89b-12d3-a456-426655440000
+// Object groups method common to all kinds of managed objects.
+type Object interface {
+	// Kind returns the object kind to determine which kind of object to create.
+	Kind() string // "file", "note"
+	// UniqueOID returns the OID of the object.
+	UniqueOID() oid.OID
+	// ModificationTime returns the last modification time.
+	ModificationTime() time.Time
 
-	// Remove `-` + add 8 random characters
-	oid := strings.ReplaceAll(uuid.New().String()+uuid.New().String(), "-", "")[0:40]
-	return oid
+	// Read rereads the object from YAML.
+	Read(r io.Reader) error
+	// Write writes the object to YAML.
+	Write(w io.Writer) error
 }
 ```
 
-:::note
+Adding support for these methods is trivial. Here is the code for `File`:
 
-SHA1 are only used when storing blobs (aka medias files), not covered in this document.
+```go
+func (f *File) Kind() string {
+	return "file"
+}
+
+func (f *File) UniqueOID() oid.OID {
+	return f.OID
+}
+
+func (f *File) ModificationTime() time.Time {
+	return f.MTime
+}
+
+func (f *File) Read(r io.Reader) error {
+	err := yaml.NewDecoder(r).Decode(f)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (f *File) Write(w io.Writer) error {
+	data, err := yaml.Marshal(f)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(data)
+	return err
+}
+```
+
+We now have an abstraction to work a set of different objects. We can resume our discussion of pack files.
+
+A pack file is basically a container for `Object`. Pack files are stored as YAML files, useful for readability and debugging purposes. To avoid large YAML files, objects inside pack files are not simply serialized in YAML but are converted to `ObjectData` and wrapped into a `PackObject` to preserve essential attributes:
+
+```go
+type PackFile struct {
+	OID              oid.OID       `yaml:"oid" json:"oid"`
+	FileRelativePath string        `yaml:"file_relative_path" json:"file_relative_path"`
+	FileMTime        time.Time     `yaml:"file_mtime" json:"file_mtime"`
+	FileSize         int64         `yaml:"file_size" json:"file_size"`
+	PackObjects      []*PackObject `yaml:"objects" json:"objects"`
+}
+
+type PackObject struct {
+	OID   oid.OID    `yaml:"oid" json:"oid"`
+	Kind  string     `yaml:"kind" json:"kind"`
+	Data  ObjectData `yaml:"data" json:"data"`
+}
+```
+
+Objects are appended using the method `AppendObject`:
+
+```go
+// AppendObject registers a new object inside the pack file.
+func (p *PackFile) AppendObject(obj Object) error {
+	data, err := NewObjectData(obj)
+	if err != nil {
+		return err
+	}
+	p.PackObjects = append(p.PackObjects, &PackObject{
+		OID:   obj.UniqueOID(),
+		Kind:  obj.Kind(),
+		Data:  data,
+	})
+	return nil
+}
+```
+
+Pack ojects contains a concise text representation of an object in `Data`. The actual code serializes the object in YAML, compressed it using zlib and encoded the result in Base64 to have a concise text representation. The code is not as complex as it may sound:
+
+```go
+import (
+	"bytes"
+	"compress/zlib"
+	"encoding/base64"
+)
+
+// ObjectData serializes any Object to base64 after zlib compression.
+type ObjectData []byte // alias to serialize to YAML easily
+
+// NewObjectData creates a compressed-string representation of the object.
+func NewObjectData(obj Object) (ObjectData, error) {
+	b := new(bytes.Buffer)
+	if err := obj.Write(b); err != nil {
+		return nil, err
+	}
+	in := b.Bytes()
+
+	zb := new(bytes.Buffer)
+	w := zlib.NewWriter(zb)
+	w.Write(in)
+	w.Close()
+	return ObjectData(zb.Bytes()), nil
+}
+
+func (od ObjectData) MarshalYAML() (any, error) {
+	return base64.StdEncoding.EncodeToString(od), nil
+}
+```
+
+The result looks like this:
+
+```yaml
+oid: 23334328153429ce5ba99acd83181b06c44f30af
+file_relative_path: go.md
+file_mtime: 2023-01-01T12:30:00Z
+file_size: 1
+objects:
+    - oid: "8e41f9862553483ca0c8a2b1c1e4ffd1ae413847"
+      kind: note
+      data: eJykj0+L...0l7ORQ==
+```
+
+:::tip
+
+Pack objects can easily be decoded using `nt cat-file <oid>`.
 
 :::
+
+We can now instantiate a pack file from a `ParsedFile`:
+
+```go
+func NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFile, error) {
+	// Use the hash of the parsed file as OID (if a file changes = new OID)
+	packFileOID := oid.MustParse(Hash([]byte(parsedFile.Markdown.Content)))
+
+	packFile := &PackFile{
+		OID: packFileOID,
+
+		// Init file properties
+		FileRelativePath: parsedFile.RelativePath,
+		FileMTime:        parsedFile.Markdown.MTime,
+		FileSize:         parsedFile.Markdown.Size,
+	}
+
+	// Create objects
+	var objects []Object
+
+	// Process the File
+	file := NewFile(parsedFile)
+	file.PackFileOID = packFile.OID
+	objects = append(objects, file)
+
+	// Process the note(s)
+	for _, parsedNote := range parsedFile.Notes {
+		note := NewNote(file, parsedNote)
+		note.PackFileOID = packFile.OID
+		objects = append(objects, note)
+	}
+
+	// Fill the pack file
+	for _, obj := range objects {
+		if statefulObj, ok := obj.(StatefulObject); ok {
+			if err := packFile.AppendObject(statefulObj); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return packFile, nil
+}
+```
+
+Unlike objects, the OID for a pack file is determined from the source file. We determine a OID based on a hash of the file content:
+
+```go
+func Hash(bytes []byte) string {
+	h := sha1.New()
+	h.Write(bytes)
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+```
+
+When a file is edited, we want to recreate a new pack file. The old pack file will be garbage collected.
+
+
 
 ## The Repository
 
-Now that we know how to parse Markdown files, we need to write the logic to traverse the file system. Most commands will have to process the complete set of all note files, that are represented by the struct `Repository`:
+Now that we know how to parse Markdown files, we need to write the logic to traverse the file system. Most commands need to process the collection of Markdown files, represented by the struct `Repository`:
 
 ```go
 type Repository struct {
-	Path string
+	Path string // The directory containing .nt/
 }
 ```
 
@@ -294,7 +427,7 @@ var (
 
 func CurrentRepository() *Repository {
 	repositoryOnce.Do(func() {
-        cwd, err := os.Getwd()
+        cwd, err := os.Getwd() // For this tutorial, simply use $CWD
         if err != nil {
             log.Fatal(err)
         }
@@ -315,10 +448,14 @@ The same pattern is used for different global objects: to retrieve the database 
 We define a convenient method to locate the note files:
 
 ```go
-func (r *Repository) walk(fn func(path string, stat fs.FileInfo) error) error {
+func (r *Repository) Walk(fn func(md *markdown.File) error) error {
 	filepath.WalkDir(r.Path, func(path string, info fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+
+		if path == "." || path == ".." {
+			return nil
 		}
 
 		dirname := filepath.Base(path)
@@ -326,33 +463,18 @@ func (r *Repository) walk(fn func(path string, stat fs.FileInfo) error) error {
 			return fs.SkipDir // NB fs.SkipDir skip the parent dir when path is a file
 		}
 
-		relativePath, err := filepath.Rel(r.Path, path)
-		if err != nil {
-			// ignore the file
+		// We look for Markdown files
+		if info.IsDir() || !strings.HasSuffix(info.Name(), ".md") {
 			return nil
 		}
 
-		// We look for only specific extension
-		if !info.IsDir() && !strings.HasSuffix(relativePath, ".md") {
-			// Nothing to do
-			return nil
+		// A file found to process!
+		md, err := markdown.ParseFile(path)
+		if err != nil {
+			return err
 		}
 
-		// Ignore certain file modes like symlinks
-		fileInfo, err := os.Lstat(path) // NB: os.Stat follows symlinks
-		if err != nil {
-			// Ignore the file
-			return nil
-		}
-		if !fileInfo.Mode().IsRegular() {
-			// Exclude any file with a mode bit set (device, socket, named pipe, ...)
-			// See https://pkg.go.dev/io/fs#FileMode
-			return nil
-		}
-
-		// A file found to process using the callback
-		err = fn(relativePath, fileInfo)
-		if err != nil {
+		if err := fn(md); err != nil {
 			return err
 		}
 
@@ -376,24 +498,32 @@ type DB struct {
 }
 ```
 
-`Index` represents the content of the database (= a list of known OIDs), including the staging area (= the objects that were added using `ntlite add` but still not committed using `ntlite commit`).
+`Index` represents the content of the database (= the inventory of pack files and known OIDs), including the staging area (= the objects that were added using `ntlite add` but still not committed using `ntlite commit`).
 
 ```go
 type Index struct {
-	Objects     []*IndexObject   `yaml:"objects"`
-	StagingArea []*StagingObject `yaml:"staging"`
+	// Last commit date
+	CommittedAt time.Time `yaml:"committed_at"`
+	// List of files known in the index
+	Entries []*IndexEntry `yaml:"entries"`
 }
 
-type IndexObject struct {
-	OID   string    `yaml:"oid"`
-	Kind  string    `yaml:"kind"`
+type IndexEntry struct {
+	// Path to the file in working directory
+	RelativePath string `yaml:"relative_path"`
+
+	// Pack file OID representing this file under .nt/objects
+	PackFileOID oid.OID `yaml:"packfile_oid"`
+	// File last modification date
 	MTime time.Time `yaml:"mtime"`
-}
+	// Size of the file (can be useful to detect changes)
+	Size int64 `yaml:"size" json:"size"`
 
-type StagingObject struct {
-	IndexObject
-	State State      `yaml:"state"`
-	Data  ObjectData `yaml:"data"`
+	// True when a file has been staged
+	Staged            bool      `yaml:"staged"`
+	StagedPackFileOID oid.OID   `yaml:"staged_packfile_oid"`
+	StagedMTime       time.Time `yaml:"staged_mtime"`
+	StagedSize        int64     `yaml:"staged_size"`
 }
 ```
 
@@ -466,9 +596,6 @@ CREATE TABLE IF NOT EXISTS file (
 	oid TEXT PRIMARY KEY,
 	relative_path TEXT NOT NULL,
 	body TEXT NOT NULL,
-	created_at TEXT NOT NULL,
-	updated_at TEXT NOT NULL,
-	indexed_at TEXT,
 	mtime TEXT NOT NULL,
 	size INTEGER NOT NULL,
 	hashsum TEXT NOT NULL
@@ -476,14 +603,9 @@ CREATE TABLE IF NOT EXISTS file (
 
 CREATE TABLE IF NOT EXISTS note (
 	oid TEXT PRIMARY KEY,
-	file_oid TEXT NOT NULL,
 	relative_path TEXT NOT NULL,
 	title TEXT NOT NULL,
-	content_raw TEXT NOT NULL,
-	hashsum TEXT NOT NULL,
-	created_at TEXT NOT NULL,
-	updated_at TEXT NOT NULL,
-	indexed_at TEXT
+	content_raw TEXT NOT NULL
 );`)
 	if err != nil {
 		log.Fatalf("Error while initializing database: %v", err)
@@ -522,49 +644,38 @@ Using this connection, we can now add methods on our model to persist the object
 
 ```go
 func (f *File) Save() error {
-	var err error
-	f.UpdatedAt = time.Now()
-	f.IndexedAt = time.Now()
-	switch f.State() {
-	case Added:
-		err = f.Insert()
-	case Modified:
-		err = f.Update()
-	case Deleted:
-		err = f.Delete()
-	default:
-		err = f.Check()
-	}
-	if err != nil {
-		return err
-	}
-	f.new = false
-	f.stale = false
-	return nil
-}
-
-func (f *File) Insert() error {
 	query := `
 		INSERT INTO file(
 			oid,
+			packfile_oid,
 			relative_path,
 			body,
-			created_at,
-			updated_at,
-			indexed_at,
 			mtime,
 			size,
 			hashsum
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(oid) DO UPDATE SET
+			packfile_oid = ?,
+			relative_path = ?,
+			body = ?,
+			mtime = ?,
+			size = ?,
+			hashsum = ?;
 	`
 	_, err := CurrentDB().Client().Exec(query,
+		// Insert
 		f.OID,
+		f.PackFileOID,
 		f.RelativePath,
 		f.Body,
-		timeToSQL(f.CreatedAt),
-		timeToSQL(f.UpdatedAt),
-		timeToSQL(f.IndexedAt),
+		timeToSQL(f.MTime),
+		f.Size,
+		f.Hash,
+		// Update
+		f.PackFileOID,
+		f.RelativePath,
+		f.Body,
 		timeToSQL(f.MTime),
 		f.Size,
 		f.Hash,
@@ -575,61 +686,7 @@ func (f *File) Insert() error {
 
 	return nil
 }
-
-func (f *File) Update() error {
-	query := `
-		UPDATE file
-		SET
-			relative_path = ?,
-			body = ?,
-			updated_at = ?,
-			indexed_at = ?,
-			mtime = ?,
-			size = ?,
-			hashsum = ?
-		WHERE oid = ?;
-	`
-	_, err := CurrentDB().Client().Exec(query,
-		f.RelativePath,
-		f.Body,
-		timeToSQL(f.UpdatedAt),
-		timeToSQL(f.IndexedAt),
-		timeToSQL(f.MTime),
-		f.Size,
-		f.Hash,
-		f.OID,
-	)
-	return err
-}
-
-func (f *File) Delete() error {
-	query := `DELETE FROM file WHERE oid = ?;`
-	_, err := CurrentDB().Client().Exec(query, f.OID)
-	return err
-}
-
-func (f *File) Check() error {
-	client := CurrentDB().Client()
-	f.IndexedAt = time.Now()
-	query := `
-		UPDATE file
-		SET indexed_at = ?
-		WHERE oid = ?;`
-	if _, err := client.Exec(query, timeToSQL(f.IndexedAt), f.OID); err != nil {
-		return err
-	}
-	query = `
-		UPDATE note
-		SET indexed_at = ?
-		WHERE file_oid = ?;`
-	if _, err := client.Exec(query, timeToSQL(f.IndexedAt), f.OID); err != nil {
-		return err
-	}
-	return nil
-}
 ```
-
-That's a lot of code as we are using a low-level library. We have a method for every operation `Insert()`, `Update()`, `Delete()`, and an additional method `Check()` to only update the `IndexedAt` timestamp. The method `Save()` determines which method to call based on the attributes `new` and `stale`.
 
 :::note
 
@@ -637,7 +694,7 @@ The method `Save()` for the model `Note` is very similar and omitted for brievit
 
 :::
 
-Before closing the section, there is still one issue to debate. Using `CurrentDB().Client()` makes easy to execute queries but each query is executed inside a different transaction. When running commands, we will work on many objects at the same time. If a command fails to any reasons, we may want to rollback our changes and only report the error. We need to use transactions.
+Before closing the section, there is still one issue to debate. Using `CurrentDB().Client()` makes easy to execute queries but each query is executed inside a different transaction. When running commands, we will work on many objects at the same time. If a command fails for any reasons, we want to rollback our changes and only report the error. We need to use transactions.
 
 ### Transactions
 
@@ -714,137 +771,42 @@ We will now implement the basic commands where these transactions will be indisp
 
 ### `add`
 
-The command `add` updates the database with new objects. For this document, we consider only `File` and `Note` but _The NoteWriter_ manages more object types (`Flashcard`, `Reminder`, `Link`, ...). A common interface between these different types is useful to factorize code. For example, we want to add any type of object to the database in a uniform way. Here are the interfaces:
-
-```go
-type Object interface {
-	// Kind returns the object kind to determine which kind of object to create.
-	Kind() string
-	// UniqueOID returns the OID of the object.
-	UniqueOID() string
-	// ModificationTime returns the last modification time.
-	ModificationTime() time.Time
-
-	// SubObjects returns the objects directly contained by this object.
-	SubObjects() []StatefulObject
-
-	// Read rereads the object from YAML.
-	Read(r io.Reader) error
-	// Write writes the object to YAML.
-	Write(w io.Writer) error
-}
-
-type StatefulObject interface {
-	Object
-
-	// State returns the current state.
-	State() State
-
-	// Save persists to DB
-	Save() error
-}
-```
-
-In practice, all objects satisfy the `StatefulObject` interface but we can choose to use one of two types to make explicit if we are interesting in reading the object or updating it.
-
-The implementations of these methods is trivial. We have already covered the method `Save()`. Here are the other methods implemented by the struct `File`:
-
-```go
-
-func (f *File) Kind() string {
-	return "file"
-}
-
-func (f *File) UniqueOID() string {
-	return f.OID
-}
-
-func (f *File) State() State {
-	if !f.DeletedAt.IsZero() {
-		return Deleted
-	}
-	if f.new {
-		return Added
-	}
-	if f.stale {
-		return Modified
-	}
-	return None
-}
-
-func (f *File) ModificationTime() time.Time {
-	return f.MTime
-}
-
-func (f *File) Read(r io.Reader) error {
-	err := yaml.NewDecoder(r).Decode(f)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (f *File) Write(w io.Writer) error {
-	data, err := yaml.Marshal(f)
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(data)
-	return err
-}
-
-func (f *File) SubObjects() []StatefulObject {
-	var objs []StatefulObject
-
-	for _, object := range f.GetNotes() {
-		objs = append(objs, object)
-		objs = append(objs, object.SubObjects()...)
-	}
-	return objs
-}
-```
-
-The last method `SubObjects()` will be particularly useful when processing the collection of notes, since we will create objects of type `File` and use `SubObjects()` to iterate over other sub-objects recursively without having to interact directly with all types of objects.
-
-Here is the code for the command `add`:
+The command `add` updates the index and the database with new stateful objects:
 
 ```go
 func (r *Repository) Add() error {
 	db := CurrentDB()
+	index := CurrentIndex()
 
-	// Run all queries inside the same transaction
-	err := db.BeginTransaction()
-	if err != nil {
-		return err
-	}
-	defer db.RollbackTransaction()
+	var traversedPaths []string
+	var packFilesToUpsert []*PackFile
 
-	// Traverse all files
-	err = r.walk(func(relativePath string, stat fs.FileInfo) error {
-		file, err := NewOrExistingFile(relativePath)
+	// Traverse all given paths to detected updated medias/files
+	err := r.Walk(func(mdFile *markdown.File) error {
+		relativePath, err := filepath.Rel(r.Path, mdFile.AbsolutePath)
 		if err != nil {
-			return err
+			log.Fatalf("Unable to determine relative path: %v", err)
 		}
 
-		if file.State() != None {
-			if err := db.StageObject(file); err != nil {
-				return fmt.Errorf("unable to stage modified object %s: %v", file.RelativePath, err)
-			}
-		}
-		if err := file.Save(); err != nil {
+		traversedPaths = append(traversedPaths, relativePath)
+
+		entry := index.GetEntry(relativePath)
+		if entry != nil && !mdFile.MTime.After(entry.MTime) {
+			// Nothing changed = Nothing to parse
 			return nil
 		}
 
-		for _, object := range file.SubObjects() {
-			if object.State() != None {
-				if err := db.StageObject(object); err != nil {
-					return fmt.Errorf("unable to stage modified object %s: %v", object, err)
-				}
-			}
-			if err := object.Save(); err != nil {
-				return err
-			}
+		// Reparse the new version
+		parsedFile := ParseFile(relativePath, mdFile)
+
+		packFile, err := NewPackFileFromParsedFile(parsedFile)
+		if err != nil {
+			return err
 		}
+		if err := packFile.Save(); err != nil {
+			return err
+		}
+		packFilesToUpsert = append(packFilesToUpsert, packFile)
 
 		return nil
 	})
@@ -852,15 +814,23 @@ func (r *Repository) Add() error {
 		return err
 	}
 
-	// (Not implemented) Find objects to delete by querying
-	// the different tables for rows with indexed_at < :execution_time
+	// We saved pack files on disk before starting a new transaction to keep it short
+	if err := db.BeginTransaction(); err != nil {
+		return err
+	}
+	if err := db.UpsertPackFiles(packFilesToUpsert...); err != nil {
+		return err
+	}
+	if err := index.Stage(packFilesToUpsert...); err != nil {
+		return err
+	}
 
 	// Don't forget to commit
 	if err := db.CommitTransaction(); err != nil {
 		return err
 	}
 	// And to persist the index
-	if err := db.index.Save(); err != nil {
+	if err := index.Save(); err != nil {
 		return err
 	}
 
@@ -868,196 +838,97 @@ func (r *Repository) Add() error {
 }
 ```
 
-We iterate over files using the `walk()` method. We create a new `File` using the newly function `NewOrExistingFile()` whose goal is to check in database if the file is already known and compare for changes:
+We iterate over files using the `Walk()` method. We create a new `ParsedFile` to instantiate a `PackFile` with the function `NewPackFileFromParsedFile` we've covered previously.
+
+The new pack files are then saved in database into the method `UpsertPackFiles`:
 
 ```go
-func NewOrExistingFile(relativePath string) (*File, error) {
-	existingFile, err := CurrentRepository().LoadFileByPath(relativePath)
-	if err != nil {
-		log.Fatal(err)
+// UpsertPackFiles inserts or updates pack files in the database.
+func (db *DB) UpsertPackFiles(packFiles ...*PackFile) error {
+	for _, packFile := range packFiles {
+		for _, object := range packFile.PackObjects {
+			obj := object.ReadObject()
+			if statefulObj, ok := obj.(StatefulObject); ok {
+				if err := statefulObj.Save(); err != nil {
+					return err
+				}
+			}
+		}
 	}
-
-	if existingFile != nil {
-		existingFile.update()
-		return existingFile, nil
-	}
-
-	parsedFile, err := ParseFile(relativePath)
-	if err != nil {
-		return nil, err
-	}
-	return NewFileFromParsedFile(parsedFile), nil
-}
-
-func (f *File) update() error {
-	absolutePath := filepath.Join(CurrentRepository().Path, f.RelativePath)
-	parsedFile, err := ParseFile(absolutePath)
-	if err != nil {
-		return err
-	}
-
-	// Check if local file has changed
-	if f.MTime != parsedFile.Stat.ModTime() || f.Size != parsedFile.Stat.Size() {
-		f.Size = parsedFile.Stat.Size()
-		f.Hash = Hash(parsedFile.Bytes)
-		f.MTime = parsedFile.Stat.ModTime()
-		f.Body = parsedFile.Body
-		f.stale = true
-	}
-
 	return nil
 }
 ```
 
-When the `State()` of an object is different from `None` (= the object has changed), we place the object in the staging area (= the objects waiting to be committed). Then, we `Save()` every object to at minimum update their `IndexedAt` timestamp.
-
-The only step remaining to be covered in more detail is the method `StageObject()`:
+And staged into the index using the method `Stage`:
 
 ```go
-func (db *DB) StageObject(obj StatefulObject) error {
-	return db.index.StageObject(obj)
-}
-
-func (i *Index) StageObject(obj StatefulObject) error {
-	objData, err := NewObjectData(obj)
-	if err != nil {
-		return err
+func (i *Index) Stage(packFiles ...*PackFile) error {
+	for _, packFile := range packFiles {
+		entry := i.GetEntry(packFile.FileRelativePath)
+		if entry == nil {
+			entry = &IndexEntry{
+				PackFileOID:  packFile.OID,
+				RelativePath: packFile.FileRelativePath,
+				MTime:        packFile.FileMTime,
+				Size:         packFile.FileSize,
+			}
+			i.Entries = append(i.Entries, entry)
+		}
+		entry.Stage(packFile)
 	}
-
-	// Update staging area
-	stagingObject := &StagingObject{
-		IndexObject: IndexObject{
-			OID:   obj.UniqueOID(),
-			Kind:  obj.Kind(),
-			MTime: obj.ModificationTime(),
-		},
-		State: obj.State(),
-		Data:  objData,
-	}
-
-	i.StagingArea = append(i.StagingArea, stagingObject)
-
 	return nil
 }
-```
 
-Basically, we append a new `IndexObject` into the slice `StagingArea` defined by the struct `Index`. What is more subtle to understand is the field `Data` where the content of the staged object (can be any type) is serialized. Indeed, the index (and thus the staging area) is serialized in YAML. We serialize the content of all staged objects in `YAML` before compressing it using the package `compress/zlib` and encoding it in Base64 to end up with a simple string in `Data`:
-
-```yaml
-staging:
- - oid: 93267c32147a4ab7a1100ce82faab56a99fca1cd
-   kind: note
-   state: added
-   mtime: 2023-01-01T01:12:30Z
-   data: eJzEUsFq20AQves...
-```
-
-Here is a preview of this code:
-
-```go
-import (
-	"bytes"
-	"compress/zlib"
-	"encoding/base64"
-)
-
-// ObjectData serializes any Object to base64 after zlib compression.
-type ObjectData []byte // alias to serialize to YAML easily
-
-// NewObjectData creates a compressed-string representation of the object.
-func NewObjectData(obj Object) (ObjectData, error) {
-	b := new(bytes.Buffer)
-	if err := obj.Write(b); err != nil {
-		return nil, err
-	}
-	in := b.Bytes()
-
-	zb := new(bytes.Buffer)
-	w := zlib.NewWriter(zb)
-	w.Write(in)
-	w.Close()
-	return ObjectData(zb.Bytes()), nil
-}
-
-func (od ObjectData) MarshalYAML() (interface{}, error) {
-	return base64.StdEncoding.EncodeToString(od), nil
+func (i *IndexEntry) Stage(newPackFile *PackFile) {
+	i.Staged = true
+	i.StagedPackFileOID = newPackFile.OID
+	i.StagedMTime = newPackFile.FileMTime
+	i.StagedSize = newPackFile.FileSize
 }
 ```
 
-Saving the edited objects is particularly useful for deletions. When running the command `add`, there is a check (commented in the above code) to list all objects which have not be saved (= the objects that no longer exist) and we issue a `DELETE` in database to remove them. This way, the objects disappear from the relational database (and the inverted index) and are not visible from the desktop UI. But if the user decides to run the command `reset` (not supported in this document), we need to restore the content using the field `Data` in the staging area.
+The index is save on disk and the changes in the database committed.
 
 
 ### `commit`
 
 The command `commit` only interacts with the database (`nt/objects`) since the relational database was already updated when adding the files.
 
-The goal of this command is to move the objects present inside the staging area to the final objects under `.nt/objects`. The file `.nt/index` must also be updated to empty the staging area and append the new objects in the reference list.
+The goal of this command is to clear staged objects present inside the index:
 
 ```go
-// Commit creates a new commit object and clear the staging area.
-func (db *DB) Commit() error {
-	// Convert the staging area to object files under .nt/objects
-	for _, indexObject := range db.index.StagingArea {
-		var object Object
+func (r *Repository) Commit() error {
+	return CurrentIndex().Commit()
+}
 
-		switch indexObject.Kind {
-		case "file":
-			var file File
-			if err := indexObject.Data.Unmarshal(&file); err != nil {
-				return err
-			}
-			object = &file
-		case "note":
-			var note Note
-			if err := indexObject.Data.Unmarshal(&note); err != nil {
-				return err
-			}
-			object = &note
-		}
-		objectPath := filepath.Join(CurrentRepository().Path, ".nt/objects", OIDToPath(indexObject.OID))
-		if err := os.MkdirAll(filepath.Dir(objectPath), os.ModePerm); err != nil {
-			return err
-		}
-		f, err := os.Create(objectPath)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		err = object.Write(f)
-		if err != nil {
-			return err
+// Commit persists the staged changes to the index.
+func (i *Index) Commit() error {
+	for _, entry := range i.Entries {
+		if entry.Staged {
+			entry.Commit()
 		}
 	}
-	db.index.ClearStagingArea()
+	return i.Save()
+}
 
-	// Save .nt/index
-	if err := db.index.Save(); err != nil {
-		return err
+func (i *IndexEntry) Commit() {
+	if !i.Staged {
+		return
 	}
-	return nil
+	i.Staged = false
+	i.PackFileOID = i.StagedPackFileOID
+	i.MTime = i.StagedMTime
+	i.Size = i.StagedSize
+	// Clear staged values
+	i.StagedPackFileOID = ""
+	i.StagedMTime = time.Time{}
+	i.StagedSize = 0
 }
 ```
 
-The code iterates over the elements present in the slice `StagingArea` and decode/uncompress/unmarshall the objects before creating a new YAML file under `.nt/objects`.
-
-The code ends with a call to the method `ClearStagingArea()` defined like this:
-
-
-```go
-
-// ClearStagingArea empties the staging area.
-func (i *Index) ClearStagingArea() {
-	for _, obj := range i.StagingArea {
-		i.Objects = append(i.Objects, &obj.IndexObject)
-	}
-	i.StagingArea = nil
-}
-```
-
-Objects are migrated from the staging area to the list of all known objects. The command `commit` ends by saving the file `.nt/index`.
+The code iterates over the elements present marked as `Staged` and clear the staged fields.
 
 We are ready for the next batch of files to add. That's all for now.
-
 
 :::note
 
@@ -1065,10 +936,8 @@ We are ready for the next batch of files to add. That's all for now.
 
 * _The NoteWriter_ uses Viper to have a more informative CLI output and support arguments to commands.
 * _The NoteWriter_ uses a [migration tool](https://github.com/golang-migrate/migrate) to create the database schema. (see `initClient` in `internal/core/database.go`)
-* _The NoteWriter_ supports more complex Markdown documents (ex: notes can be nested inside other notes).
-* _The NoteWriter_ supports attributes (and tags) defined using a YAML Front Matter and with a special syntax inside notes.
+* _The NoteWriter_ supports more complex Markdown documents (ex: notes can be nested inside other notes), attributes (and tags) using a YAML Front Matter and with a special syntax inside notes.
 * _The NoteWriter_ processes notes to enrich their content (support note embedding or sugar syntax for quotes).
-* _The NoteWriter_ wraps objects inside `.nt/objects` inside `Commit` object, regrouping all changes inside a single file. The OIDs of commits are also saved inside a file `.nt/commit-graph`.
-* _The NoteWriter_ supports remotes to push objects and synchronize them between devices. It reuses the file `.nt/commit-graph` to compare the commits and found the ones to push or pull.
+* _The NoteWriter_ supports more commands like remotes to push objects and synchronize them between devices. It reuses the file `.nt/index` to compare different trees and find the missing pack files to push/pull.
 
 :::

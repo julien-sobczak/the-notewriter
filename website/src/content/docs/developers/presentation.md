@@ -2,9 +2,9 @@
 title: Presentation
 ---
 
-_The NoteWriter_ is a CLI to extract objects like notes from Markdown files.
+_The NoteWriter_ is a CLI to extract objects from Markdown files.
 
-Users edit Markdown files (with a few extensions). _The NoteWriter_ parses these files to extract different objects (note, flashcard, reminder, etc.).
+Users edit Markdown files (with a few extensions). _The NoteWriter_ CLI parses these files to extract different objects (notes, flashcards, reminders, etc.).
 
 
 ## Code Organization
@@ -13,10 +13,9 @@ Users edit Markdown files (with a few extensions). _The NoteWriter_ parses these
 .
 ├── cmd             # Viper commands
 ├── internal        # The NoteWriter-specific code
-│   ├── markdown    # Markdown parsing
 │   ├── core        # Main logic
+│   ├── markdown    # Markdown-specific parsing
 │   ├── medias      # Media processing
-│   ├── reference   # Reference processing
 │   └── testutil    # Test utilities
 └── pkg             # "Reusable" code (not specific to The NoteWriter)
 ```
@@ -33,8 +32,9 @@ The repository also contains additional directories not directly related to the 
 .
 ├── build      # Binary built using the Makefile
 ├── example    # A demo repository of notes
-└── website    # The documentation
+└── website    # This documentation
 ```
+
 
 ## Implementation
 
@@ -43,31 +43,22 @@ The repository also contains additional directories not directly related to the 
 
 Most of the code (and most of the tests) is present in this package.
 
-A `Repository` (`repository.go`) is the parent container. A _repository_ traverses directories to find `markdown.File` (`markdown/file.go`). A _file_ can contains `Note` defined using Markdown headings (`note.go`), some of which can be `Flashcard` when using the corresponding kind (`flashcard.go`), `Media` resources referenced using Markdown link (`media.go`), special `Link` when using convention on Markdown link's titles (`link.go`), and `Reminder` when using special tags (`reminder.go`).
-
-`File`, `Note`, `Flashcard`, `Media`, `Link`, `Reminder` represents the `Object` (`object.go`) managed by _The NoteWriter_ and stored inside `.nt/objects` indirectly using commits. (Blobs are also stored inside this directory.)
-
-The method `walk` defined on `Repository` makes easy to find files to process (= non-ignorable Markdown files):
+A `Repository` (`repository.go`) is the parent container. A _repository_ traverses directories to find `markdown.File` (`markdown/file.go`) using the method `Walk`:
 
 ```go
-import (
-    "fmt"
-    "github.com/julien-sobczak/the-notewriter/internal/core"
-)
-
-r := core.CurrentRepository()
-err := r.walk(paths, func(path string, stat fs.FileInfo) error {
-    relativePath, err := r.GetFileRelativePath(path)
+r := core.CurrentRepository() // look for the top directory containing .nt/
+err := r.Walk(pathSpecs, func(md *markdown.File) error {
+    relativePath, err := r.GetFileRelativePath(md.AbsolutePath)
     if err != nil {
         return err
     }
-    fmt.Printf("Found %s", relativePath)
+    fmt.Printf("Found Markdown file to process: %s", relativePath)
 }
 ```
 
 :::note
 
-_The NoteWriter_ relies heavily on [singletons](https://en.wikipedia.org/wiki/Singleton_pattern). Most of the most abstractions (`Repository`, `DB`, `Config` can be retrieved using methods `CurrentRepository()`, `CurrentDB()`, `CurrentConfig()` to easily find a note, persist changes in database, or read configuration settings anywhere in the code. (Singletons are only initialized on first use.)
+_The NoteWriter_ relies heavily on [singletons](https://en.wikipedia.org/wiki/Singleton_pattern). Main abstractions (`Repository`, `DB`, `Index`, `Config`) can be retrieved using methods `CurrentRepository()`, `CurrentDB()`, `CurrentIndex()`, `CurrentConfig()` to easily find a note, persist changes in database, or read configuration settings anywhere in the code. (Singletons are only initialized on first use.)
 
 **This strongly differs from most enterprise applications** where layers and dependency injection are used to have a clean separation of concerns.
 
@@ -75,14 +66,40 @@ _The NoteWriter_ relies heavily on [singletons](https://en.wikipedia.org/wiki/Si
 
 :::
 
+Markdown files are parsed (`parser.go`) to extract objects:
+
+```go
+parsedFile, _ := core.ParseFile(relativePath, mdFile)
+```
+
+* `ParsedFile` represents the Markdown file.
+* `ParsedNote` (see field `Notes` in `ParsedFile`) represents the nodes defined using Markdown headings with a given kind.
+* `ParsedFlashcard` (see optional field `Flashcard` in `ParsedNote`) are notes using the kind `Flashcard`.
+* `ParsedLink` (see field `GoLinks` in `ParsedNote`) are Go links present in link titles using the defined convention.
+* `ParsedReminder` (see fields `Reminders` in `ParsedNote`) are special tags defining one or more successive dates in the future when a note must be reviewed.
+* `ParsedMedias` (see fields `Medias` in `ParsedFile) are references to local medias files present in the same repository using the Markdown image syntax inside a note.
+
+Almost the entire parsing and enriching logic (`parser.go`) such as attribute management is processed during this initial parsing.
+
+Parsed objects are then converted into different `Object` (`object.go`). A `ParsedFile` becomes a `File` (`file.go`), a `ParsedNote` becomes a `Note` (`note.go`), and so on.
+
+
 All objects must satisfy this interface:
 
 ```go title=core/object.go
+type Dumpable interface {
+	ToYAML() string
+	ToJSON() string
+	ToMarkdown() string
+}
+
 type Object interface {
+	Dumpable
+
 	// Kind returns the object kind to determine which kind of object to create.
 	Kind() string
 	// UniqueOID returns the OID of the object.
-	UniqueOID() string
+	UniqueOID() oid.OID
 	// ModificationTime returns the last modification time.
 	ModificationTime() time.Time
 
@@ -98,7 +115,7 @@ type Object interface {
 
 This interface makes easy to factorize common logic betwen objects (ex: all objects can reference other objects and be dumped to YAML inside `.nt/objects`).
 
-Each _object_ is uniquely defined by an OID (a 40-character string) randomly generated from a UUID (see `NewOID()`), except in tests where the generation is reproducible.
+Each _object_ is uniquely defined by an OID (a 40-character string) randomly generated from a UUID (see `pkg/oid/oid.go`), except in tests where the generation is reproducible.
 
 :::tip
 
@@ -108,63 +125,114 @@ Use the [command `nt cat-file <oid>`](../reference/commands/nt-cat-file.md) to f
 
 Each _object_ can be `Read()` from a YAML document and `Write()` to a YAML document using the common Go abstractions `io.Reader` and `io.Writer`.
 
-Each _object_ can contains `SubObjects()`, for example, a _file_ can contains _notes_, or `Blobs()`, which are binary files generated from [medias](#medias), and can references other objects through `Relations()`, for example, a note can use the special attribute `@references` to mention that the note is referenced elsewhere. These methods make easy for the _repository_ to process a whole graph of objects without having the inspect their types.
+All objects extracted from Markdown files must also be stored in a relational database using SQLite.
 
-These _objects_ must also be stored in a relational database using SQLite. An additional interface must be satisfied for these objects:
-
-```go title=internal/core/object.go
-// State describes an object status.
-type State string
-
-const (
-	None     State = "none"
-	Added    State = "added"
-	Modified State = "modified"
-	Deleted  State = "deleted"
-)
-
+```go title=core/object.go
 // StatefulObject to represent the subset of updatable objects persisted in database.
 type StatefulObject interface {
 	Object
 
-	Refresh() (bool, error)
-
-	// State returns the current state.
-	State() State
-	// ForceState marks the object in the given state
-	ForceState(newState State)
-
 	// Save persists to DB
 	Save() error
+	// Delete removes from DB
+	Delete() error
 }
 ```
 
-These _stateful objects_ must implement the method `Save()` (which will commnly use the singleton `CurrentDB()` to retrieve a connection to the database). This method will check the `State()` to determine if the object must be saved using a query `INSERT`, `UPDATE`, or `DELETE`. If no changes have been done, the method `Save` must still update the value of the field `IndexedAt` (= useful to detect dead rows in database, which are objects that are no longer present in files).
+The methods `Save()` and `Delete()` are commonly implemented using the singleton `CurrentDB()` to retrieve a connection to the database. `Save()` relies on the "upsert" support in SQLite.
 
-The method `Refresh()` requires an object to determine if its content is still up-to-date. For example, notes can include other notes using the syntax `![[wikilink#note]]`. When a included note is edited, all notes including it must be refreshed to update their content too.
+Some _objects_ (`File` and `Media`) also satisfy the interface `FileObject`:
 
-:::tip
+```go title=core/object.go
+// FileObject represents an object present as a file in the repository.
+type FileObject interface {
+	// UniqueOID of the object representing the file
+	UniqueOID() oid.OID
 
-All _objects_ are parsed from raw Markdown files. To make the parsing logic easily testable, the logic is split in two successive steps:
+	// Relative path to repository
+	FileRelativePath() string
+	// Timestamp of last content modification
+	FileMTime() time.Time
+	// Size of the file
+	FileSize() int64
+	// MD5 Checksum
+	FileHash() string
 
-    Raw Markdown > Parsed Object > (Stateful) Object
-
-For example, a `File` can be created from a `ParsedFile` (`file.go`) that is created from a raw Markdown document:
-
-```go
-parsedFile, err := core.ParseFile("notes.md")
-// easy to test the parsing logic with minimal dependencies
-
-file := NewFileFromParsedFile(nil, parsedFile)
+	Blobs() []*BlobRef
+}
 ```
 
-The same principle is used for _notes_ (`ParsedNote`) and _medias_ (`ParsedMedia`).
+In addition to methods exposing various information about the underlying source file, these `FileObject` could also include blobs (`BlobRef`):
 
-:::
+* `File` generates a unique blob containing the original Markdown file. Retrieving the original file is useful in some edge cases.
+* `Media` generates different blobs corresponding to the different binary files generated from the source [medias](#medias).
+
+
+Now that all objects have been generated, they need to be persisted. Stateful objects are grouped into different `PackFile` (`packfile.go`). We create a pack file per path inside the repository. This means that we create one pack file for every Markdown file (`*.md`) and one pack file for every media (`.png`, `*.mp3`, ...) referenced by these files:
+
+```go
+var newPackFiles []*core.PackFile
+for _, parsedMedia := range parsedFile.Medias {
+	packMedia, err := core.NewPackFileFromParsedMedia(parsedMedia)
+	if err != nil {
+		return err
+	}
+	newPackFiles = append(newPackFiles, newPackFiles)
+}
+
+packFile, err := NewPackFileFromParsedFile(parsedFile)
+if err != nil {
+	return err
+}
+newPackFiles = append(newPackFiles, packFile)
+```
+
+Pack files are stored in the index (under the directory `.nt/objects`). They are especially useful to limit the number of files on disk. A markdown file containing thousands of notes will be saved as a single pack file on disk.
+
+The `Index` (`index.go`) is used to keep track of all saved pack files. This inventory is physically saved in `.nt/index`. New pack files can be added easily:
+
+```go
+idx := CurrentIndex()
+idx.Stage(newPackFiles...)
+idx.Save()
+```
+
+Working with pack files is not ideal. We want to search notes using keywords, or quickly find the URL of a go link. In complement to the index, we saved pack files (`database.go`) inside a SQLite database (stored in `.nt/database.db`). The `Database` is basically a component to save/delete pack files, with additional methods to answer common queries.
+
+In pratice, adding new pack files in the index and in the database looks more like this:
+
+```go
+// We saved pack files on disk before starting a new transaction to keep it short
+if err := db.BeginTransaction(); err != nil {
+	return err
+}
+db.UpsertPackFiles(packFilesToUpsert...)
+db.Index().Stage(packFilesToUpsert...)
+
+// Don't forget to commit
+if err := db.CommitTransaction(); err != nil {
+	return err
+}
+// And to persist the index
+if err := db.Index().Save(); err != nil {
+	return err
+}
+```
+
+We now have a good overview of the different steps required to convert a Markdown file to a list of extracted objects and persisted on disk and database. The following schema illustrates these steps:
+
+```
+     📄       (parsing)
+markdown.File     ➡     core.ParsedFile   ➡  core.File  ⏋➡
+                        core.ParsedNote      core.Note  ⏌
+                        core.ParsedMedia     core.Media ⏋
+						...                  ...
+```
+
 
 ### Linter `internal/core/lint.go`
 
-The [command `nt lint`](../reference/commands/nt-lint.md) check for violations. All files are inspected (rules may have changed even if files haven't been modified). The linter reuses the method `walk` to traverse the _repository_. The linter doesn't bother with stateful objects and reuses the type `ParsedFile`, `ParsedNote`, `ParsedMedia` to find errors.
+The [command `nt lint`](../reference/commands/nt-lint.md) check for violations. All files are inspected (rules may have changed even if files haven't been modified). The linter reuses the method `Walk` to traverse the _repository_. The linter doesn't bother with stateful objects and reuses the types `ParsedFile`, `ParsedNote`, `ParsedMedia` to find errors.
 
 Each rule is defined using the type `LintRule`:
 
@@ -215,13 +283,13 @@ Medias are static files included in notes using the image syntax:
 
 When processing these _medias_, _The NoteWriter_ will create blobs inside the directory `.nt/objects/`. The OID is the SHA1 determined from the file content.
 
-Images, videos, sounds are processed. Indeed, _The NoteWriter_ will optimize these medias like this:
+Images, videos, sounds are processed. _The NoteWriter_ will optimize these medias like this:
 
-* Images are converted to AVIF in different sizes (preview = mobile and grid view, large = full-size view, original = original size).
+* Images are converted to AVIF in different sizes ("preview" = mobile and grid view, "large" = full-size view, "original" = original size).
 * Audios are converted to MP3.
 * Videos are converted to WebM and a preview image is generated from the first frame.
 
-The AVIF, MP3, and WebM formats are used for their great compression performance and their support (including mobile devices).
+The AVIF, MP3, and WebM formats are used for their great compression performance and their support (including on mobile devices).
 
 By default, _The NoteWriter_ uses the [external command `ffmpeg`](https://ffmpeg.org/) (`internal/medias/ffmpeg`) to convert and resize medias. All converters must satisfy this interface:
 
@@ -232,7 +300,6 @@ type Converter interface {
 	ToWebM(src, dest string) error
 }
 ```
-
 
 For example, we can draft a note including a large picture:
 
@@ -257,7 +324,6 @@ extension: .jpg
 mtime: 2023-01-01T12:00
 hash: 27198c1682772f01d006b19d4a15018463b7004a
 size: 6296968
-mode: 420
 blobs:
     - oid: 5ac8980e0206c51e113191f1cfa4aab3e40b671a
       mime: image/avif
@@ -291,13 +357,13 @@ _The NoteWriter_ works with files. Testing the application by mocking interactio
 
 :::tip
 
-Almost all tests interacts with the file system and executes SQL queries on a SQLite database instance. Their execution time on a SSD machine are relatively low (10s to run ~500 tests).
+Almost all tests interacts with the file system and executes SQL queries on a SQLite database instance. Their execution time on a SSD machine are relatively low (~10s to run ~500 tests).
 
 Only external commands like `ffmpeg` are impersonated by the test binary file (popular technique used by Golang to test `exec` package).
 
 :::
 
-The package `internal/testutil` exposes various functions to duplicate a directory that are reused by functions inside `internal/core/core_test.go` to provide a complete repository of notes:
+The package `internal/testutil` exposes various functions to duplicate a `testdata` directory. These functions are reused by functions inside `internal/core/testing.go` to provide a valid repository:
 
 1. Copy Markdown files present under `internal/core/testdata` (aka golden files).
 2. Init a valid `.nt` directory and ensure `CurrentRepository()` reads from this repository.
@@ -332,7 +398,7 @@ Various methods exist:
 
 :::tip
 
-Most tests reuse a common fixture like `internal/core/testdata/TestMinimal/` (= minimal number of files to demonstrate the maximum of features). Indeed, writing new Markdown files for every test would represent many lines of Markdown fixtures to maintain. The recommendation is to reuse `TestMinimal` as much as possible when the logic is independant but create a custom test fixture when testing special cases.
+Many tests share the same fixture like `internal/core/testdata/TestMinimal/` (= minimal number of files to demonstrate the maximum of features). Indeed, writing new Markdown files for every test would represent many lines of Markdown to maintain. The recommendation is to reuse `TestMinimal` as much as possible when the logic is independant but create a custom test fixture when testing special cases.
 
 Here are the common fixtures:
 
@@ -342,28 +408,22 @@ Here are the common fixtures:
 * `TestLint`: A basic set exposing violations for every rules.
 * `TestRelations`: A basic set of inter-referenced notes.
 
-Here are some specific fixtures: (⚠️ be careful when reusing them)
-
-* `TestIgnore`: A basic set with ignorable files and notes.
-* `TestInheritance`: A basic set with inheritable and non-inheritable attributes between files and notes.
-* `TestNoteFTS`: A basic set to demonstrate the full-text search with SQLite.
-
 :::
 
 In addition, several utilities are sometimes required to make tests reproductible:
 
-* `FreezeNow()` and `FreezeAt(time.Time)` ensure successive calls to `clock.Now()` returns a precise timestamp.
-* `SetNextOIDs(...string)`, `UseFixedOID(string)`, and `UseSequenceOID()` ensure generated OIDs are deterministic (using respectively a predefined sequence of OIDs, the same OIDs, or OIDs incremented by 1).
+* `core.FreezeNow()` and `core.FreezeAt(time.Time)` ensure successive calls to `clock.Now()` returns a precise timestamp.
+* `oid.UseNext(...oid.OID)`, `oid.UseFixed(oid.OID)`, and `oid.UseSequence()` ensure generated OIDs are deterministic (using respectively a predefined sequence of OIDs, the same OIDs, or OIDs incremented by 1).
 
-Test helpers `SetUpXXX` restore the initial configuration using `t.Cleanup()`.
+Use these methods is safe. Test helpers `SetUpXXX` restore the initial configuration using `t.Cleanup()`.
 
 ```go
 func TestHelpers(t *testing.T) {
     SetUpRepositoryFromTempDir(t) // empty repository
 
-    UseSequenceOID(t) // 0000000000000000000000000000000000000001
-                      // 0000000000000000000000000000000000000002
-                      // ...
+    oid.UseSequence(t) // 0000000000000000000000000000000000000001
+                       // 0000000000000000000000000000000000000002
+                       // ...
     FreezeAt(t, time.Date(2023, time.Month(1), 1, 1, 12, 30, 0, time.UTC))
     // clock.Now() will now always return 2023-01-1T12:30:00Z
 
@@ -394,10 +454,10 @@ func (r *Repository) CountNotes() (int, error) {
 }
 ```
 
-Sometimes, you may want to use transactions. For example, when using `nt add`, if an error occurs when reading a corrupted file, we want to rollback changes to left the database intact. The `DB` exposes methods `BeginTransaction()`, `RollbackTransaction()`, and `CommitTransaction()` for this purpose. Other methods continue to use `CurrentDB().Client()` to create the connection; if a transaction is currently in progress, it will be returned.
+Sometimes, you may want to use transactions. For example, when using `nt add`, if an error occurs when reading a corrupted file, we want to rollback changes to left the database intact. The `DB` exposes methods `BeginTransaction()`, `RollbackTransaction()`, and `CommitTransaction()` for this purpose. Other methods continue to use `CurrentDB().Client()` to create the connection; if a transaction is currently in progress, it will be returned instead and queries will be part of the ongoing transaction.
 
 ```go title=internal/core/repository.go
-func (r *Repository) Add(paths ...string) error {
+func (r *Repository) Add(pathSpces PathSpecs) error {
 	// Run all queries inside the same transaction
 	err = db.BeginTransaction()
 	if err != nil {
@@ -406,7 +466,7 @@ func (r *Repository) Add(paths ...string) error {
 	defer db.RollbackTransaction()
 
 	// Traverse all given path to add files
-	c.walk(paths, func(path string, stat fs.FileInfo) error {
+	r.Walk(pathSpecs, func(md *markdown.File) error {
 		// Do changes in database
 	}
 
@@ -425,10 +485,10 @@ Often, the commands update the relational SQLite database and various files insi
 func (r *Repository) Add(paths ...string) error {
     ...
 
-	if err := db.CommitTransaction(); err != nil {
+	if err := CurrentDB().CommitTransaction(); err != nil {
 		return err
 	}
-	if err := db.index.Save(); err != nil {
+	if err := CurrentIndex().Save(); err != nil {
 		return err
 	}
 

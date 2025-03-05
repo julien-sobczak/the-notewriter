@@ -2,8 +2,6 @@
 
 ## TODO: Sprint
 
-* [ ] Rewrite doc
-* [ ] Merge branch?
 * [ ] Implement `GC()` on remotes
 * [ ] Implement option `-i` in `nt pull`/`nt push`
 * [ ] Add tests on `ObjectDiffs` for `Patch`/etc.

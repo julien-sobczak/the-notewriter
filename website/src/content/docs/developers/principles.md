@@ -12,7 +12,7 @@ All dependencies have a cost. A dependency needs to be updated, and eventually r
 >
 > — _Stable Dependencies Principle_ (DSP)
 
-_The NoteWriter_ is expected to be stable, adding new features sparingly. Dependencies must be chosen wisely, finding the right balance between the gain (= the number of lines of code we don't need to write) versus the cost (= the time required to update/contribute/deprecate/replace a dependency).
+_The NoteWriter_ is expected to stay active for a long time, with new features sparingly added. Dependencies must be chosen wisely, finding the right balance between the gain (= the number of lines of code we don't need to write) versus the cost (= the time required to update/contribute/deprecate/replace a dependency).
 
 ## Minimal Integrations
 
