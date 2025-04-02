@@ -13,12 +13,12 @@ require (
 	github.com/fatih/color v1.15.0
 	github.com/golang-migrate/migrate/v4 v4.15.2
 	github.com/gomarkdown/markdown v0.0.0-20221013030248-663e2500819c
+	github.com/google/go-jsonnet v0.20.0
 	github.com/google/uuid v1.3.0
 	github.com/gosimple/slug v1.13.1
 	github.com/itchyny/gojq v0.12.14
 	github.com/minio/minio-go/v7 v7.0.49
 	github.com/otiai10/copy v1.9.0
-	github.com/pelletier/go-toml/v2 v2.0.6
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/sourcegraph/go-diff-patch v0.0.0-20220818153721-50706a0e22c3
 	github.com/spf13/cobra v1.5.0
@@ -96,4 +96,6 @@ require (
 	google.golang.org/grpc v1.55.0 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
+	sigs.k8s.io/yaml v1.2.0 // indirect
 )

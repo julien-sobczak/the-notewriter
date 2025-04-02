@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -57,31 +56,29 @@ var (
 * Category Selection
  */
 
-func ChooseCategory(categories map[string]*core.ConfigReference) (string, *core.ConfigReference) {
+func ChooseCategory(categories []*core.ConfigReference) (string, *core.ConfigReference) {
 	/* Inspired by https://github.com/charmbracelet/bubbletea/blob/master/examples/list-simple/ */
 	res, err := tea.NewProgram(NewCategoryModel(categories)).Run()
 	if err != nil {
 		log.Fatal(err)
 	}
-	category := res.(CategoryModel).choice
-	return category, categories[category]
+	categoryTitle := res.(CategoryModel).choice
+	// Find the category in the list
+	for _, category := range categories {
+		if category.Title == categoryTitle {
+			return categoryTitle, category
+		}
+	}
+	return "", nil // Not found
 }
 
-func NewCategoryModel(categories map[string]*core.ConfigReference) CategoryModel {
+func NewCategoryModel(categories []*core.ConfigReference) CategoryModel {
 	items := []list.Item{}
 
-	// Create a slice to store keys and sort them to have the same predictable order on each execution
-	keys := make([]string, 0, len(categories))
-	for key := range categories {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	for _, key := range keys {
-		category := categories[key]
+	for _, category := range categories {
 		items = append(items, CategoryItem{
 			label: category.Title,
-			key:   key,
+			key:   category.Title,
 		})
 	}
 

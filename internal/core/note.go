@@ -910,7 +910,7 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 		return nil, err
 	}
 
-	n.Attributes = attributes.CastOrIgnore(GetSchemaAttributeTypes())
+	n.Attributes = attributes.CastOrIgnore(GetAttributeTypes())
 	n.Tags = strings.Split(tagsRaw, ",")
 	n.CreatedAt = timeFromSQL(createdAt)
 	n.UpdatedAt = timeFromSQL(updatedAt)
@@ -989,7 +989,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			return nil, err
 		}
 
-		n.Attributes = attributes.CastOrIgnore(GetSchemaAttributeTypes())
+		n.Attributes = attributes.CastOrIgnore(GetAttributeTypes())
 		n.Tags = strings.Split(tagsRaw, ",")
 		n.CreatedAt = timeFromSQL(createdAt)
 		n.UpdatedAt = timeFromSQL(updatedAt)

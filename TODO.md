@@ -1,5 +1,17 @@
 # TODO
 
+## TODO: Backlog
+
+* [ ] Call `CheckAttributes` in `nt add` after having fix the unit test in `lint_test.go`
+* [ ] Rework `NoteKind` to use `ObjectType` and declare constants for predefined types
+* [ ] Push `config.json` to `.nt` and push it to remotes
+* [ ] Complete attributes in `config.jsonnet`
+
+## TODO: Features
+
+* [ ] Rework config to use Jsonnet
+* [ ] Implement operations using CRDT datatypes
+
 ## TODO: Sprint
 
 * [ ] Implement `GC()` on remotes

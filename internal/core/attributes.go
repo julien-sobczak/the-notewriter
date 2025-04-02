@@ -705,3 +705,14 @@ func UnpackArray(value any) []any {
 	}
 	return r
 }
+
+/* Utils */
+
+// GetAttributeTypes returns the attribute types defined in the current configuration.
+func GetAttributeTypes() map[string]string {
+	result := make(map[string]string)
+	for _, attribute := range CurrentConfig().ConfigFile.Attributes {
+		result[attribute.Name] = attribute.Type
+	}
+	return result
+}
