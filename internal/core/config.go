@@ -2,48 +2,33 @@ package core
 
 import (
 	"bufio"
+	_ "embed"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 
-	"slices"
-
+	"github.com/google/go-jsonnet"
 	"github.com/julien-sobczak/the-notewriter/internal/medias"
 	"github.com/julien-sobczak/the-notewriter/internal/reference"
 	"github.com/julien-sobczak/the-notewriter/pkg/resync"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
-	"github.com/pelletier/go-toml/v2"
-	"gopkg.in/yaml.v3"
 )
 
-// How many parent directories to traverse before considering a directory as not a nt repository
-const maxDepth = 10
+//go:embed config.jsonnet
+var DefaultConfigFile string
 
-// SRS
-const (
-	DefaultSRSBoostFactor = 100
-	DefaultSRSAlgorithm   = "Anki2"
-	DefaultSRSEaseFactor  = 2.5
-)
+//go:embed nt.libsonnet
+var DefaultConfigLibFile string
 
-// Default .nt/config content
-const DefaultConfig = `
-[core]
-extensions=["md", "markdown"]
-
-[medias]
-command="ffmpeg"
-parallel=1
-preset="medium"
-
-[search.quotes]
-q="-#ignore @kind:quote"
-name="Favorite Quotes"
-`
+/*
+ * Ignore Config
+ */
 
 // Default .nt/.gitignore content
 const DefaultGitIgnore = `
@@ -60,33 +45,21 @@ build/
 README.md
 `
 
-const DefaultLint = `
-# No rules by default
+type IgnoreFile struct {
+	Entries PathSpecs
+}
 
-schemas:
+func (i *IgnoreFile) MustExcludeFile(path string, dir bool) bool {
+	path = strings.Trim(path, "/")
+	if dir {
+		path += "/"
+	}
+	return i.Entries.Match(path)
+}
 
-  - name: Hooks
-    attributes:
-    - name: hook
-      type: string[]
-      inherit: false
-
-  - name: Tags
-    attributes:
-      - name: tags
-        type: string[]
-
-  - name: Relations
-    attributes:
-      - name: source
-        inherit: false
-      - name: references
-        type: string[]
-      - name: inspirations
-        type: string[]
-`
-
-// Edit website/docs/guides/linter.md after for updating this list
+/*
+ * Jsonnet Config
+ */
 
 var (
 	// Lazy-load configuration and ensure a single read
@@ -99,16 +72,84 @@ var (
 
 // Note: Fields must be public for toml package to unmarshall
 type ConfigFile struct {
-	Core      ConfigCore
-	Medias    ConfigMedias
-	Remote    ConfigRemote
-	Deck      map[string]*ConfigDeck
-	Search    map[string]*ConfigSearch
-	Reference map[string]*ConfigReference
+	Core ConfigCore
+
+	Attributes map[string]*ConfigAttribute
+	Objects    map[string]*ConfigObject
+
+	// Remotes
+	Remote ConfigRemote
+
+	// Predefined searches
+	Searches map[string]*ConfigSearch
+
+	// Linter
+	Linter ConfigLinter
+
+	// Extensions
+
+	// Reference options when using the "nt-reference" command
+	References []*ConfigReference
+
+	// Decks definition when declaring notes of kind "Flashcard"
+	Decks []*ConfigDeck
 }
+
+// NoteKind is the kind of note
+func (c ConfigFile) GetObject(kind NoteKind) *ConfigObject {
+	if obj, ok := c.Objects[string(kind)]; ok {
+		return obj
+	}
+	panic(fmt.Sprintf("Unknown object %q", kind))
+}
+
+// DefaultConfigFile is the default configuration file
+func (c *ConfigLinter) Severity(name string) string {
+	for _, rule := range c.Rules {
+		if rule.Name == name {
+			return rule.Severity
+		}
+	}
+	// Default severity is "error"
+	return "error"
+}
+
+// GetAttribute returns the attribute with the given name.
+func (c *ConfigFile) GetAttribute(name string) (*ConfigAttribute, bool) {
+	attribute, ok := c.Attributes[name]
+	if !ok {
+		return nil, false
+	}
+	return attribute, true
+}
+
 type ConfigCore struct {
 	Extensions []string
+	Medias     ConfigMedias
 }
+type ConfigAttribute struct {
+	Name    string
+	Aliases []string
+	Type    string // string, int, bool, string[], int[], bool[]
+	Format  string // Useful for value types (ex: "markdown", "date", etc.)
+	Min     int    // Default: 0 (for "number" type only)
+	Max     int    // Default: -1 (for "number" type only)
+	Pattern string // Regex (for "string" type only)
+	Inherit *bool  // Default: true
+}
+type ConfigObject struct {
+	RequiredAttributes []string // List of mandatory attributes
+	OptionalAttributes []string // List of optional attributes
+}
+type ConfigLinter struct {
+	Rules []*ConfigLinterRule
+}
+type ConfigLinterRule struct {
+	Name     string
+	Args     []any
+	Severity string // error, warning (default: error)
+}
+
 type ConfigMedias struct {
 	Command  string
 	Parallel int
@@ -124,9 +165,6 @@ type ConfigRemote struct {
 	SecretKey  string
 	BucketName string
 	Secure     bool
-	// Storj-specific attributes
-	AccessGrant string
-	// + reuse BucketName
 }
 type ConfigDeck struct {
 	Name  string
@@ -140,8 +178,8 @@ type ConfigDeck struct {
 	AlgorithmSettings map[string]any // SRS-specific attributes
 }
 type ConfigSearch struct {
-	Q    string
-	Name string
+	Title string
+	Q     string
 }
 type ConfigReference struct {
 	Title    string // Ex: "A book"
@@ -152,7 +190,7 @@ type ConfigReference struct {
 
 // SetParallel overrides the value in config file.
 func (c *Config) SetParallel(value int) {
-	c.ConfigFile.Medias.Parallel = value
+	c.ConfigFile.Core.Medias.Parallel = value
 }
 
 // SupportExtension checks if the given file extension must be considered.
@@ -186,17 +224,9 @@ func (f *ConfigFile) ConfigureS3Remote(bucketName, accessKey, secretKey string) 
 	return f
 }
 
-type IgnoreFile struct {
-	Entries PathSpecs
-}
-
-func (i *IgnoreFile) MustExcludeFile(path string, dir bool) bool {
-	path = strings.Trim(path, "/")
-	if dir {
-		path += "/"
-	}
-	return i.Entries.Match(path)
-}
+/*
+ * PathSpecs
+ */
 
 // A pathspec is a pattern used to limit paths in "nt" commands ("nt add", "nt diff", etc.)
 // and thus limit the scope of operations to some subset of the tree or worktree.
@@ -293,152 +323,19 @@ func (p PathSpecs) Match(path string) bool {
 	return foundMatch
 }
 
-type LintFile struct {
-	Rules []ConfigLintRule `yaml:"rules"`
+/*
+ * Main Config
+ */
 
-	Schemas []ConfigLintSchema `yaml:"schemas"`
-}
+// How many parent directories to traverse before considering a directory as not a nt repository
+const maxDepth = 10
 
-type ConfigLintRule struct {
-
-	// Name of the rule. Must exists in the registry of rules.
-	Name string `yaml:"name"`
-
-	// Severity of the rule: "error", "warning". Default to "error".
-	Severity string `yaml:"severity"`
-
-	// Optional arguments for the rule.
-	Args []string `yaml:"args"`
-
-	// PathRestrictions returns on which paths to evaluate the rule.
-	// Glob expressions are supported and ! as prefix indicated to exclude.
-	Includes PathSpecs `yaml:"includes"`
-}
-
-type ConfigLintSchema struct {
-	// Name of the schema used when reporting violations.
-	Name       string                       `yaml:"name"`
-	Kind       string                       `yaml:"kind"`
-	Path       string                       `yaml:"path"`
-	Attributes []*ConfigLintSchemaAttribute `yaml:"attributes"`
-}
-type ConfigLintSchemaAttribute struct {
-	Name     string   `yaml:"name"`
-	Type     string   `yaml:"type"`
-	Aliases  []string `yaml:"aliases"`
-	Pattern  string   `yaml:"pattern"`
-	Required *bool    `yaml:"required"`
-	Inherit  *bool    `yaml:"inherit"`
-}
-
-func (a ConfigLintSchemaAttribute) String() string {
-	var specs []string
-	if a.Type != "" {
-		specs = append(specs, a.Type)
-	}
-	if a.Pattern != "" {
-		specs = append(specs, a.Pattern)
-	}
-	if *a.Required {
-		specs = append(specs, "required")
-	}
-	if *a.Inherit {
-		specs = append(specs, "inherit")
-	}
-	return strings.Join(specs, ",")
-}
-
-func (c ConfigLintSchema) MatchesPath(path string) bool {
-	// TODO support glob patterns instead?
-	if c.Path == "" {
-		// No path defined = apply to all files
-		return true
-	}
-	return strings.HasPrefix(c.Path, path)
-}
-
-// TODO refacto move these methods below to attributes.go to avoid having too much logic inside config.go????
-
-// IsInheritableAttribute returns if an attribute can be inherited between files/notes.
-func (l *LintFile) IsInheritableAttribute(attributeName string, filePath string) bool {
-	for _, schema := range l.Schemas {
-		if !schema.MatchesPath(filePath) {
-			continue
-		}
-		for _, attribute := range schema.Attributes {
-			if attribute.Name == attributeName {
-				return *attribute.Inherit
-			}
-		}
-	}
-	return true // Inheritable by default to limit schemas to write
-}
-
-// Severity returns the severity of a lint rule.
-func (l *LintFile) Severity(name string) string {
-	for _, rule := range l.Rules {
-		if rule.Name == name {
-			return rule.Severity
-		}
-	}
-	return "error" // must not happen but default to error
-}
-
-// GetAttributeDefinition returns the attribute definition to use.
-func (l *LintFile) GetAttributeDefinition(name string, filter func(schema ConfigLintSchema) bool) *ConfigLintSchemaAttribute {
-	// We must find the most specific definition.
-	//
-	// Ex:
-	// schemas:
-	// - name: Attributes
-	//   attributes:
-	//   - name: author
-	//     type: string
-	//
-	// - name: Books
-	//   path: references/books/
-	//   attributes:
-	//   - name: author
-	//     required: true
-	//
-	// We must use the second schema when both apply.
-
-	var matchingSchemas []ConfigLintSchema
-	for _, schema := range l.Schemas {
-		if !filter(schema) {
-			continue
-		}
-		if slices.ContainsFunc(schema.Attributes, func(a *ConfigLintSchemaAttribute) bool {
-			return a.Name == name
-		}) {
-			matchingSchemas = append(matchingSchemas, schema)
-		}
-	}
-	if len(matchingSchemas) == 0 {
-		// Not explicitely defined in schemas
-		return nil
-	}
-
-	// Sort from most specific to least specific
-	slices.SortFunc(matchingSchemas, func(a, b ConfigLintSchema) int {
-		// Most specific path first
-		if a.Path != b.Path {
-			return strings.Compare(a.Path, b.Path)
-		}
-		return 1 // The last must win but SortFunc is not stable...
-	})
-
-	schemaToUse := matchingSchemas[0]
-	for _, definition := range schemaToUse.Attributes {
-		if definition.Name == name {
-			return definition
-		}
-	}
-
-	return nil
-}
-
-/* Main config */
+// SRS
+const (
+	DefaultSRSBoostFactor = 100
+	DefaultSRSAlgorithm   = "Anki2"
+	DefaultSRSEaseFactor  = 2.5
+)
 
 type Config struct {
 	// Absolute top directory containing the .nt sub-directory
@@ -447,14 +344,11 @@ type Config struct {
 	// .nt/config content
 	ConfigFile ConfigFile
 
-	// .nt/lint content
-	LintFile LintFile
-
 	// .ntignore content
 	IgnoreFile IgnoreFile
 
 	// Temporary directory to generate blob files locally
-	tempDir string
+	tempDir string // FIXME still useful?
 
 	// Toggle this flag to skip some side-effects
 	DryRun bool
@@ -493,7 +387,7 @@ func (c *Config) TempDir() string {
 func (c *Config) Converter() medias.Converter {
 	converterOnce.Do(func() {
 		var err error
-		mediaConfig := c.ConfigFile.Medias
+		mediaConfig := c.ConfigFile.Core.Medias
 		switch mediaConfig.Command {
 		case "":
 			fallthrough
@@ -509,7 +403,7 @@ func (c *Config) Converter() medias.Converter {
 		case "random":
 			converterSingleton = medias.NewRandomConverter()
 		default:
-			log.Fatalf("Unsupported converter %q", c.ConfigFile.Medias.Command)
+			log.Fatalf("Unsupported converter %q", c.ConfigFile.Core.Medias.Command)
 		}
 	})
 	return converterSingleton
@@ -576,48 +470,20 @@ func ReadConfigFromDirectory(path string) (*Config, error) {
 		}
 	}
 
-	// Check for .nt/config
-	ntConfigPath := filepath.Join(rootPath, ".nt", "config")
+	// Check for .nt/config.jsonnet
+	ntConfigPath := filepath.Join(rootPath, ".nt", "config.jsonnet")
 	_, err = os.Stat(ntConfigPath)
 	var configFile *ConfigFile
 	if os.IsNotExist(err) {
-		configFile, err = parseConfigFile(DefaultConfig)
-		if err != nil {
-			return nil, fmt.Errorf("default configuration is broken: %v", err)
-		}
-	} else if err != nil {
-		return nil, fmt.Errorf("failed to check for .nt/config file: %v", err)
-	} else {
-		content, err := os.ReadFile(ntConfigPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read .nt/config file: %v", err)
-		}
-		configFile, err = parseConfigFile(string(content))
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse .nt/config file: %v", err)
-		}
+		return nil, fmt.Errorf("failed to locate .nt/config.jsonnet file: %v", err)
 	}
-
-	// Check for .nt/lint
-	ntLintConfigPath := filepath.Join(rootPath, ".nt", "lint")
-	_, err = os.Stat(ntLintConfigPath)
-	var lintFile *LintFile
-	if os.IsNotExist(err) {
-		lintFile, err = parseLintFile(DefaultLint)
-		if err != nil {
-			return nil, fmt.Errorf("default lint configuration is broken: %v", err)
-		}
-	} else if err != nil {
-		return nil, fmt.Errorf("failed to check for .nt/lint file: %v", err)
-	} else {
-		content, err := os.ReadFile(ntLintConfigPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read .nt/lint file: %v", err)
-		}
-		lintFile, err = parseLintFile(string(content))
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse .nt/lint file: %v", err)
-		}
+	content, err := os.ReadFile(ntConfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read .nt/config.jsonnet file: %v", err)
+	}
+	configFile, err = parseConfigFile(string(content))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse .nt/config.jsonnet file: %v", err)
 	}
 
 	// Check for .ntignore
@@ -625,10 +491,8 @@ func ReadConfigFromDirectory(path string) (*Config, error) {
 	_, err = os.Stat(ntignorePath)
 	var ignoreFile *IgnoreFile
 	if os.IsNotExist(err) {
-		ignoreFile, err = parseIgnoreFile(DefaultIgnore)
-		if err != nil {
-			return nil, fmt.Errorf("default ignore configuration is broken: %v", err)
-		}
+		// Unlike config.jsonnet, .ntignore is optional
+		CurrentLogger().Debugf("No .ntignore file found in %s", rootPath)
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to check for .ntignore file: %v", err)
 	} else {
@@ -645,23 +509,30 @@ func ReadConfigFromDirectory(path string) (*Config, error) {
 	config := &Config{
 		RootDirectory: rootPath,
 		ConfigFile:    *configFile,
-		IgnoreFile:    *ignoreFile,
+		DryRun:        false,
 	}
-	if lintFile != nil {
-		config.LintFile = *lintFile
+	if ignoreFile != nil {
+		config.IgnoreFile = *ignoreFile
 	}
 	return config, nil
 }
 
-func parseConfigFile(content string) (*ConfigFile, error) {
-	r := strings.NewReader(content)
-	d := toml.NewDecoder(r)
-	d.DisallowUnknownFields()
+func parseConfigFile(jsonnetContent string) (*ConfigFile, error) {
+	vm := jsonnet.MakeVM()
+	jsonContent, err := vm.EvaluateAnonymousSnippet("config.jsonnet", jsonnetContent)
+	if err != nil {
+		return nil, fmt.Errorf("failed to evaluate config.jsonnet: %v", err)
+	}
+
+	// Parse the JSON content
 	var result ConfigFile
-	err := d.Decode(&result)
+	err = json.Unmarshal([]byte(jsonContent), &result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse JSON: %v", err)
+	}
 
 	// Apply default values
-	for _, deck := range result.Deck {
+	for _, deck := range result.Decks {
 		if deck.Algorithm == "" {
 			deck.Algorithm = DefaultSRSAlgorithm
 		}
@@ -684,27 +555,9 @@ func parseConfigFile(content string) (*ConfigFile, error) {
 		// - Don't limit the number of reviews by default
 	}
 
-	return &result, err
-}
-
-func parseLintFile(content string) (*LintFile, error) {
-	r := strings.NewReader(content)
-	d := yaml.NewDecoder(r)
-	var result LintFile
-	err := d.Decode(&result)
-
-	// Apply default values
-	for _, schema := range result.Schemas {
-		for _, attribute := range schema.Attributes {
-			if attribute.Type == "" {
-				attribute.Type = "string"
-			}
-			if attribute.Inherit == nil {
-				attribute.Inherit = BoolPointer(true)
-			}
-			if attribute.Required == nil {
-				attribute.Required = BoolPointer(false)
-			}
+	for _, attribute := range result.Attributes {
+		if attribute.Inherit == nil {
+			attribute.Inherit = BoolPointer(true)
 		}
 	}
 
@@ -732,10 +585,7 @@ func parseIgnoreFile(content string) (*IgnoreFile, error) {
 
 // InitConfigFromDirectory creates the .nt configuration directory with default files including .ntignore.
 func InitConfigFromDirectory(path string) (*Config, error) {
-	currentConfig, err := ReadConfigFromDirectory(path)
-	if err != nil {
-		return nil, err
-	}
+	currentConfig, _ := ReadConfigFromDirectory(path)
 	if currentConfig != nil {
 		// Do not override current configuration
 		return nil, fmt.Errorf("current configuration detected: %s", currentConfig.RootDirectory)
@@ -743,21 +593,24 @@ func InitConfigFromDirectory(path string) (*Config, error) {
 
 	// Create .nt directory
 	ntPath := filepath.Join(path, ".nt")
-	err = os.Mkdir(ntPath, 0755)
-	if err != nil {
+	if err := os.Mkdir(ntPath, 0755); err != nil {
 		return nil, err
 	}
 
-	// Init .nt/config file
-	ntConfigPath := filepath.Join(ntPath, "config")
-	err = os.WriteFile(ntConfigPath, []byte(DefaultConfig), 0644)
-	if err != nil {
+	// Init .nt/nt.libsonnet file
+	ntConfigLibPath := filepath.Join(ntPath, "nt.libsonnet")
+	if err := os.WriteFile(ntConfigLibPath, []byte(DefaultConfigLibFile), 0644); err != nil {
+		return nil, err
+	}
+	// Init .nt/config.jsonnet file
+	ntConfigPath := filepath.Join(ntPath, "config.jsonnet")
+	if err := os.WriteFile(ntConfigPath, []byte(DefaultConfigFile), 0644); err != nil {
 		return nil, err
 	}
 
 	// Init .nt/.gitignore file
 	gitIgnorePath := filepath.Join(ntPath, ".gitignore")
-	_, err = os.Stat(gitIgnorePath)
+	_, err := os.Stat(gitIgnorePath)
 	if os.IsNotExist(err) { // Do not override existing file!
 		err = os.WriteFile(gitIgnorePath, []byte(DefaultGitIgnore), 0644)
 		if err != nil {
@@ -786,7 +639,7 @@ func InitConfigFromDirectory(path string) (*Config, error) {
 func (c *Config) Check() error {
 
 	// Check for invalid reference templates
-	for key, referenceConfig := range c.ConfigFile.Reference {
+	for key, referenceConfig := range c.ConfigFile.References {
 		// Only path and template supports Go Templating
 		_, err := reference.ParseTemplate(referenceConfig.Path)
 		if err != nil {
@@ -799,9 +652,9 @@ func (c *Config) Check() error {
 	}
 
 	// Check all rules are valid
-	for _, rule := range c.LintFile.Rules {
+	for _, rule := range c.ConfigFile.Linter.Rules {
 		ruleName := rule.Name
-		_, ok := LintRules[ruleName]
+		_, ok := LintRulesFn[ruleName]
 		if !ok {
 			return fmt.Errorf("unknown lint rule %q", rule.Name)
 		}
@@ -810,25 +663,11 @@ func (c *Config) Check() error {
 		}
 	}
 
-	// Check for conflicting types in schemas
-	attributesTypes := make(map[string]string)
-	for _, schema := range c.LintFile.Schemas {
-		for _, attribute := range schema.Attributes {
-			attributeKnownType, found := attributesTypes[attribute.Name]
-			if found && attributeKnownType != attribute.Type {
-				return fmt.Errorf("conflicting type for attribute %q: found %s and %s", attribute.Name, attribute.Type, attributeKnownType)
-			}
-			attributesTypes[attribute.Name] = attribute.Type
-		}
-	}
-
 	// Check for invalid patterns
-	for _, schema := range c.LintFile.Schemas {
-		for _, attribute := range schema.Attributes {
-			if attribute.Pattern != "string" {
-				if _, err := regexp.Compile(attribute.Pattern); err != nil {
-					return fmt.Errorf("invalid pattern %q for attribute %q: %v", attribute.Pattern, attribute.Name, err)
-				}
+	for _, attribute := range c.ConfigFile.Attributes {
+		if attribute.Pattern != "string" {
+			if _, err := regexp.Compile(attribute.Pattern); err != nil {
+				return fmt.Errorf("invalid pattern %q for attribute %q: %v", attribute.Pattern, attribute.Name, err)
 			}
 		}
 	}

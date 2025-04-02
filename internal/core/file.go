@@ -467,7 +467,7 @@ func QueryFile(db SQLClient, whereClause string, args ...any) (*File, error) {
 		return nil, err
 	}
 
-	f.Attributes = attributes.CastOrIgnore(GetSchemaAttributeTypes())
+	f.Attributes = attributes.CastOrIgnore(GetAttributeTypes())
 	f.CreatedAt = timeFromSQL(createdAt)
 	f.UpdatedAt = timeFromSQL(updatedAt)
 	f.IndexedAt = timeFromSQL(lastIndexedAt)
@@ -540,7 +540,7 @@ func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) 
 			return nil, err
 		}
 
-		f.Attributes = attributes.CastOrIgnore(GetSchemaAttributeTypes())
+		f.Attributes = attributes.CastOrIgnore(GetAttributeTypes())
 		f.CreatedAt = timeFromSQL(createdAt)
 		f.UpdatedAt = timeFromSQL(updatedAt)
 		f.IndexedAt = timeFromSQL(lastIndexedAt)

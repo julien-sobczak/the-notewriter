@@ -1,4 +1,4 @@
-# Rule `check-attribute`
+# Attributes Type Checking
 
 ## Quote: Steve Jobs on Passion
 

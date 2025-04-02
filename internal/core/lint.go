@@ -25,9 +25,9 @@ type LintResult struct {
 
 // Append merges new violations into the current result.
 func (r *LintResult) Append(violations ...*Violation) {
-	lintFile := CurrentConfig().LintFile
+	linter := CurrentConfig().ConfigFile.Linter
 	for _, violation := range violations {
-		if lintFile.Severity(violation.Name) == "warning" {
+		if linter.Severity(violation.Name) == "warning" {
 			r.Warnings = append(r.Warnings, violation)
 		} else {
 			r.Errors = append(r.Errors, violation)
@@ -62,198 +62,45 @@ type Violation struct {
 	Line int
 }
 
-type LintRuleDefinition struct {
-	Eval LintRule
-}
-
 // LintRule describes the interface that rules must conform.
-type LintRule func(*ParsedFile, []string) ([]*Violation, error)
+type LintRule func(*ParsedFile, []any) ([]*Violation, error)
 
-var LintRules = map[string]LintRuleDefinition{
+var LintRulesFn = map[string]LintRule{
 	// Enforce no duplicate between note titles
-	"no-duplicate-note-title": {
-		Eval: NoDuplicateNoteTitle,
-	},
+	"no-duplicate-note-title": NoDuplicateNoteTitle,
 
 	// Every slug must be unique
-	"no-duplicate-slug": {
-		Eval: NoDuplicateSlug,
-	},
+	"no-duplicate-slug": NoDuplicateSlug,
 
 	// Enforce a minimum number of lines between notes
-	"min-lines-between-notes": {
-		Eval: MinLinesBetweenNotes,
-	},
+	"min-lines-between-notes": MinLinesBetweenNotes,
 
 	// Enforce a maximum number of lines between notes
-	"max-lines-between-notes": {
-		Eval: MaxLinesBetweenNotes,
-	},
+	"max-lines-between-notes": MaxLinesBetweenNotes,
 
 	// Enforce a consistent naming for notes
-	"note-title-match": {
-		Eval: NoteTitleMatch,
-	},
+	"note-title-match": NoteTitleMatch,
 
 	// Path to media files must exist
-	"no-dangling-media": {
-		Eval: NoDanglingMedia,
-	},
+	"no-dangling-media": NoDanglingMedia,
 
 	// Links between notes must exist
-	"no-dead-wikilink": {
-		Eval: NoDeadWikilink,
-	},
+	"no-dead-wikilink": NoDeadWikilink,
 
 	// No extension in wikilinks
-	"no-extension-wikilink": {
-		Eval: NoExtensionWikilink,
-	},
+	"no-extension-wikilink": NoExtensionWikilink,
 
 	// No ambiguity in wikilinks
-	"no-ambiguous-wikilink": {
-		Eval: NoAmbiguousWikilink,
-	},
-
-	// Attributes must satisfy their schema if defined
-	"check-attribute": {
-		Eval: CheckAttribute,
-	},
+	"no-ambiguous-wikilink": NoAmbiguousWikilink,
 
 	// At least one tag on quotes (must match the optional pattern).
-	"require-quote-tag": {
-		Eval: RequireQuoteTag,
-	},
-}
-
-/* Schemas */
-
-// GetSchemaAttributeTypes returns all declared attributes with their JSON types.
-func GetSchemaAttributeTypes() map[string]string {
-	results := make(map[string]string)
-	for _, schema := range CurrentConfig().LintFile.Schemas {
-		for _, attribute := range schema.Attributes {
-			// Potential conflicting types are already checked after config parsing.
-			results[attribute.Name] = attribute.Type
-		}
-	}
-	return results
-}
-
-// GetSchemaAttributeType returns the type for the given attribute
-// and defaults to string if no declaration is found.
-func GetSchemaAttributeType(name string) string {
-	declaredTypes := GetSchemaAttributeTypes()
-	declaredType, ok := declaredTypes[name]
-	if !ok {
-		return "string"
-	}
-	return declaredType
-}
-
-// GetSchemaAttributes calculates the list of declared attributes for a given note.
-func GetSchemaAttributes(relativePath string, kind NoteKind) []*ConfigLintSchemaAttribute {
-	// We must find the most specific definition for every attributes.
-	//
-	// Ex:
-	// schemas:
-	// - name: Attributes
-	//   attributes:
-	//   - name: author
-	//     type: string
-	//
-	// - name: Books
-	//   path: references/books/
-	//   attributes:
-	//   - name: author
-	//     required: true
-	//
-	// We must use the second schema when both apply.
-
-	var matchingSchemas []ConfigLintSchema
-	for _, schema := range CurrentConfig().LintFile.Schemas {
-		if schema.Path != "" && !strings.HasPrefix(relativePath, schema.Path) {
-			// Path does not match
-			continue
-		}
-		if schema.Kind != "" && string(kind) != schema.Kind {
-			// Kind does not match
-			continue
-		}
-		matchingSchemas = append(matchingSchemas, schema)
-	}
-	if len(matchingSchemas) == 0 {
-		// No attributes defined in schemas
-		return nil
-	}
-
-	// Sort from most specific to least specific
-	slices.SortFunc(matchingSchemas, func(a, b ConfigLintSchema) int {
-		// Most specific path first
-		if a.Path != b.Path {
-			return strings.Compare(a.Path, b.Path)
-		}
-		if a.Kind != "" && b.Kind == "" {
-			return -1
-		} else if a.Kind == "" && b.Kind != "" {
-			return 1
-		}
-		return 1 // both have same priority... (NB: SortFunc is not stable...)
-	})
-
-	resultsMap := make(map[string]*ConfigLintSchemaAttribute)
-	// Iterate from least to most specific so that more specific definitions override previous ones.
-	for i := len(matchingSchemas) - 1; i >= 0; i-- {
-		schema := matchingSchemas[i]
-		for _, definition := range schema.Attributes {
-			resultsMap[definition.Name] = definition
-		}
-	}
-
-	// Return values
-	var results []*ConfigLintSchemaAttribute
-	for _, definition := range resultsMap {
-		results = append(results, definition)
-	}
-	// Sort by name
-	slices.SortFunc(results, func(a, b *ConfigLintSchemaAttribute) int {
-		return strings.Compare(a.Name, b.Name)
-	})
-	return results
-}
-
-// NonInheritableAttributes returns the attributes that must not be inherited.
-// FIXME rework to introduce a Schema per object type
-func NonInheritableAttributes(relativePath string, kind NoteKind) []string {
-	var results []string
-	definitions := GetSchemaAttributes(relativePath, kind)
-	for _, definition := range definitions {
-		if !*definition.Inherit {
-			results = append(results, definition.Name)
-		}
-	}
-	return results
-}
-
-// FilterNonInheritableAttributes removes from the list all non-inheritable attributes.
-// FIXME rework to introduce a Schema per object type
-func FilterNonInheritableAttributes(attributes map[string]interface{}, relativePath string, kind NoteKind) AttributeSet {
-	nonInheritableAttributes := NonInheritableAttributes(relativePath, kind)
-	result := make(map[string]interface{})
-	for key, value := range attributes {
-		if slices.Contains(nonInheritableAttributes, key) {
-			// non-inheritable
-			continue
-		}
-		result[key] = value
-	}
-	return result
+	"require-quote-tag": RequireQuoteTag,
 }
 
 /* Rules */
 
 // NoDuplicateNoteTitle implements the rule "no-duplicate-note-title".
-func NoDuplicateNoteTitle(file *ParsedFile, args []string) ([]*Violation, error) {
+func NoDuplicateNoteTitle(file *ParsedFile, args []any) ([]*Violation, error) {
 	var violations []*Violation
 
 	uniqueNoteTitles := make(map[string]bool)
@@ -279,7 +126,7 @@ var slugInventory map[string]bool // slug => true
 var slugInventoryOnce resync.Once // Build the inventory on first occurrence only.
 
 // NoDuplicateSlug implements the rule "no-duplicate-slug".
-func NoDuplicateSlug(file *ParsedFile, args []string) ([]*Violation, error) {
+func NoDuplicateSlug(file *ParsedFile, args []any) ([]*Violation, error) {
 	slugInventoryOnce.Do(func() {
 		slugInventory = make(map[string]bool)
 	})
@@ -314,15 +161,16 @@ func NoDuplicateSlug(file *ParsedFile, args []string) ([]*Violation, error) {
 }
 
 // MinLinesBetweenNotes implements the rule "min-lines-between-notes".
-func MinLinesBetweenNotes(file *ParsedFile, args []string) ([]*Violation, error) {
+func MinLinesBetweenNotes(file *ParsedFile, args []any) ([]*Violation, error) {
 	var violations []*Violation
 
 	if len(args) != 1 {
 		return nil, errors.New("only a single argument is required")
 	}
-	minLines, err := strconv.Atoi(args[0])
+
+	minLines, err := IntFromJSON(args[0])
 	if err != nil {
-		return nil, fmt.Errorf("argument %s must be an integer", args[0])
+		return nil, err
 	}
 
 	lines := file.Markdown.Body.Lines()
@@ -351,15 +199,16 @@ func MinLinesBetweenNotes(file *ParsedFile, args []string) ([]*Violation, error)
 }
 
 // MaxLinesBetweenNotes implements the rule "min-lines-between-notes".
-func MaxLinesBetweenNotes(file *ParsedFile, args []string) ([]*Violation, error) {
+func MaxLinesBetweenNotes(file *ParsedFile, args []any) ([]*Violation, error) {
 	var violations []*Violation
 
 	if len(args) != 1 {
 		return nil, errors.New("only a single argument is required")
 	}
-	maxLines, err := strconv.Atoi(args[0])
+
+	maxLines, err := IntFromJSON(args[0])
 	if err != nil {
-		return nil, fmt.Errorf("argument %s must be an integer", args[0])
+		return nil, err
 	}
 
 	lines := file.Markdown.Body.Lines()
@@ -397,13 +246,17 @@ func MaxLinesBetweenNotes(file *ParsedFile, args []string) ([]*Violation, error)
 }
 
 // NoteTitleMatch implements the rule "note-title-match".
-func NoteTitleMatch(file *ParsedFile, args []string) ([]*Violation, error) {
+func NoteTitleMatch(file *ParsedFile, args []any) ([]*Violation, error) {
 	var violations []*Violation
 
 	if len(args) != 1 {
 		return nil, errors.New("only a single argument is required")
 	}
-	re, err := regexp.Compile(args[0])
+	argStr, ok := args[0].(string)
+	if !ok {
+		return nil, errors.New("argument must be a string")
+	}
+	re, err := regexp.Compile(argStr)
 	if err != nil {
 		return nil, fmt.Errorf("argument %s must be a valid regular expression", args[0])
 	}
@@ -423,7 +276,7 @@ func NoteTitleMatch(file *ParsedFile, args []string) ([]*Violation, error) {
 }
 
 // NoDanglingMedia implements the rule "no-dangling-media".
-func NoDanglingMedia(file *ParsedFile, args []string) ([]*Violation, error) {
+func NoDanglingMedia(file *ParsedFile, args []any) ([]*Violation, error) {
 	var violations []*Violation
 
 	for _, media := range file.Medias {
@@ -469,7 +322,7 @@ func buildSectionsInventory() {
 }
 
 // NoDeadWikilink implements the rule "no-dead-wikilink".
-func NoDeadWikilink(file *ParsedFile, args []string) ([]*Violation, error) {
+func NoDeadWikilink(file *ParsedFile, args []any) ([]*Violation, error) {
 	sectionsInventoryOnce.Do(buildSectionsInventory)
 
 	var violations []*Violation
@@ -512,7 +365,7 @@ func NoDeadWikilink(file *ParsedFile, args []string) ([]*Violation, error) {
 }
 
 // NoExtensionWikilink implements the rule "no-extension-wikilink".
-func NoExtensionWikilink(file *ParsedFile, args []string) ([]*Violation, error) {
+func NoExtensionWikilink(file *ParsedFile, args []any) ([]*Violation, error) {
 	var violations []*Violation
 
 	for _, wikilink := range file.Wikilinks {
@@ -530,7 +383,7 @@ func NoExtensionWikilink(file *ParsedFile, args []string) ([]*Violation, error) 
 }
 
 // NoAmbiguousWikilink implements the rule "no-ambiguous-wikilink"
-func NoAmbiguousWikilink(file *ParsedFile, args []string) ([]*Violation, error) {
+func NoAmbiguousWikilink(file *ParsedFile, args []any) ([]*Violation, error) {
 	sectionsInventoryOnce.Do(buildSectionsInventory)
 
 	var violations []*Violation
@@ -565,7 +418,7 @@ func NoAmbiguousWikilink(file *ParsedFile, args []string) ([]*Violation, error) 
 }
 
 // RequireQuoteTag implements the rule "require-quote-tag"
-func RequireQuoteTag(file *ParsedFile, args []string) ([]*Violation, error) {
+func RequireQuoteTag(file *ParsedFile, args []any) ([]*Violation, error) {
 	var violations []*Violation
 
 	if len(args) > 1 {
@@ -573,7 +426,11 @@ func RequireQuoteTag(file *ParsedFile, args []string) ([]*Violation, error) {
 	}
 	regexPattern := regexp.MustCompile(".*")
 	if len(args) == 1 {
-		regexArgument, err := regexp.Compile(args[0])
+		regexStr, ok := args[0].(string)
+		if !ok {
+			return nil, errors.New("argument must be a string")
+		}
+		regexArgument, err := regexp.Compile(regexStr)
 		if err != nil {
 			return nil, fmt.Errorf("argument %s must be a valid regular expression", args[0])
 		}
@@ -606,17 +463,19 @@ func RequireQuoteTag(file *ParsedFile, args []string) ([]*Violation, error) {
 	return violations, nil
 }
 
-// CheckAttribute implements the rule "check-attribute"
-func CheckAttribute(file *ParsedFile, args []string) ([]*Violation, error) {
+// CheckAttributes ensures attributes are valid and match the expected type.
+func CheckAttributes(file *ParsedFile, args []string) ([]*Violation, error) {
 	var violations []*Violation
 
 	for _, note := range file.Notes {
 
-		definitions := GetSchemaAttributes(file.RelativePath, note.Kind)
-		for _, definition := range definitions {
+		attributeDefinitions := CurrentConfig().ConfigFile.Attributes
+		objectDefinition := CurrentConfig().ConfigFile.GetObject(note.Kind)
 
-			allowedNames := []string{definition.Name}
-			allowedNames = append(allowedNames, definition.Aliases...)
+		for _, attributeDefinition := range attributeDefinitions {
+
+			allowedNames := []string{attributeDefinition.Name}
+			allowedNames = append(allowedNames, attributeDefinition.Aliases...)
 
 			found := false
 
@@ -630,23 +489,23 @@ func CheckAttribute(file *ParsedFile, args []string) ([]*Violation, error) {
 					found = true
 
 					line := text.LineNumber(string(file.Markdown.Content), name+":")
-					if _, ok := CastAttribute(fileValue, definition.Type); !ok {
+					if _, ok := CastAttribute(fileValue, attributeDefinition.Type); !ok {
 						violations = append(violations, &Violation{
 							Name:         "check-attribute",
 							RelativePath: file.RelativePath,
-							Message:      fmt.Sprintf("attribute %q in file %q is not a valid %s or cannot be converted", name, file.Title, definition.Type),
+							Message:      fmt.Sprintf("attribute %q in file %q is not a valid %s or cannot be converted", name, file.Title, attributeDefinition.Type),
 							Line:         line,
 						})
-					} else if definition.Pattern != "" {
+					} else if attributeDefinition.Pattern != "" {
 						// Check pattern
-						regexAttribute := regexp.MustCompile(definition.Pattern)
+						regexAttribute := regexp.MustCompile(attributeDefinition.Pattern)
 						// Convert value to string
 						stringValue := fmt.Sprintf("%s", fileValue)
 						if !regexAttribute.MatchString(stringValue) {
 							violations = append(violations, &Violation{
 								Name:         "check-attribute",
 								RelativePath: file.RelativePath,
-								Message:      fmt.Sprintf("attribute %q in file %q does not match pattern %q", name, file.Title, definition.Pattern),
+								Message:      fmt.Sprintf("attribute %q in file %q does not match pattern %q", name, file.Title, attributeDefinition.Pattern),
 								Line:         line,
 							})
 						}
@@ -658,23 +517,23 @@ func CheckAttribute(file *ParsedFile, args []string) ([]*Violation, error) {
 					found = true
 
 					line := text.LineNumber(string(file.Markdown.Content), name+":")
-					if _, ok := CastAttribute(noteValue, definition.Type); !ok {
+					if _, ok := CastAttribute(noteValue, attributeDefinition.Type); !ok {
 						violations = append(violations, &Violation{
 							Name:         "check-attribute",
 							RelativePath: file.RelativePath,
-							Message:      fmt.Sprintf("attribute %q on note %q in file %q is not a valid %s or cannot be converted", name, note.Title, file.RelativePath, definition.Type),
+							Message:      fmt.Sprintf("attribute %q on note %q in file %q is not a valid %s or cannot be converted", name, note.Title, file.RelativePath, attributeDefinition.Type),
 							Line:         line,
 						})
-					} else if definition.Pattern != "" {
+					} else if attributeDefinition.Pattern != "" {
 						// Check pattern
-						regexAttribute := regexp.MustCompile(definition.Pattern)
+						regexAttribute := regexp.MustCompile(attributeDefinition.Pattern)
 						// Convert value to string
 						stringValue := fmt.Sprintf("%s", noteValue)
 						if !regexAttribute.MatchString(stringValue) {
 							violations = append(violations, &Violation{
 								Name:         "check-attribute",
 								RelativePath: file.RelativePath,
-								Message:      fmt.Sprintf("attribute %q on note %q in file %q does not match pattern %q", name, note.Title, file.RelativePath, definition.Pattern),
+								Message:      fmt.Sprintf("attribute %q on note %q in file %q does not match pattern %q", name, note.Title, file.RelativePath, attributeDefinition.Pattern),
 								Line:         line,
 							})
 						}
@@ -683,11 +542,11 @@ func CheckAttribute(file *ParsedFile, args []string) ([]*Violation, error) {
 			}
 
 			// Check required
-			if *definition.Required && !found {
+			if slices.Contains(objectDefinition.RequiredAttributes, attributeDefinition.Name) && !found {
 				violations = append(violations, &Violation{
 					Name:         "check-attribute",
 					RelativePath: file.RelativePath,
-					Message:      fmt.Sprintf("attribute %q missing on note %q in file %q", definition.Name, note.Title, file.RelativePath),
+					Message:      fmt.Sprintf("attribute %q missing on note %q in file %q", attributeDefinition.Name, note.Title, file.RelativePath),
 					Line:         note.Line,
 				})
 			}
@@ -705,27 +564,16 @@ func CheckAttribute(file *ParsedFile, args []string) ([]*Violation, error) {
 func (f *ParsedFile) Lint(ruleNames []string) ([]*Violation, error) {
 	var violations []*Violation
 
-	rules := CurrentConfig().LintFile.Rules
+	rules := CurrentConfig().ConfigFile.Linter.Rules
 	for _, configRule := range rules {
-		rule := LintRules[configRule.Name]
+		fn := LintRulesFn[configRule.Name]
 
 		if len(ruleNames) > 0 && !slices.Contains(ruleNames, configRule.Name) {
 			// Skip this rule
 			continue
 		}
 
-		// Check path restrictions
-		matchAllIncludes := true
-		for _, include := range configRule.Includes {
-			if !include.Match(f.RelativePath) {
-				matchAllIncludes = false
-			}
-		}
-		if !matchAllIncludes {
-			continue
-		}
-
-		newViolations, err := rule.Eval(f, configRule.Args)
+		newViolations, err := fn(f, configRule.Args)
 		if err != nil {
 			return nil, err
 		}
@@ -733,4 +581,24 @@ func (f *ParsedFile) Lint(ruleNames []string) ([]*Violation, error) {
 	}
 
 	return violations, nil
+}
+
+/* Helper functions */
+
+// IntFromJSON converts a unmarshalled JSON value to an int.
+func IntFromJSON(value any) (int, error) {
+	switch v := value.(type) {
+	case int:
+		return v, nil
+	case string:
+		castValue, err := strconv.Atoi(v)
+		if err != nil {
+			return 0, fmt.Errorf("argument %s must be an integer", value)
+		}
+		return castValue, nil
+	case float64:
+		return int(v), nil
+	default:
+		return 0, fmt.Errorf("argument %T not supported", value)
+	}
 }

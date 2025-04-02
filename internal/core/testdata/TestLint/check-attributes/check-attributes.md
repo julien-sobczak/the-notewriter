@@ -2,7 +2,7 @@
 tags: life
 ---
 
-# Rule `check-attribute`
+# Attributes Type Checking
 
 ## Quote: Steve Jobs on Life
 

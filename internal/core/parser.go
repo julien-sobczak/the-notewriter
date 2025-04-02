@@ -175,12 +175,12 @@ func ParseFile(md *markdown.File, mdParent *markdown.File) (*ParsedFile, error) 
 	if err != nil {
 		return nil, err
 	}
-	parentAttributes = parentAttributes.CastOrIgnore(GetSchemaAttributeTypes())
+	parentAttributes = parentAttributes.CastOrIgnore(GetAttributeTypes())
 	fileAttributes, err := NewAttributeSetFromMarkdown(md)
 	if err != nil {
 		return nil, err
 	}
-	fileAttributes = fileAttributes.CastOrIgnore(GetSchemaAttributeTypes())
+	fileAttributes = fileAttributes.CastOrIgnore(GetAttributeTypes())
 	fileAttributes = parentAttributes.Merge(fileAttributes)
 
 	// Check if file must be ignored
@@ -266,7 +266,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		}
 
 		// Determine the attributes
-		noteTags, noteAttributes := ExtractBlockTagsAndAttributes(noteBody, GetSchemaAttributeTypes())
+		noteTags, noteAttributes := ExtractBlockTagsAndAttributes(noteBody, GetAttributeTypes())
 
 		// Determine the titles
 		title := section.HeadingText
@@ -315,9 +315,9 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		body, comment := postProcessedNoteBody.ExtractComment()
 
 		// Determine attributes
-		attributes := FilterNonInheritableAttributes(p.FileAttributes, p.RelativePath, kind)
+		attributes := FilterNonInheritableAttributes(p.FileAttributes)
 		if parentNote != nil {
-			parentAttributes := FilterNonInheritableAttributes(parentNote.Attributes, p.RelativePath, kind)
+			parentAttributes := FilterNonInheritableAttributes(parentNote.Attributes)
 			attributes = attributes.Merge(parentAttributes)
 		}
 		attributes = attributes.Merge(noteAttributes)
@@ -387,6 +387,24 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 	}
 
 	return notes, nil
+}
+
+// FilterNonInheritableAttributes filters the attributes to keep only the inheritable ones
+func FilterNonInheritableAttributes(attributeSet AttributeSet) AttributeSet {
+	// Filter the attributes to keep only the inheritable ones
+	// (ex: tags are not inheritable)
+	filtered := make(AttributeSet)
+	for key, value := range attributeSet {
+		attributeConfig, ok := CurrentConfig().ConfigFile.GetAttribute(key)
+		if !ok {
+			// Undefined attribute are not inherited by default
+			continue
+		}
+		if *attributeConfig.Inherit {
+			filtered[key] = value
+		}
+	}
+	return filtered
 }
 
 func (p *ParsedFile) GenerateNotes(generator *ParsedNote) ([]*ParsedNote, []*ParsedMedia, error) {

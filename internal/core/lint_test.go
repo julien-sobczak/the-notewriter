@@ -7,80 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetSchemaAttributes(t *testing.T) {
-	SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
-
-	file := ParseFileFromRelativePath(t, "check-attribute/check-attribute.md")
-	require.Equal(t, "Quote: Steve Jobs on Life", file.Notes[0].Title.String())
-	definitions := GetSchemaAttributes(file.RelativePath, file.Notes[0].Kind)
-	assert.Equal(t, []*ConfigLintSchemaAttribute{
-		{
-			Name:     "isbn",
-			Type:     "string",
-			Pattern:  "^([0-9-]{10}|[0-9]{3}-[0-9]{10})$",
-			Required: BoolPointer(false),
-			Inherit:  BoolPointer(true),
-		},
-		{
-			Name:     "name",
-			Type:     "string",
-			Aliases:  []string{"author"},
-			Required: BoolPointer(true),
-			Inherit:  BoolPointer(true),
-		},
-		{
-			Name:     "references",
-			Type:     "string[]",
-			Required: BoolPointer(false),
-			Inherit:  BoolPointer(true),
-		},
-		{
-			Name:     "source",
-			Type:     "string",
-			Required: BoolPointer(false),
-			Inherit:  BoolPointer(true),
-		},
-		{
-			Name:     "tags",
-			Type:     "string[]",
-			Required: BoolPointer(false),
-			Inherit:  BoolPointer(true),
-		},
-	}, definitions)
-
-	file = ParseFileFromRelativePath(t, "check-attribute.md")
-	require.Equal(t, "Note: _Steve Jobs_ by Walter Isaacson", file.Notes[1].Title.String())
-	definitions = GetSchemaAttributes(file.RelativePath, file.Notes[1].Kind)
-	assert.Equal(t, []*ConfigLintSchemaAttribute{
-		{
-			Name:     "isbn",
-			Type:     "string",
-			Pattern:  "^([0-9-]{10}|[0-9]{3}-[0-9]{10})$",
-			Required: BoolPointer(false),
-			Inherit:  BoolPointer(true),
-		},
-		// Name does not match
-		{
-			Name:     "references",
-			Type:     "string[]",
-			Required: BoolPointer(false),
-			Inherit:  BoolPointer(true),
-		},
-		{
-			Name:     "source",
-			Type:     "string",
-			Required: BoolPointer(false),
-			Inherit:  BoolPointer(true),
-		},
-		{
-			Name:     "tags",
-			Type:     "string[]",
-			Required: BoolPointer(false),
-			Inherit:  BoolPointer(true),
-		},
-	}, definitions)
-}
-
 func TestNoDuplicateNoteTitle(t *testing.T) {
 	SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
 
@@ -160,7 +86,7 @@ func TestMinLinesBetweenNotes(t *testing.T) {
 
 	file := ParseFileFromRelativePath(t, "min-lines-between-notes.md")
 
-	violations, err := MinLinesBetweenNotes(file, []string{"2"})
+	violations, err := MinLinesBetweenNotes(file, []any{2})
 	require.NoError(t, err)
 	require.Equal(t, []*Violation{
 		{
@@ -183,7 +109,7 @@ func TestMaxLinesBetweenNotes(t *testing.T) {
 
 	file := ParseFileFromRelativePath(t, "max-lines-between-notes.md")
 
-	violations, err := MaxLinesBetweenNotes(file, []string{"2"})
+	violations, err := MaxLinesBetweenNotes(file, []any{2})
 	require.NoError(t, err)
 	require.Equal(t, []*Violation{
 		{
@@ -206,7 +132,7 @@ func TestNoteTitleMatch(t *testing.T) {
 
 	file := ParseFileFromRelativePath(t, "note-title-match.md")
 
-	violations, err := NoteTitleMatch(file, []string{`^(Note|Reference):\s\S.*$`})
+	violations, err := NoteTitleMatch(file, []any{`^(Note|Reference):\s\S.*$`})
 	require.NoError(t, err)
 	require.Equal(t, []*Violation{
 		{
@@ -225,7 +151,7 @@ func TestRequireQuoteTag(t *testing.T) {
 	file2 := ParseFileFromRelativePath(t, "require-quote-tag/require-quote-tag-2.md")
 
 	// Default pattern
-	violations, err := RequireQuoteTag(file1, []string{})
+	violations, err := RequireQuoteTag(file1, []any{})
 	require.NoError(t, err)
 	require.Equal(t, []*Violation{
 		{
@@ -235,12 +161,12 @@ func TestRequireQuoteTag(t *testing.T) {
 			Line:         7,
 		},
 	}, violations)
-	violations, err = RequireQuoteTag(file2, []string{})
+	violations, err = RequireQuoteTag(file2, []any{})
 	require.NoError(t, err)
 	assert.Len(t, violations, 0)
 
 	// Custom pattern
-	violations, err = RequireQuoteTag(file1, []string{`^(life|favorite)$`})
+	violations, err = RequireQuoteTag(file1, []any{`^(life|favorite)$`})
 	require.NoError(t, err)
 	assert.Equal(t, []*Violation{
 		{
@@ -256,7 +182,7 @@ func TestRequireQuoteTag(t *testing.T) {
 			Line:         14,
 		},
 	}, violations)
-	violations, err = RequireQuoteTag(file2, []string{`^(life|favorite)$`})
+	violations, err = RequireQuoteTag(file2, []any{`^(life|favorite)$`})
 	require.NoError(t, err)
 	assert.Len(t, violations, 0)
 }
@@ -377,32 +303,32 @@ func TestNoAmbiguousWikilink(t *testing.T) {
 	}, violations)
 }
 
-func TestCheckAttribute(t *testing.T) {
+func TestCheckAttributes(t *testing.T) {
 	SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
 
-	fileRoot := ParseFileFromRelativePath(t, "check-attribute.md")
-	fileSub := ParseFileFromRelativePath(t, "check-attribute/check-attribute.md")
+	fileRoot := ParseFileFromRelativePath(t, "check-attributes.md")
+	fileSub := ParseFileFromRelativePath(t, "check-attributes/check-attributes.md")
 
-	violations, err := CheckAttribute(fileRoot, nil)
+	violations, err := CheckAttributes(fileRoot, nil)
 	require.NoError(t, err)
 	require.Len(t, violations, 1)
 
 	require.ElementsMatch(t, []*Violation{
 		{
-			Name:         "check-attribute",
-			Message:      `attribute "isbn" on note "Note: _Steve Jobs_ by Walter Isaacson" in file "check-attribute.md" does not match pattern "^([0-9-]{10}|[0-9]{3}-[0-9]{10})$"`,
-			RelativePath: "check-attribute.md",
+			Name:         "check-attributes",
+			Message:      `attribute "isbn" on note "Note: _Steve Jobs_ by Walter Isaacson" in file "check-attributes.md" does not match pattern "^([0-9-]{10}|[0-9]{3}-[0-9]{10})$"`,
+			RelativePath: "check-attributes.md",
 			Line:         14,
 		},
 	}, violations)
 
-	violations, err = CheckAttribute(fileSub, nil)
+	violations, err = CheckAttributes(fileSub, nil)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []*Violation{
 		{
-			Name:         "check-attribute",
-			Message:      `attribute "name" missing on note "Quote: Steve Jobs on Life" in file "check-attribute/check-attribute.md"`,
-			RelativePath: "check-attribute/check-attribute.md",
+			Name:         "check-attributes",
+			Message:      `attribute "name" missing on note "Quote: Steve Jobs on Life" in file "check-attributes/check-attributes.md"`,
+			RelativePath: "check-attributes/check-attributes.md",
 			Line:         7,
 		},
 	}, violations)

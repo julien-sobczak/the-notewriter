@@ -1,15 +1,15 @@
 package core
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/julien-sobczak/the-notewriter/pkg/text"
+	"github.com/google/go-jsonnet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 )
 
 func TestPathSpecs(t *testing.T) {
@@ -59,38 +59,33 @@ func TestPathSpecs(t *testing.T) {
 
 }
 
+func TestInitConfiguration(t *testing.T) {
+	dir := populate(t, map[string]interface{}{
+		// missing .nt directory
+		"journal/2022-12-24.md": `# Blablabla`,
+	})
+
+	c, err := InitConfigFromDirectory(dir)
+	require.NoError(t, err)
+	require.NotNil(t, c)
+
+	// Check generated files
+	require.FileExists(t, filepath.Join(dir, ".nt", "config.jsonnet"))
+	require.FileExists(t, filepath.Join(dir, ".nt", "nt.libsonnet"))
+	require.FileExists(t, filepath.Join(dir, ".ntignore"))
+}
+
 func TestReadConfigFromDirectory(t *testing.T) {
 
 	t.Run("Config present", func(t *testing.T) {
 		dir := populate(t, map[string]interface{}{
 
-			".nt/config": `
-[core]
-extensions=["md"]`,
-
-			".nt/lint": `
-rules:
-
-# Enforce a minimum number of lines between notes
-- name: min-lines-between-notes
-  severity: warning # Default to error
-  args: [2]
-
-# Forbid dangling medias (must be able to exclude paths)
-- name: no-dangling-media
-  includes: # default to root
-  - references/
-  - "!references/misc"
-
-schemas:
-- name: Relations
-  attributes:
-  - name: source
-    inherit: false
-    required: true
-  - name: references
-    type: string[]
-`,
+			".nt/config.jsonnet": `
+{
+    Core: {
+        extensions: ["md"]
+    }
+}`,
 
 			".ntignore": `README.md`,
 
@@ -102,50 +97,17 @@ schemas:
 Blablabla`,
 		})
 
-		c, err := ReadConfigFromDirectory(filepath.Join(dir, "journal"))
+		c1, err := ReadConfigFromDirectory(filepath.Join(dir, "journal"))
 		require.NoError(t, err)
-		require.NotNil(t, c)
-		assert.Contains(t, c.IgnoreFile.Entries, PathSpec("README.md"))
+		require.NotNil(t, c1)
 
-		c, err = ReadConfigFromDirectory(dir)
+		c2, err := ReadConfigFromDirectory(dir)
 		require.NoError(t, err)
-		require.NotNil(t, c)
+		require.NotNil(t, c2)
 
 		// Check .ntignore
-		assert.Contains(t, c.IgnoreFile.Entries, PathSpec("README.md"))
-
-		// Check .nt/lint rules
-		require.Len(t, c.LintFile.Rules, 2)
-		rule1 := c.LintFile.Rules[0]
-		rule2 := c.LintFile.Rules[1]
-		assert.Equal(t, "min-lines-between-notes", rule1.Name)
-		assert.Equal(t, "warning", rule1.Severity)
-		assert.EqualValues(t, []string{"2"}, rule1.Args)
-		assert.Equal(t, "no-dangling-media", rule2.Name)
-		assert.Equal(t, "", rule2.Severity)
-		assert.EqualValues(t, []PathSpec{"references/", "!references/misc"}, rule2.Includes)
-
-		// Check .nt/lint schemas
-		require.Len(t, c.LintFile.Schemas, 1)
-		schemaActual := c.LintFile.Schemas[0]
-		schemaExpected := ConfigLintSchema{
-			Name: "Relations",
-			Attributes: []*ConfigLintSchemaAttribute{
-				{
-					Name:     "source",
-					Type:     "string", // default value
-					Inherit:  BoolPointer(false),
-					Required: BoolPointer(true),
-				},
-				{
-					Name:     "references",
-					Type:     "string[]",
-					Inherit:  BoolPointer(true),  // default value
-					Required: BoolPointer(false), // default value
-				},
-			},
-		}
-		assert.Equal(t, schemaExpected, schemaActual)
+		assert.Equal(t, c1.ConfigFile, c2.ConfigFile)
+		assert.Equal(t, c1.IgnoreFile, c2.IgnoreFile)
 	})
 
 	t.Run("Config missing", func(t *testing.T) {
@@ -167,48 +129,6 @@ Blablabla`,
 		require.Nil(t, c)
 	})
 
-	t.Run("Default files", func(t *testing.T) {
-		dir := populate(t, map[string]interface{}{
-			".nt/config": `
-[core]
-extensions=["md"]`,
-
-			// No files .ntignore or .nt/lint defined
-		})
-
-		c, err := ReadConfigFromDirectory(dir)
-		require.NoError(t, err)
-		require.NotNil(t, c)
-
-		// Check all default entries are present
-		iEntry := 0
-		for _, line := range strings.Split(DefaultIgnore, "\n") {
-			if text.IsBlank(line) || strings.HasPrefix(line, "#") {
-				continue
-			}
-			assert.Equal(t, line, string(c.IgnoreFile.Entries[iEntry]))
-			iEntry++
-		}
-
-		// Check all default lint rule are present
-		var defaultLint = make(map[string]interface{})
-		err = yaml.Unmarshal([]byte(DefaultLint), &defaultLint)
-		require.NoError(t, err)
-		if rulesRaw, ok := defaultLint["rules"]; ok {
-			rules := rulesRaw.([]interface{})
-			assert.Len(t, c.LintFile.Rules, len(rules))
-		} else {
-			assert.Empty(t, c.LintFile.Rules)
-		}
-		// Check all default lint schemas are present
-		if schemasRaw, ok := defaultLint["schemas"]; ok {
-			schemas := schemasRaw.([]interface{})
-			assert.Len(t, c.LintFile.Schemas, len(schemas))
-		} else {
-			assert.Empty(t, c.LintFile.Schemas)
-		}
-	})
-
 }
 
 func TestCheckConfig(t *testing.T) {
@@ -216,16 +136,25 @@ func TestCheckConfig(t *testing.T) {
 	t.Run("Unknown Lint Rule", func(t *testing.T) {
 		dir := populate(t, map[string]interface{}{
 
-			".nt/lint": `
-rules:
-
-- name: unknown-rule
-  severity: warning
-`,
+			".nt/config.jsonnet": `
+{
+    Core: {
+        extensions: ["md"]
+    },
+	Linter: {
+        Rules: [
+			{
+                name: "unknown-rule",
+				severity: "warning",
+            },
+		]
+	},
+}`,
 		})
 
 		c, err := ReadConfigFromDirectory(dir)
 		require.NoError(t, err)
+		require.NotNil(t, c)
 
 		err = c.Check()
 		require.ErrorContains(t, err, "unknown lint rule")
@@ -234,12 +163,20 @@ rules:
 	t.Run("Invalid severity", func(t *testing.T) {
 		dir := populate(t, map[string]interface{}{
 
-			".nt/lint": `
-rules:
-
-- name: check-attribute
-  severity: info
-`,
+			".nt/config.jsonnet": `
+{
+    Core: {
+        extensions: ["md"]
+    },
+	Linter: {
+        Rules: [
+			{
+                name: "no-duplicate-slug",
+				severity: "oops",
+            },
+		]
+	},
+}`,
 		})
 
 		c, err := ReadConfigFromDirectory(dir)
@@ -249,42 +186,23 @@ rules:
 		require.ErrorContains(t, err, "unknown severity")
 	})
 
-	t.Run("Conflicting schema types", func(t *testing.T) {
-		dir := populate(t, map[string]interface{}{
-
-			".nt/lint": `
-schemas:
-
-- name: Books
-  attributes:
-  - name: title
-    type: string
-
-- name: Persons
-  attributes:
-  - name: title
-    type: string[]
-`,
-		})
-
-		c, err := ReadConfigFromDirectory(dir)
-		require.NoError(t, err)
-
-		err = c.Check()
-		require.ErrorContains(t, err, "conflicting type for attribute")
-	})
-
 	t.Run("Invalid pattern in schema", func(t *testing.T) {
 		dir := populate(t, map[string]interface{}{
 
-			".nt/lint": `
-schemas:
+			".nt/config.jsonnet": `
+{
+    Core: {
+        extensions: ["md"],
+    },
 
-- name: Books
-  attributes:
-  - name: isbn
-    type: string
-    pattern: "(\\d{10,13"
+    Attributes: {
+        date: {
+            name: "isbn",
+            type: "string",
+            pattern: "(\\d{10,13",
+        },
+	},
+}
 `,
 		})
 
@@ -295,7 +213,7 @@ schemas:
 		require.ErrorContains(t, err, "invalid pattern")
 	})
 
-	t.Run("Invalid .nt/config", func(t *testing.T) {
+	t.Run("Invalid .nt/config.jsonnet", func(t *testing.T) {
 		tests := []struct {
 			name             string
 			config           string
@@ -306,14 +224,21 @@ schemas:
 			{
 				name: "Invalid template in references",
 				config: `
-[reference.books]
-title = "A book"
-manager = "google-books"
-path = """references/books/test.md"""
-template = """---
-title: "{{index . "title" | title
----
-"""
+{
+    Core: { extensions: ["md"] },
+	References: [
+		{
+			title: "A book",
+			manager: "google-books",
+			path: 'references/books/test.md',
+			template: |||
+				---
+				title: "{{index . "title" | title
+				---
+			|||
+		},
+	],
+}
 `,
 				expectedError: "invalid template for reference",
 			},
@@ -321,11 +246,19 @@ title: "{{index . "title" | title
 			{
 				name: "Invalid path in references",
 				config: `
-[reference.books]
-title = "A book"
-manager = "google-books"
-path = """references/books/{{.md"""
-template = """# {{index . "title" | title }}"""
+{
+    Core: { extensions: ["md"] },
+	References: [
+		{
+			title: "A book",
+			manager: "google-books",
+			path: 'references/books/{{.md',
+			template: |||
+				# {{index . "title" | title }}
+			|||
+		},
+	],
+}
 `,
 				expectedError: "invalid path for reference",
 			},
@@ -333,15 +266,22 @@ template = """# {{index . "title" | title }}"""
 			{
 				name: "Deck attributes",
 				config: `
-[deck.life]
-name = "Life"
-query = "path:skills"
-newFlashcardsPerDay = 10
-algorithmSettings.easeFactor = 3.1
-`,
+{
+    Core: { extensions: ["md"] },
+	Decks: [
+		{
+			name: "Life",
+			query: "path:skills",
+			newFlashcardsPerDay: 10,
+			algorithmSettings: {
+				easeFactor: 3.1,
+			},
+		},
+	],
+}`,
 				additionalChecks: func(t *testing.T, c *Config) {
-					require.Len(t, c.ConfigFile.Deck, 1)
-					deck := c.ConfigFile.Deck["life"]
+					require.Len(t, c.ConfigFile.Decks, 1)
+					deck := c.ConfigFile.Decks[0]
 
 					// Check specified attributes
 					assert.Equal(t, "Life", deck.Name)
@@ -363,7 +303,7 @@ algorithmSettings.easeFactor = 3.1
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				dir := populate(t, map[string]interface{}{
-					".nt/config": tt.config,
+					".nt/config.jsonnet": tt.config,
 				})
 
 				c, err := ReadConfigFromDirectory(dir)
@@ -390,25 +330,6 @@ algorithmSettings.easeFactor = 3.1
 
 	})
 
-}
-
-func TestInitConfiguration(t *testing.T) {
-	dir := populate(t, map[string]interface{}{
-		// missing .nt directory
-		"journal/2022-12-24.md": `# Blablabla`,
-	})
-
-	c, err := InitConfigFromDirectory(dir)
-	require.NoError(t, err)
-	require.NotNil(t, c)
-
-	// Check generated files
-	b, err := os.ReadFile(filepath.Join(dir, ".nt", "config"))
-	require.NoError(t, err)
-	assert.Equal(t, string(b), DefaultConfig)
-	b, err = os.ReadFile(filepath.Join(dir, ".ntignore"))
-	require.NoError(t, err)
-	assert.Equal(t, string(b), DefaultIgnore)
 }
 
 /* Test Helpers */
@@ -438,3 +359,84 @@ func populate(t *testing.T, files map[string]interface{}) string {
 }
 
 type Symlink string
+
+// Learning test
+// See https://github.com/google/go-jsonnet
+func TestJsonnet(t *testing.T) {
+
+	t.Run("Basic", func(t *testing.T) {
+		// This example simply try to convert a Jsonnet snippet to JSON
+		vm := jsonnet.MakeVM()
+
+		snippet := `{
+		person1: {
+		    name: "Alice",
+		    welcome: "Hello " + self.name + "!",
+		},
+		person2: self.person1 { name: "Bob" },
+	}`
+
+		actualJSON, err := vm.EvaluateAnonymousSnippet("example.jsonnet", snippet)
+		require.NoError(t, err)
+
+		expectedJSON := `{
+   "person1": {
+      "name": "Alice",
+      "welcome": "Hello Alice!"
+   },
+   "person2": {
+      "name": "Bob",
+      "welcome": "Hello Bob!"
+   }
+}
+`
+		assert.Equal(t, expectedJSON, actualJSON)
+	})
+
+	t.Run("Vargs", func(t *testing.T) {
+		// This example illustrates how arrays with different values are passed
+		vm := jsonnet.MakeVM()
+
+		snippet := `{
+	args: [2, "Alice", true],
+}`
+
+		actualJSON, err := vm.EvaluateAnonymousSnippet("example.jsonnet", snippet)
+		require.NoError(t, err)
+
+		expectedJSON := `{
+   "args": [
+      2,
+      "Alice",
+      true
+   ]
+}
+`
+		assert.Equal(t, expectedJSON, actualJSON)
+
+		type Example struct {
+			Args []any `json:"args"`
+		}
+		var example Example
+		err = json.NewDecoder(strings.NewReader(expectedJSON)).Decode(&example)
+		require.NoError(t, err)
+		assert.Equal(t, []any{float64(2), "Alice", true}, example.Args)
+	})
+}
+
+func TestStaticConfigFiles(t *testing.T) {
+	vm := jsonnet.MakeVM()
+
+	// Copy static files to temporary directory
+	dir := t.TempDir()
+	libFilename := filepath.Join(dir, "nt.libsonnet")
+	configFilename := filepath.Join(dir, "config.jsonnet")
+	err := os.WriteFile(libFilename, []byte(DefaultConfigLibFile), 0644)
+	require.NoError(t, err)
+	err = os.WriteFile(configFilename, []byte(DefaultConfigFile), 0644)
+	require.NoError(t, err)
+
+	actual, err := vm.EvaluateFile(configFilename)
+	require.NoError(t, err)
+	t.Log(actual)
+}

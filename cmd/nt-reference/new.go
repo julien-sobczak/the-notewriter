@@ -31,7 +31,7 @@ var newCmd = &cobra.Command{
 		}
 
 		CheckConfig() // Useful to find reference categories
-		configReference := core.CurrentConfig().ConfigFile.Reference
+		configReference := core.CurrentConfig().ConfigFile.References
 
 		// Step 1: Choose a category (Book, Person, etc.)
 		_, selectedConfigReference := ChooseCategory(configReference)

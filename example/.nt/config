@@ -1,9 +1,0 @@
-[core]
-extensions=["md", "markdown"]
-
-[search.quotes]
-q="-#ignore @kind:quote"
-name="Favorite Quotes"
-
-[medias]
-command="random"
