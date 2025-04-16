@@ -73,8 +73,8 @@ parsedFile, _ := core.ParseFile(relativePath, mdFile)
 ```
 
 * `ParsedFile` represents the Markdown file.
-* `ParsedNote` (see field `Notes` in `ParsedFile`) represents the nodes defined using Markdown headings with a given kind.
-* `ParsedFlashcard` (see optional field `Flashcard` in `ParsedNote`) are notes using the kind `Flashcard`.
+* `ParsedNote` (see field `Notes` in `ParsedFile`) represents the notes defined using Markdown headings with a given type.
+* `ParsedFlashcard` (see optional field `Flashcard` in `ParsedNote`) are notes using the type `Flashcard`.
 * `ParsedLink` (see field `GoLinks` in `ParsedNote`) are Go links present in link titles using the defined convention.
 * `ParsedReminder` (see fields `Reminders` in `ParsedNote`) are special tags defining one or more successive dates in the future when a note must be reviewed.
 * `ParsedMedias` (see fields `Medias` in `ParsedFile) are references to local medias files present in the same repository using the Markdown image syntax inside a note.

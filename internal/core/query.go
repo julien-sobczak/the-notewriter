@@ -8,7 +8,7 @@ import (
 
 type Query struct {
 	Slug       string
-	Kinds      []string
+	Types      []string
 	Tags       []string
 	Attributes map[string]interface{}
 	Path       string
@@ -62,18 +62,18 @@ func ParseQuery(q string) (*Query, error) {
 			}
 			result.Slug = slugToken
 
-		case "kind":
-			// Kind
+		case "type":
+			// Type
 			colonToken := s.Scan()
 			if colonToken == scanner.EOF {
 				return nil, errors.New("unexpected EOF when : was expected")
 			}
 
-			kindToken := s.Scan()
-			if kindToken == scanner.EOF {
-				return nil, errors.New("unexpected EOF when a kind value was expected")
+			typeToken := s.Scan()
+			if typeToken == scanner.EOF {
+				return nil, errors.New("unexpected EOF when a type value was expected")
 			}
-			result.Kinds = append(result.Kinds, s.TokenText())
+			result.Types = append(result.Types, s.TokenText())
 
 		case "path":
 			// Path

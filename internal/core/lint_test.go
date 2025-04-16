@@ -132,13 +132,13 @@ func TestNoteTitleMatch(t *testing.T) {
 
 	file := ParseFileFromRelativePath(t, "note-title-match.md")
 
-	violations, err := NoteTitleMatch(file, []any{`^(Note|Reference):\s\S.*$`})
+	violations, err := NoteTitleMatch(file, []any{`^(Note|Quote):\s\S.*$`})
 	require.NoError(t, err)
 	require.Equal(t, []*Violation{
 		{
 			Name:         "note-title-match",
 			RelativePath: "note-title-match.md",
-			Message:      `note title "reference: Example" does not match regex "^(Note|Reference):\\s\\S.*$"`,
+			Message:      `note title "note: Example" does not match regex "^(Note|Quote):\\s\\S.*$"`,
 			Line:         7,
 		},
 	}, violations)
@@ -311,9 +311,14 @@ func TestCheckAttributes(t *testing.T) {
 
 	violations, err := CheckAttributes(fileRoot, nil)
 	require.NoError(t, err)
-	require.Len(t, violations, 1)
-
+	require.Len(t, violations, 2)
 	require.ElementsMatch(t, []*Violation{
+		{
+			Name:         "check-attributes",
+			Message:      `attribute "name" missing on note "Quote: Steve Jobs on Passion" in file "check-attributes.md"`,
+			RelativePath: "check-attributes.md",
+			Line:         3,
+		},
 		{
 			Name:         "check-attributes",
 			Message:      `attribute "isbn" on note "Note: _Steve Jobs_ by Walter Isaacson" in file "check-attributes.md" does not match pattern "^([0-9-]{10}|[0-9]{3}-[0-9]{10})$"`,
@@ -324,6 +329,7 @@ func TestCheckAttributes(t *testing.T) {
 
 	violations, err = CheckAttributes(fileSub, nil)
 	require.NoError(t, err)
+	require.Len(t, violations, 1)
 	require.ElementsMatch(t, []*Violation{
 		{
 			Name:         "check-attributes",

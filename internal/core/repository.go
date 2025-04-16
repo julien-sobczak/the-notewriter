@@ -966,7 +966,7 @@ func (r *Repository) diffUnstaged(paths PathSpecs) (ObjectDiffs, error) {
 
 type StatsInDB struct {
 	Objects    map[string]int
-	Kinds      map[NoteKind]int
+	Types      map[string]int
 	Tags       map[string]int
 	Attributes map[string]int
 	SizeKB     int64
@@ -982,17 +982,7 @@ func NewStatsInDBEmpty() *StatsInDB {
 			"link":      0,
 			"reminder":  0,
 		},
-		Kinds: map[NoteKind]int{
-			KindReference:  0,
-			KindNote:       0,
-			KindFlashcard:  0,
-			KindCheatsheet: 0,
-			KindQuote:      0,
-			KindJournal:    0,
-			KindTodo:       0,
-			KindArtwork:    0,
-			KindSnippet:    0,
-		},
+		Types:      map[string]int{},
 		Tags:       map[string]int{},
 		Attributes: map[string]int{},
 		SizeKB:     0,
@@ -1016,7 +1006,7 @@ func (r *Repository) StatsInDB() (*StatsInDB, error) {
 	}
 
 	// Count notes
-	countNotesInDB, err := r.CountNotesByKind()
+	countNotesInDB, err := r.CountNotesByTypes()
 	if err != nil {
 		return nil, err
 	}
@@ -1038,7 +1028,7 @@ func (r *Repository) StatsInDB() (*StatsInDB, error) {
 
 	return &StatsInDB{
 		Objects:    countObjectsInDB,
-		Kinds:      countNotesInDB,
+		Types:      countNotesInDB,
 		Tags:       countTagsInDB,
 		Attributes: countAttributesInDB,
 		SizeKB:     databaseSize / filesystem.KB,

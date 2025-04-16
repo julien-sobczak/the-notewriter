@@ -65,11 +65,11 @@ func TestGoTextScannerWithQuery(t *testing.T) {
 func TestParseQuery(t *testing.T) {
 
 	t.Run("Basic", func(t *testing.T) {
-		q := `#favorite keyword1 kind:note kind:flashcard @title:"Note Title" path:"projects/toto" "keyword 2" #life-changing @name:Epictectus`
+		q := `#favorite keyword1 type:note type:flashcard @title:"Note Title" path:"projects/toto" "keyword 2" #life-changing @name:Epictectus`
 		query, err := ParseQuery(q)
 		require.NoError(t, err)
 		assert.Equal(t, "projects/toto", query.Path)
-		assert.EqualValues(t, []string{"note", "flashcard"}, query.Kinds)
+		assert.EqualValues(t, []string{"note", "flashcard"}, query.Types)
 		assert.EqualValues(t, []string{"favorite", "life-changing"}, query.Tags)
 		assert.EqualValues(t, map[string]interface{}{
 			"title": "Note Title",

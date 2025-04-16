@@ -75,7 +75,7 @@ type ConfigFile struct {
 	Core ConfigCore
 
 	Attributes map[string]*ConfigAttribute
-	Objects    map[string]*ConfigObject
+	Types      map[string]*ConfigType
 
 	// Remotes
 	Remote ConfigRemote
@@ -91,16 +91,16 @@ type ConfigFile struct {
 	// Reference options when using the "nt-reference" command
 	References []*ConfigReference
 
-	// Decks definition when declaring notes of kind "Flashcard"
+	// Decks definition when declaring notes of type "Flashcard"
 	Decks []*ConfigDeck
 }
 
-// NoteKind is the kind of note
-func (c ConfigFile) GetObject(kind NoteKind) *ConfigObject {
-	if obj, ok := c.Objects[string(kind)]; ok {
+// GetType returns the definition of a type of note
+func (c ConfigFile) GetType(noteType string) *ConfigType {
+	if obj, ok := c.Types[noteType]; ok {
 		return obj
 	}
-	panic(fmt.Sprintf("Unknown object %q", kind))
+	panic(fmt.Sprintf("Unknown type %q", noteType))
 }
 
 // DefaultConfigFile is the default configuration file
@@ -137,7 +137,8 @@ type ConfigAttribute struct {
 	Pattern string // Regex (for "string" type only)
 	Inherit *bool  // Default: true
 }
-type ConfigObject struct {
+type ConfigType struct {
+	Name               string
 	RequiredAttributes []string // List of mandatory attributes
 	OptionalAttributes []string // List of optional attributes
 }
@@ -370,6 +371,15 @@ func CurrentConfig() *Config {
 	return configSingleton
 }
 
+// CurrentConfigFile returns the current configuration file.
+func CurrentConfigFile() *ConfigFile {
+	config := CurrentConfig()
+	if config == nil {
+		log.Fatalf("Not a NoteWriter repository (or any of the parent directories)")
+	}
+	return &config.ConfigFile
+}
+
 // TempDir returns the privileged temporary directory to use when generating temporary files.
 func (c *Config) TempDir() string {
 	if c.tempDir == "" {
@@ -477,11 +487,7 @@ func ReadConfigFromDirectory(path string) (*Config, error) {
 	if os.IsNotExist(err) {
 		return nil, fmt.Errorf("failed to locate .nt/config.jsonnet file: %v", err)
 	}
-	content, err := os.ReadFile(ntConfigPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read .nt/config.jsonnet file: %v", err)
-	}
-	configFile, err = parseConfigFile(string(content))
+	configFile, err = parseConfigFile(ntConfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse .nt/config.jsonnet file: %v", err)
 	}
@@ -517,9 +523,9 @@ func ReadConfigFromDirectory(path string) (*Config, error) {
 	return config, nil
 }
 
-func parseConfigFile(jsonnetContent string) (*ConfigFile, error) {
+func parseConfigFile(jsonnetPath string) (*ConfigFile, error) {
 	vm := jsonnet.MakeVM()
-	jsonContent, err := vm.EvaluateAnonymousSnippet("config.jsonnet", jsonnetContent)
+	jsonContent, err := vm.EvaluateFile(jsonnetPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to evaluate config.jsonnet: %v", err)
 	}

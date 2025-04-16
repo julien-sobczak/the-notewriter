@@ -4,5 +4,5 @@ local nt = import 'nt.libsonnet';
 {
     Core: nt.Core,
     Attributes: nt.Attributes,
-    Objects: nt.Objects,
+    Types: nt.Types,
 }

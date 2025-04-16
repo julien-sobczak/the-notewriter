@@ -25,14 +25,14 @@ var countObjectsCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// Kinds
-		fmt.Println("Count per kind:")
-		kinds := make(map[string]int)
-		for key, value := range stats.Kinds {
-			kinds[string(key)] = value
+		// Types
+		fmt.Println("Count per type:")
+		types := make(map[string]int)
+		for key, value := range stats.Types {
+			types[key] = value
 		}
-		for _, kind := range keysSortedByValuesDesc(kinds) {
-			fmt.Printf("- %s: %d\n", kind, kinds[kind])
+		for _, noteType := range keysSortedByValuesDesc(types) {
+			fmt.Printf("- %s: %d\n", noteType, types[noteType])
 		}
 		fmt.Println("")
 

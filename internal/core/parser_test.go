@@ -75,7 +75,7 @@ func TestParseFileWithTestdata(t *testing.T) {
 				noteNote, ok := file.FindNoteByShortTitle("A Note")
 				require.True(t, ok)
 				assert.Equal(t, 2, noteNote.Level)
-				assert.Equal(t, core.KindNote, noteNote.Kind)
+				assert.Equal(t, core.TypeNote, noteNote.Type)
 				assert.Equal(t, "basic-notetaking-note-a-note", noteNote.Slug)
 				assert.Equal(t, markdown.Document("Note: A Note"), noteNote.Title)
 				assert.Equal(t, markdown.Document("A Note"), noteNote.ShortTitle)

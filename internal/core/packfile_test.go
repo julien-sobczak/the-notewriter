@@ -72,7 +72,7 @@ func TestPackFile(t *testing.T) {
 		}
 		// The same blob can be found searching by mimetype
 		blob := packFile.FindFirstBlobWithMimeType("text/markdown")
-		assert.NotNil(t, blob)
+		require.NotNil(t, blob)
 	})
 
 	t.Run("NewPackFileFromParsedFile_DryRun", func(t *testing.T) {
@@ -254,7 +254,7 @@ func TestPackFile(t *testing.T) {
 		require.NoError(t, err)
 		cYAML := buf.String()
 		assert.Equal(t, strings.TrimSpace(`
-oid: 23334328153429ce5ba99acd83181b06c44f30af
+oid: 4c578e5279f7b0eadf52c1ff5e8492bdb9a426fe
 file_relative_path: go.md
 file_mtime: 2023-01-01T12:30:00Z
 file_size: 1
@@ -264,37 +264,37 @@ objects:
       kind: file
       ctime: 2023-01-01T12:30:00Z
       desc: file "go.md" [1000000000000000000000000000000000000000]
-      data: eJyUk9tu1DAQhu/zFMPuTTc05+3S5gYQh0UCqaiqhERVZZ141rE28US20wOUd0dOwnaFRFVyNfPPry+e8Zgkz2GWxM/7Zp5pepGDIK9j1W4rGywGQppl2TJLT5OTbJmeVXhSsrMzVvHTLDlNynhVLZfbLGZbT2PDrLzBomO2dqCw5d6t3MlGqt0A3mpStmiZtahzePAAACwTJh+iwFmYtVqWvcVJfCzvLVbaBnNYk2dq0rZ4zEvi9zk8vBz8c6eM0RwucIsaVTX4GqYEfJLGkr4fHZt5PaabKX9jqNfOXVvbmTyKUIWulQ65ZCFpEbksWlNx1GkSmrWtVKJw5J4JXEycq/Fn10d/MIJCjjcRpyqC2VxQJGi2gFtmgKORQiGH8h4uqERtYa1RGmxRHzsFvsodHgNTHD6jgsua2s6QAmZhTSQaBKkgjeNXobdv+2PDTF0xzfdtfyExTeVbzSxwQgO2RvD9ydCQIN8HjZ1Gg8q+Ht1BEIzBW/B9QV2N2vfDUXpx5ajXR2HUuvEY16W5EYvHc1yevz/P4R2p6RbMWPHdgByqIgUfek0dHo5qqoTYRwvYzDW2UnHUQRqnWRCvgnS18YY7LxqpMIeVZ+QPzCHxambq/9jc1soWcxi5SRAnl0maZ3Eex9+9sqFyv6Djk0qf/aTGrW0HusU7G7VM7zjdqqlysO3w89ck/r3ypKWQijUH0h5TaWQWecHsP47fd/xpgxvp3VOG3wEAAP//nb42PA==
+      data: eJyUk01v2zgQhu/6FbP2JdZGH1ZiO+Fld7FtXaBFUxQBCjQIZEocUYQljkBS+WjT/15QUp2gQINUp5l3XjziDIekBIPZMn3ZNwts00sGkoKOl/tKNZgPhNNytTnDVbY5rzZFilxUq6xcVtUKz07Ps0IU5/w0W1cYGGy4UzeYd9zVHhS3IrhVe9UovR/AlSHt8pY7h4bBQwAA4Li0bIgib+HOGVX0DifxsXywOOUaZLClwNZkXP6YFyTuGTz8PfjnXhmjOXwgN1gariW8VdaRuR+Lu3k9prsp/9dSb0pkUDvXWZYkqGPfRYdC8ZiMTHyWbCk/6gxJw9tWaZl7cs8lLibO1fiz66OfGEmxwJtEUJnAbC4pkTRbwC23INAqqVFAcQ+fqEDjYGtQWWzRHHsFPqo9HgPXAt6hhsua2s6SBu5gSyQbBKUhS9NNHBw6ftNwW5fciEPb70lOA/lccweC0IKrEcJwMjQkKQzBYGfQonb/jO4oisbgPwhDSV2NJgzjUfrrylOvj+Kk9eOxvkt7IxeP57i8eHXB4H/SFRrUJdqxEvoBeVRJGl73hjp8OqqpEmOfLGA3N9gqLdBEWZqdROk6yta7YLjuvFEaGawDq74ig2VQc1v/wdK2TrXIYOQuo3R5uczYScrS9EtQNFQcdnN8TdmLX9O4sO1Ad3jnkpabvaBbPVWeLDp8+z6Jv247GSWV5s0T6YApDXKHIufuN8fvO/G8wY/07jnDjwAAAP//Rfo2xQ==
     - oid: "3000000000000000000000000000000000000000"
       kind: note
       ctime: 2023-01-01T12:30:00Z
-      desc: 'note "Reference: Golang History" [3000000000000000000000000000000000000000]'
-      data: eJzckT9v2zwQh3d+ioM8JAEiixKtROL0bn6BLkWQqUWhUOSJIizzBIpOaqAfvpDjP+1QI0C3cjvq0XO/O5IzEhLBP3YSNg07K8FSGrDDgF5jamlQ3qa9myKFPRuV3nRuwOagLoQQK1FUeSlWRa2xbFVdK20qkVd5yx/0atUJrjp2+SXJP5xm47yRcI7CoosDSrh5Ot1IWB/Swf/v6W7YQN42Ry5J2NRTiKf6d5YFHFR0r9iMKvbz0MutYW9u4wbnNxJuLC2uNFIxBtfuIk6SAQBMtAsz18c4TjLL0C9n14jGqSUFm81Vtqbmdgxkg9punbfN7Nwpi3cHR1T2aJtPCpZ+KU4PcIHOwOXj4DxKqJgmH9FHCT/SA7FYwB9nYQfiZXF0vBzr//5yoqPn63uzb7cnjaWlwdfMkM4gWVjKLCV38KYmMDg569FAu4cnajFEWAd0E24x3M838Nlt8B6UN/AJPTz3tB0n8qAirInsgOA8FJw/Lk8LaHo19RKw01zp8lGXolC6U7oyba24ybE1tahFma8edFlx1pLZn5f2r60koIpoGhUlFLwQKc9Tnj/nhRRccv6F7UZzHXDe4PdrwM8AAAD///B/Xxg=
+      desc: 'note "Note: Golang History" [3000000000000000000000000000000000000000]'
+      data: eJzckNFr2zAQxt/1VxzOQ1uoY1lxklpPe8tgMMbo08ZwZeksizg6IyntAvvjh9Ok2aCUwt6mt0/33e/uO3JGQrbg73sZi8PeSrCUe0qYWxqUt3nvYqJwYKPS284N2ByplV6u73Ap1nW3bjkq0y2FLrtuiXdVLVrT1qoSqw7ZpSUr371IOowo4TMlZMmlASVcTULC5rgTfHze6YoN5G1zsmQZiz2FdNZ/e1nAQSX3iM2oUj+lnO8Me3JbNzi/lXBlafb6DJVScO0+YZQMACDSPmiU0Kc0RlkU6OcTZkTj1JyCLSZVbKi5HgPZoHY7520zMffK4s2RkZQ90aaXg6U/xPniF9OL4VIcnEcJd0yTT+iThF/50TGbwWsx2LH4MDu1P5z0h38Mc+J8fx724/qMsTQ3+FgY0gVkM0uFpewGnlQEg9FZjwbaA3ylFkOCTUAXcYfhdvqBL26Lt6C8gU/o4b6n3RjJg0qwIbIDgvMgOF/Pz9mbXsVewhIVtlpXNXa6XtQKK6zr1brsSiGqlao1r1qhV8haMoeXe/1vJwmoEppGJQmCi0XOy5yX96WQCy45/8b2o3nb4LzBn28ZfgcAAP//L/RWXg==
     - oid: "4000000000000000000000000000000000000000"
       kind: link
       ctime: 2023-01-01T12:30:00Z
       desc: link "https://go.dev/doc/" [4000000000000000000000000000000000000000]
-      data: eJyMzUFuwyAQheE9p0DsEw8Mqey5QC/QVTfWBMYOKjHInUQ5ftWq6yhv/X96rWSyLsJrc6Zz+lpKlfkPBkSMGEZ/whimJKczTxOnPKIf/RneUowLAi9ma/pPHL78tUtlLXeZO+uF7NqO12xUHkr2vVXeVnPbK9mLav+mYVjbMct9yC0NRotWIeucWdu88VV+uUm7sEqeWckGCHgAfwD/4QMhEMCnufX8PChblsez4CcAAP//haFZtw==
+      data: eJyMzUFugzAQheG9T2F5nzAYKGEu0At01Q0aPGNi1cEWnUQ5ftWq64i3/j+9khit6+HYnKkUvmLKMv/BPgzjRQY/TnFcQIjj4EMb4yCXfvILLxP1/i2K2Yr+E9cd/tolk6aHzJX0inYt5xsblaeifS+ZttXc94z2qlq/sWnWcmZ5NFxCYzRpFrTOmbXMG93kl5uwC6nwTIrWg+9O0J6g/Wg9doAAn+Ze+XWQNpbnq+AnAAD//8vXWvg=
     - oid: "5000000000000000000000000000000000000000"
       kind: note
       ctime: 2023-01-01T12:30:00Z
       desc: 'note "Flashcard: Golang Logo" [5000000000000000000000000000000000000000]'
-      data: eJy8kcGO0zAQhu9+iqE9FCK568RJ2/iCuMCFIxISCEXjeOJY9dpR7C4g8fCoabvLAVZ7Yk4z/3ye+UeOzihYNeJlsWLJn6wCG/ngMY09zobb6DFY7qONbML+ODhP3TK3klLWsjqUjayrtqdGY9tibw6yPJRa7Pq6HqTAgT09WZUvtnJ0wSh49MGyy54UbN7fFAUfFmvwMdq4YT4G212h1YqlMc75Vv8Bspk8ZvdA3YR5PN+6vTfsuzs678JRwcbG9b9WYM6z06dMSTEAgIz2mp2Dg43sSVpK7wIpKPesjyFTyAp+8aW7XsPft7Cl/XnEDCZSgjwSFMUVOH9CUcBM00yJQn57oTnnl+QdFIWN00hzUWwv0quv56nfXm/v7sk4THc2btODfXNz1I2YRgWNbPq91q0otdBG0H5oUbeNwcN+1xjaUSXaocaB6Wh+Pl7xP2zOhJlMh1lBJSrJRclF+amslBRKiC/sNJnnARcM/XgO+B0AAP//8jjlaA==
+      data: eJy8kUGP0zwQhu/+FfOlh35EctdJ66bxBXGBC0ckJBCKxvHYseqNo9hdWIkfj5q2uxxgtSfmNPPO45l35OiNgkKK10XBUjg5BS5yGzANPc6GuxhwdDxEF9mE/dH6QN0yd9fL5kCyblrbaEForKz7ylpJh11ba6Nb3NV7S+z5SVG92kp+nEjB+5sPln0OpGD9pCj4sFiDj9HFNQtxdN0VKgqWhjjnW/0byGYKmP0DdRPm4Xzr5t6w7/7ogx+PCtYurv62AnOevT5lSooBAGR01+wcHFxkz9JSBj+SgqphfRwzjVnBT750Vyv48xa2tD8PmMFESpAHgrK8AudPKEuYaZop0ZjfXmjO+SV5B2Xp4jTQXJabi/Tf1/PUb/9v7u7JeEx3Lm7Sg3tzc9QNmAYFciv7RutWVFpoI6ixLepWGjw0e2loT7Vo7Q4t09E8Pl3xL2zOhJlMh1lBLeotFxUX1aeqVluhhPjCTpN5GfCjoR8vAb8CAAD//1TS5qU=
     - oid: "6000000000000000000000000000000000000000"
       kind: flashcard
       ctime: 2023-01-01T12:30:00Z
       desc: flashcard "Golang Logo" [6000000000000000000000000000000000000000]
-      data: eJyMjTFrwzAQhXf9imumViBHspyQaCmdunQsFFqKuUhn2USxjKSEDv3xxaalW8hNx3vvey8OzsBqK2+7FZvQHrshULuAtda60fVObXRT7y1tDrjfo3U7rXbqILe2aTotsWP/yErdvDXG8gdtboYSBSzDhdoJS2/Ax+rkWA5nP/+iC5h7i8kJHwOOXoToI8t9TKUtQwlk4Hkx4GU2CvpsGACAAB9Zl+JYDLz1WMBFylB6As5/ibmKc0g0Jco0lkd2QHs08C2Whifg3Mepp8R5xRbp7mNe+byv1idyA+a1j1W++AdmE2Eh12IxUMtaC6mEVK+qNloaKd/ZeXLXA8Po6Ota4CcAAP//puiJcQ==
+      data: eJyMjT9PwzAQxXd/iqMTWHLquE3/eEFMLIxISCAUXeKzE9WNI9utGPjwKBGIrcpNp/fe773QGw2rnVx2KzZie7K9p3oGt221P1Cl9ke7byShsZVqS2srOmyPqjHNEbdqZ4n9I6ty8dYQ8h9ULYYiecz9leoRc6fBheJsWPIXN/3Cekxdi9EIFzwOTvjgAktdiLnOffak4Xk24GUyMrqkGQCAABeYjWHIGt46zGACJcgdAee/xFTFOUQaIyUa8iNrsD1p+BZzwxNw7sLYUeS8YLN09zGtfN4X6zOZHtPahSJd3QNrI2EmU2PWoKTaCFkKWb6WSm+klvKdXUZzO9APhr5uBX4CAAD//8EWirI=
     - oid: "7000000000000000000000000000000000000000"
       kind: note
       ctime: 2023-01-01T12:30:00Z
       desc: 'note "TODO: Conferences" [7000000000000000000000000000000000000000]'
-      data: eJykj0+L2zAQxe/6FINzcFvwRn8Sx9K1LT3uZU8txStLY1vEKxl53D/QD1+SbkihZQnsnDT6Pb33lII3UBz4bVOwZVoHA0OqKPlUuRR7zBgdLmy27tiHCduzpVRK7ZRsxF7tpHa476zW1vlGiUZ0vHa7Xa+47dn1SSFubnEM0Rs4VWAUaEID5cP9h3sD76+FSjalOLTPvCjYMqZMl/0vIcs4WQrfsJ0tjafP3T159j0cwxTi0UA5pM1/3C1RDt1KuBgGAEB2eD6dpoIhsevVeZ1CRAOyYS5FwkgGflVnutnAPwHsTN7Bl09pHjG7FOHjmtOMX9+MRPNittvhQu5w3b6Fx03GpxA95kpyqSpeV7J+vIS1o11GA05o592h81Y4rnteCy5roZVuatGhqPFg9b4/KNYl/9NA+foCJXMZLaFvLRn4A0TFxYOQRnHD+We2zv5lwcn0x0uC3wEAAP//0l7ORQ==
+      data: eJykj0GP0zAQhe/+FaP0EEDK1nabpPYVEMe99ARCWcceJ1azduRMgJX48ahlqyKBVisxJ4+/5/eeU3Aaipa/bgq2TOugYUgVJZcqm6LHjNHiwmZjTz5M2F0s97ZuD1jLVvm252icr6UV3td42CvZu16ZvWw8stuTQry6BT3NqOGYXGIUaEIN5fH+w72G97dCJZtSHLpnXhRsGVOm6/6HkGWcDIVv2M2GxvPn7h4d+x5OYQrxpKEc0uYf7oYoh34lXDQDACAzPJ/OU8GQ2O3qsk4hogZ5YDZFwkgaflYXutnAXwHsQt7Bl09pHjHbFOHjmtOMX9+MRPOit9vhSu5w3b6Fh03GxxAd5kpyuat4U8nm4RrWjWYZNVihrLNt74ywXHneCC4boXbq0IgeRYOtUbVvd6xP7klD+f8FSmYzGkLXGdLwG4iKi6OQesc155/ZOruXBWfTHy8JfgUAAP//xrTPgg==
     - oid: "8000000000000000000000000000000000000000"
       kind: reminder
       ctime: 2023-01-01T12:30:00Z
       desc: 'reminder #reminder-2023-06-26 [8000000000000000000000000000000000000000]'
-      data: eJyMjs9OhDAQxu99igYP6IGlf1iE3o0v4EljSLcdoBHapgxmH9+I2ax62DD5bvP7fTPBWUWzhu2bjERtPno3QbeJQkpZSdHwo6xEa+B40m2rjW0kb/iJ1aaqesl0T65Kxnff8gEv0uNuKcGk0X1CFzWOig7hMFtiYTHJRXTBK5q/PYc4QjLB06c1hQjv9yNiXFRZDpfNAdbyISeoB0XzuwSz8xZSIZiQBasLUedk0gt2EVIf0gy206goY4wXW14YU1teiYfzf+5a84szCTT+AbYiLpT8AdZobwPfP55vAV8BAAD//8cxhIY=
+      data: eJyMjr1urDAQhXs/hcUtuClYjJdf91FeIFWiCBl7DFbAtswQ7eNHIVptkmLF6HTzfWfGWy1o0rJjk5Ag1buxM/S7WKqqaaHiTWeagYHUpuKqMKaCtuz4oIdOlrw2QG5KUhy+5TxepeawFGGWaD+gDxInQUd/WjTRsKpoA1rvBE1fn3yYICrv6OMWfYC3/xNiWEWej9fNCbb8ISUoR0HTfxEW6zTEjDN+zlid8Tols1yxDxCNjwvoXqKgjLEi2/PMmNjzQhxc/nK3mh+ciiDxF7AXFVycv4Et6PvA14+Xe8BnAAAA///TlIXH
 blobs:
     - oid: "2000000000000000000000000000000000000000"
       mime: text/markdown
@@ -308,7 +308,7 @@ blobs:
 		packFileDest := new(PackFile)
 		err = packFileDest.Read(buf)
 		require.NoError(t, err)
-		require.Equal(t, oid.MustParse("23334328153429ce5ba99acd83181b06c44f30af"), packFileDest.OID)
+		require.Equal(t, oid.MustParse("4c578e5279f7b0eadf52c1ff5e8492bdb9a426fe"), packFileDest.OID)
 		require.Len(t, packFileDest.PackObjects, 7)
 
 		// Unmarshall the note

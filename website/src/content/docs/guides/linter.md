@@ -54,11 +54,11 @@ Example (with violations highlighted):
 ```md {15}
 # Example
 
-## Note: The same title is allowed on different kinds
+## Note: The same title is allowed on different types
 
 This is a note.
 
-### Flashcard: The same title is allowed on different kinds
+### Flashcard: The same title is allowed on different types
 
 This is a flashcard.
 
@@ -221,7 +221,7 @@ A title matching the regular expression `(Reference|...):\s\S.*`.
 
 ## reference: Example
 
-The kind is in lowercase (allowed but enforced by the linter).
+The type is in lowercase (allowed but enforced by the linter).
 
 ```
 
@@ -444,7 +444,7 @@ rules:
 schemas:
 
 - name: Quotes
-  kind: quote
+  type: quote
   path: references
   attributes:
     - name: name
@@ -487,7 +487,7 @@ Schemas are used to defined attributes and must follow this structure:
 schemas:
 
 - name: Quotes          # A name used when reporting violations
-  kind: quote           # Restriction on the note kinds
+  type: quote           # Restriction on the note types
   path: references      # Restriction on the note path (glob pattern)
   attributes:           # Define a list of attributes
     - name: name        # The attribute name

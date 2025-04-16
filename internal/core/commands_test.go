@@ -19,9 +19,20 @@ func TestCommandLint(t *testing.T) {
 		SetUpRepositoryFromTempDir(t)
 
 		// Enable a single rule
-		WriteFileFromRelativePath(t, ".nt/lint", `
-rules:
-- name: no-duplicate-note-title
+		WriteFileFromRelativePath(t, ".nt/config.jsonnet", `
+{
+    Core: { extensions: ["md"] },
+	Types: {
+		"Note": {
+			name: "Note"
+		}
+	},
+	Linter: {
+		Rules: [
+			{ name: "no-duplicate-note-title" }
+		]
+	},
+}
 `)
 		configOnce.Reset()
 
@@ -380,7 +391,7 @@ Guido van Rossum
 
 		result, err := CurrentRepository().Status(AnyPath)
 		require.NoError(t, err)
-		assert.NotNil(t, result)
+		require.NotNil(t, result)
 
 		assert.Equal(t, FileStatuses{
 			{
@@ -498,7 +509,7 @@ func TestCommandDiff(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.NotNil(t, diffs.FindFileByTitle("go.md", "Go"))
-		assert.NotNil(t, diffs.FindNoteByTitle("go.md", "Reference: Golang History"))
+		assert.NotNil(t, diffs.FindNoteByTitle("go.md", "Note: Golang History"))
 		assert.NotNil(t, diffs.FindGoLinkByName("go.md", "go"))
 		assert.NotNil(t, diffs.FindNoteByTitle("go.md", "Flashcard: Golang Logo"))
 		assert.NotNil(t, diffs.FindFlashcardByShortTitle("go.md", "Golang Logo"))
@@ -514,7 +525,7 @@ func TestCommandDiff(t *testing.T) {
 		diffs, err = CurrentRepository().Diff(AnyPath, true) // Only the file staged must be returned
 		require.NoError(t, err)
 		assert.NotNil(t, diffs.FindFileByTitle("go.md", "Go"))
-		assert.NotNil(t, diffs.FindNoteByTitle("go.md", "Reference: Golang History"))
+		assert.NotNil(t, diffs.FindNoteByTitle("go.md", "Note: Golang History"))
 		assert.NotNil(t, diffs.FindGoLinkByName("go.md", "go"))
 		assert.NotNil(t, diffs.FindNoteByTitle("go.md", "Flashcard: Golang Logo"))
 		assert.NotNil(t, diffs.FindFlashcardByShortTitle("go.md", "Golang Logo"))
@@ -545,7 +556,7 @@ func TestCommandDiff(t *testing.T) {
 		MustWriteFile(t, "go.md", `
 # Go
 
-## Reference: Golang History
+## Note: Golang History
 
 [Golang](https://go.dev/doc/ "#go/go") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.
 
@@ -566,18 +577,18 @@ func TestCommandDiff(t *testing.T) {
 
 		// The file must have been modified
 		diff := diffs.FindFileByTitle("go.md", "Go")
-		assert.NotNil(t, diff)
+		require.NotNil(t, diff)
 		assert.True(t, diff.Modified())
 		// The edited note must have been modified
-		diff = diffs.FindNoteByTitle("go.md", "Reference: Golang History")
-		assert.NotNil(t, diff)
+		diff = diffs.FindNoteByTitle("go.md", "Note: Golang History")
+		require.NotNil(t, diff)
 		assert.True(t, diff.Modified())
 		// The flashcard must have been deleted (and the associated note)
 		diff = diffs.FindNoteByTitle("go.md", "Flashcard: Golang Logo")
-		assert.NotNil(t, diff)
+		require.NotNil(t, diff)
 		assert.True(t, diff.Deleted())
 		diff = diffs.FindFlashcardByShortTitle("go.md", "Golang Logo")
-		assert.NotNil(t, diff)
+		require.NotNil(t, diff)
 		assert.True(t, diff.Deleted())
 	})
 

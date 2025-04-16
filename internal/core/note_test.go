@@ -23,12 +23,12 @@ func TestNote(t *testing.T) {
 		PackFileOID:  "9c0c0682bd18439d992639f19f8d552bde3bd3c0",
 		FileOID:      "3e8d915d4e524560ae8a2e5a45553f3034b391a2",
 		RelativePath: "go.md",
-		Slug:         "go-reference-golang-history",
-		NoteKind:     KindReference,
-		Title:        "Reference: Golang History",
+		Slug:         "go-note-golang-history",
+		Type:         "Note",
+		Title:        "Note: Golang History",
 		LongTitle:    "Go / Golang History",
 		ShortTitle:   "Golang History",
-		Wikilink:     "go#Reference: Golang History",
+		Wikilink:     "go#Note: Golang History",
 		Attributes: AttributeSet(map[string]any{
 			"source": "https://en.wikipedia.org/wiki/Go_(programming_language)",
 			"tags":   []string{"go"},
@@ -37,7 +37,7 @@ func TestNote(t *testing.T) {
 		Tags: TagSet([]string{"go"}),
 		Line: 8,
 		Content: markdown.Document(text.UnescapeTestContent(`
-## Reference: Golang History
+## Note: Golang History
 
 ‛#history‛
 
@@ -70,7 +70,7 @@ func TestNote(t *testing.T) {
 	assert.Equal(t, note.OID, actual.OID)
 	assert.Equal(t, note.PackFileOID, actual.PackFileOID)
 	assert.Equal(t, note.FileOID, actual.FileOID)
-	assert.Equal(t, note.NoteKind, actual.NoteKind)
+	assert.Equal(t, note.Type, actual.Type)
 	assert.Equal(t, note.Slug, actual.Slug)
 	assert.Equal(t, note.Title, actual.Title)
 	assert.Equal(t, note.ShortTitle, actual.ShortTitle)
@@ -113,12 +113,12 @@ func TestNoteFormats(t *testing.T) {
 		PackFileOID:  "9c0c0682bd18439d992639f19f8d552bde3bd3c0",
 		FileOID:      "3e8d915d4e524560ae8a2e5a45553f3034b391a2",
 		RelativePath: "go.md",
-		Slug:         "go-reference-golang-history",
-		NoteKind:     KindReference,
-		Title:        "Reference: Golang History",
+		Slug:         "go-note-golang-history",
+		Type:         "Note",
+		Title:        "Note: Golang History",
 		LongTitle:    "Go / Golang History",
 		ShortTitle:   "Golang History",
-		Wikilink:     "go#Reference: Golang History",
+		Wikilink:     "go#Note: Golang History",
 		Attributes: AttributeSet(map[string]any{
 			"source": "https://en.wikipedia.org/wiki/Go_(programming_language)",
 			"tags":   []string{"go"},
@@ -126,7 +126,7 @@ func TestNoteFormats(t *testing.T) {
 		}),
 		Tags: TagSet([]string{"go"}),
 		Line: 8,
-		Content: markdown.Document(text.UnescapeTestContent(`## Reference: Golang History
+		Content: markdown.Document(text.UnescapeTestContent(`## Note: Golang History
 
 ‛@source: https://en.wikipedia.org/wiki/Go_(programming_language)‛
 
@@ -145,15 +145,15 @@ Golang was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in
 
 		expected := text.UnescapeTestContent(`
 oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
-slug: go-reference-golang-history
+slug: go-note-golang-history
 packfile_oid: 9c0c0682bd18439d992639f19f8d552bde3bd3c0
 file_oid: 3e8d915d4e524560ae8a2e5a45553f3034b391a2
-kind: reference
-title: 'Reference: Golang History'
+type: Note
+title: 'Note: Golang History'
 long_title: Go / Golang History
 short_title: Golang History
 relative_path: go.md
-wikilink: 'go#Reference: Golang History'
+wikilink: 'go#Note: Golang History'
 attributes:
   source: https://en.wikipedia.org/wiki/Go_(programming_language)
   tags:
@@ -163,7 +163,7 @@ tags:
   - go
 line: 8
 content: |-
-  ## Reference: Golang History
+  ## Note: Golang History
 
   ‛@source: https://en.wikipedia.org/wiki/Go_(programming_language)‛
 
@@ -185,15 +185,15 @@ indexed_at: 2023-01-01T01:12:30Z
 		expected := text.UnescapeTestContent(`
 {
   "oid": "42d74d967d9b4e989502647ac510777ca1e22f4a",
-  "slug": "go-reference-golang-history",
+  "slug": "go-note-golang-history",
   "packfile_oid": "9c0c0682bd18439d992639f19f8d552bde3bd3c0",
   "file_oid": "3e8d915d4e524560ae8a2e5a45553f3034b391a2",
-  "kind": "reference",
-  "title": "Reference: Golang History",
+  "type": "Note",
+  "title": "Note: Golang History",
   "long_title": "Go / Golang History",
   "short_title": "Golang History",
   "relative_path": "go.md",
-  "wikilink": "go#Reference: Golang History",
+  "wikilink": "go#Note: Golang History",
   "attributes": {
     "source": "https://en.wikipedia.org/wiki/Go_(programming_language)",
     "tags": [
@@ -205,7 +205,7 @@ indexed_at: 2023-01-01T01:12:30Z
     "go"
   ],
   "line": 8,
-  "content": "## Reference: Golang History\n\n‛@source: https://en.wikipedia.org/wiki/Go_(programming_language)‛\n\nGolang was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.",
+  "content": "## Note: Golang History\n\n‛@source: https://en.wikipedia.org/wiki/Go_(programming_language)‛\n\nGolang was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.",
   "content_hash": "40411b52dcd5eccdb5845ef8e8fc18bbff3c3411",
   "body": "‛@source: https://en.wikipedia.org/wiki/Go_(programming_language)‛\n\nGolang was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.",
   "created_at": "2023-01-01T01:12:30Z",
@@ -219,7 +219,7 @@ indexed_at: 2023-01-01T01:12:30Z
 	t.Run("ToMarkdown", func(t *testing.T) {
 		actual := note.ToMarkdown()
 		expected := text.UnescapeTestContent(`
-# Reference: Golang History
+# Note: Golang History
 
 ‛@source: https://en.wikipedia.org/wiki/Go_(programming_language)‛
 
@@ -243,14 +243,14 @@ func TestSearchNotes(t *testing.T) {
 	file, err := NewFile(dummyPackFile, parsedFile)
 	require.NoError(t, err)
 	require.NoError(t, file.Save())
-	parsedNote, ok := parsedFile.FindNoteByTitle("Reference: FTS5")
+	parsedNote, ok := parsedFile.FindNoteByTitle("Note: FTS5")
 	require.True(t, ok)
 	note, err := NewNote(dummyPackFile, file, parsedNote)
 	require.NoError(t, err)
 	require.NoError(t, note.Save())
 
 	// Search the note using a full-text query
-	notes, err := CurrentRepository().SearchNotes("kind:reference fts5")
+	notes, err := CurrentRepository().SearchNotes("type:Note fts5")
 	require.NoError(t, err)
 	assert.Len(t, notes, 1)
 
@@ -259,7 +259,7 @@ func TestSearchNotes(t *testing.T) {
 	require.NoError(t, note.Save())
 
 	// Search the note using a full-text query
-	notes, err = CurrentRepository().SearchNotes("kind:reference full")
+	notes, err = CurrentRepository().SearchNotes("type:Note full")
 	require.NoError(t, err)
 	assert.Len(t, notes, 1)
 
@@ -268,7 +268,7 @@ func TestSearchNotes(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check the note is no longer present
-	notes, err = CurrentRepository().SearchNotes("kind:reference full")
+	notes, err = CurrentRepository().SearchNotes("type:note full")
 	require.NoError(t, err)
 	assert.Len(t, notes, 0)
 }

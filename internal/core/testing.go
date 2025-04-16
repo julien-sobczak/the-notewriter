@@ -77,20 +77,25 @@ func SetUpRepositoryFromTempDir(t *testing.T) string {
 func configureDir(t *testing.T, dirname string) {
 	ntDir := filepath.Join(dirname, ".nt")
 	if _, err := os.Stat(ntDir); os.IsNotExist(err) {
-		// Create a default configuration if not exists for CurrentConfig() to work
+		// Create a default configuration dir if not exists for CurrentConfig() to work
 		if err := os.Mkdir(ntDir, os.ModePerm); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(ntDir, "config"), []byte(`
-[core]
-extensions=["md", "markdown"]
+	}
 
-[medias]
-command="random"
-`), os.ModePerm); err != nil {
+	configFile := filepath.Join(dirname, ".nt", "config.jsonnet")
+	if _, err := os.Stat(configFile); os.IsNotExist(err) {
+		// Create a default configuration file
+		// IMPROVEMENT Find a better way to override config values from default config
+		defaultConfigLibFileForTests := strings.ReplaceAll(DefaultConfigLibFile, "ffmpeg", "random")
+		if err := os.WriteFile(filepath.Join(ntDir, "nt.libsonnet"), []byte(defaultConfigLibFileForTests), os.ModePerm); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(ntDir, "config.jsonnet"), []byte(DefaultConfigFile), os.ModePerm); err != nil {
 			t.Fatal(err)
 		}
 	}
+
 	// Force the application to consider the temporary directory as the home
 	os.Setenv("NT_HOME", dirname)
 	t.Cleanup(func() {

@@ -81,7 +81,7 @@ func TestIndex(t *testing.T) {
 		assert.Len(t, idx.Entries, 1) // Only 1 pack file staged
 		assert.Len(t, idx.Objects, len(packFile.PackObjects))
 		entry := idx.GetEntry("go.md")
-		assert.NotNil(t, entry)
+		require.NotNil(t, entry)
 		entry, ok := idx.GetEntryByPackFileOID(packFile.OID)
 		assert.True(t, ok)
 
@@ -185,8 +185,8 @@ func TestIndex(t *testing.T) {
 
 		entry1 := idx.GetEntry("go.md")
 		entry2 := idx.GetEntry("python.md")
-		assert.NotNil(t, entry1)
-		assert.NotNil(t, entry2)
+		require.NotNil(t, entry1)
+		require.NotNil(t, entry2)
 		// First entry must not be staged
 		assert.Equal(t, &IndexEntry{
 			RelativePath: "go.md",
@@ -220,7 +220,7 @@ func TestIndex(t *testing.T) {
 
 		entry1 = idx.GetEntry("go.md")
 		entry2 = idx.GetEntry("python.md")
-		assert.NotNil(t, entry1)
+		require.NotNil(t, entry1)
 		assert.Nil(t, entry2) // no longer exist as never committed
 
 		// Restage the second pack file and commit
@@ -230,8 +230,8 @@ func TestIndex(t *testing.T) {
 		// No entry must be staged
 		entry1 = idx.GetEntry("go.md")
 		entry2 = idx.GetEntry("python.md")
-		assert.NotNil(t, entry1)
-		assert.NotNil(t, entry2)
+		require.NotNil(t, entry1)
+		require.NotNil(t, entry2)
 		assert.False(t, entry1.Staged)
 		assert.False(t, entry2.Staged)
 
@@ -242,7 +242,7 @@ func TestIndex(t *testing.T) {
 
 		// The entry must be staged
 		entry2 = idx.GetEntry("python.md")
-		assert.NotNil(t, entry2)
+		require.NotNil(t, entry2)
 		assert.Equal(t, &IndexEntry{
 			RelativePath: "python.md",
 			PackFileOID:  packFile2.OID,
@@ -260,7 +260,7 @@ func TestIndex(t *testing.T) {
 		require.NoError(t, idx.Reset(AnyPath))
 		// The entry must still be there because committed previously but no longer staged
 		entry2 = idx.GetEntry("python.md")
-		assert.NotNil(t, entry2)
+		require.NotNil(t, entry2)
 		assert.False(t, entry2.Staged)
 	})
 
@@ -322,7 +322,7 @@ func TestIndex(t *testing.T) {
 		// Delete the first file
 		idx.SetTombstone(packFile1.FileRelativePath)
 		countObjectsAfter := len(idx.Objects)
-		assert.NotNil(t, idx.GetEntry("go.md"))                             // Still there...
+		require.NotNil(t, idx.GetEntry("go.md"))                             // Still there...
 		assert.Equal(t, clock.Now(), idx.GetEntry("go.md").StagedTombstone) // ...with a tombstone
 		assert.Equal(t, countObjectsBefore, countObjectsAfter)              // no change in the number of objects as the pack file is still there with a tombstone
 

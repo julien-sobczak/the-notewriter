@@ -333,7 +333,7 @@ func (od ObjectData) MarshalYAML() (any, error) {
 The result looks like this:
 
 ```yaml
-oid: 23334328153429ce5ba99acd83181b06c44f30af
+oid: 4c578e5279f7b0eadf52c1ff5e8492bdb9a426fe
 file_relative_path: go.md
 file_mtime: 2023-01-01T12:30:00Z
 file_size: 1

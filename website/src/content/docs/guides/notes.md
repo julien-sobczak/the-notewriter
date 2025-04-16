@@ -16,7 +16,7 @@ Notes can use **Markdown syntax**.
 
 The note title is defined by the heading and the note content continues until the next heading (or until the end of file).
 
-Since notes are used for so many things, _The NoteWriter_ supports different kinds (see below) using a prefix:
+Since notes are used for so many things, _The NoteWriter_ supports different types (see below) using a prefix:
 
 ```md title=notes.md
 # Quote: Epictetus on Learning
@@ -55,7 +55,7 @@ A first subsection.
 The subsection "Subsecton 1" is included in the note `A Structured Note`.
 
 
-## Kinds
+## Types
 
 ### `Note` … to clear your mind
 
@@ -140,14 +140,14 @@ Use `Journal` for tasks you need to perform.
     ## Journal: 2023-01-01
 
     * 📁 Complete documentation
-      * [x] Add doc about the different kinds of note
+      * [x] Add doc about the different types of note
       * [ ] Add doc about attributes and tags
 
 
 :::tip
 
 * **Use Markdown files as notebooks**. Group your notes inside a file like you would group them in a physical notebook.
-* **Use kinds to classify your notes**, to make easy to retrieve them or to restrict when searching for specific notes.
+* **Use types to classify your notes**, to make easy to retrieve them or to restrict when searching for specific notes.
 
 :::
 
@@ -203,7 +203,7 @@ Markdown quotes can be defined using the common Mardown syntax:
 > — Me
 ```
 
-_The NoteWriter_ automatically convert your notes of kind `Quote` to this syntax. The previous note can be rewritten:
+_The NoteWriter_ automatically convert your notes of type `Quote` to this syntax. The previous note can be rewritten:
 
 ```md
 ## Quote: Me

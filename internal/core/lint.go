@@ -438,7 +438,7 @@ func RequireQuoteTag(file *ParsedFile, args []any) ([]*Violation, error) {
 	}
 
 	for _, note := range file.Notes {
-		if note.Kind != KindQuote {
+		if note.Type != TypeQuote {
 			continue
 		}
 
@@ -470,7 +470,7 @@ func CheckAttributes(file *ParsedFile, args []string) ([]*Violation, error) {
 	for _, note := range file.Notes {
 
 		attributeDefinitions := CurrentConfig().ConfigFile.Attributes
-		objectDefinition := CurrentConfig().ConfigFile.GetObject(note.Kind)
+		objectDefinition := CurrentConfig().ConfigFile.GetType(note.Type)
 
 		for _, attributeDefinition := range attributeDefinitions {
 
@@ -491,7 +491,7 @@ func CheckAttributes(file *ParsedFile, args []string) ([]*Violation, error) {
 					line := text.LineNumber(string(file.Markdown.Content), name+":")
 					if _, ok := CastAttribute(fileValue, attributeDefinition.Type); !ok {
 						violations = append(violations, &Violation{
-							Name:         "check-attribute",
+							Name:         "check-attributes",
 							RelativePath: file.RelativePath,
 							Message:      fmt.Sprintf("attribute %q in file %q is not a valid %s or cannot be converted", name, file.Title, attributeDefinition.Type),
 							Line:         line,
@@ -503,7 +503,7 @@ func CheckAttributes(file *ParsedFile, args []string) ([]*Violation, error) {
 						stringValue := fmt.Sprintf("%s", fileValue)
 						if !regexAttribute.MatchString(stringValue) {
 							violations = append(violations, &Violation{
-								Name:         "check-attribute",
+								Name:         "check-attributes",
 								RelativePath: file.RelativePath,
 								Message:      fmt.Sprintf("attribute %q in file %q does not match pattern %q", name, file.Title, attributeDefinition.Pattern),
 								Line:         line,
@@ -519,7 +519,7 @@ func CheckAttributes(file *ParsedFile, args []string) ([]*Violation, error) {
 					line := text.LineNumber(string(file.Markdown.Content), name+":")
 					if _, ok := CastAttribute(noteValue, attributeDefinition.Type); !ok {
 						violations = append(violations, &Violation{
-							Name:         "check-attribute",
+							Name:         "check-attributes",
 							RelativePath: file.RelativePath,
 							Message:      fmt.Sprintf("attribute %q on note %q in file %q is not a valid %s or cannot be converted", name, note.Title, file.RelativePath, attributeDefinition.Type),
 							Line:         line,
@@ -531,7 +531,7 @@ func CheckAttributes(file *ParsedFile, args []string) ([]*Violation, error) {
 						stringValue := fmt.Sprintf("%s", noteValue)
 						if !regexAttribute.MatchString(stringValue) {
 							violations = append(violations, &Violation{
-								Name:         "check-attribute",
+								Name:         "check-attributes",
 								RelativePath: file.RelativePath,
 								Message:      fmt.Sprintf("attribute %q on note %q in file %q does not match pattern %q", name, note.Title, file.RelativePath, attributeDefinition.Pattern),
 								Line:         line,
@@ -544,7 +544,7 @@ func CheckAttributes(file *ParsedFile, args []string) ([]*Violation, error) {
 			// Check required
 			if slices.Contains(objectDefinition.RequiredAttributes, attributeDefinition.Name) && !found {
 				violations = append(violations, &Violation{
-					Name:         "check-attribute",
+					Name:         "check-attributes",
 					RelativePath: file.RelativePath,
 					Message:      fmt.Sprintf("attribute %q missing on note %q in file %q", attributeDefinition.Name, note.Title, file.RelativePath),
 					Line:         note.Line,

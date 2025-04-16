@@ -5,7 +5,7 @@ tags:
 
 # Go
 
-## Reference: Golang History
+## Note: Golang History
 
 `#history`
 

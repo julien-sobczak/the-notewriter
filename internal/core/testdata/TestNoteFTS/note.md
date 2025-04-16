@@ -1,6 +1,6 @@
 # Note
 
-## Reference: FTS5
+## Note: FTS5
 
 FTS5 is an SQLite [virtual table module](https://www.sqlite.org/c3ref/module.html) that provides [full-text search](http://en.wikipedia.org/wiki/Full_text_search) functionality to database applications.
 

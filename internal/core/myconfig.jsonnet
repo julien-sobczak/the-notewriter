@@ -64,23 +64,30 @@ local srsAlgorithmSettings = {
         }
     } + nt.Attributes, // Reserved attributes take precedence
 
-    Objects: {
-        // Customize default object kinds
-        Note: nt.Objects.Note,
-        Journal: nt.Objects.Journal,
-        Quote: nt.Objects.Quote + {
+    Types: {
+        // Customize default note types
+        Note: nt.Types.Note,
+        Journal: nt.Types.Journal,
+        Quote: nt.Types.Quote + {
             requiredAttributes: ["name", "nationality", "occupation"],
         },
-        Generator: nt.Objects.Generator,
+        Generator: nt.Types.Generator,
 
-        // Declare more-refined kinds for specific uses
-        Reference: nt.Objects.Note,
-        Cheatsheet: nt.Objects.Note,
-        Artwork: nt.Objects.Note + {
+        // Declare more-refined types for specific uses
+        Reference: nt.Types.Note + {
+            name: "Reference",
+        },
+        Cheatsheet: nt.Types.Note + {
+            name: "Cheatsheet",
+        },
+        Artwork: nt.Types.Artwork + {
             optionalAttributes: ["artist", "illustrator", "year"],
         },
-        Snippet: nt.Objects.Note,
-        BookReview: nt.Objects.Note + {
+        Snippet: nt.Types.Note + {
+            name: "Snippet",
+        },
+        BookReview: nt.Types.Note + {
+            name: "BookReview",
             requiredAttributes: ["draft", "isbn"],
         }
     },
