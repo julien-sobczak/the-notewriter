@@ -7,9 +7,28 @@ local nt = import 'nt.libsonnet';
         },
     },
 
-    Attributes: nt.Attributes,
+    Attributes: nt.Attributes + {
+        // Add a name attribute that is required on type Quote
+        name: {
+            name: "name",
+            aliases: ["author"],
+            type: "string",
+            inherit: true,
+        },
+        // Declare a pattern for the attribute isbn
+        isbn: {
+            name: "isbn",
+            type: "string",
+            pattern: "^([0-9-]{10}|[0-9]{3}-[0-9]{10})$",
+            inherit: true,
+        },
+    },
 
-    Objects: nt.Objects,
+    Types: nt.Types + {
+        Quote: nt.Types.Quote + {
+            requiredAttributes: ["name"],
+        },
+    },
 
     Linter: {
         Rules: [

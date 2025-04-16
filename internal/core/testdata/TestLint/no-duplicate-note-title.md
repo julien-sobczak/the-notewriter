@@ -1,10 +1,10 @@
 # Rule `no-duplicate-note-title`
 
-## Note: The same title is allowed on different kinds
+## Note: The same title is allowed on different types
 
 This is a note.
 
-### Reference: The same title is allowed on different kinds
+### Reference: The same title is allowed on different types
 
 This is a reference note.
 

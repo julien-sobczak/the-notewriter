@@ -33,7 +33,7 @@ func TestFile(t *testing.T) {
 		ShortTitle: markdown.Document("Go"),
 		Body: markdown.Document(text.UnescapeTestContent(`# Go
 
-## Reference: Golang History
+## Note: Golang History
 
 ‛#history‛
 
@@ -127,7 +127,7 @@ func TestFileFormats(t *testing.T) {
 		ShortTitle: markdown.Document("Go"),
 		Body: markdown.Document(text.UnescapeTestContent(`# Go
 
-## Reference: Golang History
+## Note: Golang History
 
 ‛@source: https://en.wikipedia.org/wiki/Go_(programming_language)‛
 
@@ -162,7 +162,7 @@ short_title: Go
 body: |
   # Go
 
-  ## Reference: Golang History
+  ## Note: Golang History
 
   ‛@source: https://en.wikipedia.org/wiki/Go_(programming_language)‛
 
@@ -195,7 +195,7 @@ indexed_at: 2023-01-01T01:12:30Z
   },
   "title": "Go",
   "short_title": "Go",
-  "body": "# Go\n\n## Reference: Golang History\n\n‛@source: https://en.wikipedia.org/wiki/Go_(programming_language)‛\n\n[Golang](https://go.dev/doc/ \"#go/go\") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.\n",
+  "body": "# Go\n\n## Note: Golang History\n\n‛@source: https://en.wikipedia.org/wiki/Go_(programming_language)‛\n\n[Golang](https://go.dev/doc/ \"#go/go\") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.\n",
   "body_line": 6,
   "size": 243,
   "hash": "45b9ee63ed13a69e2a3cf59afa26c672cacba78a",
@@ -218,7 +218,7 @@ tags:
 
 # Go
 
-## Reference: Golang History
+## Note: Golang History
 
 ‛@source: https://en.wikipedia.org/wiki/Go_(programming_language)‛
 

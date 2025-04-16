@@ -53,7 +53,7 @@ type ParsedNote struct {
 	Parent *ParsedNote
 
 	Level int
-	Kind  NoteKind
+	Type  string
 
 	// The absolute path of the file
 	AbsolutePath string
@@ -270,7 +270,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 
 		// Determine the titles
 		title := section.HeadingText
-		supported, kind, shortTitle := isSupportedNote(string(title))
+		supported, noteType, shortTitle := isSupportedNote(string(title))
 
 		if !supported {
 			// Ex: top-level heading, subsections inside a "Note:" already included in the containing note, ...
@@ -283,7 +283,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		}
 
 		// Determine slug from attribute or define a default one otherwise
-		slug := markdown.Slug(p.Slug, string(kind), shortTitle)
+		slug := markdown.Slug(p.Slug, noteType, shortTitle)
 		if attributeSlug, ok := noteAttributes.Slug(); ok {
 			slug = attributeSlug
 		}
@@ -335,7 +335,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		parsedNote := &ParsedNote{
 			Parent:         parentNote,
 			Level:          section.HeadingLevel,
-			Kind:           kind,
+			Type:           noteType,
 			AbsolutePath:   p.AbsolutePath,
 			RelativePath:   p.RelativePath,
 			Slug:           slug,
@@ -351,7 +351,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 			Comment:        comment,
 		}
 
-		if parsedNote.Kind == KindGenerator {
+		if parsedNote.Type == TypeGenerator {
 			// Generator notes are not saved in database
 			// They are parsed, evaluated and the results is injected as if
 			// the generated notes had been edited manually.
@@ -592,7 +592,7 @@ func ParseMedia(repositoryPath, absolutePath string) *ParsedMedia {
 }
 
 func (p *ParsedNote) extractFlashcard() (*ParsedFlashcard, error) {
-	if p.Kind != KindFlashcard {
+	if p.Type != TypeFlashcard {
 		return nil, nil
 	}
 

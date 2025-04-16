@@ -43,7 +43,7 @@ type File struct {
 
 	// Original title of the main heading without leading # characters
 	Title markdown.Document `yaml:"title,omitempty" json:"title,omitempty"`
-	// Short title of the main heading without the kind prefix if present
+	// Short title of the main heading without the type prefix if present
 	ShortTitle markdown.Document `yaml:"short_title,omitempty" json:"short_title,omitempty"`
 
 	Body     markdown.Document `yaml:"body" json:"body"`
@@ -233,10 +233,10 @@ func (f *File) GetFlashcards() []*Flashcard {
 	return nil
 }
 
-// FindNoteByKindAndShortTitle searches for a given note based on its kind and title.
-func (f *File) FindNoteByKindAndShortTitle(kind NoteKind, shortTitle string) *Note {
+// FindNoteByTypeAndShortTitle searches for a given note based on its type and title.
+func (f *File) FindNoteByTypeAndShortTitle(noteType string, shortTitle string) *Note {
 	for _, note := range f.GetNotes() {
-		if note.NoteKind == kind && note.ShortTitle == markdown.Document(shortTitle) {
+		if note.Type == noteType && note.ShortTitle == markdown.Document(shortTitle) {
 			return note
 		}
 	}

@@ -55,7 +55,7 @@ func TestRegression(t *testing.T) {
 				assert.Equal(t, last.InDB.Objects, current.InDB.Objects)
 				assert.Equal(t, last.InDB.Attributes, current.InDB.Attributes)
 				assert.Equal(t, last.InDB.Tags, current.InDB.Tags)
-				assert.Equal(t, last.InDB.Kinds, current.InDB.Kinds)
+				assert.Equal(t, last.InDB.Types, current.InDB.Types)
 			},
 		})
 	}

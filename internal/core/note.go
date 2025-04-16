@@ -20,38 +20,18 @@ import (
 // NoteLongTitleSeparator represents the separator when determine the long title of a note.
 const NoteLongTitleSeparator string = " / "
 
-type NoteKind string
-
 const (
-	KindReference  NoteKind = "reference"
-	KindNote       NoteKind = "note"
-	KindFlashcard  NoteKind = "flashcard"
-	KindCheatsheet NoteKind = "cheatsheet"
-	KindQuote      NoteKind = "quote"
-	KindJournal    NoteKind = "journal"
-	KindTodo       NoteKind = "todo"
-	KindArtwork    NoteKind = "artwork"
-	KindSnippet    NoteKind = "snippet"
-	KindGenerator  NoteKind = "generator"
-	// Edit website/docs/guides/notes.md when adding new kinds
+	// Special types with default logic
+	TypeNote      = "Note"      // The default
+	TypeGenerator = "Generator" // Generate notes from a template
+	TypeFlashcard = "Flashcard" // Study using an SRS algorithm
+	TypeJournal   = "Journal"   // Generate your journal
+	TypeTodo      = "Todo"      // Advance projects with tasks
+	TypeQuote     = "Quote"     // Be inspired with quotes (application startup)
+	TypeArtwork   = "Artwork"   // Be inspired with artworks
+	// Edit website/docs/guides/notes.md when adding new types
 )
 
-// Regex to validate and/or extract information from notes
-var (
-	// Kinds
-	regexReference  = regexp.MustCompile(`^(?i)Reference:\s*(.*)$`)  // Ex: `# Reference: Go History`
-	regexNote       = regexp.MustCompile(`^(?i)Note:\s*(.*)$`)       // Ex: `# Note: On Go Logo`
-	regexFlashcard  = regexp.MustCompile(`^(?i)Flashcard:\s*(.*)$`)  // Ex: `# Flashcard: Goroutines Syntax`
-	regexCheatsheet = regexp.MustCompile(`^(?i)Cheatsheet:\s*(.*)$`) // Ex: `# Cheatsheet: How to start a goroutine`
-	regexQuote      = regexp.MustCompile(`^(?i)Quote:\s*(.*)$`)      // Ex: `# Quote: Marcus Aurelius on Doing`
-	regexTodo       = regexp.MustCompile(`^(?i)Todo:\s*(.*)$`)       // Ex: `# Todo: Backlog`
-	regexArtwork    = regexp.MustCompile(`^(?i)Artwork:\s*(.*)$`)    // Ex: `# Artwork: Vincent van Gogh`
-	regexSnippet    = regexp.MustCompile(`^(?i)Snippet:\s*(.*)$`)    // Ex: `# Snippet: Ideas for post title`
-	regexChecklist  = regexp.MustCompile(`^(?i)Checklist:\s*(.*)$`)  // Ex: `# Checklist: Travel`
-	regexJournal    = regexp.MustCompile(`^(?i)Journal:\s*(.*)$`)    // Ex: `# Journal: 2023-01-01`
-)
-
-// FIXME add json field tag + sql field tag
 type Note struct {
 	// A unique identifier among all files
 	OID oid.OID `yaml:"oid" json:"oid"`
@@ -65,13 +45,13 @@ type Note struct {
 	FileOID oid.OID `yaml:"file_oid" json:"file_oid"`
 
 	// Type of note
-	NoteKind NoteKind `yaml:"kind" json:"kind"`
+	Type string `yaml:"type" json:"type"`
 
 	// Original title of the note without leading # characters
 	Title markdown.Document `yaml:"title" json:"title"`
-	// Long title of the note without the kind prefix but prefixed by parent note's short titles
+	// Long title of the note without the type prefix but prefixed by parent note's short titles
 	LongTitle markdown.Document `yaml:"long_title" json:"long_title"`
-	// Short title of the note without the kind prefix
+	// Short title of the note without the type prefix
 	ShortTitle markdown.Document `yaml:"short_title" json:"short_title"`
 
 	// The filepath of the file containing the note (denormalized field)
@@ -110,7 +90,7 @@ func NewNote(packFile *PackFile, file *File, parsedNote *ParsedNote) (*Note, err
 		FileOID:      file.OID,
 		Title:        parsedNote.Title,
 		ShortTitle:   parsedNote.ShortTitle,
-		NoteKind:     parsedNote.Kind,
+		Type:         parsedNote.Type,
 		RelativePath: file.RelativePath,
 		Attributes:   parsedNote.Attributes,
 		Tags:         parsedNote.Attributes.Tags(),
@@ -275,7 +255,7 @@ func (n *Note) update(packFile *PackFile, f *File, parsedNote *ParsedNote) {
 	if n.Title != parsedNote.Title {
 		n.Title = parsedNote.Title
 		n.ShortTitle = parsedNote.ShortTitle
-		n.NoteKind = parsedNote.Kind
+		n.Type = parsedNote.Type
 		stale = true
 	}
 	if n.Body != parsedNote.Body {
@@ -422,36 +402,14 @@ func (n *Note) HasTag(name string) bool {
 	return slices.Contains(n.GetTags(), name)
 }
 
-func isSupportedNote(text string) (bool, NoteKind, markdown.Document) {
-	if m := regexReference.FindStringSubmatch(text); m != nil {
-		return true, KindReference, markdown.Document(m[1])
-	}
-	if m := regexNote.FindStringSubmatch(text); m != nil {
-		return true, KindNote, markdown.Document(m[1])
-	}
-	if m := regexCheatsheet.FindStringSubmatch(text); m != nil {
-		return true, KindCheatsheet, markdown.Document(m[1])
-	}
-	if m := regexFlashcard.FindStringSubmatch(text); m != nil {
-		return true, KindFlashcard, markdown.Document(m[1])
-	}
-	if m := regexQuote.FindStringSubmatch(text); m != nil {
-		return true, KindQuote, markdown.Document(m[1])
-	}
-	if m := regexTodo.FindStringSubmatch(text); m != nil {
-		return true, KindTodo, markdown.Document(m[1])
-	}
-	if m := regexArtwork.FindStringSubmatch(text); m != nil {
-		return true, KindArtwork, markdown.Document(m[1])
-	}
-	if m := regexSnippet.FindStringSubmatch(text); m != nil {
-		return true, KindArtwork, markdown.Document(m[1])
-	}
-	if m := regexChecklist.FindStringSubmatch(text); m != nil {
-		return true, KindArtwork, markdown.Document(m[1])
-	}
-	if m := regexJournal.FindStringSubmatch(text); m != nil {
-		return true, KindJournal, markdown.Document(m[1])
+// TODO move to ConfigFile
+func isSupportedNote(text string) (bool, string, markdown.Document) {
+	for _, noteType := range CurrentConfigFile().Types {
+		// IMPROVEMENT Add support for regex in config.jsonnet
+		r := regexp.MustCompile(fmt.Sprintf(`^(?i)%s:\s*(.*)$`, noteType.Name))
+		if m := r.FindStringSubmatch(text); m != nil {
+			return true, noteType.Name, markdown.Document(m[1])
+		}
 	}
 	return false, "", markdown.Document(text)
 }
@@ -466,7 +424,7 @@ func (n *Note) Save() error {
 			packfile_oid,
 			file_oid,
 			slug,
-			kind,
+			note_type,
 			relative_path,
 			wikilink,
 			title,
@@ -487,7 +445,7 @@ func (n *Note) Save() error {
 			packfile_oid = ?,
 			file_oid = ?,
 			slug = ?,
-			kind = ?,
+			note_type = ?,
 			relative_path = ?,
 			wikilink = ?,
 			title = ?,
@@ -516,7 +474,7 @@ func (n *Note) Save() error {
 		n.PackFileOID,
 		n.FileOID,
 		n.Slug,
-		n.NoteKind,
+		n.Type,
 		n.RelativePath,
 		n.Wikilink,
 		n.Title,
@@ -536,7 +494,7 @@ func (n *Note) Save() error {
 		n.PackFileOID,
 		n.FileOID,
 		n.Slug,
-		n.NoteKind,
+		n.Type,
 		n.RelativePath,
 		n.Wikilink,
 		n.Title,
@@ -576,50 +534,39 @@ func (r *Repository) CountNotes() (int, error) {
 	return count, nil
 }
 
-// CountNotesByKind returns the total number of notes for every kind.
-func (r *Repository) CountNotesByKind() (map[NoteKind]int, error) {
-	res := map[NoteKind]int{
-		KindReference:  0,
-		KindNote:       0,
-		KindFlashcard:  0,
-		KindCheatsheet: 0,
-		KindQuote:      0,
-		KindJournal:    0,
-		KindTodo:       0,
-		KindArtwork:    0,
-		KindSnippet:    0,
+// CountNotesByTypes returns the total number of notes for every type.
+func (r *Repository) CountNotesByTypes() (map[string]int, error) {
+	// Prepare the query
+	query := `SELECT note_type, count(*) FROM note GROUP BY note_type ORDER BY count(*) DESC;`
+
+	// Execute the query
+	rows, err := CurrentDB().Client().Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query: %w", err)
+	}
+	defer rows.Close()
+
+	// Iterate over the results
+	result := make(map[string]int)
+	for rows.Next() {
+		var noteType string
+		var count int
+
+		// Scan the row into variables
+		if err := rows.Scan(&noteType, &count); err != nil {
+			return nil, fmt.Errorf("failed to scan row: %w", err)
+		}
+
+		// Store the result in the map
+		result[noteType] = count
 	}
 
-	var count int
-	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM note where kind = ?`, KindReference).Scan(&count); err == nil {
-		res[KindReference] = count
-	}
-	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM note where kind = ?`, KindNote).Scan(&count); err == nil {
-		res[KindNote] = count
-	}
-	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM note where kind = ?`, KindFlashcard).Scan(&count); err == nil {
-		res[KindFlashcard] = count
-	}
-	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM note where kind = ?`, KindCheatsheet).Scan(&count); err == nil {
-		res[KindCheatsheet] = count
-	}
-	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM note where kind = ?`, KindQuote).Scan(&count); err == nil {
-		res[KindQuote] = count
-	}
-	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM note where kind = ?`, KindJournal).Scan(&count); err == nil {
-		res[KindJournal] = count
-	}
-	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM note where kind = ?`, KindTodo).Scan(&count); err == nil {
-		res[KindTodo] = count
-	}
-	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM note where kind = ?`, KindArtwork).Scan(&count); err == nil {
-		res[KindArtwork] = count
-	}
-	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM note where kind = ?`, KindSnippet).Scan(&count); err == nil {
-		res[KindSnippet] = count
+	// Check for errors during iteration
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over rows: %w", err)
 	}
 
-	return res, nil
+	return result, nil
 }
 
 // CountTags returns the tags with their associated count.
@@ -774,7 +721,7 @@ func (r *Repository) FindNotesLastCheckedBefore(point time.Time, path string) ([
 //
 // Examples:
 //
-//	tag:favorite kind:reference kind:note path:projects/
+//	tag:favorite type:reference type:note path:projects/
 func (r *Repository) SearchNotes(q string) ([]*Note, error) {
 	query, err := ParseQuery(q)
 	if err != nil {
@@ -790,12 +737,12 @@ func (r *Repository) SearchNotes(q string) ([]*Note, error) {
 	if query.Slug != "" {
 		querySQL.WriteString(fmt.Sprintf("AND note.slug = '%s' ", query.Slug))
 	}
-	if len(query.Kinds) > 0 {
-		var kindsSQL []string
-		for _, kind := range query.Kinds {
-			kindsSQL = append(kindsSQL, fmt.Sprintf(`"%s"`, kind))
+	if len(query.Types) > 0 {
+		var typesSQL []string
+		for _, noteType := range query.Types {
+			typesSQL = append(typesSQL, fmt.Sprintf(`"%s"`, noteType))
 		}
-		querySQL.WriteString(fmt.Sprintf("AND note.kind IN (%s) ", strings.Join(kindsSQL, ",")))
+		querySQL.WriteString(fmt.Sprintf("AND note.note_type IN (%s) ", strings.Join(typesSQL, ",")))
 	}
 	if len(query.Tags) > 0 {
 		querySQL.WriteString("AND ( ")
@@ -859,7 +806,7 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 			packfile_oid,
 			file_oid,
 			slug,
-			kind,
+			note_type,
 			relative_path,
 			wikilink,
 			title,
@@ -882,7 +829,7 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 			&n.PackFileOID,
 			&n.FileOID,
 			&n.Slug,
-			&n.NoteKind,
+			&n.Type,
 			&n.RelativePath,
 			&n.Wikilink,
 			&n.Title,
@@ -928,7 +875,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			packfile_oid,
 			file_oid,
 			slug,
-			kind,
+			note_type,
 			relative_path,
 			wikilink,
 			title,
@@ -963,7 +910,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			&n.PackFileOID,
 			&n.FileOID,
 			&n.Slug,
-			&n.NoteKind,
+			&n.Type,
 			&n.RelativePath,
 			&n.Wikilink,
 			&n.Title,

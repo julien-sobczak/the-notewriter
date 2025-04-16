@@ -18,7 +18,6 @@ require (
 	github.com/gosimple/slug v1.13.1
 	github.com/itchyny/gojq v0.12.14
 	github.com/minio/minio-go/v7 v7.0.49
-	github.com/otiai10/copy v1.9.0
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/sourcegraph/go-diff-patch v0.0.0-20220818153721-50706a0e22c3
 	github.com/spf13/cobra v1.5.0

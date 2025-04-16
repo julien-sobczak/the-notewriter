@@ -29,7 +29,7 @@ tags:
 
 # Go
 
-## Reference: Golang History
+## Note: Golang History
 
 `#history`
 
@@ -79,12 +79,12 @@ updated_at: 2023-01-01T12:00:00                # The file object modification ti
 
 ### `note`
 
-Each [note](../guides/notes.md), independent of its kind, generates an object `note` representing the note as a YAML document.
+Each [note](../guides/notes.md), independent of its type, generates an object `note` representing the note as a YAML document.
 
 Ex (Markdown):
 
 ```md
-## Reference: Golang History
+## Note: Golang History
 
 `#history`
 
@@ -100,12 +100,12 @@ Ex (Internal):
 oid: d790d08c                             # Unique generated OID
 file_oid: 6347cbdd                        # OID of the file containing this note
 parent_note_oid: ""                       # OID of the parent heading when nested under a note
-kind: reference                           # Kind of the object
-title: 'Reference: Golang History'        # Raw Title without the heading character(s) "#"
-short_title: Golang History               # Title without the kind prefix
+type: Note                                # Type of the object
+title: 'Note: Golang History'             # Raw Title without the heading character(s) "#"
+short_title: Golang History               # Title without the type prefix
 long_title: Golang History                # Concatenation with all optional parent short titles
 relative_path: go.md                      # Relative path of the file containingg this note
-wikilink: 'go#Reference: Golang History'  # Long wikilink (ex: [[go#Reference: Golang History]] is a valid link)
+wikilink: 'go#Note: Golang History'  # Long wikilink (ex: [[go#Note: Golang History]] is a valid link)
 attributes:                               # Attributes (including inherited ones)
     source: https://en.wikipedia.org/wiki/Go_(programming_language)
     tags:
@@ -129,7 +129,7 @@ updated_at: 2023-01-01T12:00:00      # Object modification time
 
 ### `flashcard`
 
-Each [note](../guides/notes.md) of kind `flashcard` generates an additional object `flashcard` representing the flashcard to learn as a YAML document.
+Each [note](../guides/notes.md) of type `flashcard` generates an additional object `flashcard` representing the flashcard to learn as a YAML document.
 
 Ex (Markdown):
 
@@ -345,7 +345,7 @@ $ brew install qpdf
 $ echo "<value>" | base64 -d | zlib-flate -uncompress
 oid: 6ee8a962
 file_oid: d19a2bba
-kind: reference
+type: Note
 relative_path: hello.md
 wikilink: 'hello#Reference: Hello'
 content: Coucou

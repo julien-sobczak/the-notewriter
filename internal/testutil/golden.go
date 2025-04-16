@@ -1,13 +1,10 @@
 package testutil
 
 import (
-	"log"
+	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
-
-	cp "github.com/otiai10/copy"
 )
 
 // SetUpFromGoldenFile creates a temp file based on the golden file of the current test.
@@ -76,36 +73,82 @@ func SetUpFromGoldenDirNamed(t *testing.T, testname string) string {
 		t.Fatal(err)
 	}
 
-	stat, err := os.Lstat(dirIn)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	// We duplicate everything so that test can create files/directories like .nt
 	// inside it without impacting the testdata original directory.)
-	err = os.Mkdir(dirOut, stat.Mode())
-	if err != nil {
-		t.Fatal(err)
-	}
-	files, err := os.ReadDir(dirIn)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	for _, file := range files {
-		src := filepath.Join(dirIn, file.Name())
-		dest := filepath.Join(dirOut, file.Name())
-		err = cp.Copy(src, dest, cp.Options{
-			Skip: func(info os.FileInfo, src, dest string) (bool, error) {
-				return strings.HasSuffix(src, ".git"), nil
-			},
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
+	DuplicateDirHierarchy(t, dirIn, dirOut)
 
 	return dirOut
+}
+
+// DuplicateDirHierarchy duplicates a directory hierarchy, copying symlinks as their target files.
+func DuplicateDirHierarchy(t *testing.T, srcDir, destDir string) {
+	// Ensure the destination directory exists
+	err := os.MkdirAll(destDir, 0755)
+	if err != nil {
+		t.Fatalf("failed to create destination directory %s: %v", destDir, err)
+	}
+
+	// Walk through the source directory
+	err = filepath.Walk(srcDir, func(srcPath string, info os.FileInfo, err error) error {
+		if err != nil {
+			return fmt.Errorf("error accessing %s: %v", srcPath, err)
+		}
+
+		// Determine the destination path
+		relPath, err := filepath.Rel(srcDir, srcPath)
+		if err != nil {
+			return fmt.Errorf("failed to calculate relative path: %v", err)
+		}
+		destPath := filepath.Join(destDir, relPath)
+
+		// Handle directories
+		if info.IsDir() {
+			err := os.MkdirAll(destPath, info.Mode())
+			if err != nil {
+				return fmt.Errorf("failed to create directory %s: %v", destPath, err)
+			}
+			return nil
+		}
+
+		// Handle symlinks
+		if info.Mode()&os.ModeSymlink != 0 {
+			target, err := os.Readlink(srcPath)
+			if err != nil {
+				return fmt.Errorf("failed to read symlink %s: %v", srcPath, err)
+			}
+
+			// Resolve the symlink target and copy the target file
+			absTarget := target
+			if !filepath.IsAbs(target) {
+				absTarget = filepath.Join(filepath.Dir(srcPath), target)
+			}
+			input, err := os.ReadFile(absTarget)
+			if err != nil {
+				return fmt.Errorf("failed to read symlink target %s: %v", absTarget, err)
+			}
+			err = os.WriteFile(destPath, input, info.Mode())
+			if err != nil {
+				return fmt.Errorf("failed to copy symlink target %s to %s: %v", absTarget, destPath, err)
+			}
+			return nil
+		}
+
+		// Handle regular files
+		input, err := os.ReadFile(srcPath)
+		if err != nil {
+			return fmt.Errorf("failed to read file %s: %v", srcPath, err)
+		}
+		err = os.WriteFile(destPath, input, info.Mode())
+		if err != nil {
+			return fmt.Errorf("failed to copy file %s to %s: %v", srcPath, destPath, err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		t.Fatalf("failed to duplicate directory hierarchy: %v", err)
+	}
 }
 
 // GoldenFile reads the content of the golden file of the current test.

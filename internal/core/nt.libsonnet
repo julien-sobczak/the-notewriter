@@ -51,19 +51,31 @@
         },
     },
 
-    // Declare default object kinds
-    Objects: {
+    // Declare default note types
+    Types: {
         // Prefedefined objects = types with custom logic in The NoteWriter when processing them
-        Note: {},
-        Journal: $.Objects.Note + {
+        Note: {
+            name: "Note",
+        },
+        Journal: $.Types.Note + {
+            name: "Journal",
             requiredAttributes: ["date"],
         },
-        Quote: $.Objects.Note,
-        Flashcard: $.Objects.Note + {
+        Quote: $.Types.Note + {
+            name: "Quote",
+        },
+        Artwork: $.Types.Note + {
+            name: "Artwork",
+        },
+        Flashcard: $.Types.Note + {
+            name: "Flashcard",
             optionalAttributes: ["srs.algorithm", "srs.boostFactor"]
         },
-        TODO: $.Objects.Note,
-        Generator: $.Objects.Note + {
+        TODO: $.Types.Note + {
+            name: "Todo",
+        },
+        Generator: $.Types.Note + {
+            name: "Generator",
             optionalAttributes: ["file", "interpreter"]
         },
     },

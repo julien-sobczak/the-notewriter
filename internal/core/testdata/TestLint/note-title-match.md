@@ -1,9 +1,9 @@
 # Rule `note-title-match`
 
-## Reference: Example
+## Note: Example
 
-A title matching the regular expression `(Reference|...):\s\S.*`.
+A title matching the regular expression `(Note|...):\s\S.*`.
 
-## reference: Example
+## note: Example
 
-The kind is in lowercase (allowed but enforced by the linter).
+The type is in lowercase (allowed but enforced by the linter).
