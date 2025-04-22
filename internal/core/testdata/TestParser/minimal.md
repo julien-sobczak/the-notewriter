@@ -34,7 +34,7 @@ website: https://julien-sobczak.github.io/the-notewriter
 
 ## References
 
-### Reference: Note-Taking Apps
+### Note: Note-Taking Apps
 
 (⚠️ _The list is not exhaustive_)
 
@@ -44,7 +44,7 @@ website: https://julien-sobczak.github.io/the-notewriter
 * [Tana](https://tana.inc/)
 * Mem
 
-### Reference: First Notebooks
+### Note: First Notebooks
 
 `@source: https://en.wikipedia.org/wiki/Notebook`
 

@@ -4,9 +4,9 @@
 
 This is a note.
 
-### Reference: The same title is allowed on different types
+### Quote: The same title is allowed on different types
 
-This is a reference note.
+This is a quote note.
 
 ## Note: Long title must be unique inside a file
 

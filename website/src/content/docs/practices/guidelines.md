@@ -83,4 +83,4 @@ Find the right balance when organizing your notes:
 ## Use Common Notes
 
 * Create a "TODO: Maintenance List" note with `#low-energy`, `#low-attention` tasks you can delay and bulk once per week.
-* Create an "Reference: Accomplishments List" note with achievements to remind you how much productive you are.
+* Create an "Note: Accomplishments List" note with achievements to remind you how much productive you are.

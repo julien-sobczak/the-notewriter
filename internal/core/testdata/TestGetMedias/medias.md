@@ -4,7 +4,7 @@
 ![Leitner System](./medias/leitner_system.svg)
 ![Leitner System](./medias/leitner_system.oops.svg)
 
-## Reference: Animation
+## Note: Animation
 
 ![Leitner System in Action](./medias/leitner_system_animation.gif)
 

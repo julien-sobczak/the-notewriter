@@ -5,7 +5,7 @@ title: Medias
 Notes can include medias (images, videos, audios) using the usual Markdown image syntax.
 
 ```md
-## Reference: Me
+## Note: Me
 
 ![Profile](medias/me.png)
 ```

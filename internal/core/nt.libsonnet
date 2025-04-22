@@ -10,6 +10,17 @@
 
     // Declare reserved attributes
     Attributes: { // IMPROVEMENT hardcoded in go?
+        title: {
+            name: "title",
+            type: "string",
+            inherit: false, # Each note must have a unique title
+        },
+        slug: {
+            name: "slug",
+            type: "string",
+            inherit: false, # Same reason as "title"
+        },
+
         date: {
             name: "date",
             type: "string",

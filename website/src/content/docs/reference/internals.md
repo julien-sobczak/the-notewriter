@@ -333,7 +333,7 @@ objects:                    # The list of all objects added/modified/deleted (a 
     - oid: 6ee8a962
       kind: note
       Ctime: 2023-01-01T12:00:00
-      desc: 'note "Reference: Hello" [6ee8a962]'
+      desc: 'note "Note: Hello" [6ee8a962]'
       data: <value>
 ```
 
@@ -347,7 +347,7 @@ oid: 6ee8a962
 file_oid: d19a2bba
 type: Note
 relative_path: hello.md
-wikilink: 'hello#Reference: Hello'
+wikilink: 'hello#Note: Hello'
 content: Coucou
 content_hash: b70f7d0e2acef2e0fa1c6f117e3c11e0d7082232
 ...
@@ -427,12 +427,12 @@ In addition to raw files, _The NoteWriter_ also comprises a SQLite database (pop
 
     ```shell
     $ nt init
-    $ echo "# Reference: Hello\n\nCoucou" > hello.md
+    $ echo "# Note: Hello\n\nCoucou" > hello.md
     $ nt add hello.md && nt commit
     [bf712c5de01642338ce2d16a37daabeb37daabeb]
      2 objects changes, 2 insertion(s)
      create file "hello.md" [d19a2bba42d44d8a82b18b2edcd4320612a3dfbc]
-     create note "Reference: Hello" [6ee8a9620d3f4d3f9fbd159744ef85b83400b0d4]
+     create note "Note: Hello" [6ee8a9620d3f4d3f9fbd159744ef85b83400b0d4]
     ```
 
     Inspect the database:
@@ -472,7 +472,7 @@ In addition to raw files, _The NoteWriter_ also comprises a SQLite database (pop
         - oid: 6ee8a9620d3f4d3f9fbd159744ef85b83400b0d4
           kind: note
           mtime: 2023-01-01T12:00:00
-          desc: 'note "Reference: Hello" [6ee8a9620d3f4d3f9fbd159744ef85b83400b0d4]'
+          desc: 'note "Note: Hello" [6ee8a9620d3f4d3f9fbd159744ef85b83400b0d4]'
           data: eFg...=
     ```
 
@@ -560,7 +560,7 @@ In addition to raw files, _The NoteWriter_ also comprises a SQLite database (pop
      3 objects changes, 1 insertion(s), 2 modification(s)
      create media me.png [3837a10fbc3a47c7961896febf64463b4a006c79]
      modify file "hello.md" [d19a2bba42d44d8a82b18b2edcd4320612a3dfbc]
-     modify note "Reference: Hello" [6ee8a9620d3f4d3f9fbd159744ef85b83400b0d4]
+     modify note "Note: Hello" [6ee8a9620d3f4d3f9fbd159744ef85b83400b0d4]
 
     $ tree -a
     .

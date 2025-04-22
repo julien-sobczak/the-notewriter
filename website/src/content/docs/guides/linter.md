@@ -215,11 +215,11 @@ Example (with violations highlighted):
 ```md {7}
 # Example
 
-## Reference: Example
+## Note: Example
 
-A title matching the regular expression `(Reference|...):\s\S.*`.
+A title matching the regular expression `(Note|...):\s\S.*`.
 
-## reference: Example
+## neference: Example
 
 The type is in lowercase (allowed but enforced by the linter).
 

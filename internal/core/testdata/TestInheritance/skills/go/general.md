@@ -6,7 +6,7 @@ tags:
 
 # Go Programming Language
 
-## Reference: History
+## Note: History
 
 `#history` `@source: https://en.wikipedia.org/wiki/Go_(programming_language)`
 

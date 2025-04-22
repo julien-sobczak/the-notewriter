@@ -1,6 +1,6 @@
 # Character Replacement
 
-## Reference: Asciidoc Text replacements
+## Note: Asciidoc Text replacements
 
 `@source: https://docs.asciidoctor.org/asciidoc/latest/syntax-quick-reference/#text-replacements`
 
