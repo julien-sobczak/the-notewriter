@@ -464,7 +464,7 @@ func RequireQuoteTag(file *ParsedFile, args []any) ([]*Violation, error) {
 }
 
 // CheckAttributes ensures attributes are valid and match the expected type.
-func CheckAttributes(file *ParsedFile, args []string) ([]*Violation, error) {
+func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 	var violations []*Violation
 
 	for _, note := range file.Notes {

@@ -82,7 +82,7 @@
             name: "Flashcard",
             optionalAttributes: ["srs.algorithm", "srs.boostFactor"]
         },
-        TODO: $.Types.Note + {
+        Todo: $.Types.Note + {
             name: "Todo",
         },
         Generator: $.Types.Note + {
