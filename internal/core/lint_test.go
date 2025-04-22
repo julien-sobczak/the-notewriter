@@ -309,7 +309,7 @@ func TestCheckAttributes(t *testing.T) {
 	fileRoot := ParseFileFromRelativePath(t, "check-attributes.md")
 	fileSub := ParseFileFromRelativePath(t, "check-attributes/check-attributes.md")
 
-	violations, err := CheckAttributes(fileRoot, nil)
+	violations, err := CheckAttributes(fileRoot)
 	require.NoError(t, err)
 	require.Len(t, violations, 2)
 	require.ElementsMatch(t, []*Violation{
@@ -327,7 +327,7 @@ func TestCheckAttributes(t *testing.T) {
 		},
 	}, violations)
 
-	violations, err = CheckAttributes(fileSub, nil)
+	violations, err = CheckAttributes(fileSub)
 	require.NoError(t, err)
 	require.Len(t, violations, 1)
 	require.ElementsMatch(t, []*Violation{
