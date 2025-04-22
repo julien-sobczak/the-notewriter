@@ -2,6 +2,8 @@
 
 ## Generator: Inline
 
+`@interpreter: python3`
+
 ```python
 import re
 import unicodedata
@@ -42,7 +44,7 @@ This note documents the workings of the generator script. The content will not b
 
 ## Generator: Custom Command
 
-`@interpreter: python2`
+`@interpreter: python`
 
 ```python
 print(f"""

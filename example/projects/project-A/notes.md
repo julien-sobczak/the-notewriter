@@ -1,6 +1,6 @@
 # Project A
 
-## Reference: Useful links
+## Note: Useful links
 
 * [Building a Second Brain](https://www.buildingasecondbrain.com), by Tiago Forte: Great book to learn about the power of notes.
 

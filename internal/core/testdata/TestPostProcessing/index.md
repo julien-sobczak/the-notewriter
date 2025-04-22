@@ -23,7 +23,7 @@ Commonplace books compile knowledge by writing information into books.
 ![[#Note: Hypomnema]]
 
 
-## Reference: Gopher
+## Note: Gopher
 
 Gophers are rodents of the family **Geomyidae.**
 
@@ -51,7 +51,7 @@ Life is what happens when you're busy making other plans.
 All we have to decide is what to do with the time that is given us.
 
 
-## Reference: Asciidoc Text replacements
+## Note: Asciidoc Text replacements
 
 `@source: https://docs.asciidoctor.org/asciidoc/latest/syntax-quick-reference/#text-replacements`
 

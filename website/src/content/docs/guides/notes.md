@@ -114,15 +114,6 @@ Use `Quote` for inspiring quotes that resonate with you.
 
     If a cluttered desk is a sign of a cluttered mind, of what, then is an empty desk a sign?
 
-### `Reference` … to use later
-
-Use `Reference` for information you may need in the future.
-
-    ## Reference: Best Note-Taking Books
-
-    * _How to Take Smart Notes_, by Sönke Ahrens
-    * _Sönke Ahrens_, by Tiago Forte
-
 ### `TODO` … to plan tasks
 
 Use `TODO` for tasks you need to perform.

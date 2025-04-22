@@ -49,7 +49,7 @@ Hooks are automatically triggered when commiting changes using the comand `nt co
 Sometimes, you may want to run a hook manually (useful when developing new hooks). The command `nt run-hook` allows to execute a hook on a single note (you still need to use `nt add` to place the note in the index).
 
 ```shell
-$ nt run-hook --vvv "todo.md#Reference: Reading List"
+$ nt run-hook --vvv "todo.md#Note: Reading List"
 ```
 
 ## Example

@@ -396,15 +396,18 @@ func FilterNonInheritableAttributes(attributeSet AttributeSet) AttributeSet {
 	filtered := make(AttributeSet)
 	for key, value := range attributeSet {
 		attributeConfig, ok := CurrentConfig().ConfigFile.GetAttribute(key)
-		if !ok {
-			// Undefined attribute are not inherited by default
-			continue
-		}
-		if *attributeConfig.Inherit {
+		if !ok || *attributeConfig.Inherit {
+			// Undefined attribute are inherited by default
 			filtered[key] = value
 		}
 	}
 	return filtered
+}
+
+// CommandExists checks if a command exists in the system's PATH.
+func CommandExists(command string) bool {
+	_, err := exec.LookPath(command)
+	return err == nil
 }
 
 func (p *ParsedFile) GenerateNotes(generator *ParsedNote) ([]*ParsedNote, []*ParsedMedia, error) {
@@ -416,20 +419,13 @@ func (p *ParsedFile) GenerateNotes(generator *ParsedNote) ([]*ParsedNote, []*Par
 
 	if interpreter != "" {
 		// Check binary exists...
-		interpreterStat, err := os.Stat(interpreter)
-		if os.IsNotExist(err) {
+		if !CommandExists(interpreter) {
 			return nil, nil, fmt.Errorf("interpreter %q doesn't exist in generator %q", interpreter, generator.ShortTitle)
-		}
-		// ... and is executable
-		if !IsExec(interpreterStat.Mode()) {
-			return nil, nil, fmt.Errorf("interpreter %q is not executable in generator %q", interpreter, generator.ShortTitle)
 		}
 
 		cmdArgs = append(cmdArgs, interpreter)
-	}
-
-	if filename != "" { // External
-		scriptPath := filepath.Join(filepath.Dir(p.Markdown.AbsolutePath), interpreter)
+	} else if filename != "" { // External
+		scriptPath := filepath.Join(filepath.Dir(p.Markdown.AbsolutePath), filename)
 
 		// Check file exists
 		scriptStat, err := os.Stat(scriptPath)
@@ -463,7 +459,7 @@ func (p *ParsedFile) GenerateNotes(generator *ParsedNote) ([]*ParsedNote, []*Par
 		// Expect the Markdown language
 		cmdArgs = append(cmdArgs, scriptLanguage)
 
-		scriptPath, err := os.CreateTemp("nt", "script")
+		scriptPath, err := os.CreateTemp("", "ntscript")
 		if err != nil {
 			return nil, nil, fmt.Errorf("unable to create temporary script for generator %q: %w", p.ShortTitle, err)
 		}
@@ -483,7 +479,7 @@ func (p *ParsedFile) GenerateNotes(generator *ParsedNote) ([]*ParsedNote, []*Par
 		return nil, nil, fmt.Errorf("failed to run generator command %q: %w", strings.Join(cmdArgs, " "), err)
 	}
 
-	mdPath, err := os.CreateTemp("nt", "md")
+	mdPath, err := os.CreateTemp("", "ntmd")
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to create temporary Markdown file for generator %q: %w", p.ShortTitle, err)
 	}
@@ -797,6 +793,9 @@ func StripSubNotesTransformer(document markdown.Document) (markdown.Document, er
 	// The current implementation traverses the lines until finding the first sub-note
 	it := document.Iterator()
 
+	insideCodeBlock := false
+	// We ignore headings inside code blocks
+
 	// Skip top note heading
 	for it.HasNext() {
 		line := it.Next()
@@ -809,6 +808,15 @@ func StripSubNotesTransformer(document markdown.Document) (markdown.Document, er
 	// Move to next note-specific heading
 	for it.HasNext() {
 		line := it.Next()
+
+		if markdown.IsCodeBlock(line.Text) {
+			insideCodeBlock = !insideCodeBlock
+			continue
+		}
+		if insideCodeBlock {
+			continue
+		}
+
 		ok, headingText, _ := markdown.IsHeading(line.Text)
 		if ok {
 			supported, _, _ := isSupportedNote(headingText)

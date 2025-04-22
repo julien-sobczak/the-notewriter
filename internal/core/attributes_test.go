@@ -272,7 +272,7 @@ tags: favorite
 				name:     "nil maps",
 				inputA:   nil,
 				inputB:   nil,
-				expected: nil,
+				expected: EmptyAttributes,
 			},
 			{
 				name: "append in slices",

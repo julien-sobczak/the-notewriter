@@ -2,10 +2,11 @@
 
 ## TODO: Backlog
 
+* [ ] Fix unit tests
 * [ ] Call `CheckAttributes` in `nt add` after having fix the unit test in `lint_test.go`
-* [ ] Rework `NoteKind` to use `ObjectType` and declare constants for predefined types
 * [ ] Push `config.json` to `.nt` and push it to remotes
 * [ ] Complete attributes in `config.jsonnet`
+* [ ] Rework `linter.md` and introduce a new `config.md`
 
 ## TODO: Features
 

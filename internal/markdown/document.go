@@ -61,6 +61,12 @@ func (m Document) TrimSpace() Document {
  * Helpers
  */
 
+// IsCodeBlock returns if a given line is a Markdown code block.
+func IsCodeBlock(line string) bool {
+	// Check if the line starts with three backticks
+	return strings.HasPrefix(line, "```")
+}
+
 // IsHeading returns if a given line is a Markdown heading and its level.
 func IsHeading(line string) (bool, string, int) { // FIXME move to core/markdown.go?
 	if !strings.HasPrefix(line, "#") {

@@ -122,18 +122,31 @@ func DuplicateDirHierarchy(t *testing.T, srcDir, destDir string) {
 			if !filepath.IsAbs(target) {
 				absTarget = filepath.Join(filepath.Dir(srcPath), target)
 			}
-			input, err := os.ReadFile(absTarget)
+
+			// Check if the symlink target is a directory
+			targetInfo, err := os.Stat(absTarget)
 			if err != nil {
-				return fmt.Errorf("failed to read symlink target %s: %v", absTarget, err)
+				return fmt.Errorf("failed to stat symlink target %s: %v", absTarget, err)
 			}
-			err = os.WriteFile(destPath, input, info.Mode())
-			if err != nil {
-				return fmt.Errorf("failed to copy symlink target %s to %s: %v", absTarget, destPath, err)
+
+			if targetInfo.IsDir() {
+				// Recursively copy the directory contents
+				DuplicateDirHierarchy(t, absTarget, destPath)
+			} else {
+				// Copy the target file
+				input, err := os.ReadFile(absTarget)
+				if err != nil {
+					return fmt.Errorf("failed to read symlink target %s: %v", absTarget, err)
+				}
+				err = os.WriteFile(destPath, input, info.Mode())
+				if err != nil {
+					return fmt.Errorf("failed to copy symlink target %s to %s: %v", absTarget, destPath, err)
+				}
 			}
 			return nil
 		}
 
-		// Handle regular files
+		// Copy the regular file
 		input, err := os.ReadFile(srcPath)
 		if err != nil {
 			return fmt.Errorf("failed to read file %s: %v", srcPath, err)

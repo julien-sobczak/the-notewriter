@@ -261,7 +261,7 @@ func (a AttributeSet) DiffKeys(other AttributeSet) []string {
 }
 
 // Const to represent an empty set of attributes
-var EmptyAttributes AttributeSet
+var EmptyAttributes AttributeSet = make(map[string]any)
 
 // NewAttributeSetFromYAML unmarshall attributes.
 func NewAttributeSetFromYAML(rawValue string) (AttributeSet, error) {
@@ -269,6 +269,9 @@ func NewAttributeSetFromYAML(rawValue string) (AttributeSet, error) {
 	err := yaml.Unmarshal([]byte(rawValue), &attributes)
 	if err != nil {
 		return nil, err
+	}
+	if attributes == nil {
+		return EmptyAttributes, nil
 	}
 	return attributes, nil
 }
@@ -285,7 +288,7 @@ func (a AttributeSet) Merge(attributes ...AttributeSet) AttributeSet {
 	}
 
 	if len(result) == 0 {
-		return nil
+		return EmptyAttributes
 	}
 
 	return result
@@ -365,6 +368,9 @@ func (a AttributeSet) Slug() (string, bool) {
 /* Format */
 
 func (a AttributeSet) ToJSON() (string, error) {
+	if len(a) == 0 {
+		return "{}", nil
+	}
 	var buf bytes.Buffer
 	bufEncoder := json.NewEncoder(&buf)
 	bufEncoder.SetIndent("", "  ")

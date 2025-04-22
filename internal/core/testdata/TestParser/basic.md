@@ -33,7 +33,7 @@ I take notes like some people take drugs...
 
 A tool to compile knowledge, usually by writing information into books.
 
-## Reference: Leonardo da Vinci's Notebooks
+## Note: Leonardo da Vinci's Notebooks
 
 `@author: Leonardo da Vinci`
 `@year: ~1510`

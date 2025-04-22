@@ -9,6 +9,7 @@ import (
 	"github.com/julien-sobczak/the-notewriter/internal/core"
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -82,7 +83,10 @@ func TestParseFileWithTestdata(t *testing.T) {
 				assert.Equal(t, 11, noteNote.Line)
 				assert.Equal(t, "## Note: A Note\n\nNotes has many uses:\n\n* Journaling\n* To-Do list\n* Drawing\n* Diary\n* Flashcard\n* Reminder", noteNote.Content.String())
 				assert.Equal(t, "Notes has many uses:\n\n* Journaling\n* To-Do list\n* Drawing\n* Diary\n* Flashcard\n* Reminder", noteNote.Body.String())
-				assert.Empty(t, nil, noteNote.Attributes)
+				assert.Equal(t, core.AttributeSet{
+					"rating": 5,
+					"tags":   []string{"thinking"},
+				}, noteNote.Attributes)
 				// No subobjects
 				assert.Nil(t, noteNote.Flashcard)
 				assert.Len(t, noteNote.GoLinks, 0)
@@ -95,10 +99,8 @@ func TestParseFileWithTestdata(t *testing.T) {
 					"author": "Tim Ferris",
 				}), noteTimFerris.NoteAttributes)
 				require.Equal(t, core.AttributeSet(map[string]any{
-					"title":  "Basic Note-Taking",
 					"author": "Tim Ferris",
 					"rating": 5,
-					"slug":   "basic-notetaking",
 					"tags":   []string{"thinking"},
 				}), noteTimFerris.Attributes)
 
@@ -111,7 +113,7 @@ func TestParseFileWithTestdata(t *testing.T) {
 				assert.Equal(t, "(Thinking) What are **commonplace books**?", flashcardCommonplace.Front.String())
 				assert.Equal(t, "A tool to compile knowledge, usually by writing information into books.", flashcardCommonplace.Back.String())
 
-				// Check "Reference: Leonardo da Vinci's Notebooks"
+				// Check "Note: Leonardo da Vinci's Notebooks"
 				noteDaVinci, ok := file.FindNoteByShortTitle("Leonardo da Vinci's Notebooks")
 				require.True(t, ok)
 				require.Equal(t, core.AttributeSet(map[string]any{
@@ -119,10 +121,8 @@ func TestParseFileWithTestdata(t *testing.T) {
 					"year":   "~1510",
 				}), noteDaVinci.NoteAttributes)
 				require.Equal(t, core.AttributeSet(map[string]any{
-					"title":  "Basic Note-Taking",
 					"author": "Leonardo da Vinci",
 					"rating": 5,
-					"slug":   "basic-notetaking",
 					"tags":   []string{"thinking"},
 					"year":   "~1510",
 				}), noteDaVinci.Attributes)
@@ -196,7 +196,7 @@ func TestParseFileWithTestdata(t *testing.T) {
 				assert.Contains(t, note.Body.String(), "#### Introduction")
 				assert.Contains(t, note.Body.String(), "#### Demo")
 				// BUT
-				note, ok = file.FindNoteByTitle("Reference: First Notebooks")
+				note, ok = file.FindNoteByTitle("Note: First Notebooks")
 				require.True(t, ok)
 				assert.NotContains(t, note.Body.String(), "Flashcard: First Notebooks")
 
@@ -210,7 +210,9 @@ func TestParseFileWithTestdata(t *testing.T) {
 			test: func(t *testing.T, file *core.ParsedFile) {
 				require.NotNil(t, file)
 
+				// IMPROVEMENT: Rely on python/python3 executables to be present in path. Find a workaround.
 				// TODO complete
+				// Check generated notes for the different generators
 			},
 		},
 
@@ -397,6 +399,49 @@ This is a sub-note
 		assert.Equal(t, "Goroutines", note.ShortTitle.String())
 		assert.Equal(t, "Go / Golang / Goroutines", note.LongTitle.String())
 	})
+
+	t.Run("Markdown in Markdown", func(t *testing.T) {
+		// Markdown document can includes code blocks with lines starting with # characters.
+		// These lines must not be parsed as heading (and thus as notes).
+		core.FreezeNow(t)
+
+		root := core.SetUpRepositoryFromTempDir(t)
+		core.MustWriteFile(t, "md.md", text.UnescapeTestContent(`
+# File
+
+## Note: Markdown Example 1
+
+‛‛‛md
+## Note: A Markdown Heading
+
+This note is not a note but a code block inside a note.
+‛‛‛
+
+## Note: Markdown Example 2
+
+Another note without a code block.
+`))
+
+		md := markdown.MustParseFile(filepath.Join(root, "md.md"))
+
+		// Check Markdown.File correctly interprets the headings
+		sections, err := md.GetSections()
+		require.NoError(t, err)
+		require.Len(t, sections, 3)
+		assert.Equal(t, "File", sections[0].HeadingText.String())
+		assert.Equal(t, "Note: Markdown Example 1", sections[1].HeadingText.String())
+		assert.Equal(t, "## Note: Markdown Example 1\n\n```md\n## Note: A Markdown Heading\n\nThis note is not a note but a code block inside a note.\n```", sections[1].ContentText.String())
+		assert.Equal(t, "Note: Markdown Example 2", sections[2].HeadingText.String())
+		assert.Equal(t, "## Note: Markdown Example 2\n\nAnother note without a code block.", sections[2].ContentText.String())
+
+		// Parse the file
+		file, err := core.ParseFile(md, nil)
+		require.NoError(t, err)
+		// Check that two notes have been found and ensure the first one contains the code block
+		require.Len(t, file.Notes, 2)
+		firstNote := file.Notes[0]
+		require.Equal(t, "```md\n## Note: A Markdown Heading\n\nThis note is not a note but a code block inside a note.\n```", firstNote.Body.String())
+	})
 }
 
 func TestDetermineFileSlug(t *testing.T) {
@@ -435,6 +480,8 @@ func TestDetermineFileSlug(t *testing.T) {
 func TestMarkdownTransformers(t *testing.T) {
 
 	t.Run("StripSubNotesTransformer", func(t *testing.T) {
+		core.SetUpRepositoryFromTempDir(t)
+
 		tests := []struct {
 			name     string
 			input    markdown.Document // input
@@ -496,6 +543,33 @@ Some more text
 
 A simple note
 `,
+			},
+
+			{
+				name: "With code blocks containing an heading",
+				input: markdown.Document(text.UnescapeTestContent(`
+## Note: A note
+
+A simple note
+
+‛‛‛md
+### Note: Not a sub note
+
+This is a code block.
+‛‛‛
+`)),
+				// The code block must be ignored
+				expected: markdown.Document(text.UnescapeTestContent(`
+## Note: A note
+
+A simple note
+
+‛‛‛md
+### Note: Not a sub note
+
+This is a code block.
+‛‛‛
+`)),
 			},
 		}
 

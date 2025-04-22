@@ -69,7 +69,7 @@ CREATE TABLE note (
   attributes TEXT NOT NULL,
 
   -- Merged tags in a comma-separated list
-  tags TEXT NOT NULL,
+  tags TEXT NOT NULL DEFAULT '',
 
   -- Line number (1-based index) of the note section title
   "line" INTEGER NOT NULL,
@@ -147,11 +147,11 @@ CREATE TABLE blob (
   -- Media type
   mime TEXT NOT NULL,
 
-  -- YAML document representing the media
+  -- JSON document representing the attributes
   attributes TEXT NOT NULL,
 
   -- Comma separated list of tags
-  tags TEXT DEFAULT ''
+  tags TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE link (
