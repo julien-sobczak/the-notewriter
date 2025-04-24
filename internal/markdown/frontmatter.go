@@ -2,6 +2,7 @@ package markdown
 
 import (
 	"bytes"
+	"fmt"
 
 	"gopkg.in/yaml.v3"
 )
@@ -26,7 +27,7 @@ func (f FrontMatter) AsNode() (*yaml.Node, error) {
 func (f FrontMatter) AsMap() (map[string]any, error) {
 	var attributes = make(map[string]any)
 	if err := yaml.Unmarshal([]byte(f), attributes); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshall YAML %q: %v", f, err)
 	}
 	return attributes, nil
 }

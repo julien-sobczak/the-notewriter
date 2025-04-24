@@ -492,7 +492,7 @@ schemas:
   attributes:           # Define a list of attributes
     - name: name        # The attribute name
       aliases: [author] # Optional aliases for the attribute name
-      type: string      # One of: string[], string (default), boolean, number, object
+      type: string      # One of: string[], string (default), bool, number, object
       required: true    # Mandatory? (default: false)
       inherit: true     # Attribute is inheritable by sub-notes? (default: true)
 ```

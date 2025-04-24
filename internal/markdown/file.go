@@ -29,6 +29,10 @@ var EmptyFile = &File{
 	BodyLine:     1,
 }
 
+func (m File) Lines() []string {
+	return strings.Split(string(m.Content), "\n")
+}
+
 func (m File) String() string {
 	return fmt.Sprintf("Markdown file %q", m.AbsolutePath)
 }

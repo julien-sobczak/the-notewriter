@@ -173,7 +173,7 @@ func MinLinesBetweenNotes(file *ParsedFile, args []any) ([]*Violation, error) {
 		return nil, err
 	}
 
-	lines := file.Markdown.Body.Lines()
+	lines := file.Markdown.Lines()
 
 	for i, note := range file.Notes {
 		if i == 0 {
@@ -211,7 +211,7 @@ func MaxLinesBetweenNotes(file *ParsedFile, args []any) ([]*Violation, error) {
 		return nil, err
 	}
 
-	lines := file.Markdown.Body.Lines()
+	lines := file.Markdown.Lines()
 
 	for _, note := range file.Notes {
 		countBlankLinesBefore := 0
@@ -489,7 +489,7 @@ func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 					found = true
 
 					line := text.LineNumber(string(file.Markdown.Content), name+":")
-					if _, ok := CastAttribute(fileValue, attributeDefinition.Type); !ok {
+					if _, ok := CastAttribute(fileValue, *attributeDefinition); !ok {
 						violations = append(violations, &Violation{
 							Name:         "check-attributes",
 							RelativePath: file.RelativePath,
@@ -517,7 +517,7 @@ func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 					found = true
 
 					line := text.LineNumber(string(file.Markdown.Content), name+":")
-					if _, ok := CastAttribute(noteValue, attributeDefinition.Type); !ok {
+					if _, ok := CastAttribute(noteValue, *attributeDefinition); !ok {
 						violations = append(violations, &Violation{
 							Name:         "check-attributes",
 							RelativePath: file.RelativePath,

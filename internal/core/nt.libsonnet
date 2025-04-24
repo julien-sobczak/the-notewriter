@@ -130,7 +130,7 @@
         RequireQuoteTags(tags)::
             {
                 name: "require-quote-tag",
-                args: ["ˆ(" + std.join("|", tags) + ")$"],
+                args: ["^(" + std.join("|", tags) + ")$"],
             },
     },
 }
