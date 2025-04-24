@@ -37,6 +37,7 @@ const DefaultGitIgnore = `
 /objects/
 /index
 /refs/
+/.config.json
 `
 
 // Default .ntignore content
@@ -702,6 +703,31 @@ func (c *Config) Check() error {
 				return fmt.Errorf("invalid pattern %q for attribute %q: %v", attribute.Pattern, attribute.Name, err)
 			}
 		}
+	}
+
+	return nil
+}
+
+func (c *Config) GetGeneratedPath() string {
+	return filepath.Join(c.RootDirectory, ".nt", ".config.json")
+}
+
+// Save saves the configuration to the .nt/config.json file.
+func (c *Config) Save() error {
+	// We want to save ConfigFile to .nt/config.json
+	// so that the result could be pushed to remotes
+	// and read by the desktop application without having a dependency on Jsonnet.
+
+	// Serialize the ConfigFile to JSON
+	jsonData, err := json.MarshalIndent(c.ConfigFile, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to serialize configuration to JSON: %v", err)
+	}
+
+	// Write the JSON data to the file, overriding if it already exists
+	err = os.WriteFile(c.GetGeneratedPath(), jsonData, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write configuration to %s: %v", c.GetGeneratedPath(), err)
 	}
 
 	return nil

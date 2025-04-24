@@ -293,12 +293,13 @@ func TestCommandPushPull(t *testing.T) {
 		require.NoError(t, err)
 		err = CurrentRepository().Commit()
 		require.NoError(t, err)
+		require.NoError(t, CurrentConfig().Save()) // Simulate Cobra PostRun logic
 		err = CurrentRepository().Push(false, false)
 		require.NoError(t, err)
 
 		// Check origin
 		require.FileExists(t, filepath.Join(origin, "index"))
-		// require.FileExists(t, filepath.Join(origin, "config")) // TODO push config
+		require.FileExists(t, filepath.Join(origin, "config.json"))
 		CurrentIndex().Walk(AnyPath, func(entry *IndexEntry, objects []*IndexObject, blobs []*IndexBlob) error {
 			// The origin FS must contains a file for every pack file and blob
 			assert.FileExists(t, filepath.Join(origin, entry.Ref().ObjectRelativePath()))

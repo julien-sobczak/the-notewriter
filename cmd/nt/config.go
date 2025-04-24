@@ -14,3 +14,11 @@ func CheckConfig() {
 		os.Exit(1)
 	}
 }
+
+func SaveConfig() {
+	err := core.CurrentConfig().Save()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+}

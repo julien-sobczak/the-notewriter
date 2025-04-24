@@ -26,11 +26,7 @@ var rootCmd = &cobra.Command{
 	Short: "The NoteWriter is a file-based note management tool",
 	Long:  `A Powerful and Flexible Note Management Tool using only Markdown files.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		if len(args) == 0 {
-			// Missing command...
-			return
-		}
-		if args[0] != "init" {
+		if cmd.Name() != "init" {
 			// Ignore when configuration doesn't still exist
 			CheckConfig()
 		}
@@ -48,6 +44,12 @@ var rootCmd = &cobra.Command{
 
 		if parallel > 0 {
 			core.CurrentConfig().SetParallel(parallel)
+		}
+	},
+	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		if cmd.Name() != "init" {
+			// Ignore when configuration doesn't still exist
+			SaveConfig()
 		}
 	},
 }

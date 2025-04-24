@@ -711,6 +711,15 @@ func (r *Repository) Push(interactive, force bool) error {
 		return err
 	}
 
+	// Override origin config with the local one
+	data, err = os.ReadFile(CurrentConfig().GetGeneratedPath())
+	if err != nil {
+		return fmt.Errorf("failed to read configuration file %s: %v", CurrentConfig().GetGeneratedPath(), err)
+	}
+	if err := origin.PutObject("config.json", data); err != nil {
+		return err
+	}
+
 	// Cleanup obsolete files
 	for _, missingPackFile := range diffReverse.MissingPackFiles {
 		_ = origin.DeleteObject(missingPackFile.ObjectRelativePath())
