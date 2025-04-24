@@ -3,8 +3,7 @@
 ## TODO: Backlog
 
 * [ ] Push `config.json` to `.nt` and push it to remotes
-* [ ] Complete attributes in `config.jsonnet`
-* [ ] Rework `linter.md` and introduce a new `config.md`
+* [ ] Rework documentation `linter.md` and introduce a new `config.md`
 
 ## TODO: Features
 

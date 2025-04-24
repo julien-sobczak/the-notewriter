@@ -209,6 +209,18 @@ func TestCastFn(t *testing.T) {
 		assert.True(t, ok)
 		assert.NotZero(t, v)
 		assert.Equal(t, time.Date(2024, time.Month(12), 31, 17, 32, 0, 0, time.UTC), v.In(time.UTC))
+
+		// Year and month are OK
+		v, ok = CastDateFn("2024-12")
+		assert.True(t, ok)
+		assert.NotZero(t, v)
+		assert.Equal(t, time.Date(2024, time.Month(12), 1, 0, 0, 0, 0, time.UTC), v)
+
+		// Year is OK
+		v, ok = CastDateFn("2024")
+		assert.True(t, ok)
+		assert.NotZero(t, v)
+		assert.Equal(t, time.Date(2024, time.Month(1), 1, 0, 0, 0, 0, time.UTC), v)
 	})
 
 }
@@ -371,6 +383,8 @@ key3:
 	})
 
 	t.Run("Cast", func(t *testing.T) {
+		SetUpRepositoryFromTempDir(t) // Force a .nt to have default types
+
 		attributes := AttributeSet(map[string]any{
 			"key1": 10,
 			"key2": []any{"value1", "value2"},
@@ -378,17 +392,41 @@ key3:
 			"key4": "single",
 		})
 
-		schemaCompliant := map[string]string{
-			"key1": "string",
-			"key2": "string[]",
-			"key3": "integer",
-			"key4": "string[]",
+		schemaCompliant := ConfigAttributes{
+			"key1": {
+				Name: "key1",
+				Type: "string",
+			},
+			"key2": {
+				Name: "key2",
+				Type: "string[]",
+			},
+			"key3": {
+				Name: "key3",
+				Type: "integer",
+			},
+			"key4": {
+				Name: "key4",
+				Type: "string[]",
+			},
 		}
-		schemaNonCompliant := map[string]string{
-			"key1": "boolean", // Not possible
-			"key2": "string[]",
-			"key3": "integer",
-			"key4": "string[]",
+		schemaNonCompliant := ConfigAttributes{
+			"key1": {
+				Name: "key1",
+				Type: "bool", // Not possible
+			},
+			"key2": {
+				Name: "key2",
+				Type: "string[]",
+			},
+			"key3": {
+				Name: "key3",
+				Type: "integer",
+			},
+			"key4": {
+				Name: "key4",
+				Type: "string[]",
+			},
 		}
 
 		// Attributes are casted if possible

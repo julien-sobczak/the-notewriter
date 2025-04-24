@@ -17,38 +17,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// AttributeTypes describes the types of a list attributes.
-// AttributeTypes is immutable.
-type AttributeTypes map[string]string
-
-// Extends enriches the current attribute types with new ones.
-// When an attribute is defined in both sets, the one from the current set is kept.
-func (a AttributeTypes) Extends(other AttributeTypes) AttributeTypes {
-	return other.Overrides(a)
-}
-
-// Extends enriches the current attribute types with new ones.
-// When an attribute is defined in both sets, the one from the other set is kept.
-func (a AttributeTypes) Overrides(other AttributeTypes) AttributeTypes {
-	var res AttributeTypes = make(map[string]string)
-	for key, value := range a {
-		res[key] = value
-	}
-	for key, value := range other {
-		res[key] = value
-	}
-	return a
-}
-
-// Definition of reserved attributes
-var ReservedAttributesTypes AttributeTypes = map[string]string{
-	"tags":       "string[]",
-	"references": "string[]",
-	"slug":       "string",
-	"source":     "string",
-	"date":       "date",
-}
-
 var (
 	regexTags                   = regexp.MustCompile("`#(\\S+)`")                          // Ex: `#favorite`
 	regexAttributes             = regexp.MustCompile("`@([a-zA-Z0-9_.-]+)\\s*:\\s*(.+?)`") // Ex: `@source: _A Book_`, `@isbn: 9780807014271`
@@ -229,6 +197,21 @@ var CastDateFn CastFn[time.Time] = func(value any) (time.Time, bool) {
 		return parsedDate, true
 	}
 
+	parsedDate, err = time.Parse(time.DateOnly, value.(string)) // Ex: "2023-10-15"
+	if err == nil {
+		return parsedDate, true
+	}
+
+	parsedDate, err = time.Parse("2006-01", value.(string)) // Ex: "2023-10"
+	if err == nil {
+		return parsedDate, true
+	}
+
+	parsedDate, err = time.Parse("2006", value.(string)) // Ex: "2023"
+	if err == nil {
+		return parsedDate, true
+	}
+
 	return time.Time{}, false
 }
 
@@ -237,7 +220,15 @@ func NewAttributeSetFromMarkdown(md *markdown.File) (AttributeSet, error) {
 	if err != nil {
 		return nil, err
 	}
-	return AttributeSet(attributesMap).Cast(ReservedAttributesTypes)
+	return AttributeSet(attributesMap).Cast(CurrentConfigFile().Attributes)
+}
+
+// SetIfMissing sets the attribute only if it is not already set.
+func (a AttributeSet) SetIfMissing(key string, value any) {
+	// IMPROVEMENT Avoid side-effect methods
+	if _, ok := a[key]; !ok {
+		a[key] = value
+	}
 }
 
 // DiffKeys returns the keys present in only one of the attribute sets.
@@ -403,22 +394,19 @@ func (a AttributeSet) CastValueAsString(name string) string { // FIXME really us
 }
 
 // CastOrIgnore enforces the types declared in linter schemas and ignore attributes that cannot be cast.
-func (a AttributeSet) CastOrIgnore(types AttributeTypes) AttributeSet {
-	// Reserved attributes always take precedence
-	types = types.Overrides(ReservedAttributesTypes)
-
-	result := make(map[string]interface{})
+func (a AttributeSet) CastOrIgnore(types ConfigAttributes) AttributeSet {
+	result := make(AttributeSet)
 
 	// Implementation: We ignore invalid values to avoid having
 	// to cast or manage errors when reading them later.
 
 	for key, value := range a {
-		declaredType, found := types[key]
+		declaredType, found := types.Find(key)
 		if !found {
 			result[key] = value
 			continue
 		}
-		if typedValue, ok := CastAttribute(value, declaredType); ok {
+		if typedValue, ok := CastAttribute(value, *declaredType); ok {
 			result[key] = typedValue
 		}
 	}
@@ -427,20 +415,18 @@ func (a AttributeSet) CastOrIgnore(types AttributeTypes) AttributeSet {
 }
 
 // Cast enforces the types declared in linter schemas.
-func (a AttributeSet) Cast(types AttributeTypes) (AttributeSet, error) {
-	// Reserved attributes always take precedence
-	types = types.Overrides(ReservedAttributesTypes)
-
+func (a AttributeSet) Cast(types ConfigAttributes) (AttributeSet, error) {
 	result := make(map[string]interface{})
 	for key, value := range a {
-		declaredType, found := types[key]
+		declaredType, found := types.Find(key)
 		if !found {
 			result[key] = value
 			continue
 		}
-		typedValue, ok := CastAttribute(value, declaredType)
+
+		typedValue, ok := CastAttribute(value, *declaredType)
 		if !ok {
-			return nil, fmt.Errorf("invalid value for attribute %s: %v", key, value)
+			return nil, fmt.Errorf("invalid value for attribute %s: %v", declaredType, value)
 		}
 		result[key] = typedValue
 	}
@@ -460,16 +446,18 @@ func CastArray[T any](arr []any, castFn CastFn[T]) (results []T, ok bool) {
 }
 
 // CastAttribute enforces the type declared in linter schemas.
-func CastAttribute(value any, declaredType string) (any, bool) {
+func CastAttribute(value any, declaredType ConfigAttribute) (any, bool) {
 	if value == nil {
 		return nil, true
 	}
 
-	if strings.HasSuffix(declaredType, "[]") {
+	typeName := declaredType.Type
+
+	if strings.HasSuffix(typeName, "[]") {
 		if !IsArray(value) {
 			value = []any{value}
 		}
-		itemType := strings.TrimSuffix(declaredType, "[]")
+		itemType := strings.TrimSuffix(typeName, "[]")
 		arr := UnpackArray(value)
 		switch itemType {
 		case "string":
@@ -481,13 +469,15 @@ func CastAttribute(value any, declaredType string) (any, bool) {
 		case "float":
 			return CastArray(arr, CastFloatFn)
 		case "bool":
+			fallthrough
+		case "boolean":
 			return CastArray(arr, CastBoolFn)
 		case "date":
 			return CastArray(arr, CastDateFn)
 		}
 	}
 
-	switch declaredType {
+	switch typeName {
 	case "string":
 		return CastStringFn(value)
 	case "object":
@@ -497,6 +487,8 @@ func CastAttribute(value any, declaredType string) (any, bool) {
 	case "float":
 		return CastFloatFn(value)
 	case "bool":
+		fallthrough
+	case "boolean":
 		return CastBoolFn(value)
 	case "date":
 		return CastDateFn(value)
@@ -512,7 +504,7 @@ func CastAttribute(value any, declaredType string) (any, bool) {
 
 // ExtractBlockTagsAndAttributes searches for all tags and attributes declared on standalone lines
 // (in comparison with tags/attributes defined, for example, on To-Do list items).
-func ExtractBlockTagsAndAttributes(content markdown.Document, types map[string]string) (TagSet, AttributeSet) { // FIXME returns only AttributeSet and uses Tags() instead
+func ExtractBlockTagsAndAttributes(content markdown.Document) (TagSet, AttributeSet) {
 
 	// Collect tags and attributes
 	var tags TagSet
@@ -543,7 +535,7 @@ func ExtractBlockTagsAndAttributes(content markdown.Document, types map[string]s
 	}
 
 	// Cast (ensure the tags attribute is an array too)
-	attributes = attributes.CastOrIgnore(types)
+	attributes = attributes.CastOrIgnore(CurrentConfigFile().Attributes)
 
 	tagsInAttributes := attributes.Tags()
 
@@ -710,15 +702,4 @@ func UnpackArray(value any) []any {
 		r[i] = v.Index(i).Interface()
 	}
 	return r
-}
-
-/* Utils */
-
-// GetAttributeTypes returns the attribute types defined in the current configuration.
-func GetAttributeTypes() map[string]string {
-	result := make(map[string]string)
-	for _, attribute := range CurrentConfig().ConfigFile.Attributes {
-		result[attribute.Name] = attribute.Type
-	}
-	return result
 }

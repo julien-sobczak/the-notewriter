@@ -233,6 +233,54 @@ func TestParseFileWithTestdata(t *testing.T) {
 
 func TestParseFileWithTempdir(t *testing.T) {
 
+	t.Run("Attributes & Tags", func(t *testing.T) {
+		// Test attributes and tags defined in Front Matter and in notes
+		// are correctly parsed and merged.
+		core.FreezeNow(t)
+
+		root := core.SetUpRepositoryFromTempDir(t)
+		core.MustWriteFile(t, "index.md", text.UnescapeTestContent(`
+---
+name: Voltaire
+occupation: writer, philosopher
+nationality: French
+tags: [philosophy]
+---
+
+# Voltaire
+
+
+## Quote: On Appreciation
+
+‛#being‛ ‛@source: Unknown‛
+
+Appreciation is a wonderful thing: It makes what is excellent in others belong to us as well.
+
+
+`))
+		md := markdown.MustParseFile(filepath.Join(root, "index.md"))
+		index, err := core.ParseFile(md, nil)
+		require.NoError(t, err)
+
+		require.Len(t, index.Notes, 1)
+
+		// Check attributes and notes
+		note := index.Notes[0]
+		assert.Equal(t, core.AttributeSet(map[string]any{
+			"name":        "Voltaire",
+			"nationality": "French",
+			"occupation":  "writer, philosopher",
+			"source":      "Unknown",
+			"tags":        []string{"philosophy", "being"},
+		}), note.Attributes)
+		assert.Equal(t, core.AttributeSet(map[string]any{
+			"source": "Unknown",
+			"tags":   []string{"being"},
+		}), note.NoteAttributes)
+		assert.Equal(t, core.TagSet{"being"}, note.NoteTags)
+		assert.Equal(t, core.TagSet{"philosophy", "being"}, note.Attributes.Tags())
+	})
+
 	t.Run("Slug", func(t *testing.T) {
 		core.FreezeNow(t)
 
@@ -442,6 +490,53 @@ Another note without a code block.
 		firstNote := file.Notes[0]
 		require.Equal(t, "```md\n## Note: A Markdown Heading\n\nThis note is not a note but a code block inside a note.\n```", firstNote.Body.String())
 	})
+
+	t.Run("Journal", func(t *testing.T) {
+		// Journal note titles are parsed to extract the date.
+		core.FreezeNow(t)
+
+		root := core.SetUpRepositoryFromTempDir(t)
+		core.MustWriteFile(t, "2024-12-05.md", text.UnescapeTestContent(`
+# Journal: 2024-12-05
+
+## Work
+
+* Completed some work.
+`))
+		core.MustWriteFile(t, "2024-12-06.md", text.UnescapeTestContent(`
+# Journal: 2024-12-05
+
+‛@date: 2024-12-06‛
+
+## Work
+
+* Completed some work.
+`))
+
+		md1 := markdown.MustParseFile(filepath.Join(root, "2024-12-05.md"))
+		file1, err := core.ParseFile(md1, nil)
+		require.NoError(t, err)
+
+		md2 := markdown.MustParseFile(filepath.Join(root, "2024-12-06.md"))
+		file2, err := core.ParseFile(md2, nil)
+		require.NoError(t, err)
+
+		require.Len(t, file1.Notes, 1)
+		require.Len(t, file2.Notes, 1)
+
+		// An attribute "date" must have been added to the note in the first file
+		note := file1.Notes[0]
+		require.Equal(t, "Journal", note.Type)
+		require.Contains(t, note.Attributes, "date")
+		assert.Equal(t, "2024-12-05", note.Attributes["date"])
+
+		// The attribute "date" must have been preserved on the note in the second file
+		note = file2.Notes[0]
+		require.Equal(t, "Journal", note.Type)
+		require.Contains(t, note.Attributes, "date")
+		assert.Equal(t, "2024-12-06", note.Attributes["date"]) // Do not override existing attributes
+	})
+
 }
 
 func TestDetermineFileSlug(t *testing.T) {
@@ -621,6 +716,60 @@ func TestFormatLongTitle(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			actual := core.FormatLongTitle(tt.longTitle)
 			assert.Equal(t, tt.longTitle, actual)
+		})
+	}
+}
+
+func TestExtractDateFromTitle(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    markdown.Document // input
+		expected string            // expected date
+		found    bool              // whether a date was found
+	}{
+		{
+			name:     "Valid full date",
+			input:    "Journal: 2023-10-15.",
+			expected: "2023-10-15",
+			found:    true,
+		},
+		{
+			name:     "Valid year and month",
+			input:    "Journal: The event happened in 2023-10",
+			expected: "2023-10",
+			found:    true,
+		},
+		{
+			name:     "Valid year only",
+			input:    "Journal: We Are in 2023",
+			expected: "2023",
+			found:    true,
+		},
+		{
+			name:     "Multiple dates, pick first",
+			input:    "Journal: 2023-10-15 and 2022-05-01.",
+			expected: "2023-10-15",
+			found:    true,
+		},
+		{
+			name:     "Invalid date format but valid year",
+			input:    "Journal: The date is 15-10-2023.",
+			expected: "2023",
+			found:    true,
+		},
+		{
+			name:     "No date present",
+			input:    "Journal: No date",
+			expected: "",
+			found:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual, found := core.ExtractDateFromTitle(tt.input)
+			assert.Equal(t, tt.expected, actual)
+			assert.Equal(t, tt.found, found)
 		})
 	}
 }

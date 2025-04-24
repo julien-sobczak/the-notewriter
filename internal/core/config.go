@@ -70,12 +70,30 @@ var (
 	converterSingleton medias.Converter
 )
 
+type ConfigAttributes map[string]*ConfigAttribute
+type ConfigTypes map[string]*ConfigType
+
+// Find returns the attribute with the given name or nil if not found.
+func (a ConfigAttributes) Find(name string) (*ConfigAttribute, bool) {
+	for _, attribute := range a {
+		if attribute.Name == name {
+			return attribute, true
+		}
+		for _, alias := range attribute.Aliases {
+			if alias == name {
+				return attribute, true
+			}
+		}
+	}
+	return nil, false
+}
+
 // Note: Fields must be public for toml package to unmarshall
 type ConfigFile struct {
 	Core ConfigCore
 
-	Attributes map[string]*ConfigAttribute
-	Types      map[string]*ConfigType
+	Attributes ConfigAttributes
+	Types      ConfigTypes
 
 	// Remotes
 	Remote ConfigRemote
@@ -223,6 +241,14 @@ func (f *ConfigFile) ConfigureS3Remote(bucketName, accessKey, secretKey string) 
 		SecretKey:  secretKey,
 	}
 	return f
+}
+
+func (c ConfigAttribute) String() string {
+	typeStr := c.Type
+	if c.Pattern != "" {
+		typeStr = fmt.Sprintf("%s/%s", c.Type, c.Pattern)
+	}
+	return fmt.Sprintf("%s (%s)", c.Name, typeStr)
 }
 
 /*

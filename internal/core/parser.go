@@ -175,12 +175,12 @@ func ParseFile(md *markdown.File, mdParent *markdown.File) (*ParsedFile, error) 
 	if err != nil {
 		return nil, err
 	}
-	parentAttributes = parentAttributes.CastOrIgnore(GetAttributeTypes())
+	parentAttributes = parentAttributes.CastOrIgnore(CurrentConfigFile().Attributes)
 	fileAttributes, err := NewAttributeSetFromMarkdown(md)
 	if err != nil {
 		return nil, err
 	}
-	fileAttributes = fileAttributes.CastOrIgnore(GetAttributeTypes())
+	fileAttributes = fileAttributes.CastOrIgnore(CurrentConfigFile().Attributes)
 	fileAttributes = parentAttributes.Merge(fileAttributes)
 
 	// Check if file must be ignored
@@ -266,7 +266,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		}
 
 		// Determine the attributes
-		noteTags, noteAttributes := ExtractBlockTagsAndAttributes(noteBody, GetAttributeTypes())
+		noteTags, noteAttributes := ExtractBlockTagsAndAttributes(noteBody)
 
 		// Determine the titles
 		title := section.HeadingText
@@ -297,7 +297,6 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		if err != nil {
 			return nil, err
 		}
-		// TODO convert quotes
 
 		// Find a possible parent note
 		i := len(notes) - 1
@@ -351,6 +350,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 			Comment:        comment,
 		}
 
+		// Type-specific post-processing
 		if parsedNote.Type == TypeGenerator {
 			// Generator notes are not saved in database
 			// They are parsed, evaluated and the results is injected as if
@@ -366,6 +366,20 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 				p.Medias = append(p.Medias, generatedMedias...)
 			}
 		} else {
+			// Type-specific post-processing
+			switch parsedNote.Type {
+			case "Journal":
+				// Automatically add a "date" attribute if the note title contains a date
+				if date, ok := ExtractDateFromTitle(parsedNote.Title); ok {
+					parsedNote.Attributes.SetIfMissing("date", date)
+					parsedNote.NoteAttributes.SetIfMissing("date", date)
+				}
+			case "Quote":
+				// Automatically insert Markdown quotation syntax if not present
+				// TODO
+				break
+			}
+
 			notes = append(notes, parsedNote)
 		}
 	}
@@ -387,6 +401,37 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 	}
 
 	return notes, nil
+}
+
+// ExtractDateFromTitle extracts a date from the title of a note.
+// Several patterns matching common US date formats are supported.
+func ExtractDateFromTitle(input markdown.Document) (string, bool) {
+	// Define common date formats
+	formats := []string{
+		"2006-01-02", // "2006-01-02"
+		"2006-01",    // "2006-01"
+		"2006",       // "2006"
+	}
+
+	// Regular expression to find potential date substrings
+	dateRegex := regexp.MustCompile(`\b\d{4}(-\d{2})?(-\d{2})?\b`)
+
+	// Find all potential date substrings
+	matches := dateRegex.FindAllString(input.String(), -1)
+
+	// Try parsing each match with the common date formats
+	for _, match := range matches {
+		for _, format := range formats {
+			if _, err := time.Parse(format, match); err == nil {
+				if match != "" {
+					return match, true
+				}
+			}
+		}
+	}
+
+	// Return false if no valid date is found
+	return "", false
 }
 
 // FilterNonInheritableAttributes filters the attributes to keep only the inheritable ones
