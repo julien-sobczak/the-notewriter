@@ -9,6 +9,7 @@ import (
 )
 
 func init() {
+	initCmd.Flags().BoolVarP(&interactive, "i", "", false, "ask before pulling")
 	rootCmd.AddCommand(initCmd)
 }
 
@@ -23,7 +24,13 @@ var initCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		_, err = core.InitConfigFromDirectory(cwd)
+		if interactive {
+			// IMPROVEMENT: use Bubbletea to customize the generated config file
+		}
+
+		// IMPROVEMENT: check ffmpeg (or the chosen option) is present in $PATH
+
+		_, err = core.InitConfigFromDirectory(cwd, core.DefaultConfigOptions)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error while initializing configuration: %v", err)
 			os.Exit(1)

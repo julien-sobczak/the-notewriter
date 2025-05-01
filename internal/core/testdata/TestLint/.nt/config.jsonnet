@@ -1,13 +1,13 @@
 local nt = import 'nt.libsonnet';
 
 {
-    Core: nt.Core + {
+    Core: {
         medias: {
             command: "random",
         },
     },
 
-    Attributes: nt.Attributes + {
+    Attributes: {
         // Add a name attribute that is required on type Quote
         name: {
             name: "name",
@@ -24,8 +24,8 @@ local nt = import 'nt.libsonnet';
         },
     },
 
-    Types: nt.Types + {
-        Quote: nt.Types.Quote + {
+    Types: nt.DefaultTypes + {
+        Quote: nt.DefaultTypes.Quote + {
             requiredAttributes: ["name"],
         },
     },

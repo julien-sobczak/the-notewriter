@@ -1,91 +1,30 @@
 {
-    Core: {
-        extensions: ["md", "markdown"],
-        medias: {
-            command: "ffmpeg",
-            parallel: 1,
-            preset: "ultrafast",
-        },
-    },
-
-    // Declare reserved attributes
-    Attributes: { // IMPROVEMENT hardcoded in go?
-        title: {
-            name: "title",
-            type: "string",
-            inherit: false, # Each note must have a unique title
-        },
-        slug: {
-            name: "slug",
-            type: "string",
-            inherit: false, # Same reason as "title"
-        },
-
-        date: {
-            name: "date",
-            type: "string",
-            format: "date", // TODO map[format]{pattern} ???
-            inherit: true,
-        },
-
-        hook: {
-            name: "hook",
-            type: "string[]",
-            inherit: false, // Subnotes must not trigger the hook
-        },
-
-        tags: {
-            name: "tags",
-            type: "string[]",
-            inherit: true,
-        },
-
-        source: {
-            name: "source",
-            type: "string",
-            format: "markdown",
-            inherit: true,
-        },
-
-        references: {
-            name: "references",
-            type: "string[]",
-            format: "markdown",
-            inherit: false,
-        },
-
-        inspirations: {
-            name: "inspirations",
-            type: "string[]",
-            format: "markdown",
-            inherit: false,
-        },
-    },
-
     // Declare default note types
-    Types: {
+    DefaultTypes: {
         // Prefedefined objects = types with custom logic in The NoteWriter when processing them
         Note: {
             name: "Note",
         },
-        Journal: $.Types.Note + {
+        Journal: self.Note + {
             name: "Journal",
             requiredAttributes: ["date"],
+            // TODO add posprocessing: ["extractDateFromTitle"]
         },
-        Quote: $.Types.Note + {
+        Quote: self.Note + {
             name: "Quote",
+            // TODO add posprocessing: ["rewriteQuoteInMarkdown"]
         },
-        Artwork: $.Types.Note + {
+        Artwork: self.Note + {
             name: "Artwork",
         },
-        Flashcard: $.Types.Note + {
+        Flashcard: self.Note + {
             name: "Flashcard",
             optionalAttributes: ["srs.algorithm", "srs.boostFactor"]
         },
-        Todo: $.Types.Note + {
+        Todo: self.Note + {
             name: "Todo",
         },
-        Generator: $.Types.Note + {
+        Generator: self.Note + {
             name: "Generator",
             optionalAttributes: ["file", "interpreter"]
         },
