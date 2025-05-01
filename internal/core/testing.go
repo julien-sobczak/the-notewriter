@@ -83,17 +83,16 @@ func configureDir(t *testing.T, dirname string) {
 		}
 	}
 
+	// Force debug level in tests to diagnose more easily
+	CurrentLogger().SetVerboseLevel(VerboseDebug)
+	CurrentLogger().Debugf("✨ Set up directory %q", ntDir)
+
 	configFile := filepath.Join(dirname, ".nt", "config.jsonnet")
 	if _, err := os.Stat(configFile); os.IsNotExist(err) {
-		// Create a default configuration file
-		// IMPROVEMENT Find a better way to override config values from default config
-		defaultConfigLibFileForTests := strings.ReplaceAll(DefaultConfigLibFile, "ffmpeg", "random")
-		if err := os.WriteFile(filepath.Join(ntDir, "nt.libsonnet"), []byte(defaultConfigLibFileForTests), os.ModePerm); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(ntDir, "config.jsonnet"), []byte(DefaultConfigFile), os.ModePerm); err != nil {
-			t.Fatal(err)
-		}
+		// Create a default configuration file but ensure no side effects
+		InitConfigFileFromDirectory(dirname, ConfigOptions{
+			MediaConverter: "random",
+		})
 	}
 
 	// Force the application to consider the temporary directory as the home
@@ -102,10 +101,6 @@ func configureDir(t *testing.T, dirname string) {
 		os.Unsetenv("NT_HOME")
 		Reset()
 	})
-
-	// Force debug level in tests to diagnose more easily
-	CurrentLogger().SetVerboseLevel(VerboseDebug)
-	CurrentLogger().Debugf("✨ Set up directory %q", ntDir)
 }
 
 /* Reproducible Tests */

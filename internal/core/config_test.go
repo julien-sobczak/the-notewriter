@@ -65,7 +65,7 @@ func TestInitConfiguration(t *testing.T) {
 		"journal/2022-12-24.md": `# Blablabla`,
 	})
 
-	c, err := InitConfigFromDirectory(dir)
+	c, err := InitConfigFromDirectory(dir, DefaultConfigOptions)
 	require.NoError(t, err)
 	require.NotNil(t, c)
 
@@ -138,9 +138,6 @@ func TestCheckConfig(t *testing.T) {
 
 			".nt/config.jsonnet": `
 {
-    Core: {
-        extensions: ["md"]
-    },
 	Linter: {
         Rules: [
 			{
@@ -165,9 +162,6 @@ func TestCheckConfig(t *testing.T) {
 
 			".nt/config.jsonnet": `
 {
-    Core: {
-        extensions: ["md"]
-    },
 	Linter: {
         Rules: [
 			{
@@ -191,12 +185,8 @@ func TestCheckConfig(t *testing.T) {
 
 			".nt/config.jsonnet": `
 {
-    Core: {
-        extensions: ["md"],
-    },
-
     Attributes: {
-        date: {
+        mydate: {
             name: "isbn",
             type: "string",
             pattern: "(\\d{10,13",
@@ -225,7 +215,6 @@ func TestCheckConfig(t *testing.T) {
 				name: "Invalid template in references",
 				config: `
 {
-    Core: { extensions: ["md"] },
 	References: [
 		{
 			title: "A book",
@@ -247,7 +236,6 @@ func TestCheckConfig(t *testing.T) {
 				name: "Invalid path in references",
 				config: `
 {
-    Core: { extensions: ["md"] },
 	References: [
 		{
 			title: "A book",
@@ -267,7 +255,6 @@ func TestCheckConfig(t *testing.T) {
 				name: "Deck attributes",
 				config: `
 {
-    Core: { extensions: ["md"] },
 	Decks: [
 		{
 			name: "Life",

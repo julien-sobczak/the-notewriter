@@ -2,6 +2,7 @@ package core
 
 import (
 	"bufio"
+	"bytes"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"text/template"
 
 	"github.com/google/go-jsonnet"
 	"github.com/julien-sobczak/the-notewriter/internal/medias"
@@ -21,7 +23,10 @@ import (
 )
 
 //go:embed config.jsonnet
-var DefaultConfigFile string
+var DefaultConfigFile string // FIXME remove
+
+//go:embed config.jsonnet.tmpl
+var DefaultConfigTemplateFile string
 
 //go:embed nt.libsonnet
 var DefaultConfigLibFile string
@@ -550,6 +555,60 @@ func ReadConfigFromDirectory(path string) (*Config, error) {
 	return config, nil
 }
 
+// ReservedAttributes are the attributes that are used internally by the application and must not be overriden or redeclared.
+var ReservedAttributes = map[string]ConfigAttribute{
+	"title": {
+		Name:    "title",
+		Type:    "string",
+		Inherit: BoolPointer(false), // Each note must have a unique title
+	},
+	"slug": {
+		Name:    "slug",
+		Type:    "string",
+		Inherit: BoolPointer(false), // Same reason as "title"
+	},
+
+	"date": {
+		Name:    "date",
+		Type:    "string",
+		Format:  "date", // TODO map[format]{pattern} ???
+		Inherit: BoolPointer(true),
+	},
+
+	"hook": {
+		Name:    "hook",
+		Type:    "string[]",
+		Inherit: BoolPointer(false), // Subnotes must not trigger the hook
+	},
+
+	"tags": {
+		Name:    "tags",
+		Type:    "string[]",
+		Inherit: BoolPointer(true),
+	},
+
+	"source": {
+		Name:    "source",
+		Type:    "string",
+		Format:  "markdown",
+		Inherit: BoolPointer(true),
+	},
+
+	"references": {
+		Name:    "references",
+		Type:    "string[]",
+		Format:  "markdown",
+		Inherit: BoolPointer(false),
+	},
+
+	"inspirations": {
+		Name:    "inspirations",
+		Type:    "string[]",
+		Format:  "markdown",
+		Inherit: BoolPointer(false),
+	},
+}
+
 func parseConfigFile(jsonnetPath string) (*ConfigFile, error) {
 	vm := jsonnet.MakeVM()
 	jsonContent, err := vm.EvaluateFile(jsonnetPath)
@@ -558,7 +617,17 @@ func parseConfigFile(jsonnetPath string) (*ConfigFile, error) {
 	}
 
 	// Parse the JSON content
-	var result ConfigFile
+	result := ConfigFile{
+		// Default values
+		Core: ConfigCore{
+			Extensions: []string{"md", "markdown"},
+			Medias: ConfigMedias{
+				Command:  "ffmpeg",
+				Parallel: 1,
+				Preset:   "ultrafast",
+			},
+		},
+	}
 	err = json.Unmarshal([]byte(jsonContent), &result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse JSON: %v", err)
@@ -594,6 +663,14 @@ func parseConfigFile(jsonnetPath string) (*ConfigFile, error) {
 		}
 	}
 
+	// Add reserved attributes
+	if result.Attributes == nil {
+		result.Attributes = make(ConfigAttributes)
+	}
+	for _, attribute := range ReservedAttributes {
+		result.Attributes[attribute.Name] = &attribute
+	}
+
 	return &result, err
 }
 
@@ -617,7 +694,7 @@ func parseIgnoreFile(content string) (*IgnoreFile, error) {
 }
 
 // InitConfigFromDirectory creates the .nt configuration directory with default files including .ntignore.
-func InitConfigFromDirectory(path string) (*Config, error) {
+func InitConfigFromDirectory(path string, options ConfigOptions) (*Config, error) {
 	currentConfig, _ := ReadConfigFromDirectory(path)
 	if currentConfig != nil {
 		// Do not override current configuration
@@ -630,20 +707,14 @@ func InitConfigFromDirectory(path string) (*Config, error) {
 		return nil, err
 	}
 
-	// Init .nt/nt.libsonnet file
-	ntConfigLibPath := filepath.Join(ntPath, "nt.libsonnet")
-	if err := os.WriteFile(ntConfigLibPath, []byte(DefaultConfigLibFile), 0644); err != nil {
-		return nil, err
-	}
-	// Init .nt/config.jsonnet file
-	ntConfigPath := filepath.Join(ntPath, "config.jsonnet")
-	if err := os.WriteFile(ntConfigPath, []byte(DefaultConfigFile), 0644); err != nil {
-		return nil, err
+	err := InitConfigFileFromDirectory(path, options)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init config file: %v", err)
 	}
 
 	// Init .nt/.gitignore file
 	gitIgnorePath := filepath.Join(ntPath, ".gitignore")
-	_, err := os.Stat(gitIgnorePath)
+	_, err = os.Stat(gitIgnorePath)
 	if os.IsNotExist(err) { // Do not override existing file!
 		err = os.WriteFile(gitIgnorePath, []byte(DefaultGitIgnore), 0644)
 		if err != nil {
@@ -667,6 +738,50 @@ func InitConfigFromDirectory(path string) (*Config, error) {
 
 	// Reread configuration
 	return ReadConfigFromDirectory(path)
+}
+
+// ConfigOptions are the options used to initialize the configuration file.
+// Useful to override default values, especially in unit tests
+// (ex: avoid the external dependency on ffmpeg).
+type ConfigOptions struct {
+	// IMPROVEMENT add more options and ask questions during 'nt init -i'
+	MediaConverter string
+}
+
+// DefaultConfigOptions are the default options used to initialize the configuration file.
+var DefaultConfigOptions = ConfigOptions{
+	MediaConverter: "ffmpeg",
+}
+
+func InitConfigFileFromDirectory(path string, options ConfigOptions) error {
+	CurrentLogger().Debugf("✨ Set up file %s/.nt/config.jsonnet", path)
+
+	// Init .nt/nt.libsonnet file
+	ntConfigLibPath := filepath.Join(path, ".nt", "nt.libsonnet")
+	if err := os.WriteFile(ntConfigLibPath, []byte(DefaultConfigLibFile), 0644); err != nil {
+		return err
+	}
+
+	// Generate config.jsonnet file content.
+	// We use a template to allow for dynamic values (convenient in tests).
+	tmpl, err := template.New("config.jsonnet").Parse(DefaultConfigTemplateFile)
+	if err != nil {
+		// Syntax error?
+		return err
+	}
+	var buf bytes.Buffer
+	err = tmpl.Execute(&buf, options)
+	if err != nil {
+		return err
+	}
+
+	// Init .nt/config.jsonnet file
+	ntConfigPath := filepath.Join(path, ".nt", "config.jsonnet")
+	if err := os.WriteFile(ntConfigPath, buf.Bytes(), 0644); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *Config) Check() error {

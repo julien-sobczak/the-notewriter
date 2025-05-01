@@ -2,12 +2,18 @@
 
 ## TODO: Backlog
 
-* [ ] Push `config.json` to `.nt` and push it to remotes
+* [x] Append reserved attributes systematically
+* [x] Generate config in `init` using a Go template instead
+* [x] Add flag `-i` in `nt init` and a comment `IMPROVEMENT ask questions to customize the config file`
+* [ ] Add `postprocessing` attribute in `ConfigType`
+* [ ] Add attribute `pattern` in `ConfigType` to use custom heading formats
+* [ ] Remove `NoteType` constants completely (= true generic type system 💪)
 * [ ] Rework documentation `linter.md` and introduce a new `config.md`
 
 ## TODO: Features
 
-* [ ] Rework config to use Jsonnet
+* [x] Rework config to use Jsonnet
+* [ ] Rework to remove note types completely
 * [ ] Implement operations using CRDT datatypes
 
 ## TODO: Sprint
