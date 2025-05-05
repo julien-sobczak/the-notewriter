@@ -12,9 +12,6 @@ The linter reads its configuration from the YAML file `.nt/lint`. No file exists
 rules:
 - name: min-lines-between-notes
   args: [2]
-- name: no-free-note
-  includes:
-  - references/
 - name: no-dangling-media
 - name: no-dead-wikilink
 ```
@@ -31,12 +28,11 @@ Rules are declared under the attribute `rules`. Some rules accept arguments usin
 | `min-lines-between-notes` | Enforce a minimum number of lines between notes | <ul><li><code>int</code> The number of lines</li></ul> |
 |	`max-lines-between-notes` | Enforce a maximum number of lines between notes | <ul><li><code>int</code> The number of lines</li></ul> |
 |	`note-title-match` | Enforce a consistent naming for notes | <ul><li><code>string</code> A Golang regex</li></ul> |
-|	`no-free-note` | Forbid untyped notes | - |
 |	`no-dangling-media` | Path to media files must exist | - |
 |	`no-dead-wikilink` | Links between notes must exist | - |
 |	`no-extension-wikilink` | No extension in wikilinks | - |
 |	`no-ambiguous-wikilink` | No ambiguity in wikilinks | - |
-|	`require-quote-tag` | At least one tag on quotes (must match the optional pattern) | <ul><li><code>string</code> A regex that must match all accepted tags on quotes</li></ul> |
+|	`require-tag` | At least one tag on quotes (must match the optional pattern) | <ul><li><code>string</code> A regex that must match all accepted tags on quotes</li></ul> |
 |	`check-attribute` | Attributes must satisfy their schema if defined (see below) | - |
 
 
@@ -231,40 +227,6 @@ Use the rule `note-title-match` to apply naming conventions on your notes.
 
 :::
 
-### `no-free-note`
-
-
-Configuration:
-
-```yaml title=.nt/lint
-rules:
-- name: no-free-note
-```
-
-Example (with violations highlighted):
-
-```md {3}
-# Example
-
-## A free note
-
-This is a free note.
-
-## Note: A typed note
-
-This is a typed note.
-
-## Cheatsheet: Another typed note
-
-This is another typed note.
-```
-
-:::tip
-
-Use the rule `no-free-note` to catch notes that are wrongly or not typed.
-
-:::
-
 ### `no-dangling-media`
 
 
@@ -390,14 +352,14 @@ Use the rule `no-ambiguous-wikilink` to ensure links are explicit and can be fol
 
 :::
 
-### `require-quote-tag`
+### `require-tag`
 
 
 Configuration:
 
 ```yaml title=.nt/lint
 rules:
-- name: require-quote-tag
+- name: require-tag
   args:
   - "^(life|favorite)$"
 ```
@@ -406,10 +368,6 @@ Example (with violations highlighted):
 
 ```md {7,14}
 # Example
-
-## Note: A Note
-
-Only quotes are concerned by this rule.
 
 ## Quote: No Tag
 
@@ -428,7 +386,7 @@ This is the second quote.
 
 :::tip
 
-Use the rule `require-quote-tag` to enforce all quotes have tags and use the argument to limit the list of required tags.
+Use the rule `require-tag` to enforce notes have tags and use the argument to limit the list of required tags.
 
 :::
 

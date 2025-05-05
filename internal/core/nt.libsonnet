@@ -66,10 +66,16 @@
             {
                 name: "no-ambiguous-wikilink",
             },
-        RequireQuoteTags(tags)::
+        RequireTag(tags)::
             {
-                name: "require-quote-tag",
+                name: "require-tag",
                 args: ["^(" + std.join("|", tags) + ")$"],
+            },
+        RequireTagIf(query, tags)::
+            {
+                name: "require-tag",
+                args: ["^(" + std.join("|", tags) + ")$"],
+                query: query,
             },
     },
 }

@@ -61,6 +61,15 @@ func (t TagSet) Includes(tag string) bool {
 	return slices.Contains(t, tag)
 }
 
+func (t TagSet) IncludesAll(tags []string) bool {
+	for _, tag := range tags {
+		if !t.Includes(tag) {
+			return false
+		}
+	}
+	return true
+}
+
 /*
  * AttributeSet
  */

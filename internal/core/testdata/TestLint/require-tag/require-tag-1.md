@@ -1,8 +1,4 @@
-# Rule `require-quote-tag`
-
-## Note: A Note
-
-Only quotes are concerned by this rule.
+# Rule `require-tag`
 
 ## Quote: No Tag
 

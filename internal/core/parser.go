@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"regexp/syntax"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -351,7 +352,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		}
 
 		// Type-specific post-processing
-		if parsedNote.Type == TypeGenerator {
+		if parsedNote.Type == "Generator" {
 			// Generator notes are not saved in database
 			// They are parsed, evaluated and the results is injected as if
 			// the generated notes had been edited manually.
@@ -633,7 +634,7 @@ func ParseMedia(repositoryPath, absolutePath string) *ParsedMedia {
 }
 
 func (p *ParsedNote) extractFlashcard() (*ParsedFlashcard, error) {
-	if p.Type != TypeFlashcard {
+	if p.Type != "Flashcard" {
 		return nil, nil
 	}
 
@@ -933,4 +934,48 @@ func FormatLongTitle(titles ...markdown.Document) markdown.Document {
 	}
 
 	return markdown.Document(longTitle)
+}
+
+// Matches checks if the note matches the given query.
+func (n *ParsedNote) Matches(query *Query) bool {
+	if query == nil {
+		// No query, no filter
+		return true
+	}
+
+	if query.Slug != "" {
+		if !strings.EqualFold(n.Slug, query.Slug) {
+			return false
+		}
+	}
+	if query.Path != "" {
+		if !strings.HasPrefix(n.RelativePath, query.Path) {
+			return false
+		}
+	}
+	if len(query.Types) > 0 {
+		if !slices.Contains(query.Types, n.Type) {
+			return false
+		}
+	}
+	if len(query.Tags) > 0 {
+		if !n.NoteTags.IncludesAll(query.Tags) {
+			return false
+		}
+	}
+	if len(query.Attributes) > 0 {
+		for key, expectedValue := range query.Attributes {
+			noteValue, ok := n.Attributes[key]
+			if !ok {
+				return false
+			}
+			if expectedValue == noteValue {
+				return false
+			}
+		}
+	}
+
+	// query.Terms is not supported as parsed notes are still not indexed
+
+	return true
 }

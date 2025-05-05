@@ -62,8 +62,12 @@ type Violation struct {
 	Line int
 }
 
+func (v Violation) String() string {
+	return v.Message
+}
+
 // LintRule describes the interface that rules must conform.
-type LintRule func(*ParsedFile, []any) ([]*Violation, error)
+type LintRule func(*ParsedFile, *Query, []any) ([]*Violation, error)
 
 var LintRulesFn = map[string]LintRule{
 	// Enforce no duplicate between note titles
@@ -93,14 +97,14 @@ var LintRulesFn = map[string]LintRule{
 	// No ambiguity in wikilinks
 	"no-ambiguous-wikilink": NoAmbiguousWikilink,
 
-	// At least one tag on quotes (must match the optional pattern).
-	"require-quote-tag": RequireQuoteTag,
+	// At least one tag is present (must match the optional pattern).
+	"require-tag": RequireTag,
 }
 
 /* Rules */
 
 // NoDuplicateNoteTitle implements the rule "no-duplicate-note-title".
-func NoDuplicateNoteTitle(file *ParsedFile, args []any) ([]*Violation, error) {
+func NoDuplicateNoteTitle(file *ParsedFile, query *Query, args []any) ([]*Violation, error) {
 	var violations []*Violation
 
 	uniqueNoteTitles := make(map[string]bool)
@@ -126,7 +130,7 @@ var slugInventory map[string]bool // slug => true
 var slugInventoryOnce resync.Once // Build the inventory on first occurrence only.
 
 // NoDuplicateSlug implements the rule "no-duplicate-slug".
-func NoDuplicateSlug(file *ParsedFile, args []any) ([]*Violation, error) {
+func NoDuplicateSlug(file *ParsedFile, query *Query, args []any) ([]*Violation, error) {
 	slugInventoryOnce.Do(func() {
 		slugInventory = make(map[string]bool)
 	})
@@ -161,7 +165,7 @@ func NoDuplicateSlug(file *ParsedFile, args []any) ([]*Violation, error) {
 }
 
 // MinLinesBetweenNotes implements the rule "min-lines-between-notes".
-func MinLinesBetweenNotes(file *ParsedFile, args []any) ([]*Violation, error) {
+func MinLinesBetweenNotes(file *ParsedFile, query *Query, args []any) ([]*Violation, error) {
 	var violations []*Violation
 
 	if len(args) != 1 {
@@ -199,7 +203,7 @@ func MinLinesBetweenNotes(file *ParsedFile, args []any) ([]*Violation, error) {
 }
 
 // MaxLinesBetweenNotes implements the rule "min-lines-between-notes".
-func MaxLinesBetweenNotes(file *ParsedFile, args []any) ([]*Violation, error) {
+func MaxLinesBetweenNotes(file *ParsedFile, query *Query, args []any) ([]*Violation, error) {
 	var violations []*Violation
 
 	if len(args) != 1 {
@@ -246,7 +250,7 @@ func MaxLinesBetweenNotes(file *ParsedFile, args []any) ([]*Violation, error) {
 }
 
 // NoteTitleMatch implements the rule "note-title-match".
-func NoteTitleMatch(file *ParsedFile, args []any) ([]*Violation, error) {
+func NoteTitleMatch(file *ParsedFile, query *Query, args []any) ([]*Violation, error) {
 	var violations []*Violation
 
 	if len(args) != 1 {
@@ -276,7 +280,7 @@ func NoteTitleMatch(file *ParsedFile, args []any) ([]*Violation, error) {
 }
 
 // NoDanglingMedia implements the rule "no-dangling-media".
-func NoDanglingMedia(file *ParsedFile, args []any) ([]*Violation, error) {
+func NoDanglingMedia(file *ParsedFile, query *Query, args []any) ([]*Violation, error) {
 	var violations []*Violation
 
 	for _, media := range file.Medias {
@@ -322,7 +326,7 @@ func buildSectionsInventory() {
 }
 
 // NoDeadWikilink implements the rule "no-dead-wikilink".
-func NoDeadWikilink(file *ParsedFile, args []any) ([]*Violation, error) {
+func NoDeadWikilink(file *ParsedFile, query *Query, args []any) ([]*Violation, error) {
 	sectionsInventoryOnce.Do(buildSectionsInventory)
 
 	var violations []*Violation
@@ -365,7 +369,7 @@ func NoDeadWikilink(file *ParsedFile, args []any) ([]*Violation, error) {
 }
 
 // NoExtensionWikilink implements the rule "no-extension-wikilink".
-func NoExtensionWikilink(file *ParsedFile, args []any) ([]*Violation, error) {
+func NoExtensionWikilink(file *ParsedFile, query *Query, args []any) ([]*Violation, error) {
 	var violations []*Violation
 
 	for _, wikilink := range file.Wikilinks {
@@ -383,7 +387,7 @@ func NoExtensionWikilink(file *ParsedFile, args []any) ([]*Violation, error) {
 }
 
 // NoAmbiguousWikilink implements the rule "no-ambiguous-wikilink"
-func NoAmbiguousWikilink(file *ParsedFile, args []any) ([]*Violation, error) {
+func NoAmbiguousWikilink(file *ParsedFile, query *Query, args []any) ([]*Violation, error) {
 	sectionsInventoryOnce.Do(buildSectionsInventory)
 
 	var violations []*Violation
@@ -417,8 +421,8 @@ func NoAmbiguousWikilink(file *ParsedFile, args []any) ([]*Violation, error) {
 	return violations, nil
 }
 
-// RequireQuoteTag implements the rule "require-quote-tag"
-func RequireQuoteTag(file *ParsedFile, args []any) ([]*Violation, error) {
+// RequireTag implements the rule "require-tag"
+func RequireTag(file *ParsedFile, query *Query, args []any) ([]*Violation, error) {
 	var violations []*Violation
 
 	if len(args) > 1 {
@@ -438,7 +442,7 @@ func RequireQuoteTag(file *ParsedFile, args []any) ([]*Violation, error) {
 	}
 
 	for _, note := range file.Notes {
-		if note.Type != TypeQuote {
+		if !note.Matches(query) {
 			continue
 		}
 
@@ -452,9 +456,9 @@ func RequireQuoteTag(file *ParsedFile, args []any) ([]*Violation, error) {
 
 		if !atLeastOneTagMatch {
 			violations = append(violations, &Violation{
-				Name:         "require-quote-tag",
+				Name:         "require-tag",
 				RelativePath: file.RelativePath,
-				Message:      fmt.Sprintf("quote %q does not have tags", note.Title),
+				Message:      fmt.Sprintf("note %q does not have tags", note.Title),
 				Line:         note.Line,
 			})
 		}
@@ -573,7 +577,13 @@ func (f *ParsedFile) Lint(ruleNames []string) ([]*Violation, error) {
 			continue
 		}
 
-		newViolations, err := fn(f, configRule.Args)
+		// Some rules have a query to filter the notes
+		var query *Query = nil
+		if configRule.Query != "" {
+			query, _ = ParseQuery(configRule.Query)
+		}
+
+		newViolations, err := fn(f, query, configRule.Args)
 		if err != nil {
 			return nil, err
 		}
