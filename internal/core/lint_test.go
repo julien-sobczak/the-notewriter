@@ -12,7 +12,7 @@ func TestNoDuplicateNoteTitle(t *testing.T) {
 
 	file := ParseFileFromRelativePath(t, "no-duplicate-note-title.md")
 
-	violations, err := NoDuplicateNoteTitle(file, nil)
+	violations, err := NoDuplicateNoteTitle(file, nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, []*Violation{
 		{
@@ -30,14 +30,14 @@ func TestNoDuplicateSlug(t *testing.T) {
 	// File a.md is valid
 	file := ParseFileFromRelativePath(t, "no-duplicate-slug/a.md")
 
-	violations, err := NoDuplicateSlug(file, nil)
+	violations, err := NoDuplicateSlug(file, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, violations, 0)
 
 	// File b.md contains non-unique slugs
 	file = ParseFileFromRelativePath(t, "no-duplicate-slug/b.md")
 
-	violations, err = NoDuplicateSlug(file, nil)
+	violations, err = NoDuplicateSlug(file, nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, []*Violation{
 		{
@@ -57,7 +57,7 @@ func TestNoDuplicateSlug(t *testing.T) {
 	// File c.md contains unique slugs but using an invalid format
 	file = ParseFileFromRelativePath(t, "no-duplicate-slug/c.md")
 
-	violations, err = NoDuplicateSlug(file, nil)
+	violations, err = NoDuplicateSlug(file, nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, []*Violation{
 		{
@@ -86,7 +86,7 @@ func TestMinLinesBetweenNotes(t *testing.T) {
 
 	file := ParseFileFromRelativePath(t, "min-lines-between-notes.md")
 
-	violations, err := MinLinesBetweenNotes(file, []any{2})
+	violations, err := MinLinesBetweenNotes(file, nil, []any{2})
 	require.NoError(t, err)
 	require.Equal(t, []*Violation{
 		{
@@ -109,7 +109,7 @@ func TestMaxLinesBetweenNotes(t *testing.T) {
 
 	file := ParseFileFromRelativePath(t, "max-lines-between-notes.md")
 
-	violations, err := MaxLinesBetweenNotes(file, []any{2})
+	violations, err := MaxLinesBetweenNotes(file, nil, []any{2})
 	require.NoError(t, err)
 	require.Equal(t, []*Violation{
 		{
@@ -132,7 +132,7 @@ func TestNoteTitleMatch(t *testing.T) {
 
 	file := ParseFileFromRelativePath(t, "note-title-match.md")
 
-	violations, err := NoteTitleMatch(file, []any{`^(Note|Quote):\s\S.*$`})
+	violations, err := NoteTitleMatch(file, nil, []any{`^(Note|Quote):\s\S.*$`})
 	require.NoError(t, err)
 	require.Equal(t, []*Violation{
 		{
@@ -144,45 +144,45 @@ func TestNoteTitleMatch(t *testing.T) {
 	}, violations)
 }
 
-func TestRequireQuoteTag(t *testing.T) {
+func TestRequireTag(t *testing.T) {
 	SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
 
-	file1 := ParseFileFromRelativePath(t, "require-quote-tag/require-quote-tag-1.md")
-	file2 := ParseFileFromRelativePath(t, "require-quote-tag/require-quote-tag-2.md")
+	file1 := ParseFileFromRelativePath(t, "require-tag/require-tag-1.md")
+	file2 := ParseFileFromRelativePath(t, "require-tag/require-tag-2.md")
 
 	// Default pattern
-	violations, err := RequireQuoteTag(file1, []any{})
+	violations, err := RequireTag(file1, nil, []any{})
 	require.NoError(t, err)
 	require.Equal(t, []*Violation{
 		{
-			Name:         "require-quote-tag",
-			Message:      "quote \"Quote: No Tag\" does not have tags",
-			RelativePath: "require-quote-tag/require-quote-tag-1.md",
-			Line:         7,
+			Name:         "require-tag",
+			Message:      "note \"Quote: No Tag\" does not have tags",
+			RelativePath: "require-tag/require-tag-1.md",
+			Line:         3,
 		},
 	}, violations)
-	violations, err = RequireQuoteTag(file2, []any{})
+	violations, err = RequireTag(file2, nil, []any{})
 	require.NoError(t, err)
 	assert.Len(t, violations, 0)
 
 	// Custom pattern
-	violations, err = RequireQuoteTag(file1, []any{`^(life|favorite)$`})
+	violations, err = RequireTag(file1, nil, []any{`^(life|favorite)$`})
 	require.NoError(t, err)
 	assert.Equal(t, []*Violation{
 		{
-			Name:         "require-quote-tag",
-			Message:      "quote \"Quote: No Tag\" does not have tags",
-			RelativePath: "require-quote-tag/require-quote-tag-1.md",
-			Line:         7,
+			Name:         "require-tag",
+			Message:      "note \"Quote: No Tag\" does not have tags",
+			RelativePath: "require-tag/require-tag-1.md",
+			Line:         3,
 		},
 		{
-			Name:         "require-quote-tag",
-			Message:      "quote \"Quote: Tag\" does not have tags", // useless does not match
-			RelativePath: "require-quote-tag/require-quote-tag-1.md",
-			Line:         14,
+			Name:         "require-tag",
+			Message:      "note \"Quote: Tag\" does not have tags", // useless does not match
+			RelativePath: "require-tag/require-tag-1.md",
+			Line:         10,
 		},
 	}, violations)
-	violations, err = RequireQuoteTag(file2, []any{`^(life|favorite)$`})
+	violations, err = RequireTag(file2, nil, []any{`^(life|favorite)$`})
 	require.NoError(t, err)
 	assert.Len(t, violations, 0)
 }
@@ -192,7 +192,7 @@ func TestNoDanglingMedia(t *testing.T) {
 
 	file := ParseFileFromRelativePath(t, "no-dangling-media.md")
 
-	violations, err := NoDanglingMedia(file, nil)
+	violations, err := NoDanglingMedia(file, nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, []*Violation{
 		{
@@ -215,7 +215,7 @@ func TestNoDeadWikilink(t *testing.T) {
 
 	file := ParseFileFromRelativePath(t, "no-dead-wikilink.md")
 
-	violations, err := NoDeadWikilink(file, nil)
+	violations, err := NoDeadWikilink(file, nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, []*Violation{
 		{
@@ -256,7 +256,7 @@ func TestNoExtensionWikilink(t *testing.T) {
 
 	file := ParseFileFromRelativePath(t, "no-extension-wikilink.md")
 
-	violations, err := NoExtensionWikilink(file, nil)
+	violations, err := NoExtensionWikilink(file, nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, []*Violation{
 		{
@@ -285,7 +285,7 @@ func TestNoAmbiguousWikilink(t *testing.T) {
 
 	file := ParseFileFromRelativePath(t, "no-ambiguous-wikilink.md")
 
-	violations, err := NoAmbiguousWikilink(file, nil)
+	violations, err := NoAmbiguousWikilink(file, nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, []*Violation{
 		{

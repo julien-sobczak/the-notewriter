@@ -3,7 +3,7 @@ tags:
 - favorite
 ---
 
-# Rule `require-quote-tag`
+# Rule `require-tag`
 
 ## Quote: No Note Tag
 

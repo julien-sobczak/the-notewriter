@@ -161,8 +161,11 @@ type ConfigAttribute struct {
 	Pattern string // Regex (for "string" type only)
 	Inherit *bool  // Default: true
 }
+
 type ConfigType struct {
 	Name               string
+	Pattern            string   // Regex to detect Markdown headings matching the type
+	Postprocessors     []string // Additional logic to run after parsing a note
 	RequiredAttributes []string // List of mandatory attributes
 	OptionalAttributes []string // List of optional attributes
 }
@@ -173,6 +176,7 @@ type ConfigLinterRule struct {
 	Name     string
 	Args     []any
 	Severity string // error, warning (default: error)
+	Query    string // Optional query to restrict which notes are concerned
 }
 
 type ConfigMedias struct {
@@ -216,6 +220,12 @@ type ConfigReference struct {
 // SetParallel overrides the value in config file.
 func (c *Config) SetParallel(value int) {
 	c.ConfigFile.Core.Medias.Parallel = value
+}
+
+// MatchHeading checks if the given heading matches the type.
+func (c *ConfigType) MatchHeading(heading string) bool {
+	rePattern := regexp.MustCompile(c.Pattern)
+	return rePattern.MatchString(heading)
 }
 
 // SupportExtension checks if the given file extension must be considered.
@@ -633,7 +643,27 @@ func parseConfigFile(jsonnetPath string) (*ConfigFile, error) {
 		return nil, fmt.Errorf("failed to parse JSON: %v", err)
 	}
 
-	// Apply default values
+	// Apply default values...
+	// ... to attributes
+	for _, attribute := range result.Attributes {
+		if attribute.Inherit == nil {
+			attribute.Inherit = BoolPointer(true)
+		}
+	}
+	// Add reserved attributes
+	if result.Attributes == nil {
+		result.Attributes = make(ConfigAttributes)
+	}
+	for _, attribute := range ReservedAttributes {
+		result.Attributes[attribute.Name] = &attribute
+	}
+	// ... to types
+	for _, noteType := range result.Types {
+		if noteType.Pattern == "" {
+			noteType.Pattern = fmt.Sprintf("(?i)^%s:.*$", noteType.Name) // Ex: "Note: A basic note" or "note: A basic note"
+		}
+	}
+	// ... to decks
 	for _, deck := range result.Decks {
 		if deck.Algorithm == "" {
 			deck.Algorithm = DefaultSRSAlgorithm
@@ -655,20 +685,6 @@ func parseConfigFile(jsonnetPath string) (*ConfigFile, error) {
 		// - Search for all flashcards if query is empty
 		// - Don't add new cards by default
 		// - Don't limit the number of reviews by default
-	}
-
-	for _, attribute := range result.Attributes {
-		if attribute.Inherit == nil {
-			attribute.Inherit = BoolPointer(true)
-		}
-	}
-
-	// Add reserved attributes
-	if result.Attributes == nil {
-		result.Attributes = make(ConfigAttributes)
-	}
-	for _, attribute := range ReservedAttributes {
-		result.Attributes[attribute.Name] = &attribute
 	}
 
 	return &result, err
@@ -786,16 +802,23 @@ func InitConfigFileFromDirectory(path string, options ConfigOptions) error {
 
 func (c *Config) Check() error {
 
-	// Check for invalid reference templates
-	for key, referenceConfig := range c.ConfigFile.References {
-		// Only path and template supports Go Templating
-		_, err := reference.ParseTemplate(referenceConfig.Path)
-		if err != nil {
-			return fmt.Errorf("invalid path for reference %q: %w", key, err)
+	// Check for invalid types
+	for _, noteType := range c.ConfigFile.Types {
+		// Check for invalid regex pattern
+		if noteType.Pattern != "" {
+			if _, err := regexp.Compile(noteType.Pattern); err != nil {
+				return fmt.Errorf("invalid pattern %q for type %q: %v", noteType.Pattern, noteType.Name, err)
+			}
 		}
-		_, err = reference.ParseTemplate(referenceConfig.Template)
-		if err != nil {
-			return fmt.Errorf("invalid template for reference %q: %w", key, err)
+	}
+
+	// Check for invalid attributes
+	for _, attribute := range c.ConfigFile.Attributes {
+		// Check for invalid regex pattern
+		if attribute.Pattern != "string" {
+			if _, err := regexp.Compile(attribute.Pattern); err != nil {
+				return fmt.Errorf("invalid pattern %q for attribute %q: %v", attribute.Pattern, attribute.Name, err)
+			}
 		}
 	}
 
@@ -809,14 +832,24 @@ func (c *Config) Check() error {
 		if rule.Severity != "" && !slices.Contains([]string{"error", "warning"}, rule.Severity) {
 			return fmt.Errorf("unknown severity %q for lint rule %q", rule.Severity, rule.Name)
 		}
+		if rule.Query != "" {
+			_, err := ParseQuery(rule.Query)
+			if err != nil {
+				return fmt.Errorf("invalid query %q for lint rule %q: %v", rule.Query, rule.Name, err)
+			}
+		}
 	}
 
-	// Check for invalid patterns
-	for _, attribute := range c.ConfigFile.Attributes {
-		if attribute.Pattern != "string" {
-			if _, err := regexp.Compile(attribute.Pattern); err != nil {
-				return fmt.Errorf("invalid pattern %q for attribute %q: %v", attribute.Pattern, attribute.Name, err)
-			}
+	// Check for invalid reference templates
+	for key, referenceConfig := range c.ConfigFile.References {
+		// Only path and template supports Go Templating
+		_, err := reference.ParseTemplate(referenceConfig.Path)
+		if err != nil {
+			return fmt.Errorf("invalid path for reference %q: %w", key, err)
+		}
+		_, err = reference.ParseTemplate(referenceConfig.Template)
+		if err != nil {
+			return fmt.Errorf("invalid template for reference %q: %w", key, err)
 		}
 	}
 

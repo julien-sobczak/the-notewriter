@@ -20,18 +20,6 @@ import (
 // NoteLongTitleSeparator represents the separator when determine the long title of a note.
 const NoteLongTitleSeparator string = " / "
 
-const (
-	// Special types with default logic
-	TypeNote      = "Note"      // The default
-	TypeGenerator = "Generator" // Generate notes from a template
-	TypeFlashcard = "Flashcard" // Study using an SRS algorithm
-	TypeJournal   = "Journal"   // Generate your journal
-	TypeTodo      = "Todo"      // Advance projects with tasks
-	TypeQuote     = "Quote"     // Be inspired with quotes (application startup)
-	TypeArtwork   = "Artwork"   // Be inspired with artworks
-	// Edit website/docs/guides/notes.md when adding new types
-)
-
 type Note struct {
 	// A unique identifier among all files
 	OID oid.OID `yaml:"oid" json:"oid"`
