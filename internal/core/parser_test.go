@@ -204,18 +204,6 @@ func TestParseFileWithTestdata(t *testing.T) {
 			},
 		},
 
-		{
-			name:   "Generator",
-			golden: "generator",
-			test: func(t *testing.T, file *core.ParsedFile) {
-				require.NotNil(t, file)
-
-				// IMPROVEMENT: Rely on python/python3 executables to be present in path. Find a workaround.
-				// TODO complete
-				// Check generated notes for the different generators
-			},
-		},
-
 		// Add more test cases here to enrich Markdown support
 	}
 
@@ -720,56 +708,64 @@ func TestFormatLongTitle(t *testing.T) {
 	}
 }
 
-func TestExtractDateFromTitle(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    markdown.Document // input
-		expected string            // expected date
-		found    bool              // whether a date was found
-	}{
-		{
-			name:     "Valid full date",
-			input:    "Journal: 2023-10-15.",
-			expected: "2023-10-15",
-			found:    true,
-		},
-		{
-			name:     "Valid year and month",
-			input:    "Journal: The event happened in 2023-10",
-			expected: "2023-10",
-			found:    true,
-		},
-		{
-			name:     "Valid year only",
-			input:    "Journal: We Are in 2023",
-			expected: "2023",
-			found:    true,
-		},
-		{
-			name:     "Multiple dates, pick first",
-			input:    "Journal: 2023-10-15 and 2022-05-01.",
-			expected: "2023-10-15",
-			found:    true,
-		},
-		{
-			name:     "Invalid date format but valid year",
-			input:    "Journal: The date is 15-10-2023.",
-			expected: "2023",
-			found:    true,
-		},
-		{
-			name:     "No date present",
-			input:    "Journal: No date",
-			expected: "",
-			found:    false,
-		},
-	}
+func TestCustomNoteTypes(t *testing.T) {
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			actual, found := core.ExtractDateFromTitle(tt.input)
-			assert.Equal(t, tt.expected, actual)
-			assert.Equal(t, tt.found, found)
-		})
+	t.Run("New Types", func(t *testing.T) {
+		root := core.SetUpRepositoryFromTempDir(t)
+
+		// Edit config to declare a new custom type
+		core.MustWriteFile(t, ".nt/config.jsonnet", `
+local nt = import 'nt.libsonnet';
+{
+	Types: nt.DefaultTypes + {
+
+		// A new type similar to existing ones
+		BookReview: nt.DefaultTypes.Note + {
+			name: "BookReview",
+			requiredAttributes: ["isbn"],
+		},
+
+		// A new type with a custom pattern
+		Idea: nt.DefaultTypes.Note + {
+			name: "Idea",
+			pattern: "^💡 (.*)$",
+		},
 	}
+}
+		`)
+		core.CurrentConfig().Reload()
+
+		core.MustWriteFile(t, "the-midnight-library.md", text.UnescapeTestContent(`
+---
+title: The Midnight Library
+ibsn: 978-0525559474
+---
+
+# The Midnight Library
+
+## BookReview: The Midnight Library
+
+Definitely a book to read while your are still young to act before growing your regrets.
+
+## 💡 Read again
+
+Reread the book in 10 years to see how my perspective has changed.
+`))
+		md := markdown.MustParseFile(filepath.Join(root, "the-midnight-library.md"))
+		file, err := core.ParseFile(md, nil)
+		require.NoError(t, err)
+		require.Len(t, file.Notes, 2)
+
+		note, ok := file.FindNoteByTitle("BookReview: The Midnight Library")
+		require.True(t, ok)
+		assert.Equal(t, "BookReview", note.Type)
+		assert.Equal(t, "BookReview: The Midnight Library", note.Title.String())
+		assert.Equal(t, "The Midnight Library", note.ShortTitle.String())
+
+		note, ok = file.FindNoteByTitle("💡 Read again")
+		require.True(t, ok)
+		assert.Equal(t, "Idea", note.Type)
+		assert.Equal(t, "💡 Read again", note.Title.String())
+		assert.Equal(t, "Read again", note.ShortTitle.String())
+	})
 }

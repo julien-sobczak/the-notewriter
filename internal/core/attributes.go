@@ -511,6 +511,11 @@ func CastAttribute(value any, declaredType ConfigAttribute) (any, bool) {
  * Markdown
  */
 
+ // OnlyTagsAndAttributes returns true if the line contains only tags and attributes.
+ func OnlyTagsAndAttributes(line string) bool {
+	return regexBlockTagAttributesLine.MatchString(line)
+ }
+
 // ExtractBlockTagsAndAttributes searches for all tags and attributes declared on standalone lines
 // (in comparison with tags/attributes defined, for example, on To-Do list items).
 func ExtractBlockTagsAndAttributes(content markdown.Document) (TagSet, AttributeSet) {
@@ -521,8 +526,8 @@ func ExtractBlockTagsAndAttributes(content markdown.Document) (TagSet, Attribute
 
 	for _, line := range content.Lines() {
 
-		// only tags and attributes?
-		if text.IsBlank(line) || !regexBlockTagAttributesLine.MatchString(line) {
+		// empty or only tags and attributes?
+		if text.IsBlank(line) || !OnlyTagsAndAttributes(line) {
 			continue
 		}
 

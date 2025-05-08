@@ -8,25 +8,27 @@
         Journal: self.Note + {
             name: "Journal",
             requiredAttributes: ["date"],
-            // TODO add posprocessing: ["extractDateFromTitle"]
+            preprocessors: ["date-extractor"],
         },
         Quote: self.Note + {
             name: "Quote",
-            // TODO add posprocessing: ["rewriteQuoteInMarkdown"]
+            preprocessors: ["quote-rewriter"],
         },
         Artwork: self.Note + {
             name: "Artwork",
         },
         Flashcard: self.Note + {
             name: "Flashcard",
-            optionalAttributes: ["srs.algorithm", "srs.boostFactor"]
+            optionalAttributes: ["srs.algorithm", "srs.boostFactor"],
+            preprocessors: ["flashcard-extractor"],
         },
         Todo: self.Note + {
             name: "Todo",
         },
         Generator: self.Note + {
             name: "Generator",
-            optionalAttributes: ["file", "interpreter"]
+            optionalAttributes: ["file", "interpreter"],
+            preprocessors: ["generator"],
         },
     },
 

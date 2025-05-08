@@ -16,6 +16,7 @@ import (
 	"text/template"
 
 	"github.com/google/go-jsonnet"
+	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/internal/medias"
 	"github.com/julien-sobczak/the-notewriter/internal/reference"
 	"github.com/julien-sobczak/the-notewriter/pkg/resync"
@@ -78,6 +79,16 @@ var (
 
 type ConfigAttributes map[string]*ConfigAttribute
 type ConfigTypes map[string]*ConfigType
+
+// IsSupportedType checks if the given text matches any of the supported types.
+func (f *ConfigFile) IsSupportedType(text string) (*ConfigType, markdown.Document, bool) {
+	for _, noteType := range f.Types {
+		if title, ok := noteType.MatchHeading(text); ok {
+			return noteType, markdown.Document(title), true
+		}
+	}
+	return nil, markdown.Document(text), false
+}
 
 // Find returns the attribute with the given name or nil if not found.
 func (a ConfigAttributes) Find(name string) (*ConfigAttribute, bool) {
@@ -165,9 +176,10 @@ type ConfigAttribute struct {
 type ConfigType struct {
 	Name               string
 	Pattern            string   // Regex to detect Markdown headings matching the type
-	Postprocessors     []string // Additional logic to run after parsing a note
+	Preprocessors      []string // Additional logic to run after parsing a note
 	RequiredAttributes []string // List of mandatory attributes
 	OptionalAttributes []string // List of optional attributes
+	// IMPROVEMENT refactor to Attributes []ConfigTypeAttribute with an attribute `required` (= more extensible)
 }
 type ConfigLinter struct {
 	Rules []*ConfigLinterRule
@@ -223,9 +235,12 @@ func (c *Config) SetParallel(value int) {
 }
 
 // MatchHeading checks if the given heading matches the type.
-func (c *ConfigType) MatchHeading(heading string) bool {
+func (c *ConfigType) MatchHeading(heading string) (string, bool) {
 	rePattern := regexp.MustCompile(c.Pattern)
-	return rePattern.MatchString(heading)
+	if m := rePattern.FindStringSubmatch(heading); m != nil {
+		return m[1], true
+	}
+	return "", false
 }
 
 // SupportExtension checks if the given file extension must be considered.
@@ -411,6 +426,12 @@ func CurrentConfig() *Config {
 		}
 	})
 	return configSingleton
+}
+
+// Reload rereads the configuration file and returns the new configuration.
+func (c *Config) Reload() *Config {
+	configOnce.Reset()
+	return CurrentConfig()
 }
 
 // CurrentConfigFile returns the current configuration file.
@@ -660,7 +681,7 @@ func parseConfigFile(jsonnetPath string) (*ConfigFile, error) {
 	// ... to types
 	for _, noteType := range result.Types {
 		if noteType.Pattern == "" {
-			noteType.Pattern = fmt.Sprintf("(?i)^%s:.*$", noteType.Name) // Ex: "Note: A basic note" or "note: A basic note"
+			noteType.Pattern = fmt.Sprintf("(?i)^%s:\\s*(.*)$", noteType.Name) // Ex: "Note: A basic note" or "note: A basic note"
 		}
 	}
 	// ... to decks
