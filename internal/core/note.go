@@ -390,18 +390,6 @@ func (n *Note) HasTag(name string) bool {
 	return slices.Contains(n.GetTags(), name)
 }
 
-// TODO move to ConfigFile
-func isSupportedNote(text string) (bool, string, markdown.Document) {
-	for _, noteType := range CurrentConfigFile().Types {
-		// IMPROVEMENT Add support for regex in config.jsonnet
-		r := regexp.MustCompile(fmt.Sprintf(`^(?i)%s:\s*(.*)$`, noteType.Name))
-		if m := r.FindStringSubmatch(text); m != nil {
-			return true, noteType.Name, markdown.Document(m[1])
-		}
-	}
-	return false, "", markdown.Document(text)
-}
-
 /* State Management */
 
 func (n *Note) Save() error {

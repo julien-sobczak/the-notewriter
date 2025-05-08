@@ -2,8 +2,8 @@
 
 ## TODO: Backlog
 
-* [ ] Support `pattern`, and `postprocessing` attributes
 * [ ] Rework documentation `linter.md` and introduce a new `config.md`
+* [ ] Add tests for `GeneratorPreprocessor`
 
 ## TODO: Features
 
