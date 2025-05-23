@@ -132,9 +132,7 @@ indexed_at: 2023-01-01T01:12:30Z
   "back": "A **gopher**.",
   "created_at": "2023-01-01T01:12:30Z",
   "updated_at": "2023-01-01T01:12:30Z",
-  "indexed_at": "2023-01-01T01:12:30Z",
-  "due_at": "0001-01-01T00:00:00Z",
-  "studied_at": "0001-01-01T00:00:00Z"
+  "indexed_at": "2023-01-01T01:12:30Z"
 }
 `)
 		assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
@@ -150,6 +148,75 @@ What does the **Golang logo** represent?
 A **gopher**.
 `)
 		assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
+	})
+
+}
+
+func TestFlashcardOperations(t *testing.T) {
+
+	t.Run("Review", func(t *testing.T) {
+		SetUpRepositoryFromTempDir(t)
+		FreezeOn(t, "2025-02-01 12:00:00")
+
+		// Insert the note
+		MustWriteFile(t, "python.md", `# Python
+
+## Flashcard: Python's creator
+
+Who invented Python?
+
+---
+
+Guido van Rossum
+`)
+
+		err := CurrentRepository().Add(PathSpecs{"python.md"})
+		require.NoError(t, err)
+		err = CurrentRepository().Commit()
+		require.NoError(t, err)
+
+		// Review the flashcard
+		firstStudyAt := clock.Now().Add(1 * time.Hour)
+		flashcard, err := CurrentRepository().FindFlashcardByShortTitle("Python's creator")
+		require.NoError(t, err)
+		require.NotNil(t, flashcard)
+		flashcard.Review(firstStudyAt, &FlashcardReview{
+			Feedback: FeedbackEasy,
+			Duration: 1 * time.Second,
+			DueAt:    firstStudyAt.Add(24 * time.Hour),
+			Settings: map[string]any{
+				"easeFactor": 2500,
+			},
+		})
+		require.NoError(t, flashcard.SaveMetadata())
+
+		// Check the flashcard
+		flashcard, err = CurrentRepository().FindFlashcardByShortTitle("Python's creator")
+		require.NoError(t, err)
+		require.NotNil(t, flashcard)
+		assert.EqualValues(t, firstStudyAt, flashcard.StudiedAt)
+		assert.EqualValues(t, firstStudyAt.Add(24*time.Hour), flashcard.DueAt)
+		assert.Equal(t, 2500, flashcard.Settings["easeFactor"])
+
+		// Review again
+		secondStudyAt := firstStudyAt.Add(1 * time.Hour)
+		flashcard.Review(secondStudyAt, &FlashcardReview{
+			Feedback: FeedbackHard,
+			Duration: 2 * time.Second,
+			DueAt:    secondStudyAt.Add(1 * time.Hour),
+			Settings: map[string]any{
+				"easeFactor": 2300,
+			},
+		})
+		require.NoError(t, flashcard.SaveMetadata())
+
+		// Check again
+		flashcard, err = CurrentRepository().FindFlashcardByShortTitle("Python's creator")
+		require.NoError(t, err)
+		require.NotNil(t, flashcard)
+		assert.EqualValues(t, secondStudyAt, flashcard.StudiedAt)
+		assert.EqualValues(t, secondStudyAt.Add(1*time.Hour), flashcard.DueAt)
+		assert.Equal(t, 2300, flashcard.Settings["easeFactor"])
 	})
 
 }

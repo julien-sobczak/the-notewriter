@@ -41,8 +41,8 @@ type Reminder struct {
 	Tag string `yaml:"tag" json:"tag"`
 
 	// Timestamps to track progress
-	LastPerformedAt time.Time `yaml:"last_performed_at" json:"last_performed_at"`
-	NextPerformedAt time.Time `yaml:"next_performed_at" json:"next_performed_at"`
+	LastPerformedAt time.Time `yaml:"-" json:"-"`
+	NextPerformedAt time.Time `yaml:"-" json:"-"`
 
 	// Timestamps to track changes
 	CreatedAt time.Time `yaml:"created_at" json:"created_at"`
@@ -168,21 +168,28 @@ func (r *Reminder) update(packFile *PackFile, note *Note, parsedReminder *Parsed
 
 /* State Management */
 
+func (r *Reminder) Expression() string {
+	return strings.TrimPrefix(r.Tag, "#reminder-")
+}
+
 func (r *Reminder) Next() error {
-	if clock.Now().Before(r.NextPerformedAt) {
-		// already OK
+	// Determine the timestamp of reference
+	lastPerformedAt := clock.Now()
+	if !r.LastPerformedAt.IsZero() {
+		lastPerformedAt = r.LastPerformedAt
+	}
+
+	// Next date already calculated?
+	if lastPerformedAt.Before(r.NextPerformedAt) {
 		return nil
 	}
 
-	expression := strings.TrimPrefix(r.Tag, "#reminder-")
-
-	lastPerformedAt := r.NextPerformedAt
-	nextPerformedAt, err := EvaluateTimeExpression(expression)
+	nextPerformedAt, err := EvaluateTimeExpressionAfter(r.LastPerformedAt, r.Expression())
 	if err != nil {
 		return err
 	}
-	r.LastPerformedAt = lastPerformedAt
 	r.NextPerformedAt = nextPerformedAt
+
 	return nil
 }
 
@@ -208,10 +215,14 @@ func (r *Reminder) ToMarkdown() string {
 
 /* Parsing */
 
-// EvaluateTimeExpression determine the next matching reminder date
+// EvaluateTimeExpression determine the next matching reminder date after the current time.
 func EvaluateTimeExpression(expr string) (time.Time, error) {
+	return EvaluateTimeExpressionAfter(clock.Now(), expr)
+}
+
+// EvaluateTimeExpressionAfter determine the next matching reminder date after the given timestamp.
+func EvaluateTimeExpressionAfter(timestamp time.Time, expr string) (time.Time, error) {
 	originalExpr := expr
-	today := clock.Now()
 
 	// Static dates are easier to address first
 	var reStaticDate = regexp.MustCompile(`(\d{4})(?:-(\d{2})(?:-(\d{2})))`)
@@ -227,10 +238,10 @@ func EvaluateTimeExpression(expr string) (time.Time, error) {
 			day, _ = strconv.Atoi(dayStr)
 		}
 		if monthStr == "" {
-			if day < today.Day() {
-				month = int(today.Month()) + 1
+			if day < timestamp.Day() {
+				month = int(timestamp.Month()) + 1
 			} else {
-				month = int(today.Month())
+				month = int(timestamp.Month())
 			}
 		} else {
 			month, _ = strconv.Atoi(monthStr)
@@ -355,12 +366,12 @@ func EvaluateTimeExpression(expr string) (time.Time, error) {
 	}
 
 	// Generate all possible combinations
-	possibleDates := generateDates(yearExpr, monthExpr, dayExpr)
+	possibleDates := generateDates(timestamp, yearExpr, monthExpr, dayExpr)
 
 	// Filter to keep only future dates
 	var possibleFutureDates []time.Time
 	for _, possibleDate := range possibleDates {
-		if possibleDate.After(today) {
+		if possibleDate.After(timestamp) {
 			possibleFutureDates = append(possibleFutureDates, possibleDate)
 		}
 	}
@@ -378,7 +389,7 @@ func EvaluateTimeExpression(expr string) (time.Time, error) {
 	return possibleFutureDates[0], nil
 }
 
-func generateDates(yearExpr, monthExpr, dayExpr string) []time.Time {
+func generateDates(timestamp time.Time, yearExpr, monthExpr, dayExpr string) []time.Time {
 	// Implementation: We generate all potential candidate dates as it's not easy to determine the target value.
 	//
 	// Ex: `reminder-${year}-07-02`
@@ -398,7 +409,6 @@ func generateDates(yearExpr, monthExpr, dayExpr string) []time.Time {
 		return []time.Time{time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)}
 	}
 
-	today := clock.Now()
 	var dates []time.Time
 	if !text.IsNumber(yearExpr) {
 		switch yearExpr {
@@ -406,23 +416,23 @@ func generateDates(yearExpr, monthExpr, dayExpr string) []time.Time {
 			fallthrough
 		case "year":
 			// this year or next year
-			dates = append(dates, generateDates(fmt.Sprint(today.Year()), monthExpr, dayExpr)...)
-			dates = append(dates, generateDates(fmt.Sprint(today.Year()+1), monthExpr, dayExpr)...)
+			dates = append(dates, generateDates(timestamp, fmt.Sprint(timestamp.Year()), monthExpr, dayExpr)...)
+			dates = append(dates, generateDates(timestamp, fmt.Sprint(timestamp.Year()+1), monthExpr, dayExpr)...)
 			return dates
 		case "odd-year":
-			if today.Year()%2 == 0 {
-				dates = append(dates, generateDates(fmt.Sprint(today.Year()), monthExpr, dayExpr)...)
-				dates = append(dates, generateDates(fmt.Sprint(today.Year()+2), monthExpr, dayExpr)...)
+			if timestamp.Year()%2 == 0 {
+				dates = append(dates, generateDates(timestamp, fmt.Sprint(timestamp.Year()), monthExpr, dayExpr)...)
+				dates = append(dates, generateDates(timestamp, fmt.Sprint(timestamp.Year()+2), monthExpr, dayExpr)...)
 			} else {
-				dates = append(dates, generateDates(fmt.Sprint(today.Year()+1), monthExpr, dayExpr)...)
+				dates = append(dates, generateDates(timestamp, fmt.Sprint(timestamp.Year()+1), monthExpr, dayExpr)...)
 			}
 			return dates
 		case "even-year":
-			if today.Year()%2 == 1 {
-				dates = append(dates, generateDates(fmt.Sprint(today.Year()), monthExpr, dayExpr)...)
-				dates = append(dates, generateDates(fmt.Sprint(today.Year()+2), monthExpr, dayExpr)...)
+			if timestamp.Year()%2 == 1 {
+				dates = append(dates, generateDates(timestamp, fmt.Sprint(timestamp.Year()), monthExpr, dayExpr)...)
+				dates = append(dates, generateDates(timestamp, fmt.Sprint(timestamp.Year()+2), monthExpr, dayExpr)...)
 			} else {
-				dates = append(dates, generateDates(fmt.Sprint(today.Year()+1), monthExpr, dayExpr)...)
+				dates = append(dates, generateDates(timestamp, fmt.Sprint(timestamp.Year()+1), monthExpr, dayExpr)...)
 			}
 			return dates
 		default:
@@ -437,59 +447,59 @@ func generateDates(yearExpr, monthExpr, dayExpr string) []time.Time {
 		case "":
 			fallthrough
 		case "month":
-			if today.Year() == year {
+			if timestamp.Year() == year {
 				// this month + next month
-				dates = append(dates, generateDates(yearExpr, fmt.Sprintf("%02d", today.Month()), dayExpr)...)
-				if today.Month() == time.December {
-					dates = append(dates, generateDates(yearExpr, "01", dayExpr)...)
+				dates = append(dates, generateDates(timestamp, yearExpr, fmt.Sprintf("%02d", timestamp.Month()), dayExpr)...)
+				if timestamp.Month() == time.December {
+					dates = append(dates, generateDates(timestamp, yearExpr, "01", dayExpr)...)
 				} else {
-					dates = append(dates, generateDates(yearExpr, fmt.Sprintf("%02d", today.Month()+1), dayExpr)...)
+					dates = append(dates, generateDates(timestamp, yearExpr, fmt.Sprintf("%02d", timestamp.Month()+1), dayExpr)...)
 				}
 			} else {
 				// First month of a future year
-				dates = append(dates, generateDates(yearExpr, "01", dayExpr)...)
+				dates = append(dates, generateDates(timestamp, yearExpr, "01", dayExpr)...)
 			}
 			return dates
 		case "odd-month":
-			if today.Year() == year {
-				if today.Month()%2 == 0 {
+			if timestamp.Year() == year {
+				if timestamp.Month()%2 == 0 {
 					// this month + next odd month
-					dates = append(dates, generateDates(yearExpr, fmt.Sprintf("%02d", today.Month()), dayExpr)...)
-					if today.Month() == time.December {
-						dates = append(dates, generateDates(yearExpr, "02", dayExpr)...)
+					dates = append(dates, generateDates(timestamp, yearExpr, fmt.Sprintf("%02d", timestamp.Month()), dayExpr)...)
+					if timestamp.Month() == time.December {
+						dates = append(dates, generateDates(timestamp, yearExpr, "02", dayExpr)...)
 					} else {
-						dates = append(dates, generateDates(yearExpr, fmt.Sprintf("%02d", today.Month()+2), dayExpr)...)
+						dates = append(dates, generateDates(timestamp, yearExpr, fmt.Sprintf("%02d", timestamp.Month()+2), dayExpr)...)
 					}
 				} else {
 					// next month (NB: +1 is safe as we know the current month is even)
-					dates = append(dates, generateDates(yearExpr, fmt.Sprintf("%02d", today.Month()+1), dayExpr)...)
+					dates = append(dates, generateDates(timestamp, yearExpr, fmt.Sprintf("%02d", timestamp.Month()+1), dayExpr)...)
 				}
 			} else {
 				// First odd month of a future year
-				dates = append(dates, generateDates(yearExpr, "02", dayExpr)...)
+				dates = append(dates, generateDates(timestamp, yearExpr, "02", dayExpr)...)
 			}
 			return dates
 		case "even-month":
-			if today.Year() == year {
-				if today.Month()%2 == 1 {
+			if timestamp.Year() == year {
+				if timestamp.Month()%2 == 1 {
 					// this month + next even month
-					dates = append(dates, generateDates(yearExpr, fmt.Sprintf("%02d", today.Month()), dayExpr)...)
-					if today.Month() == time.November {
-						dates = append(dates, generateDates(yearExpr, "01", dayExpr)...)
+					dates = append(dates, generateDates(timestamp, yearExpr, fmt.Sprintf("%02d", timestamp.Month()), dayExpr)...)
+					if timestamp.Month() == time.November {
+						dates = append(dates, generateDates(timestamp, yearExpr, "01", dayExpr)...)
 					} else {
-						dates = append(dates, generateDates(yearExpr, fmt.Sprintf("%02d", today.Month()+2), dayExpr)...)
+						dates = append(dates, generateDates(timestamp, yearExpr, fmt.Sprintf("%02d", timestamp.Month()+2), dayExpr)...)
 					}
 				} else {
 					// next month
-					if today.Month() == time.December {
-						dates = append(dates, generateDates(yearExpr, "01", dayExpr)...)
+					if timestamp.Month() == time.December {
+						dates = append(dates, generateDates(timestamp, yearExpr, "01", dayExpr)...)
 					} else {
-						dates = append(dates, generateDates(yearExpr, fmt.Sprintf("%02d", today.Month()+1), dayExpr)...)
+						dates = append(dates, generateDates(timestamp, yearExpr, fmt.Sprintf("%02d", timestamp.Month()+1), dayExpr)...)
 					}
 				}
 			} else {
 				// First even month of a future year
-				dates = append(dates, generateDates(yearExpr, "01", dayExpr)...)
+				dates = append(dates, generateDates(timestamp, yearExpr, "01", dayExpr)...)
 			}
 			return dates
 		default:
@@ -506,11 +516,11 @@ func generateDates(yearExpr, monthExpr, dayExpr string) []time.Time {
 	case "":
 		fallthrough
 	case "day":
-		if today.Year() == year && today.Month() == time.Month(month) {
-			dates = append(dates, generateDates(yearExpr, monthExpr, fmt.Sprintf("%02d", today.Day()+1))...)
-			dates = append(dates, generateDates(yearExpr, monthExpr, "01")...) // end of month
+		if timestamp.Year() == year && timestamp.Month() == time.Month(month) {
+			dates = append(dates, generateDates(timestamp, yearExpr, monthExpr, fmt.Sprintf("%02d", timestamp.Day()+1))...)
+			dates = append(dates, generateDates(timestamp, yearExpr, monthExpr, "01")...) // end of month
 		} else {
-			dates = append(dates, generateDates(yearExpr, monthExpr, "01")...)
+			dates = append(dates, generateDates(timestamp, yearExpr, monthExpr, "01")...)
 		}
 		return dates
 	case "monday":
@@ -641,6 +651,11 @@ func (r *Reminder) Save() error {
 	return nil
 }
 
+func (r *Reminder) SaveMetadata() error {
+	// No operation-related fields for now
+	return nil
+}
+
 func (r *Reminder) Delete() error {
 	CurrentLogger().Debugf("Deleting reminder %s...", r.Description)
 	query := `DELETE FROM reminder WHERE oid = ? AND packfile_oid = ?;`
@@ -667,23 +682,8 @@ func (r *Repository) FindMatchingReminder(note *Note, parsedReminder *ParsedRemi
 	return QueryReminder(CurrentDB().Client(), `WHERE note_oid = ? and description = ?`, note.OID, parsedReminder.Description)
 }
 
-func (r *Repository) FindMatchingReminders(noteOID oid.OID, descriptionRaw string) ([]*Reminder, error) {
-	return QueryReminders(CurrentDB().Client(), `WHERE note_oid = ? and description = ?`, noteOID, descriptionRaw)
-}
-
 func (r *Repository) LoadReminderByOID(oid oid.OID) (*Reminder, error) {
 	return QueryReminder(CurrentDB().Client(), `WHERE oid = ?`, oid)
-}
-
-func (r *Repository) FindRemindersByUpcomingDate(deadline time.Time) ([]*Reminder, error) {
-	return QueryReminders(CurrentDB().Client(), `WHERE next_performed_at > ?`, timeToSQL(deadline))
-}
-
-func (r *Repository) FindRemindersLastCheckedBefore(point time.Time, path string) ([]*Reminder, error) {
-	if path == "." {
-		path = ""
-	}
-	return QueryReminders(CurrentDB().Client(), `WHERE indexed_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 /* SQL Helpers */
@@ -805,4 +805,17 @@ func QueryReminders(db SQLClient, whereClause string, args ...any) ([]*Reminder,
 	}
 
 	return reminders, err
+}
+
+/*
+ * Operations
+ */
+
+func (r *Reminder) Complete(timestamp time.Time) error {
+	if !r.LastPerformedAt.IsZero() && r.LastPerformedAt.After(timestamp) {
+		// Ignore if the reminder was already completed
+		return nil
+	}
+	r.LastPerformedAt = timestamp
+	return r.Next()
 }

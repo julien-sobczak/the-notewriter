@@ -5,12 +5,9 @@
 * [ ] Rework documentation `linter.md` and introduce a new `config.md`
 * [ ] Add tests for `GeneratorPreprocessor`
 
-## TODO: Features
-
-* [ ] Implement operations using CRDT datatypes
-
 ## TODO: Sprint
 
+* [ ] Fix unit test `TestEvaluateTimeExpressionAfter`
 * [ ] Implement `GC()` on remotes
 * [ ] Implement option `-i` in `nt pull`/`nt push`
 * [ ] Add tests on `ObjectDiffs` for `Patch`/etc.
@@ -18,5 +15,6 @@
 
 ## TODO: Improvement
 
+* [ ] Move Datastore method on `DB`
 * [ ] Add a "Cheatsheet: Fixtures using `testdata`" + "Cheatsheet: Fixtures using raw files" in notes
 * [ ] Write custom assertion to compare `ToJSON` and `ToYAML` ignore spaces

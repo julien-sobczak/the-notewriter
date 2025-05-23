@@ -248,8 +248,6 @@ relative_path: go.md       # Relative path to the file containing this reminder
 description: |-            # The description of reminder
     '[Gophercon Europe](https://gophercon.eu/)'
 tag: '#reminder-2023-06-26'               # The tag
-last_performed_at: 0001-01-01T00:00:00Z   # Last time when the reminder what planned (for recurring reminder)
-next_performed_at: 2023-06-26T00:00:00Z   # Next time when the reminder is planned (for future reminder)
 created_at: 2023-01-01T12:00:00           # Object creation time
 updated_at: 2023-01-01T12:00:00           # Object modification time
 ```

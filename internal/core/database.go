@@ -182,20 +182,62 @@ func (db *DB) Client() SQLClient {
 	return db.initClient()
 }
 
+/* Object Management */
+
+// ReadObject reads an object from the internal SQL database.
+func (db *DB) ReadObject(oid oid.OID, kind string) (Object, error) {
+	switch kind {
+	case "file":
+		return CurrentRepository().LoadFileByOID(oid)
+	case "note":
+		return CurrentRepository().LoadNoteByOID(oid)
+	case "flashcard":
+		return CurrentRepository().LoadFlashcardByOID(oid)
+	case "media":
+		return CurrentRepository().LoadMediaByOID(oid)
+	case "reminder":
+		return CurrentRepository().LoadReminderByOID(oid)
+	default:
+		return nil, fmt.Errorf("unknown object kind %q", kind)
+	}
+}
+
 /* PackFile Management */
 
 // UpsertPackFiles inserts or updates pack files in the database.
 func (db *DB) UpsertPackFiles(packFiles ...*PackFile) error {
 	for _, packFile := range packFiles {
 		for _, object := range packFile.PackObjects {
-			obj := object.ReadObject()
+			obj := object.Read()
 			if statefulObj, ok := obj.(StatefulObject); ok {
 				if err := statefulObj.Save(); err != nil {
 					return err
 				}
 			}
-			CurrentLogger().Infof("💾 Upserted pack file %s", filepath.Base(packFile.ObjectPath()))
+			if operation, ok := obj.(*Operation); ok {
+				// Save the operation in the database
+				// Reread the object from SQL database to have metadata too
+				indexObject := CurrentIndex().GetPackFileObject(operation.ObjectOID)
+				if !ok {
+					return fmt.Errorf("object %s is not present in index for operation %s", operation.ObjectOID, operation.OID)
+				}
+				obj, err := db.ReadObject(indexObject.OID, indexObject.Kind)
+				if err != nil {
+					return fmt.Errorf("unable to read object %s for operation %s: %w", operation.ObjectOID, operation.OID, err)
+				}
+				statefulObj, ok := obj.(StatefulObject)
+				if !ok {
+					return fmt.Errorf("object %s is not a stateful object for operation %s", operation.ObjectOID, operation.OID)
+				}
+				if _, err := operation.Apply(statefulObj); err != nil {
+					return fmt.Errorf("unable to apply operation %s on object %s: %w", operation.OID, operation.ObjectOID, err)
+				}
+				if err := statefulObj.SaveMetadata(); err != nil {
+					return fmt.Errorf("unable to save object %s: %w", statefulObj.UniqueOID(), err)
+				}
+			}
 		}
+		CurrentLogger().Infof("💾 Upserted pack file %s", filepath.Base(packFile.ObjectPath()))
 	}
 	return nil
 }
@@ -204,13 +246,14 @@ func (db *DB) UpsertPackFiles(packFiles ...*PackFile) error {
 func (db *DB) DeletePackFiles(packFiles ...*PackFile) error {
 	for _, packFile := range packFiles {
 		for _, object := range packFile.PackObjects {
-			obj := object.ReadObject()
+			obj := object.Read()
 			if statefulObj, ok := obj.(StatefulObject); ok {
 				if err := statefulObj.Delete(); err != nil {
 					return err
 				}
 				CurrentLogger().Infof("💾 Deleted pack file %s", filepath.Base(packFile.ObjectPath()))
 			}
+			// Ignore operations
 		}
 	}
 	return nil
@@ -239,7 +282,6 @@ func (db *DB) WritePackFileOnDisk(packFile *PackFile) error {
 	if err := packFile.Save(); err != nil {
 		return err
 	}
-	CurrentLogger().Infof("💾 Saved pack file %s", filepath.Base(packFile.ObjectPath()))
 	return nil
 }
 

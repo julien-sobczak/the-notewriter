@@ -2,6 +2,7 @@ package core
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -66,6 +67,11 @@ type Note struct {
 	CreatedAt time.Time `yaml:"created_at" json:"created_at"`
 	UpdatedAt time.Time `yaml:"updated_at" json:"updated_at"`
 	IndexedAt time.Time `yaml:"indexed_at,omitempty" json:"indexed_at,omitempty"`
+
+	// Operation-related fields (not mapped in object representation but using CDRTs)
+	Marked      bool         `yaml:"-" json:"-"`
+	MarkedAt    time.Time    `yaml:"-" json:"-"`
+	Annotations []Annotation `yaml:"-" json:"-"`
 }
 
 // NewNote creates a new note.
@@ -91,6 +97,8 @@ func NewNote(packFile *PackFile, file *File, parsedNote *ParsedNote) (*Note, err
 		CreatedAt:    packFile.CTime,
 		UpdatedAt:    packFile.CTime,
 		IndexedAt:    packFile.CTime,
+		// Operation-related fields
+		Marked: false,
 	}
 
 	return n, nil
@@ -493,6 +501,36 @@ func (n *Note) Save() error {
 	return nil
 }
 
+func (n *Note) SaveMetadata() error {
+	CurrentLogger().Debugf("Saving note %s...", n.Wikilink)
+	query := `
+		UPDATE note
+		SET
+			marked = ?,
+			marked_at = ?,
+			annotations = ?
+		WHERE oid = ?
+		;
+	`
+
+	annotationsJSON, err := json.MarshalIndent(n.Annotations, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	_, err = CurrentDB().Client().Exec(query,
+		n.Marked,
+		timeToSQL(n.MarkedAt),
+		annotationsJSON,
+		n.OID,
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (n *Note) Delete() error {
 	CurrentLogger().Debugf("Deleting note %s...", n.Wikilink)
 	query := `DELETE FROM note WHERE oid = ? AND packfile_oid = ?;`
@@ -686,13 +724,6 @@ func (r *Repository) FindNotesByWikilink(wikilink string) ([]*Note, error) {
 	return QueryNotes(CurrentDB().Client(), `WHERE wikilink LIKE ?`, "%"+wikilink)
 }
 
-func (r *Repository) FindNotesLastCheckedBefore(point time.Time, path string) ([]*Note, error) {
-	if path == "." {
-		path = ""
-	}
-	return QueryNotes(CurrentDB().Client(), `WHERE indexed_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
-}
-
 // SearchNotes query notes to find the ones matching a list of criteria.
 //
 // Examples:
@@ -772,8 +803,10 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 	var createdAt string
 	var updatedAt string
 	var lastIndexedAt string
+	var markedAt sql.NullString
 	var tagsRaw string
 	var attributesRaw string
+	var annotationsRaw string
 
 	// Query for a value based on a single row.
 	if err := db.QueryRow(fmt.Sprintf(`
@@ -797,7 +830,10 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 			comment,
 			created_at,
 			updated_at,
-			indexed_at
+			indexed_at,
+			marked,
+			marked_at,
+			annotations
 		FROM note
 		%s;`, whereClause), args...).
 		Scan(
@@ -821,6 +857,9 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 			&createdAt,
 			&updatedAt,
 			&lastIndexedAt,
+			&n.Marked,
+			&markedAt,
+			&annotationsRaw,
 		); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -833,11 +872,21 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 		return nil, err
 	}
 
+	annotations := make([]Annotation, 0)
+	if annotationsRaw != "" {
+		err = yaml.Unmarshal([]byte(annotationsRaw), &annotations)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	n.Attributes = attributes.CastOrIgnore(CurrentConfigFile().Attributes)
 	n.Tags = strings.Split(tagsRaw, ",")
 	n.CreatedAt = timeFromSQL(createdAt)
 	n.UpdatedAt = timeFromSQL(updatedAt)
 	n.IndexedAt = timeFromSQL(lastIndexedAt)
+	n.MarkedAt = timeFromNullableSQL(markedAt)
+	n.Annotations = annotations
 
 	return &n, nil
 }
@@ -866,7 +915,10 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			comment,
 			created_at,
 			updated_at,
-			indexed_at
+			indexed_at,
+			marked,
+			marked_at,
+			annotations
 		FROM note
 		%s;`, whereClause), args...)
 	if err != nil {
@@ -878,8 +930,10 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 		var createdAt string
 		var updatedAt string
 		var lastIndexedAt string
+		var markedAt sql.NullString
 		var tagsRaw string
 		var attributesRaw string
+		var annotationsRaw string
 
 		err = rows.Scan(
 			&n.OID,
@@ -902,6 +956,9 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			&createdAt,
 			&updatedAt,
 			&lastIndexedAt,
+			&n.Marked,
+			&markedAt,
+			&annotationsRaw,
 		)
 		if err != nil {
 			return nil, err
@@ -912,11 +969,22 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			return nil, err
 		}
 
+		annotations := make([]Annotation, 0)
+		if annotationsRaw != "" {
+			err = yaml.Unmarshal([]byte(annotationsRaw), &annotations)
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		n.Attributes = attributes.CastOrIgnore(CurrentConfigFile().Attributes)
 		n.Tags = strings.Split(tagsRaw, ",")
 		n.CreatedAt = timeFromSQL(createdAt)
 		n.UpdatedAt = timeFromSQL(updatedAt)
 		n.IndexedAt = timeFromSQL(lastIndexedAt)
+		n.MarkedAt = timeFromNullableSQL(markedAt)
+		n.Annotations = annotations
+
 		notes = append(notes, &n)
 	}
 
@@ -944,4 +1012,77 @@ func (n *Note) ToMarkdown() string {
 	sb.WriteRune('\n')
 	sb.WriteString(string(n.Body))
 	return sb.String()
+}
+
+/* Operations */
+
+// Mark set a flag on the note.
+func (n *Note) Mark(timestamp time.Time) {
+	if n.MarkedAt.IsZero() {
+		n.Marked = true
+		n.MarkedAt = timestamp
+		return
+	}
+
+	if n.MarkedAt.After(timestamp) {
+		// Ignore out-of-order operations
+		return
+	}
+
+	n.Marked = true
+	n.MarkedAt = timestamp
+}
+
+// Unmark set a flag on the note.
+func (n *Note) Unmark(timestamp time.Time) {
+	if n.MarkedAt.IsZero() {
+		n.Marked = false
+		n.MarkedAt = timestamp
+		return
+	}
+
+	if n.MarkedAt.After(timestamp) {
+		// Ignore out-of-order operations
+		return
+	}
+
+	n.Marked = false
+	n.MarkedAt = timestamp
+}
+
+type Annotation struct {
+	OID       oid.OID   `yaml:"oid" json:"oid"`
+	Text      string    `yaml:"text" json:"text"`
+	CreatedAt time.Time `yaml:"created_at" json:"created_at"`
+}
+
+// AddAnnotation adds an annotation to the note.
+func (n *Note) AddAnnotation(timestamp time.Time, annotation Annotation) {
+	for _, existing := range n.Annotations {
+		if existing.OID == annotation.OID {
+			// Ignore out-of-order operations
+			if existing.CreatedAt.Before(timestamp) {
+				// Remove before inserting the updated annotation
+				n.RemoveAnnotation(timestamp, existing)
+			}
+			break
+		}
+	}
+
+	annotation.CreatedAt = timestamp
+	n.Annotations = append(n.Annotations, annotation)
+}
+
+// RemoveAnnotation removes an annotation from the note.
+func (n *Note) RemoveAnnotation(timestamp time.Time, annotation Annotation) {
+	for i, existing := range n.Annotations {
+		if existing.OID == annotation.OID {
+			// Ignore out-of-order operations
+			if existing.CreatedAt.Before(timestamp) {
+				// Remove existing annotation
+				n.Annotations = append(n.Annotations[:i], n.Annotations[i+1:]...)
+				return
+			}
+		}
+	}
 }

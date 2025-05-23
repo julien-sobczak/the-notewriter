@@ -59,7 +59,7 @@ func dumpOID(oid oid.OID) {
 		dumpObject(object)
 		return
 	}
-	blob, err := core.CurrentDB().Index().ReadBlob(oid)
+	blob, err := core.CurrentIndex().ReadBlob(oid)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to read blob: %v", err)
 		os.Exit(1)
