@@ -332,6 +332,37 @@ func (i *Index) GetParentEntry(relativePath string) *IndexEntry {
 	}
 }
 
+// Add indexes new pack files without staging them first (useful for operations).
+func (i *Index) Add(packFiles ...*PackFile) error {
+	for _, packFile := range packFiles {
+		entry := i.GetEntry(packFile.FileRelativePath)
+		if entry == nil {
+			entry = NewIndexEntry(packFile)
+			i.Entries = append(i.Entries, entry)
+		}
+		entry.PackFileOID = packFile.OID
+		entry.MTime = time.Time{}
+		entry.Size = 0
+		entry.Staged = false
+		// Update caches
+		for _, packObject := range packFile.PackObjects {
+			i.Objects = append(i.Objects, &IndexObject{
+				OID:         packObject.OID,
+				Kind:        packObject.Kind,
+				PackFileOID: packFile.OID,
+			})
+		}
+		for _, blob := range packFile.BlobRefs {
+			i.Blobs = append(i.Blobs, &IndexBlob{
+				OID:         blob.OID,
+				MimeType:    blob.MimeType,
+				PackFileOID: packFile.OID,
+			})
+		}
+	}
+	return nil
+}
+
 // Stage indexes new pack files.
 // The pack files can match files already indexed by a previous pack file.
 func (i *Index) Stage(packFiles ...*PackFile) error {
@@ -591,13 +622,26 @@ func (i *Index) ReadPackObject(oid oid.OID) (*PackObject, error) {
 	return nil, nil
 }
 
+// ReadPackable reads an object from the index.
+func (i *Index) ReadPackable(oid oid.OID) (Packable, error) {
+	packObject, err := i.ReadPackObject(oid)
+	if err != nil {
+		return nil, err
+	}
+	return packObject.Read(), nil
+}
+
 // ReadObject reads an object from the index.
 func (i *Index) ReadObject(oid oid.OID) (Object, error) {
 	packObject, err := i.ReadPackObject(oid)
 	if err != nil {
 		return nil, err
 	}
-	return packObject.ReadObject(), nil
+	object, ok := packObject.Read().(Object)
+	if !ok {
+		return nil, fmt.Errorf("object %q is not a valid object", oid)
+	}
+	return object, nil
 }
 
 // ReadBlob reads a blob from the index.

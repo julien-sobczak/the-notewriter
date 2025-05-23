@@ -431,6 +431,11 @@ func (m *Media) Save() error {
 	return nil
 }
 
+func (m *Media) SaveMetadata() error {
+	// No operation-related fields for now
+	return nil
+}
+
 func (m *Media) InsertBlobs() error {
 	if err := m.DeleteBlobs(); err != nil {
 		return err
@@ -540,10 +545,6 @@ func (r *Repository) FindMediaByRelativePath(relativePath string) (*Media, error
 
 func (r *Repository) FindMediaByHash(hash string) (*Media, error) {
 	return QueryMedia(CurrentDB().Client(), `WHERE hashsum = ?`, hash)
-}
-
-func (r *Repository) FindMediasLastCheckedBefore(point time.Time) ([]*Media, error) {
-	return QueryMedias(CurrentDB().Client(), `WHERE indexed_at < ?`, timeToSQL(point))
 }
 
 func (r *Repository) FindBlobsFromMedia(mediaOID oid.OID) ([]*BlobRef, error) {

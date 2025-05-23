@@ -272,3 +272,127 @@ func TestSearchNotes(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, notes, 0)
 }
+
+func TestNoteOperations(t *testing.T) {
+
+	t.Run("Mark and Unmark", func(t *testing.T) {
+		SetUpRepositoryFromTempDir(t)
+
+		// Insert the note
+		MustWriteFile(t, "python.md", `# Python
+
+## Flashcard: Python's creator
+
+Who invented Python?
+
+---
+
+Guido van Rossum
+`)
+
+		err := CurrentRepository().Add(PathSpecs{"python.md"})
+		require.NoError(t, err)
+		err = CurrentRepository().Commit()
+		require.NoError(t, err)
+
+		// Check the note is present
+		note := MustFindNoteByTitle(t, "Flashcard: Python's creator")
+
+		// Mark the note
+		note.Mark(clock.Now())
+
+		// Save the note
+		require.NoError(t, note.SaveMetadata())
+
+		// Reread the note and check the marked status
+		note, err = CurrentRepository().LoadNoteByOID(note.OID)
+		require.NoError(t, err)
+		assert.True(t, note.Marked)
+
+		// Unmark the note, save it, and check the status
+		note.Unmark(clock.Now())
+		require.NoError(t, note.SaveMetadata())
+		note, err = CurrentRepository().LoadNoteByOID(note.OID)
+		require.NoError(t, err)
+		assert.False(t, note.Marked)
+	})
+
+	t.Run("Annotate", func(t *testing.T) {
+		SetUpRepositoryFromTempDir(t)
+		c := FreezeNow(t)
+
+		date1 := clock.Now()
+
+		// Insert the note
+		MustWriteFile(t, "python.md", `# Python
+
+## Flashcard: Python's creator
+
+Who invented Python?
+
+---
+
+Guido van Rossum
+`)
+
+		err := CurrentRepository().Add(PathSpecs{"python.md"})
+		require.NoError(t, err)
+		err = CurrentRepository().Commit()
+		require.NoError(t, err)
+
+		// Check the note is present
+		note := MustFindNoteByTitle(t, "Flashcard: Python's creator")
+
+		// Mark the note
+		note.AddAnnotation(clock.Now(), Annotation{
+			OID:  "42d74d967d9b4e989502647ac510777ca1e22f4a",
+			Text: "Use Markdown emphasis",
+		})
+
+		// Save the note
+		require.NoError(t, note.SaveMetadata())
+
+		// Reread the note and check the annotation has been saved
+		note, err = CurrentRepository().LoadNoteByOID(note.OID)
+		require.NoError(t, err)
+		assert.Equal(t, 1, len(note.Annotations))
+		assert.Equal(t, "Use Markdown emphasis", note.Annotations[0].Text)
+		assert.Equal(t, date1.UTC(), note.Annotations[0].CreatedAt.UTC())
+
+		c.FastForward(1 * time.Hour)
+		date2 := clock.Now()
+
+		// Add a second annotation
+		note.AddAnnotation(clock.Now(), Annotation{
+			OID:  "639c1b9964ad45c9b50cb79c2daa03b59f57a01d",
+			Text: "Delete",
+		})
+		require.NoError(t, note.SaveMetadata())
+		note, err = CurrentRepository().LoadNoteByOID(note.OID)
+		require.NoError(t, err)
+		assert.Equal(t, 2, len(note.Annotations))
+		assert.Equal(t, "Use Markdown emphasis", note.Annotations[0].Text)
+		assert.Equal(t, date1.UTC(), note.Annotations[0].CreatedAt.UTC())
+		assert.Equal(t, "Delete", note.Annotations[1].Text)
+		assert.Equal(t, date2.UTC(), note.Annotations[1].CreatedAt.UTC())
+
+		// Delete the first annotation
+		note.RemoveAnnotation(clock.Now(), note.Annotations[0])
+		require.NoError(t, note.SaveMetadata())
+		note, err = CurrentRepository().LoadNoteByOID(note.OID)
+		require.NoError(t, err)
+		assert.Equal(t, 1, len(note.Annotations))
+		assert.Equal(t, "Delete", note.Annotations[0].Text)
+		assert.Equal(t, date2.UTC(), note.Annotations[0].CreatedAt.UTC())
+	})
+
+}
+
+/* Helpers */
+
+func MustFindNoteByTitle(t *testing.T, title string) *Note {
+	note, err := CurrentRepository().FindNoteByTitle(title)
+	require.NoError(t, err)
+	require.NotNil(t, note)
+	return note
+}

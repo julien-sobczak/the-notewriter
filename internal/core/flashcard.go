@@ -75,9 +75,9 @@ type Flashcard struct {
 	IndexedAt time.Time `yaml:"indexed_at,omitempty" json:"indexed_at,omitempty"`
 
 	// SRS
-	DueAt     time.Time      `yaml:"due_at,omitempty" json:"due_at,omitempty"`
-	StudiedAt time.Time      `yaml:"studied_at,omitempty" json:"studied_at,omitempty"`
-	Settings  map[string]any `yaml:"settings,omitempty" json:"settings,omitempty"`
+	DueAt     time.Time      `yaml:"-" json:"-"`
+	StudiedAt time.Time      `yaml:"-" json:"-"`
+	Settings  map[string]any `yaml:"-" json:"-"`
 }
 
 type Study struct {
@@ -321,6 +321,7 @@ func (f *Flashcard) Save() error {
 			indexed_at = ?
 		;
 		`
+
 	_, err := CurrentDB().Client().Exec(query,
 		// Insert
 		f.OID,
@@ -348,6 +349,36 @@ func (f *Flashcard) Save() error {
 		f.Back,
 		timeToSQL(f.UpdatedAt),
 		timeToSQL(f.IndexedAt),
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (f *Flashcard) SaveMetadata() error {
+	CurrentLogger().Debugf("Saving flashcard %s...", f.ShortTitle)
+	query := `
+		UPDATE flashcard
+		SET
+			due_at = ?,
+			studied_at = ?,
+			settings = ?
+		WHERE oid = ?
+		;
+		`
+
+	settingsJSON, err := json.MarshalIndent(f.Settings, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	_, err = CurrentDB().Client().Exec(query,
+		timeToSQL(f.DueAt),
+		timeToSQL(f.StudiedAt),
+		settingsJSON,
+		f.OID,
 	)
 	if err != nil {
 		return err
@@ -427,13 +458,6 @@ func (r *Repository) FindFlashcardByShortTitle(shortTitle string) (*Flashcard, e
 
 func (r *Repository) FindFlashcardByHash(hash string) (*Flashcard, error) {
 	return QueryFlashcard(CurrentDB().Client(), `WHERE hash = ?`, hash)
-}
-
-func (r *Repository) FindFlashcardsLastCheckedBefore(point time.Time, path string) ([]*Flashcard, error) {
-	if path == "." {
-		path = ""
-	}
-	return QueryFlashcards(CurrentDB().Client(), `WHERE indexed_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 /* SQL Helpers */
@@ -737,3 +761,23 @@ lapses INTEGER NOT NULL DEFAULT 0,
 --    for example: '2004' means 2 reps left today and 4 reps till graduation
 left INTEGER NOT NULL DEFAULT 0,
 */
+
+/* Operations */
+
+type FlashcardReview struct {
+	Feedback Feedback       `yaml:"feedback" json:"feedback"`
+	Duration time.Duration  `duration:"duration" json:"duration"`
+	DueAt    time.Time      `yaml:"due_at" json:"due_at"`
+	Settings map[string]any `yaml:"settings" json:"settings"`
+}
+
+// Review updates the flashcard following a review.
+func (f *Flashcard) Review(studiedAt time.Time, review *FlashcardReview) {
+	if !f.StudiedAt.IsZero() && f.StudiedAt.After(studiedAt) {
+		// The studiedAt timestamp is in the past. Ignore this review.
+		return
+	}
+	f.StudiedAt = studiedAt
+	f.DueAt = review.DueAt
+	f.Settings = review.Settings
+}

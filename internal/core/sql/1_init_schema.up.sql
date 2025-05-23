@@ -86,7 +86,15 @@ CREATE TABLE note (
   -- Timestamps to track changes
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  indexed_at TEXT
+  indexed_at TEXT,
+
+  -- Operations
+
+  -- Annotations on the note (JSON document)
+  annotations TEXT CHECK(json_valid(annotations)) DEFAULT '[]',
+  -- Marked the note for further investigation
+  marked INTEGER NOT NULL DEFAULT 0,
+  marked_at TEXT
 );
 
 CREATE VIRTUAL TABLE note_fts USING FTS5(oid UNINDEXED, note_type UNINDEXED, short_title, content, content='note', content_rowid='rowid');

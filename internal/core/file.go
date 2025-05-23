@@ -347,6 +347,11 @@ func (f *File) Save() error {
 	return nil
 }
 
+func (f *File) SaveMetadata() error {
+	// No operation-related fields for now
+	return nil
+}
+
 func (f *File) Delete() error {
 	CurrentLogger().Debugf("Deleting file %s...", f.RelativePath)
 	query := `DELETE FROM file WHERE oid = ? AND packfile_oid = ?;`
@@ -384,13 +389,6 @@ func (r *Repository) FindFileByWikilink(wikilink string) (*File, error) {
 
 func (r *Repository) FindFilesByWikilink(wikilink string) ([]*File, error) {
 	return QueryFiles(CurrentDB().Client(), `WHERE wikilink LIKE ?`, "%"+text.TrimExtension(wikilink))
-}
-
-func (r *Repository) FindFilesLastCheckedBefore(point time.Time, path string) ([]*File, error) {
-	if path == "." {
-		path = ""
-	}
-	return QueryFiles(CurrentDB().Client(), `WHERE indexed_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 // CountFiles returns the total number of files.

@@ -75,24 +75,10 @@ type Dumpable interface {
 // groups different kinds of objects inside the same object.
 type Object interface {
 	Dumpable
-
-	// Kind returns the object kind to determine which kind of object to create.
-	Kind() string
-	// UniqueOID returns the OID of the object.
-	UniqueOID() oid.OID
-	// ModificationTime returns the last modification time.
-	ModificationTime() time.Time
+	Packable
 
 	// Relations returns the relations where the current object is the source.
 	Relations() []*Relation
-
-	// Read rereads the object from YAML.
-	Read(r io.Reader) error
-	// Write writes the object to YAML.
-	Write(w io.Writer) error
-
-	// String returns a one-line description
-	String() string
 
 	// Update website/guides/devolopers/presentation.md
 }
@@ -110,8 +96,10 @@ type ParsedObject interface {
 type StatefulObject interface {
 	Object
 
-	// Save persists to DB
+	// Save persists object-related columns to DB
 	Save() error
+	// SaveMetadata persists operation-related columns to DB
+	SaveMetadata() error
 	// Delete removes from DB
 	Delete() error
 
@@ -190,6 +178,29 @@ func (r BlobRefs) OIDs() []oid.OID {
 		results = append(results, ref.OID)
 	}
 	return results
+}
+
+// MustAppendObject registers a new object inside the pack file or panic.
+func (p *PackFile) MustAppendObject(obj Object) {
+	if err := p.AppendObject(obj); err != nil {
+		panic(err)
+	}
+}
+
+// AppendObject registers a new object inside the pack file.
+func (p *PackFile) AppendObject(obj Object) error {
+	data, err := NewObjectData(obj)
+	if err != nil {
+		return err
+	}
+	p.PackObjects = append(p.PackObjects, &PackObject{
+		OID:         obj.UniqueOID(),
+		Kind:        obj.Kind(),
+		CTime:       obj.ModificationTime(),
+		Description: obj.String(),
+		Data:        data,
+	})
+	return nil
 }
 
 /* Utility */

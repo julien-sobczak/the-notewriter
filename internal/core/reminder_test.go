@@ -101,8 +101,6 @@ note_oid: 52d02a28a961471db62c6d40d30639dafe4aba00
 relative_path: project.md
 description: Test
 tag: '#reminder-2085-09'
-last_performed_at: 0001-01-01T00:00:00Z
-next_performed_at: 2085-09-01T00:00:00Z
 created_at: 2023-01-01T01:12:30Z
 updated_at: 2023-01-01T01:12:30Z
 indexed_at: 2023-01-01T01:12:30Z
@@ -121,8 +119,6 @@ indexed_at: 2023-01-01T01:12:30Z
   "relative_path": "project.md",
   "description": "Test",
   "tag": "#reminder-2085-09",
-  "last_performed_at": "0001-01-01T00:00:00Z",
-  "next_performed_at": "2085-09-01T00:00:00Z",
   "created_at": "2023-01-01T01:12:30Z",
   "updated_at": "2023-01-01T01:12:30Z",
   "indexed_at": "2023-01-01T01:12:30Z"
@@ -203,4 +199,22 @@ func TestEvaluateTimeExpression(t *testing.T) {
 			assert.EqualValues(t, tt.expected, actual)
 		})
 	}
+}
+
+func TestEvaluateTimeExpressionAfter(t *testing.T) {
+	FreezeOn(t, "2023-07-01 12:30")
+	t.Skip() // FIXME
+
+	expr := "every-2025-${month}"
+	next := HumanTime(t, "2025-01-01 00:00:00")
+
+	// Iteration 1
+	next, err := EvaluateTimeExpressionAfter(next, expr)
+	require.NoError(t, err)
+	assert.EqualValues(t, HumanTime(t, "2025-02-01 00:00:00"), next) // invalid value
+
+	// Iteration 2
+	next, err = EvaluateTimeExpressionAfter(next, expr)
+	require.NoError(t, err)
+	assert.EqualValues(t, HumanTime(t, "2025-03-01 00:00:00"), next) // invalid value
 }

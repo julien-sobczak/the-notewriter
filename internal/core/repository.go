@@ -405,11 +405,19 @@ func (r *Repository) Add(paths PathSpecs) error {
 	if err := db.BeginTransaction(); err != nil {
 		return err
 	}
-	db.UpsertPackFiles(packFilesToUpsert...)
-	db.DeletePackFiles(packFilesToDelete...)
+	if err := db.UpsertPackFiles(packFilesToUpsert...); err != nil {
+		return err
+	}
+	if err := db.DeletePackFiles(packFilesToDelete...); err != nil {
+		return err
+	}
 	// TODO Create .bak if Commit fails?
-	db.Index().Stage(packFilesToUpsert...)
-	db.Index().Unstage(packFilesToDelete...)
+	if err := db.Index().Stage(packFilesToUpsert...); err != nil {
+		return err
+	}
+	if err := db.Index().Unstage(packFilesToDelete...); err != nil {
+		return err
+	}
 
 	// Don't forget to commit
 	if err := db.CommitTransaction(); err != nil {

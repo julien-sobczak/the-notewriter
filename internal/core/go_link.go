@@ -230,6 +230,11 @@ func (l *GoLink) Save() error {
 	return nil
 }
 
+func (l *GoLink) SaveMetadata() error {
+	// No operation-related fields for now
+	return nil
+}
+
 func (l *GoLink) Delete() error {
 	CurrentLogger().Debugf("Deleting link %s...", l.GoName)
 	query := `DELETE FROM link WHERE oid = ? AND packfile_oid = ?;`
@@ -259,13 +264,6 @@ func (r *Repository) FindGoLinkByGoName(goName string) (*GoLink, error) {
 
 func (r *Repository) FindGoLinksByText(text string) ([]*GoLink, error) {
 	return QueryGoLinks(CurrentDB().Client(), "WHERE text = ?", text)
-}
-
-func (r *Repository) FindGoLinksLastCheckedBefore(point time.Time, path string) ([]*GoLink, error) {
-	if path == "." {
-		path = ""
-	}
-	return QueryGoLinks(CurrentDB().Client(), `WHERE indexed_at < ? AND relative_path LIKE ?`, timeToSQL(point), path+"%")
 }
 
 /* SQL Helpers */

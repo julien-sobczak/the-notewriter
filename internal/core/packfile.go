@@ -19,6 +19,27 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+/* Packable */
+
+// Packable represents an object that can be packed into a pack file.
+type Packable interface {
+	// Kind returns the object kind to determine which kind of object to create.
+	Kind() string
+	// UniqueOID returns the OID of the object.
+	UniqueOID() oid.OID
+
+	// Read rereads the object from YAML.
+	Read(r io.Reader) error
+	// Write writes the object to YAML.
+	Write(w io.Writer) error
+
+	// ModificationTime returns the last modification time.
+	ModificationTime() time.Time // TODO rename to Timestamp()
+
+	// String returns a one-line description
+	String() string
+}
+
 /*
  * ObjectData
  */
@@ -27,9 +48,9 @@ import (
 type ObjectData []byte // alias to serialize to YAML easily
 
 // NewObjectData creates a compressed-string representation of the object.
-func NewObjectData(obj Object) (ObjectData, error) {
+func NewObjectData(packable Packable) (ObjectData, error) {
 	b := new(bytes.Buffer)
-	if err := obj.Write(b); err != nil {
+	if err := packable.Write(b); err != nil {
 		return nil, err
 	}
 	in := b.Bytes()
@@ -96,6 +117,10 @@ func (od ObjectData) Unmarshal(target interface{}) error {
 		r.Read(dest)
 		return nil
 	}
+	if r, ok := target.(*Operation); ok {
+		r.Read(dest)
+		return nil
+	}
 
 	return fmt.Errorf("unsupported type %T", target)
 }
@@ -116,13 +141,16 @@ var NilPackFile = &PackFile{
 }
 
 type PackFile struct {
-	OID              oid.OID       `yaml:"oid" json:"oid"`
-	FileRelativePath string        `yaml:"file_relative_path" json:"file_relative_path"`
-	FileMTime        time.Time     `yaml:"file_mtime" json:"file_mtime"`
-	FileSize         int64         `yaml:"file_size" json:"file_size"`
-	CTime            time.Time     `yaml:"ctime" json:"ctime"`
-	PackObjects      []*PackObject `yaml:"objects" json:"objects"`
-	BlobRefs         []*BlobRef    `yaml:"blobs" json:"blobs"`
+	OID oid.OID `yaml:"oid" json:"oid"`
+
+	// File attributes for pack files created from files inside the repository (empty for operations)
+	FileRelativePath string    `yaml:"file_relative_path" json:"file_relative_path"`
+	FileMTime        time.Time `yaml:"file_mtime" json:"file_mtime"`
+	FileSize         int64     `yaml:"file_size" json:"file_size"`
+
+	CTime       time.Time     `yaml:"ctime" json:"ctime"`
+	PackObjects []*PackObject `yaml:"objects" json:"objects"`
+	BlobRefs    []*BlobRef    `yaml:"blobs" json:"blobs"`
 }
 
 type PackObject struct {
@@ -133,8 +161,8 @@ type PackObject struct {
 	Data        ObjectData `yaml:"data" json:"data"`
 }
 
-// ReadObject recreates the core object from a commit object.
-func (p *PackObject) ReadObject() Object {
+// Read recreates the underlying packed struct.
+func (p *PackObject) Read() Packable {
 	switch p.Kind {
 	case "file":
 		file := new(File)
@@ -164,6 +192,10 @@ func (p *PackObject) ReadObject() Object {
 		reminder := new(Reminder)
 		p.Data.Unmarshal(reminder)
 		return reminder
+	case "operation":
+		operation := new(Operation)
+		p.Data.Unmarshal(operation)
+		return operation
 	}
 	return nil
 }
@@ -202,32 +234,32 @@ func (p *PackFile) GetPackObject(oid oid.OID) (*PackObject, bool) {
 	return nil, false
 }
 
-// AppendPackObject registers a new object inside the pack file.
-func (p *PackFile) AppendPackObject(obj *PackObject) {
-	p.PackObjects = append(p.PackObjects, obj)
-}
-
-// MustAppendObject registers a new object inside the pack file or panic.
-func (p *PackFile) MustAppendObject(obj Object) {
-	if err := p.AppendObject(obj); err != nil {
+// MustAppendPackable registers a new object inside the pack file or panic.
+func (p *PackFile) MustAppendPackable(packable Packable) {
+	if err := p.AppendPackable(packable); err != nil {
 		panic(err)
 	}
 }
 
-// AppendObject registers a new object inside the pack file.
-func (p *PackFile) AppendObject(obj Object) error {
-	data, err := NewObjectData(obj)
+// AppendPackable registers a new packable inside the pack file.
+func (p *PackFile) AppendPackable(packable Packable) error {
+	data, err := NewObjectData(packable)
 	if err != nil {
 		return err
 	}
 	p.PackObjects = append(p.PackObjects, &PackObject{
-		OID:         obj.UniqueOID(),
-		Kind:        obj.Kind(),
-		CTime:       obj.ModificationTime(),
-		Description: obj.String(),
+		OID:         packable.UniqueOID(),
+		Kind:        packable.Kind(),
+		CTime:       packable.ModificationTime(),
+		Description: packable.String(),
 		Data:        data,
 	})
 	return nil
+}
+
+// AppendPackObject registers a new object inside the pack file.
+func (p *PackFile) AppendPackObject(obj *PackObject) {
+	p.PackObjects = append(p.PackObjects, obj)
 }
 
 // AppendBlob registers a new blob inside the pack file.
@@ -292,7 +324,11 @@ func (p *PackFile) Save() error {
 	if CurrentConfig().DryRun {
 		return nil
 	}
-	return p.SaveTo(PackFilePath(p.OID))
+	if err := p.SaveTo(PackFilePath(p.OID)); err != nil {
+		return fmt.Errorf("unable to save pack file %s: %w", p.OID, err)
+	}
+	CurrentLogger().Infof("💾 Saved pack file %s", filepath.Base(p.ObjectPath()))
+	return nil
 }
 
 // ObjectPath returns the absolute path to the pack file in .nt/objects/ directory.
@@ -312,7 +348,7 @@ func PackFilePath(oid oid.OID) string {
 
 // PackFileRelativePath returns the path to the pack file in .nt/objects/ directory.
 func PackFileRelativePath(oid oid.OID) string {
-	return "objects/" + oid.RelativePath(".pack")
+	return "objects/" + oid.RelativePath(".pack") // Ex: objects/94/94....pack
 }
 
 // SaveTo writes a new pack file to the given location.
@@ -476,7 +512,7 @@ func (p *PackFile) Diff(other *PackFile) ObjectDiffs {
 	var result ObjectDiffs
 
 	for _, beforePackObject := range p.PackObjects {
-		beforeObject := beforePackObject.ReadObject()
+		beforeObject := beforePackObject.Read()
 		beforeParsedObject, ok := beforeObject.(ParsedObject)
 		if !ok {
 			// We diff only objects extracted from Markdown files
@@ -489,7 +525,7 @@ func (p *PackFile) Diff(other *PackFile) ObjectDiffs {
 				continue
 			}
 
-			afterObject := afterPackObject.ReadObject()
+			afterObject := afterPackObject.Read()
 			if afterParsedObject, ok := afterObject.(ParsedObject); ok {
 				// Compare both
 				result = append(result, &ObjectDiff{
@@ -512,7 +548,7 @@ func (p *PackFile) Diff(other *PackFile) ObjectDiffs {
 			continue
 		}
 
-		afterObject := afterPackObject.ReadObject()
+		afterObject := afterPackObject.Read()
 		if afterParsedObject, ok := afterObject.(ParsedObject); ok {
 			// Added
 			result = append(result, &ObjectDiff{
