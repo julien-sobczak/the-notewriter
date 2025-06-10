@@ -135,7 +135,7 @@ func (i *IndexEntry) Commit() {
 	i.MTime = i.StagedMTime
 	i.Size = i.StagedSize
 	// Clear staged values
-	i.StagedPackFileOID = ""
+	i.StagedPackFileOID = oid.Nil
 	i.StagedMTime = time.Time{}
 	i.StagedSize = 0
 	i.StagedTombstone = time.Time{}

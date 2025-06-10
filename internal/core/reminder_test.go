@@ -218,3 +218,12 @@ func TestEvaluateTimeExpressionAfter(t *testing.T) {
 	require.NoError(t, err)
 	assert.EqualValues(t, HumanTime(t, "2025-03-01 00:00:00"), next) // invalid value
 }
+
+/* Test Helpers */
+
+func MustFindReminderByDescription(t *testing.T, description string) *Reminder {
+	obj, err := CurrentRepository().FindReminderByDescription(description)
+	require.NoError(t, err)
+	require.NotNil(t, obj)
+	return obj
+}

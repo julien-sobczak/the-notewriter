@@ -214,7 +214,7 @@ func (db *DB) UpsertPackFiles(packFiles ...*PackFile) error {
 					return err
 				}
 			}
-			if operation, ok := obj.(*Operation); ok {
+			if operation, ok := obj.(*Operation); ok && operation != nil {
 				// Save the operation in the database
 				// Reread the object from SQL database to have metadata too
 				indexObject := CurrentIndex().GetPackFileObject(operation.ObjectOID)

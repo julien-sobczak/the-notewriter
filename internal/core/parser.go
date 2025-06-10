@@ -261,6 +261,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 
 	// All notes collected until now
 	var notes []*ParsedNote
+	var noteSections []*markdown.Section // Sections matching the notes
 
 	sections, err := p.Markdown.GetSections()
 	if err != nil {
@@ -318,11 +319,32 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		var parentNote *ParsedNote
 		for i >= 0 {
 			previousNote = notes[i]
-			if previousNote.Level < section.HeadingLevel {
+			previousSection := noteSections[i]
+			if previousNote.Level < section.HeadingLevel && previousSection.Includes(*section) {
+				// A previous note can have a higher level but there may exist a Markdown heading between them.
+				// Ex:
+				//      # Note: A
+				//      # Parent
+				//      ## Note: B
+				// "B" has no parent note. The section "Parent" must be used for the long name instead.
 				parentNote = previousNote
 				break
 			}
 			i--
+		}
+		// Find possible parent sections
+		var parentTitles []markdown.Document
+		for _, otherSection := range sections {
+			if otherSection.Includes(*section) {
+				sectionTitle := otherSection.HeadingText.String()
+				if _, shortTitle, supported := CurrentConfigFile().IsSupportedType(sectionTitle); supported {
+					// Ex: "## Note: Parent Note"
+					parentTitles = append(parentTitles, shortTitle)
+				} else {
+					// Ex: "## Not a note"
+					parentTitles = append(parentTitles, otherSection.HeadingText)
+				}
+			}
 		}
 
 		body, comment := postProcessedNoteBody.ExtractComment()
@@ -337,8 +359,8 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 
 		// Determine the long title
 		var titles []markdown.Document
-		if parentNote != nil {
-			titles = append(titles, parentNote.LongTitle)
+		if parentTitles != nil {
+			titles = append(titles, parentTitles...)
 		} else if p.ShortTitle != "" {
 			titles = append(titles, p.ShortTitle)
 		}
@@ -392,6 +414,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		}
 
 		notes = append(notes, parsedNote)
+		noteSections = append(noteSections, section)
 	}
 
 	// Extract objects

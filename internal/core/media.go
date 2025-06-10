@@ -524,6 +524,10 @@ func (r *Repository) LoadMediaByOID(oid oid.OID) (*Media, error) {
 	return QueryMedia(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
+func (r *Repository) LoadAllMedias() ([]*Media, error) {
+return QueryMedias(CurrentDB().Client(), ``)
+}
+
 func (r *Repository) FindMatchingMedia(parsedMedia *ParsedMedia) (*Media, error) {
 	// Find by hash (ex: file was renamed)
 	media, err := r.FindMediaByHash(parsedMedia.FileHash())

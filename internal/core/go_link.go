@@ -258,6 +258,10 @@ func (r *Repository) LoadGoLinkByOID(oid oid.OID) (*GoLink, error) {
 	return QueryGoLink(CurrentDB().Client(), "WHERE oid = ?", oid)
 }
 
+func (r *Repository) LoadGoLinks() ([]*GoLink, error) {
+	return QueryGoLinks(CurrentDB().Client(), "")
+}
+
 func (r *Repository) FindGoLinkByGoName(goName string) (*GoLink, error) {
 	return QueryGoLink(CurrentDB().Client(), "WHERE go_name = ?", goName)
 }

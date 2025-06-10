@@ -312,9 +312,20 @@ func (a AttributeSet) SetAttribute(name string, value any) {
 	case []string:
 		switch y := value.(type) {
 		case []string:
-			a[name] = append(x, y...)
+			// Avoid duplicates when possible (ex: tags)
+			for _, vy := range y {
+				if !slices.Contains(x, vy) {
+					x = append(x, vy)
+				}
+			}
+			a[name] = x
 		default:
-			a[name] = append(x, fmt.Sprintf("%v", value))
+			// Avoid duplicates (ex: tags)
+			vy := fmt.Sprintf("%v", value)
+			if !slices.Contains(x, vy) {
+				x = append(x, vy)
+			}
+			a[name] = x
 		}
 	case []any:
 		switch y := value.(type) {
@@ -511,10 +522,10 @@ func CastAttribute(value any, declaredType ConfigAttribute) (any, bool) {
  * Markdown
  */
 
- // OnlyTagsAndAttributes returns true if the line contains only tags and attributes.
- func OnlyTagsAndAttributes(line string) bool {
+// OnlyTagsAndAttributes returns true if the line contains only tags and attributes.
+func OnlyTagsAndAttributes(line string) bool {
 	return regexBlockTagAttributesLine.MatchString(line)
- }
+}
 
 // ExtractBlockTagsAndAttributes searches for all tags and attributes declared on standalone lines
 // (in comparison with tags/attributes defined, for example, on To-Do list items).

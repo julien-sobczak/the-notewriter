@@ -228,3 +228,12 @@ tags:
 	})
 
 }
+
+/* Test Helpers */
+
+func MustFindFileByRelativePath(t *testing.T, relativePath string) *File {
+	file, err := CurrentRepository().FindFileByRelativePath(relativePath)
+	require.NoError(t, err)
+	require.NotNil(t, file)
+	return file
+}

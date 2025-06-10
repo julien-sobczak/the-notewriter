@@ -353,6 +353,10 @@ func (r *Repository) Add(paths PathSpecs) error {
 				return err
 			}
 			packFilesToUpsert = append(packFilesToUpsert, packMedia)
+			// Insert immediately like for Markdown files (not a requirement but to be consistent)
+			if err := db.Index().Stage(packMedia); err != nil {
+				return err
+			}
 		}
 
 		// Finish with the file (less error-prone)
@@ -361,6 +365,10 @@ func (r *Repository) Add(paths PathSpecs) error {
 			return err
 		}
 		packFilesToUpsert = append(packFilesToUpsert, packFile)
+		// Insert immediately the pack file (ex: index.md must be inserted for child files to find them)
+		if err := db.Index().Stage(packFile); err != nil {
+			return err
+		}
 
 		return nil
 	})
@@ -409,10 +417,6 @@ func (r *Repository) Add(paths PathSpecs) error {
 		return err
 	}
 	if err := db.DeletePackFiles(packFilesToDelete...); err != nil {
-		return err
-	}
-	// TODO Create .bak if Commit fails?
-	if err := db.Index().Stage(packFilesToUpsert...); err != nil {
 		return err
 	}
 	if err := db.Index().Unstage(packFilesToDelete...); err != nil {

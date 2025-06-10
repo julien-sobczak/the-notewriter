@@ -456,6 +456,25 @@ key3:
 		assert.Equal(t, expected, actual)
 	})
 
+	t.Run("SetAttribute", func(t *testing.T) {
+		set := AttributeSet(map[string]any{
+			"source": "A Book",
+			"tags":   []string{"favorite"},
+		})
+
+		// Override basic types
+		set.SetAttribute("source", "Another Book")
+		assert.Equal(t, "Another Book", set["source"])
+
+		// Append in slices
+		set.SetAttribute("tags", "life-changing")
+		assert.Equal(t, []string{"favorite", "life-changing"}, set["tags"])
+		set.SetAttribute("tags", []string{"living"})
+		assert.Equal(t, []string{"favorite", "life-changing", "living"}, set["tags"])
+		// Avoid duplicates
+		set.SetAttribute("tags", []string{"living"})
+		assert.Equal(t, []string{"favorite", "life-changing", "living"}, set["tags"])
+	})
 }
 
 func TestMarkdownAttributes(t *testing.T) {

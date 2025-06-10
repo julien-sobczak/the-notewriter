@@ -682,8 +682,16 @@ func (r *Repository) FindMatchingReminder(note *Note, parsedReminder *ParsedRemi
 	return QueryReminder(CurrentDB().Client(), `WHERE note_oid = ? and description = ?`, note.OID, parsedReminder.Description)
 }
 
+func (r *Repository) FindReminderByDescription(description string) (*Reminder, error) {
+	return QueryReminder(CurrentDB().Client(), `WHERE description = ?`, description)
+}
+
 func (r *Repository) LoadReminderByOID(oid oid.OID) (*Reminder, error) {
 	return QueryReminder(CurrentDB().Client(), `WHERE oid = ?`, oid)
+}
+
+func (r *Repository) LoadReminders() ([]*Reminder, error) {
+	return QueryReminders(CurrentDB().Client(), ``)
 }
 
 /* SQL Helpers */

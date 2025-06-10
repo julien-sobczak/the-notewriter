@@ -452,6 +452,10 @@ func (r *Repository) LoadFlashcardByNoteOID(noteID oid.OID) (*Flashcard, error) 
 	return QueryFlashcard(CurrentDB().Client(), `WHERE note_oid = ?`, noteID)
 }
 
+func (r *Repository) LoadFlashcards() ([]*Flashcard, error) {
+	return QueryFlashcards(CurrentDB().Client(), ``)
+}
+
 func (r *Repository) FindFlashcardByShortTitle(shortTitle string) (*Flashcard, error) {
 	return QueryFlashcard(CurrentDB().Client(), `WHERE short_title = ?`, shortTitle)
 }

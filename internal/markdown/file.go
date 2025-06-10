@@ -48,6 +48,14 @@ type Section struct {
 	BodyLineEnd   int
 }
 
+// Includes returns if a section is present inside another one.
+func (m Section) Includes(other Section) bool {
+	if m == other {
+		return false
+	}
+	return m.BodyLineStart <= other.BodyLineStart && m.BodyLineEnd >= other.BodyLineEnd && m.HeadingLevel < other.HeadingLevel
+}
+
 func (m Section) String() string {
 	return fmt.Sprintf("%s %s", strings.Repeat("#", m.HeadingLevel), m.HeadingText)
 }

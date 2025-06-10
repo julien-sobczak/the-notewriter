@@ -254,3 +254,13 @@ func TestDetectMediaKind(t *testing.T) {
 		})
 	}
 }
+
+/* Test Helpers */
+
+func MustFindMediaByRelativePath(t *testing.T, relativePath string) *Media {
+	obj, err := CurrentRepository().FindMediaByRelativePath(relativePath)
+	require.NoError(t, err)
+	require.NotNil(t, obj)
+	return obj
+}
+

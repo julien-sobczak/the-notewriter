@@ -6,7 +6,7 @@ import (
 
 type OID string
 
-const Nil = OID("")
+const Nil = OID("0000000000000000000000000000000000000000")
 const Missing string = "4044044044044044044044044044044044044040"
 
 func (o OID) IsNil() bool {

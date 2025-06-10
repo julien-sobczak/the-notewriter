@@ -135,3 +135,12 @@ indexed_at: 2023-01-01T01:12:30Z
 	})
 
 }
+
+/* Test Helpers */
+
+func MustFindGoLinkByGoName(t *testing.T, name string) *GoLink {
+	obj, err := CurrentRepository().FindGoLinkByGoName(name)
+	require.NoError(t, err)
+	require.NotNil(t, obj)
+	return obj
+}

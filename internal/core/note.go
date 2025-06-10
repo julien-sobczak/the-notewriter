@@ -83,6 +83,7 @@ func NewNote(packFile *PackFile, file *File, parsedNote *ParsedNote) (*Note, err
 		PackFileOID:  packFile.OID,
 		FileOID:      file.OID,
 		Title:        parsedNote.Title,
+		LongTitle:    parsedNote.LongTitle,
 		ShortTitle:   parsedNote.ShortTitle,
 		Type:         parsedNote.Type,
 		RelativePath: file.RelativePath,
@@ -677,6 +678,10 @@ func (r *Repository) DumpNotes() error {
 
 func (r *Repository) LoadNoteByOID(oid oid.OID) (*Note, error) {
 	return QueryNote(CurrentDB().Client(), `WHERE oid = ?`, oid)
+}
+
+func (r *Repository) LoadNotes() ([]*Note, error) {
+	return QueryNotes(CurrentDB().Client(), ``)
 }
 
 func (r *Repository) FindNotesByFileOID(oid oid.OID) ([]*Note, error) {

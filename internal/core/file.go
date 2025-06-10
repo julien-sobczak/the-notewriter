@@ -363,6 +363,10 @@ func (r *Repository) LoadFileByOID(oid oid.OID) (*File, error) {
 	return QueryFile(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
+func (r *Repository) LoadFiles() ([]*File, error) {
+	return QueryFiles(CurrentDB().Client(), ``)
+}
+
 func (r *Repository) FindFileByRelativePath(relativePath string) (*File, error) {
 	return QueryFile(CurrentDB().Client(), `WHERE relative_path = ?`, relativePath)
 }
