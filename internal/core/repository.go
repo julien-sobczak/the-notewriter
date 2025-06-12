@@ -323,6 +323,7 @@ func (r *Repository) Add(paths PathSpecs) error {
 		}
 		if !mdFileModified && !mdParentFileModified {
 			// Nothing changed = Nothing to parse
+			CurrentLogger().Info("👌 Markdown file was not modified since last pack file")
 			return nil
 		}
 
@@ -344,6 +345,7 @@ func (r *Repository) Add(paths PathSpecs) error {
 			// Check if media has changed since last indexation
 			mediaFileModified := CurrentIndex().Modified(parsedMedia.RelativePath, parsedMedia.MTime)
 			if !mediaFileModified {
+				CurrentLogger().Info("👌 Media was not modified since last pack file")
 				// Media has not changed
 				continue
 			}

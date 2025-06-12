@@ -31,10 +31,10 @@ var catFileCmd = &cobra.Command{
 
 		if oid := oid.ParseOrNil(arg); !oid.IsNil() {
 			dumpOID(oid)
+		} else {
+			// If the argument is not an oid.OID, it must be a path
+			dumpPath(arg)
 		}
-
-		// If the argument is not an oid.OID, it must be a path
-		dumpPath(arg)
 	},
 }
 

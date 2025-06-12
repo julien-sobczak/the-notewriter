@@ -632,6 +632,7 @@ func NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFile, error) {
 		return nil, err
 	}
 	if existingPackFile != nil {
+		CurrentLogger().Debug("👍 Found existing pack file") 
 		return existingPackFile, nil
 	}
 
@@ -718,19 +719,22 @@ func NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFile, error) {
 }
 
 func NewPackFileFromParsedMedia(parsedMedia *ParsedMedia) (*PackFile, error) {
-	packFileOID := oid.New()
+	// Use a hash of the file path (works even with dangling file)
+	packFileOID := oid.NewFromBytes([]byte(parsedMedia.RelativePath))
 	if !parsedMedia.Dangling {
-		// Use the hash of the raw original media as OID (if the media is even slightly edited = new oid.OID)
+		// But use the hash of the raw original media as OID
+		// (if the media is even slightly edited = new oid.OID)
 		packFileOID = oid.MustParse(parsedMedia.FileHash())
 	}
 
-	// Check first if a previous execution already created the pack file
+	// OPTIMIZATION: Check first if a previous execution already created the pack file
 	// (ex: the command was aborted with Ctrl+C and restarted)
 	existingPackFile, err := CurrentDB().ReadPackFileOnDisk(packFileOID)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
 	if existingPackFile != nil {
+		CurrentLogger().Debug("👍 Found existing pack file")
 		return existingPackFile, nil
 	}
 
