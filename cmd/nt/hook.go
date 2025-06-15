@@ -48,7 +48,7 @@ var runHookCmd = &cobra.Command{
 		if len(notes) == 1 {
 			// Found the note, run the hook on it
 			note := notes[0]
-			err = note.RunHooks(hooks)
+			err = note.RunHooks(hooks, true)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error while executing hook(s): %v", err)
 				os.Exit(1)
@@ -74,7 +74,7 @@ var runHookCmd = &cobra.Command{
 		}
 
 		for _, note := range notes {
-			err = note.RunHooks(hooks)
+			err = note.RunHooks(hooks, true)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error while executing hook(s): %v", err)
 				os.Exit(1)

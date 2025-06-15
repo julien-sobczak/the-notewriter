@@ -493,12 +493,33 @@ func (r *Repository) Reset(pathSpecs PathSpecs) error {
 
 // Commit implements the command `nt commit`
 func (r *Repository) Commit() error {
-	if CurrentIndex().NothingToCommit() {
+	idx := CurrentIndex()
+
+	if idx.NothingToCommit() {
 		return errors.New("nothing to commit (create/copy files and use \"nt add\" to track")
 	}
 
-	CurrentConfig().DryRun = false
-	return CurrentIndex().Commit()
+	// Run hooks
+	for _, entry := range idx.Entries {
+		if entry.Staged && !entry.HasTombstone() {
+			packFile, err := idx.ReadPackFile(entry.PackFileOID)
+			if err != nil {
+				return err
+			}
+			for _, packObject := range packFile.PackObjects {
+				if packObject.Kind == "note" {
+					note := packObject.Read().(*Note)
+					if note.HasHooks() {
+						if err := note.RunHooks(nil, false); err != nil {
+							return err
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return idx.Commit()
 }
 
 type FileStatus struct {

@@ -167,9 +167,10 @@ type ConfigAttribute struct {
 	Aliases []string
 	Type    string // string, int, bool, string[], int[], bool[]
 	Format  string // Useful for value types (ex: "markdown", "date", etc.)
-	Min     int    // Default: 0 (for "number" type only)
-	Max     int    // Default: -1 (for "number" type only)
-	Pattern string // Regex (for "string" type only)
+	Min     int    // Default: 0 (for "number"-type only)
+	Max     int    // Default: -1 (for "number"-type only)
+	Pattern string // Regex (for "string"-type only)
+	Memory  *bool  // (for "date"-type only)
 	Inherit *bool  // Default: true
 }
 
@@ -179,6 +180,7 @@ type ConfigType struct {
 	Preprocessors      []string // Additional logic to run after parsing a note
 	RequiredAttributes []string // List of mandatory attributes
 	OptionalAttributes []string // List of optional attributes
+	Hooks              []string // List of hooks to run on this type of note
 	// IMPROVEMENT refactor to Attributes []ConfigTypeAttribute with an attribute `required` (= more extensible)
 }
 type ConfigLinter struct {

@@ -36,6 +36,8 @@ My favorite things in life don’t cost any money. It’s really clear that the 
 
 `@author: Steve Jobs`
 
+`@birth_date: 1955-02-24`
+
 <!-- Aliases are supported. -->
 
 Focusing is about saying no.

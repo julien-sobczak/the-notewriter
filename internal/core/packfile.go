@@ -632,7 +632,7 @@ func NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFile, error) {
 		return nil, err
 	}
 	if existingPackFile != nil {
-		CurrentLogger().Debug("👍 Found existing pack file") 
+		CurrentLogger().Debug("👍 Found existing pack file")
 		return existingPackFile, nil
 	}
 

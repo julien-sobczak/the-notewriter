@@ -356,6 +356,10 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 			attributes = attributes.Merge(parentAttributes)
 		}
 		attributes = attributes.Merge(noteAttributes)
+		// Append hooks defined on the note type
+		if noteType.Hooks != nil {
+			attributes.AddHook(noteType.Hooks...)
+		}
 
 		// Determine the long title
 		var titles []markdown.Document

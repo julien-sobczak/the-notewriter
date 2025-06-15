@@ -14,19 +14,29 @@ import (
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
 
-// RunHooks triggers all hooks on the note.
-func (n *Note) RunHooks(hookNames []string) error {
-	hookValue := n.GetAttribute("hook")
-	if hookValue == nil {
-		// No hooks on this note
+func (n *Note) HasHooks() bool {
+	hooks := n.GetHooks()
+	return len(hooks) > 0
+}
+
+func (n *Note) GetHooks() []string {
+	hooks := n.Attributes.Hooks()
+	if len(hooks) == 0 {
 		return nil
 	}
-	hooks, ok := hookValue.([]string)
-	if !ok {
-		return fmt.Errorf("invalid type for hook attribute")
+	return hooks
+}
+
+// RunHooks triggers all hooks on the note.
+func (n *Note) RunHooks(hookNames []string, manual bool) error {
+	if !n.HasHooks() {
+		return nil
 	}
-	if len(hooks) == 0 {
-		// Nothing to do
+	hooks := n.GetHooks()
+
+	// Do not trigger hook with tag `#manual` except when using `nt run-hook` command
+	if n.Tags.Includes("manual") && !manual {
+		CurrentLogger().Infof("🙈 Skipping hooks as tag 'manual' is present")
 		return nil
 	}
 

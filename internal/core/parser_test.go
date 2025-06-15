@@ -710,13 +710,47 @@ func TestFormatLongTitle(t *testing.T) {
 
 func TestCustomNoteTypes(t *testing.T) {
 
-	t.Run("New Types", func(t *testing.T) {
+	t.Run("New Type", func(t *testing.T) {
 		root := core.SetUpRepositoryFromTempDir(t)
 
 		// Edit config to declare a new custom type
 		core.MustWriteFile(t, ".nt/config.jsonnet", `
 local nt = import 'nt.libsonnet';
 {
+    Attributes: {
+		// New attributes for the BookReview type
+		draft: {
+            name: "draft",
+            type: "bool",
+            inherit: false,
+        },
+		isbn: {
+			name: "isbn",
+			type: "string",
+            format: "isbn",
+		},
+        review_rating: {
+            name: "review_rating",
+            type: "integer",
+            min: 0,
+            max: 20,
+            inherit: true,
+        },
+        review_stars: {
+            name: "review_stars",
+            type: "integer",
+            min: 0,
+            max: 5,
+            inherit: true,
+        },
+        read_date: {
+            name: "read_date",
+            type: "date",
+            format: "yyyy-mm-dd",
+            inherit: true,
+            memory: true,
+        },
+	},
 	Types: nt.DefaultTypes + {
 
 		// A new type similar to existing ones
@@ -738,12 +772,16 @@ local nt = import 'nt.libsonnet';
 		core.MustWriteFile(t, "the-midnight-library.md", text.UnescapeTestContent(`
 ---
 title: The Midnight Library
-ibsn: 978-0525559474
+isbn: 978-0525559474
 ---
 
 # The Midnight Library
 
 ## BookReview: The Midnight Library
+
+‛@read_date: 2025-04-01‛
+‛@review_rating: 20‛ ‛@review_stars: 5‛
+‛@draft: false‛
 
 Definitely a book to read while your are still young to act before growing your regrets.
 
@@ -761,6 +799,13 @@ Reread the book in 10 years to see how my perspective has changed.
 		assert.Equal(t, "BookReview", note.Type)
 		assert.Equal(t, "BookReview: The Midnight Library", note.Title.String())
 		assert.Equal(t, "The Midnight Library", note.ShortTitle.String())
+		assert.Equal(t, core.AttributeSet(map[string]any{
+			"isbn":          "978-0525559474",
+			"review_rating": int64(20),
+			"review_stars":  int64(5),
+			"read_date":     time.Date(2025, 04, 01, 0, 0, 0, 0, time.UTC),
+			"draft":         false,
+		}), note.Attributes)
 
 		note, ok = file.FindNoteByTitle("💡 Read again")
 		require.True(t, ok)

@@ -5,6 +5,10 @@
 * [ ] Rework documentation `linter.md` and introduce a new `config.md`
 * [ ] Add tests for `GeneratorPreprocessor`
 
+## TODO: Bug Fixes
+
+* [ ] Rework `CastDateFn` to keep the string content (better when exploiting fields later) => Use `type: string` and `format: date` instead and have a list of predefined formats (like `isbn` to check in `CheckAttributes`)
+
 ## TODO: Sprint
 
 * [ ] Fix unit test `TestEvaluateTimeExpressionAfter`

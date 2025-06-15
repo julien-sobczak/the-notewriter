@@ -22,6 +22,13 @@ local nt = import 'nt.libsonnet';
             pattern: "^([0-9-]{10}|[0-9]{3}-[0-9]{10})$",
             inherit: true,
         },
+        // Declare a date attribute
+        birth_date: {
+            name: "birth_date",
+            type: "date",
+            format: "yyyy-mm-dd",
+            inherit: true,
+        },
     },
 
     Types: nt.DefaultTypes + {

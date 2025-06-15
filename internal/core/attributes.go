@@ -166,6 +166,11 @@ var CastFloatFn CastFn[float64] = func(value any) (float64, bool) {
 }
 
 var CastBoolFn CastFn[bool] = func(value any) (bool, bool) {
+	// Already the right type?
+	if IsBool(value) {
+		return value.(bool), true
+	}
+	// Only convert from string to bool
 	if IsString(value) {
 		if value == "true" {
 			return true, true
@@ -175,13 +180,16 @@ var CastBoolFn CastFn[bool] = func(value any) (bool, bool) {
 			return false, false
 		}
 	}
-	if IsBool(value) {
-		return value.(bool), true
-	}
 	return false, false
 }
 
 var CastDateFn CastFn[time.Time] = func(value any) (time.Time, bool) {
+	// Already the right type?
+	if v, ok := value.(time.Time); ok {
+		return v, true
+	}
+
+	// Only convert from string to time.Time
 	if !IsString(value) {
 		return time.Time{}, false
 	}
@@ -197,11 +205,6 @@ var CastDateFn CastFn[time.Time] = func(value any) (time.Time, bool) {
 	// Try additional common format (more specific to least specific)
 
 	parsedDate, err = time.Parse(time.DateTime, value.(string)) // Ex: "2023-10-15 14:12:00"
-	if err == nil {
-		return parsedDate, true
-	}
-
-	parsedDate, err = time.Parse(time.DateOnly, value.(string)) // Ex: "2023-10-15"
 	if err == nil {
 		return parsedDate, true
 	}
@@ -374,6 +377,30 @@ func (a AttributeSet) Slug() (string, bool) {
 		return "", false
 	}
 	return v.(string), true
+}
+
+func (a AttributeSet) Hooks() TagSet {
+	if v, ok := a["hook"].([]string); ok {
+		return v
+	}
+	return nil
+}
+
+func (a AttributeSet) AddHook(hookNames ...string) {
+	if _, ok := a["hook"]; !ok {
+		// Not hook currently present
+		a["hook"] = hookNames
+		return
+	}
+	if newHooks, ok := a["hook"].([]string); ok {
+		for _, hookName := range hookNames {
+			if !slices.Contains(newHooks, hookName) {
+				newHooks = append(newHooks, hookName)
+			}
+		}
+		a["hook"] = newHooks
+		return
+	}
 }
 
 /* Format */
