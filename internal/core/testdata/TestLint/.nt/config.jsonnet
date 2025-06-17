@@ -39,6 +39,7 @@ local nt = import 'nt.libsonnet';
 
     Linter: {
         Rules: [
+            nt.LintRules.NoEmptyTitle(),
             nt.LintRules.NoDuplicateNoteTitle(),
             nt.LintRules.NoDuplicateSlug(),
             nt.LintRules.MinLinesBetweenNotes(2),

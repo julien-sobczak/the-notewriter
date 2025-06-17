@@ -7,6 +7,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestNoEmptyTitle(t *testing.T) {
+	SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
+
+	file := ParseFileFromRelativePath(t, "no-empty-title.md")
+
+	violations, err := NoEmptyTitle(file, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, []*Violation{
+		{
+			Name:         "no-empty-title",
+			RelativePath: "no-empty-title.md",
+			Message:      `note with empty title`,
+			Line:         1,
+		},
+		{
+			Name:         "no-empty-title",
+			RelativePath: "no-empty-title.md",
+			Message:      `note with empty title`,
+			Line:         3,
+		},
+	}, violations)
+}
+
 func TestNoDuplicateNoteTitle(t *testing.T) {
 	SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
 

@@ -7,8 +7,6 @@
 
 ## TODO: Bug Fixes
 
-* [ ] Add linter `no-empty-title` (ex: `## Flashcard: ` is accepted...)
-* [ ] Understand why 900 flashcards in SQLite but 1350 `## Flashcard:` in VS Code 🤔
 * [ ] `nt add .` `nt gc` `nt add .` `nt gc` ... Files are always garbage-collected when nothing must be adding and garbage-collected on second run => Add a unit test
 * [ ] Rework `CastDateFn` to keep the string content (better when exploiting fields later) => Use `type: string` and `format: date` instead and have a list of predefined formats (like `isbn` to check in `CheckAttributes`)
 
