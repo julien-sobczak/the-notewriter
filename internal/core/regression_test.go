@@ -75,7 +75,7 @@ func TestRegression(t *testing.T) {
 		require.NoError(t, err)
 
 		if edition.RunGC {
-			err = CurrentDB().GC()
+			err = CurrentDB().GC(false)
 			require.NoError(t, err)
 		}
 

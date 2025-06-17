@@ -619,7 +619,7 @@ func TestCommandGC(t *testing.T) {
 		// But the raw pack file still exists to speed up the next add
 		assert.FileExists(t, indexEntry.Ref().ObjectPath())
 
-		err = CurrentDB().GC()
+		err = CurrentDB().GC(false)
 		require.NoError(t, err)
 
 		// GC must have reclaimed the pack file
@@ -654,7 +654,7 @@ func TestCommandGC(t *testing.T) {
 		// But the file has not been reclaimed
 		assert.FileExists(t, entryMedia.Ref().ObjectPath())
 
-		err = CurrentDB().GC()
+		err = CurrentDB().GC(false)
 		require.NoError(t, err)
 
 		// GC must have reclaimed the media files but not the markdown file

@@ -368,7 +368,7 @@ func (db *DB) Diff() (string, error) {
 }
 
 // GC removes non referenced objects/blobs in the local directory.
-func (db *DB) GC() error {
+func (db *DB) GC(dryRun bool) error {
 	// Why GC is required? Why commits cannot do the housekeeping directly?
 	//
 	// The main reason is to reclaim disk space (and thus limit the storage consumption, especially useful for remotes).
@@ -381,8 +381,6 @@ func (db *DB) GC() error {
 	// * Pack files are created when running 'nt add' but are not deleted on disk when running 'nt reset' (only removed in index)
 	//   to avoid recreating blobs (especially using for medias which require conversion).
 	//   If a file never added again, the packfile can be safely removed.
-
-	CurrentLogger().Info("Reclaiming blobs...")
 
 	index := CurrentIndex()
 	objectDir := index.ObjectsDir()
@@ -435,6 +433,10 @@ func (db *DB) GC() error {
 	slices.Sort(reclaimedFiles)
 	reclaimedFiles = slices.Compact(reclaimedFiles)
 	for _, path := range reclaimedFiles {
+		if dryRun {
+			CurrentLogger().Infof("🗑️ Would delete: %s", path) // TODO log on stdout/stderr directly?
+			continue
+		}
 		if err := SafeRemove(path); err != nil {
 			return err
 		}
