@@ -19,7 +19,7 @@ var gcCmd = &cobra.Command{
 	Long:  `Garbage collect unreferenced objects/blobs locally.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		CheckConfig()
-		err := core.CurrentDB().GC(dryRun)
+		_, err := core.CurrentDB().GC(dryRun)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

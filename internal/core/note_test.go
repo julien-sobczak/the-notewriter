@@ -105,6 +105,46 @@ func TestNote(t *testing.T) {
 	AssertNoNotes(t)
 }
 
+func TestNoteHooks(t *testing.T) {
+
+	t.Run("HasHooks", func(t *testing.T) {
+		SetUpRepositoryFromTempDir(t)
+
+		// Insert the note
+		MustWriteFile(t, "go.md", text.UnescapeTestContent(`# Go
+
+## Note: Golang History
+
+‛@hook: gist‛
+
+Golang was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.
+		`))
+
+		_, err := CurrentRepository().Add(PathSpecs{"go.md"})
+		require.NoError(t, err)
+		err = CurrentRepository().Commit()
+		require.NoError(t, err)
+
+		// Check in database
+		note := MustFindNoteByTitle(t, "Note: Golang History")
+		assert.True(t, note.HasHooks())
+		assert.Equal(t, []string{"gist"}, note.GetHooks())
+
+		// Check in objects
+		packFile, err := CurrentIndex().ReadLastPackFile("go.md")
+		require.NoError(t, err)
+		require.NotNil(t, packFile)
+
+		packObjects := packFile.PackObjects
+		require.Len(t, packObjects, 2) // File + Note
+		note, ok := packObjects[1].Read().(*Note)
+		require.True(t, ok)
+		assert.True(t, note.HasHooks())
+		assert.Equal(t, []string{"gist"}, note.GetHooks())
+	})
+
+}
+
 func TestNoteFormats(t *testing.T) {
 	FreezeOn(t, "2023-01-01 01:12:30")
 
@@ -290,7 +330,7 @@ Who invented Python?
 Guido van Rossum
 `)
 
-		err := CurrentRepository().Add(PathSpecs{"python.md"})
+		_, err := CurrentRepository().Add(PathSpecs{"python.md"})
 		require.NoError(t, err)
 		err = CurrentRepository().Commit()
 		require.NoError(t, err)
@@ -335,7 +375,7 @@ Who invented Python?
 Guido van Rossum
 `)
 
-		err := CurrentRepository().Add(PathSpecs{"python.md"})
+		_, err := CurrentRepository().Add(PathSpecs{"python.md"})
 		require.NoError(t, err)
 		err = CurrentRepository().Commit()
 		require.NoError(t, err)

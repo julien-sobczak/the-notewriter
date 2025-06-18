@@ -23,7 +23,7 @@ var addCmd = &cobra.Command{
 
 		CheckConfig()
 
-		err := core.CurrentRepository().Add(argsToPathSpecs(args))
+		_, err := core.CurrentRepository().Add(argsToPathSpecs(args))
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

@@ -67,7 +67,7 @@ class SillyClass:
 `))
 
 	// Add to persist objects in DB
-	err := CurrentRepository().Add(AnyPath)
+	_, err := CurrentRepository().Add(AnyPath)
 	require.NoError(t, err)
 
 	require.Equal(t, 2, MustCountFiles(t))
@@ -206,7 +206,7 @@ func TestStatsOnDisk(t *testing.T) {
 	require.Equal(t, int64(0), stats.TotalSizeKB)
 
 	// Add
-	err = CurrentRepository().Add(AnyPath)
+	_, err = CurrentRepository().Add(AnyPath)
 	require.NoError(t, err)
 	statsAdd, err := CurrentDB().StatsOnDisk()
 	require.NoError(t, err)

@@ -48,17 +48,20 @@ type IndexEntry struct {
 	PackFileOID oid.OID `yaml:"packfile_oid"`
 	// File last modification date
 	MTime time.Time `yaml:"mtime"`
+	// File last indexation date
+	ITime time.Time `yaml:"itime"`
 	// Size of the file (can be useful to detect changes)
 	Size int64 `yaml:"size" json:"size"`
 
 	// True when a file has been staged
-	Staged bool `yaml:"staged"`
+	Staged bool `yaml:"staged,omitempty"`
 	// Save but when the file has been staged (= different object under .nt/objects)
-	StagedPackFileOID oid.OID `yaml:"staged_packfile_oid"`
+	StagedPackFileOID oid.OID `yaml:"staged_packfile_oid,omitempty"`
 	// Timestamp when the file has been detected as deleted
-	StagedTombstone time.Time `yaml:"staged_tombstone"`
-	StagedMTime     time.Time `yaml:"staged_mtime"`
-	StagedSize      int64     `yaml:"staged_size"`
+	StagedTombstone time.Time `yaml:"staged_tombstone,omitempty"`
+	StagedMTime     time.Time `yaml:"staged_mtime,omitempty"`
+	StagedITime     time.Time `yaml:"staged_itime,omitempty"`
+	StagedSize      int64     `yaml:"staged_size,omitempty"`
 }
 
 // NewIndexEntry creates a new index entry from a pack file.
@@ -97,10 +100,42 @@ func (i *IndexEntry) Ref() PackFileRef {
 	}
 }
 
+func (i *IndexEntry) LastMTime() time.Time {
+	// Staged entry takes precedence over the committed entry.
+	if i.Staged {
+		return i.StagedMTime
+	}
+	return i.MTime
+}
+
+func (i *IndexEntry) LastITime() time.Time {
+	// Staged entry takes precedence over the committed entry.
+	if i.Staged {
+		return i.StagedITime
+	}
+	return i.ITime
+}
+
+func (i *IndexEntry) ModifiedBefore(t time.Time) bool {
+	return i.LastMTime().Before(t)
+}
+
+func (i *IndexEntry) ModifiedAfter(t time.Time) bool {
+	return i.LastMTime().After(t)
+}
+
+func (i *IndexEntry) ModifiedBeforeLastIndexation(o *IndexEntry) bool {
+	if o == nil {
+		return false // no previous entry to compare with = modified after last "unknown" indexation
+	}
+	return i.LastMTime().Before(o.LastITime())
+}
+
 func (i *IndexEntry) Stage(newPackFile *PackFile) {
 	i.Staged = true
 	i.StagedPackFileOID = newPackFile.OID
 	i.StagedMTime = newPackFile.FileMTime
+	i.StagedITime = clock.Now()
 	i.StagedSize = newPackFile.FileSize
 	i.StagedTombstone = time.Time{} // Zero value
 }
@@ -120,6 +155,7 @@ func (i *IndexEntry) Reset() {
 	i.Staged = false
 	i.StagedPackFileOID = ""
 	i.StagedMTime = time.Time{}
+	i.StagedITime = time.Time{}
 	i.StagedSize = 0
 	i.StagedTombstone = time.Time{}
 	// Let the pack file to be garbage collected.
@@ -133,10 +169,12 @@ func (i *IndexEntry) Commit() {
 	i.Staged = false
 	i.PackFileOID = i.StagedPackFileOID
 	i.MTime = i.StagedMTime
+	i.ITime = i.StagedITime
 	i.Size = i.StagedSize
 	// Clear staged values
 	i.StagedPackFileOID = oid.Nil
 	i.StagedMTime = time.Time{}
+	i.StagedITime = time.Time{}
 	i.StagedSize = 0
 	i.StagedTombstone = time.Time{}
 }
@@ -269,7 +307,7 @@ func (i *Index) Save() error {
 // GetEntryByPackFileOID returns the entry associated with a pack file OID.
 func (i *Index) GetEntryByPackFileOID(oid oid.OID) (*IndexEntry, bool) {
 	for _, entry := range i.Entries {
-		if entry.PackFileOID == oid {
+		if entry.PackFileOID == oid || entry.StagedPackFileOID == oid {
 			return entry, true
 		}
 	}
@@ -370,6 +408,7 @@ func (i *Index) Stage(packFiles ...*PackFile) error {
 		entry := i.GetEntry(packFile.FileRelativePath)
 		if entry == nil {
 			entry = NewIndexEntry(packFile)
+			entry.ITime = clock.Now()
 			i.Entries = append(i.Entries, entry)
 		}
 		entry.Stage(packFile)
@@ -743,13 +782,13 @@ func (i *Index) Exists(relativePath string) bool {
 	return entry != nil
 }
 
-// Modified returns true if the file has been modified since last indexation.
-func (i *Index) Modified(relativePath string, mtime time.Time) bool {
+// ModifiedBefore returns true if the file has been modified since the given time.
+func (i *Index) ModifiedBefore(relativePath string, t time.Time) bool {
 	entry := i.GetEntry(relativePath)
 	if entry == nil {
-		return true
+		return true // File does not exist in index = new file!
 	}
-	return mtime.After(entry.MTime)
+	return entry.ModifiedBefore(t)
 }
 
 // ShortOID returns a short version of the OID based on the known OIDs.

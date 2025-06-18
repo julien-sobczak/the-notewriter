@@ -23,9 +23,6 @@ import (
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
 
-//go:embed config.jsonnet
-var DefaultConfigFile string // FIXME remove
-
 //go:embed config.jsonnet.tmpl
 var DefaultConfigTemplateFile string
 
@@ -792,14 +789,23 @@ var DefaultConfigOptions = ConfigOptions{
 	MediaConverter: "ffmpeg",
 }
 
+// InitConfigFileFromDirectory initializes the default configuration files under a .nt subdirectory.
 func InitConfigFileFromDirectory(path string, options ConfigOptions) error {
-	CurrentLogger().Debugf("✨ Set up file %s/.nt/config.jsonnet", path)
+	CurrentLogger().Debugf("✨ Set up configuration files under %s/.nt", path)
+
+	// Init .nt/ directory
+	ntPath := filepath.Join(path, ".nt")
+	if err := os.MkdirAll(ntPath, 0755); err != nil {
+		return fmt.Errorf("failed to create .nt directory: %v", err)
+	}
+	CurrentLogger().Infof("✅ Created directory %s", ntPath)
 
 	// Init .nt/nt.libsonnet file
-	ntConfigLibPath := filepath.Join(path, ".nt", "nt.libsonnet")
+	ntConfigLibPath := filepath.Join(ntPath, "nt.libsonnet")
 	if err := os.WriteFile(ntConfigLibPath, []byte(DefaultConfigLibFile), 0644); err != nil {
 		return err
 	}
+	CurrentLogger().Infof("✅ Created file %s/nt.libsonnet", ntPath)
 
 	// Generate config.jsonnet file content.
 	// We use a template to allow for dynamic values (convenient in tests).
@@ -815,10 +821,11 @@ func InitConfigFileFromDirectory(path string, options ConfigOptions) error {
 	}
 
 	// Init .nt/config.jsonnet file
-	ntConfigPath := filepath.Join(path, ".nt", "config.jsonnet")
+	ntConfigPath := filepath.Join(ntPath, "config.jsonnet")
 	if err := os.WriteFile(ntConfigPath, buf.Bytes(), 0644); err != nil {
 		return err
 	}
+	CurrentLogger().Infof("✅ Created file %s/config.jsonnet", ntPath)
 
 	return nil
 }

@@ -68,7 +68,7 @@ func TestCommandAdd(t *testing.T) {
 	t.Run("Basic", func(t *testing.T) {
 		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
-		err := CurrentRepository().Add(PathSpecs{"go.md"})
+		_, err := CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
 
 		// Check index file
@@ -105,7 +105,7 @@ func TestCommandAdd(t *testing.T) {
 	t.Run("Add Media", func(t *testing.T) {
 		SetUpRepositoryFromGoldenDirNamed(t, "TestMedias")
 
-		err := CurrentRepository().Add(AnyPath)
+		_, err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 
 		// Check referenced blobs are present
@@ -151,7 +151,7 @@ func TestCommandAdd(t *testing.T) {
 	t.Run("Repetitive", func(t *testing.T) {
 		root := SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
-		err := CurrentRepository().Add(PathSpecs{"go.md"})
+		_, err := CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
 		err = CurrentRepository().Commit()
 		require.NoError(t, err)
@@ -163,11 +163,11 @@ func TestCommandAdd(t *testing.T) {
 
 		// Check 1: Try to add the same file edited several times
 		ReplaceLine(t, filepath.Join(root, "go.md"), 19, "What does the **Golang logo** represent?", "(Go) What does the **Golang logo** represent?")
-		err = CurrentRepository().Add(PathSpecs{"go.md"})
+		_, err = CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
 		// Edit again before the commit
 		ReplaceLine(t, filepath.Join(root, "go.md"), 19, "(Go) What does the **Golang logo** represent?", "(Go) What does the **logo** represent?")
-		err = CurrentRepository().Add(PathSpecs{"go.md"})
+		_, err = CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
 
 		err = CurrentRepository().Commit()
@@ -175,12 +175,12 @@ func TestCommandAdd(t *testing.T) {
 
 		// Check 2: Try to commit the same file repeatability
 		ReplaceLine(t, filepath.Join(root, "go.md"), 19, "(Go) What does the **logo** represent?", "What is the **logo**?")
-		err = CurrentRepository().Add(PathSpecs{"go.md"})
+		_, err = CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
 		err = CurrentRepository().Commit()
 		require.NoError(t, err)
 		ReplaceLine(t, filepath.Join(root, "go.md"), 19, "What is the **logo**?", "What represents the **logo**?")
-		err = CurrentRepository().Add(PathSpecs{"go.md"})
+		_, err = CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
 		err = CurrentRepository().Commit()
 		require.NoError(t, err)
@@ -201,7 +201,7 @@ func TestCommandReset(t *testing.T) {
 
 		CurrentLogger().SetVerboseLevel(VerboseDebug)
 
-		err := CurrentRepository().Add(PathSpecs{"go.md"})
+		_, err := CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
 
 		// Check index file
@@ -246,7 +246,7 @@ func TestCommandCommit(t *testing.T) {
 	t.Run("Basic", func(t *testing.T) {
 		root := SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
-		err := CurrentRepository().Add(PathSpecs{"go.md"})
+		_, err := CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
 
 		err = CurrentRepository().Commit()
@@ -268,7 +268,7 @@ Guido van Rossum
 		require.ErrorContains(t, err, "nothing to commit")
 
 		// Create a second commit
-		err = CurrentRepository().Add(PathSpecs{"python.md"})
+		_, err = CurrentRepository().Add(PathSpecs{"python.md"})
 		require.NoError(t, err)
 
 		err = CurrentRepository().Commit()
@@ -289,7 +289,7 @@ func TestCommandPushPull(t *testing.T) {
 		}
 
 		// Push
-		err := CurrentRepository().Add(AnyPath)
+		_, err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 		err = CurrentRepository().Commit()
 		require.NoError(t, err)
@@ -337,7 +337,7 @@ func TestCommandPushPull(t *testing.T) {
 		}
 
 		// Commit
-		err := CurrentRepository().Add(AnyPath)
+		_, err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 		err = CurrentRepository().Commit()
 		require.NoError(t, err)
@@ -353,7 +353,7 @@ Who invented Python?
 
 Guido van Rossum
 `)
-		err = CurrentRepository().Add(AnyPath)
+		_, err = CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 
 		// Push
@@ -374,7 +374,7 @@ func TestCommandStatus(t *testing.T) {
 		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
 		// Add
-		err := CurrentRepository().Add([]PathSpec{"go.md"})
+		_, err := CurrentRepository().Add([]PathSpec{"go.md"})
 		require.NoError(t, err)
 
 		// Edit a new file
@@ -439,7 +439,7 @@ Guido van Rossum
 		}, result.ChangesNotStaged)
 
 		// Add a new file
-		err = CurrentRepository().Add([]PathSpec{"python.md"})
+		_, err = CurrentRepository().Add([]PathSpec{"python.md"})
 		require.NoError(t, err)
 
 		// Status must report only the new files
@@ -465,7 +465,7 @@ Guido van Rossum
 		}, result.ChangesNotStaged)
 
 		// Add the old file
-		err = CurrentRepository().Add([]PathSpec{"go.md"})
+		_, err = CurrentRepository().Add([]PathSpec{"go.md"})
 		require.NoError(t, err)
 
 		// Status must report both files
@@ -520,7 +520,7 @@ func TestCommandDiff(t *testing.T) {
 
 		// Step 2: Add a file
 
-		err = CurrentRepository().Add([]PathSpec{"go.md"})
+		_, err = CurrentRepository().Add([]PathSpec{"go.md"})
 		require.NoError(t, err)
 
 		diffs, err = CurrentRepository().Diff(AnyPath, true) // Only the file staged must be returned
@@ -602,7 +602,7 @@ func TestCommandGC(t *testing.T) {
 
 		// Add a new file without committing
 		MustWriteFile(t, "go.md", `# Go`)
-		err := CurrentRepository().Add(AnyPath)
+		_, err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 
 		// A pack file must have been created
@@ -619,7 +619,7 @@ func TestCommandGC(t *testing.T) {
 		// But the raw pack file still exists to speed up the next add
 		assert.FileExists(t, indexEntry.Ref().ObjectPath())
 
-		err = CurrentDB().GC(false)
+		_, err = CurrentDB().GC(false)
 		require.NoError(t, err)
 
 		// GC must have reclaimed the pack file
@@ -630,7 +630,7 @@ func TestCommandGC(t *testing.T) {
 		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 
 		// Add
-		err := CurrentRepository().Add(AnyPath)
+		_, err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 		err = CurrentRepository().Commit()
 		require.NoError(t, err)
@@ -644,7 +644,7 @@ func TestCommandGC(t *testing.T) {
 
 		// Rewrite the file without referencing the media
 		MustWriteFile(t, "go.md", `# Go`)
-		err = CurrentRepository().Add(AnyPath)
+		_, err = CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 		err = CurrentRepository().Commit()
 		require.NoError(t, err)
@@ -654,12 +654,146 @@ func TestCommandGC(t *testing.T) {
 		// But the file has not been reclaimed
 		assert.FileExists(t, entryMedia.Ref().ObjectPath())
 
-		err = CurrentDB().GC(false)
+		_, err = CurrentDB().GC(false)
 		require.NoError(t, err)
 
 		// GC must have reclaimed the media files but not the markdown file
 		assert.FileExists(t, entryMarkdown.Ref().ObjectPath())
 		assert.NoFileExists(t, entryMedia.Ref().ObjectPath())
+	})
+
+	t.Run("Modified/Unmodified", func(t *testing.T) {
+		SetUpRepositoryFromTempDir(t)
+
+		// Step 1: Add new minimal files
+		MustWriteFile(t, "index.md", `
+---
+tags: programming
+---
+`)
+		MustWriteFile(t, "go.md", `
+# Go
+
+## Flashcard: Golang Creators
+
+(Golang) Who are the creators of Golang?
+
+---
+
+Robert Greisemer, Rob Pike, and Ken Thompson.
+`)
+		resultAdd, err := CurrentRepository().Add(AnyPath)
+		require.NoError(t, err)
+		require.Len(t, resultAdd.Upserted, 2) // 2 pack files
+		require.Len(t, resultAdd.Deleted, 0)
+
+		resultGC, err := CurrentDB().GC(false) // Nothing has changed, nothing to reclaim
+		require.NoError(t, err)
+		assert.Len(t, resultGC.ReclaimedPackFiles, 0)
+		assert.Len(t, resultGC.ReclaimedBlobs, 0)
+
+		// Step 2: Modify the file to force a new pack file + new blob
+		time.Sleep(1 * time.Millisecond) // Ensure mtimes are different
+		MustWriteFile(t, "go.md", `
+# Go
+
+## Flashcard: Golang Creators
+
+(Golang) Who created Golang?
+
+---
+
+Robert Greisemer, Rob Pike, and Ken Thompson.
+`)
+		resultAdd, err = CurrentRepository().Add(AnyPath)
+		require.NoError(t, err)
+		require.Len(t, resultAdd.Upserted, 1) // Content changed = new pack file
+
+		resultGC, err = CurrentDB().GC(false) // The old files must not be reclaimed as still not committed
+		require.NoError(t, err)
+		assert.Len(t, resultGC.ReclaimedPackFiles, 0)
+		assert.Len(t, resultGC.ReclaimedBlobs, 0)
+
+		// Commit the changes
+		err = CurrentRepository().Commit()
+		require.NoError(t, err)
+
+		// The old files can now be reclaimed
+		resultGC, err = CurrentDB().GC(false)
+		require.NoError(t, err)
+		assert.Len(t, resultGC.ReclaimedPackFiles, 1)
+		assert.Len(t, resultGC.ReclaimedBlobs, 1)
+
+		// Step 3: Edit the index file
+		// All pack files/blobs to be recreated
+		time.Sleep(1 * time.Millisecond) // Ensure mtimes are different
+		MustWriteFile(t, "index.md", `
+---
+tags: go
+---
+`)
+
+		resultAdd, err = CurrentRepository().Add(AnyPath)
+		require.NoError(t, err)
+		require.Len(t, resultAdd.Upserted, 2) // Both content changed = new pack files
+		require.Len(t, resultAdd.Deleted, 0)
+
+		err = CurrentRepository().Commit()
+		require.NoError(t, err)
+
+		resultGC, err = CurrentDB().GC(false) // All old files must not be reclaimed as still not committed
+		require.NoError(t, err)
+		assert.Len(t, resultGC.ReclaimedPackFiles, 1) // The go.md pack file has been overwritten as the hash stayed the same
+		assert.Len(t, resultGC.ReclaimedBlobs, 1)     // Idem for the associated blob
+
+		// Step 4: Try to add the same unchanged file again with GC between each.
+		// Nothing should change, nothing to reclaim.
+		for range []int{1, 2, 3} {
+			resultAdd, err = CurrentRepository().Add(AnyPath)
+			require.NoError(t, err)
+			require.Len(t, resultAdd.Upserted, 0) // Nothing has changed, nothing to add
+			require.Len(t, resultAdd.Deleted, 0)  // Nothing has changed, nothing to delete
+
+			resultGC, err := CurrentDB().GC(false) // Nothing has changed, nothing to reclaim
+			require.NoError(t, err)
+			assert.Len(t, resultGC.ReclaimedPackFiles, 0)
+			assert.Len(t, resultGC.ReclaimedBlobs, 0)
+		}
+
+		// Step 5: Delete go.md
+		MustDeleteFile(t, "go.md")
+		resultAdd, err = CurrentRepository().Add(AnyPath)
+		require.NoError(t, err)
+		require.Len(t, resultAdd.Upserted, 0)
+		require.Len(t, resultAdd.Deleted, 1) // The go.md pack file has a tombstone (the associated blob will be garbage-collected later)
+
+		resultGC, err = CurrentDB().GC(false) // Still not committed, nothing to reclaim
+		require.NoError(t, err)
+		assert.Len(t, resultGC.ReclaimedPackFiles, 0)
+		assert.Len(t, resultGC.ReclaimedBlobs, 0)
+
+		// Commit the changes
+		err = CurrentRepository().Commit()
+		require.NoError(t, err)
+
+		resultGC, err = CurrentDB().GC(false)
+		require.NoError(t, err)
+		assert.Len(t, resultGC.ReclaimedPackFiles, 1) // The go.md pack file has been deleted
+		assert.Len(t, resultGC.ReclaimedBlobs, 1)     // Idem for the associated blob
+
+		// Step 6: Try to add the same unchanged file again with GC between each.
+		// Nothing should change, nothing to reclaim.
+		for range []int{1, 2, 3} {
+			resultAdd, err = CurrentRepository().Add(AnyPath)
+			require.NoError(t, err)
+			require.Len(t, resultAdd.Upserted, 0) // Nothing has changed, nothing to add
+			require.Len(t, resultAdd.Deleted, 0)  // Nothing has changed, nothing to delete
+
+			resultGC, err := CurrentDB().GC(false) // Nothing has changed, nothing to reclaim
+			require.NoError(t, err)
+			assert.Len(t, resultGC.ReclaimedPackFiles, 0)
+			assert.Len(t, resultGC.ReclaimedBlobs, 0)
+		}
 	})
 
 }

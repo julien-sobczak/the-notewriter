@@ -269,7 +269,7 @@ func TestStatsInDB(t *testing.T) {
 	assert.Equal(t, 0, stats.Objects["link"])
 	assert.Equal(t, 0, stats.Objects["reminder"])
 
-	err = CurrentRepository().Add(AnyPath)
+	_, err = CurrentRepository().Add(AnyPath)
 	require.NoError(t, err)
 
 	stats, err = CurrentRepository().StatsInDB()

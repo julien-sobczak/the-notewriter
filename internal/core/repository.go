@@ -259,8 +259,31 @@ func (r *Repository) MustLint(paths PathSpecs) {
 	}
 }
 
+type AddResult struct {
+	// Pack files that were upserted
+	Upserted []oid.OID
+	// Pack files that were deleted
+	Deleted []oid.OID
+}
+
+func (r *AddResult) Upsert(packFiles ...*PackFile) {
+	for _, packFile := range packFiles {
+		if !slices.Contains(r.Upserted, packFile.OID) {
+			r.Upserted = append(r.Upserted, packFile.OID)
+		}
+	}
+}
+
+func (r *AddResult) Delete(packFiles ...*PackFile) {
+	for _, packFile := range packFiles {
+		if !slices.Contains(r.Deleted, packFile.OID) {
+			r.Deleted = append(r.Deleted, packFile.OID)
+		}
+	}
+}
+
 // Add implements the command `nt add`
-func (r *Repository) Add(paths PathSpecs) error {
+func (r *Repository) Add(paths PathSpecs) (*AddResult, error) {
 	r.MustLint(paths)
 
 	CurrentConfig().DryRun = false
@@ -295,9 +318,11 @@ func (r *Repository) Add(paths PathSpecs) error {
 		// - The file was modified since the last known timestamp
 		// - The parent file was modified since the last known timestamp (ex: new attribute to propagate)
 
+		entry := CurrentIndex().GetEntry(relativePath)
 		var mdParentFile *markdown.File
 		parentEntry := CurrentIndex().GetParentEntry(relativePath)
 		if parentEntry != nil {
+			// Read on disk to have the latest version (NB: pack files are written on disk before being upserted in database)
 			packFile, err := CurrentIndex().ReadPackFile(parentEntry.PackFileOID)
 			if err != nil {
 				return err
@@ -316,14 +341,22 @@ func (r *Repository) Add(paths PathSpecs) error {
 			}
 		}
 
-		mdFileModified := CurrentIndex().Modified(relativePath, mdFile.MTime)
+		mdFileModified := true
+		if entry != nil {
+			mdFileModified = entry.ModifiedBefore(mdFile.MTime)
+		}
 		mdParentFileModified := false
 		if parentEntry != nil {
-			mdParentFileModified = CurrentIndex().Modified(parentEntry.RelativePath, mdFile.MTime)
+			mdParentFileModified = parentEntry.ModifiedAfter(mdFile.MTime)
+			// Ignore parent file that was modified after the current file
+			// if the current file had been added after.
+			if parentEntry.ModifiedBeforeLastIndexation(entry) {
+				mdParentFileModified = false
+			}
 		}
 		if !mdFileModified && !mdParentFileModified {
 			// Nothing changed = Nothing to parse
-			CurrentLogger().Info("👌 Markdown file was not modified since last pack file")
+			CurrentLogger().Debug("👌 Markdown file was not modified since last pack file")
 			return nil
 		}
 
@@ -343,7 +376,7 @@ func (r *Repository) Add(paths PathSpecs) error {
 			traversedPaths = append(traversedPaths, parsedMedia.RelativePath)
 
 			// Check if media has changed since last indexation
-			mediaFileModified := CurrentIndex().Modified(parsedMedia.RelativePath, parsedMedia.MTime)
+			mediaFileModified := CurrentIndex().ModifiedBefore(parsedMedia.RelativePath, parsedMedia.MTime)
 			if !mediaFileModified {
 				CurrentLogger().Info("👌 Media was not modified since last pack file")
 				// Media has not changed
@@ -375,7 +408,7 @@ func (r *Repository) Add(paths PathSpecs) error {
 		return nil
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Walk the index to identify old files
@@ -408,33 +441,37 @@ func (r *Repository) Add(paths PathSpecs) error {
 		return nil
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// We saved pack files on disk before starting a new transaction to keep it short
 	if err := db.BeginTransaction(); err != nil {
-		return err
+		return nil, err
 	}
 	if err := db.UpsertPackFiles(packFilesToUpsert...); err != nil {
-		return err
+		return nil, err
 	}
 	if err := db.DeletePackFiles(packFilesToDelete...); err != nil {
-		return err
+		return nil, err
 	}
 	if err := db.Index().Unstage(packFilesToDelete...); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Don't forget to commit
 	if err := db.CommitTransaction(); err != nil {
-		return err
+		return nil, err
 	}
 	// And to persist the index
 	if err := db.Index().Save(); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	var result AddResult
+	result.Upsert(packFilesToUpsert...)
+	result.Delete(packFilesToDelete...)
+
+	return &result, nil
 }
 
 // Reset implements the command `nt reset`
@@ -496,28 +533,34 @@ func (r *Repository) Commit() error {
 	idx := CurrentIndex()
 
 	if idx.NothingToCommit() {
-		return errors.New("nothing to commit (create/copy files and use \"nt add\" to track")
+		return errors.New("nothing to commit (create/copy files and use \"nt add\" to track)")
 	}
 
 	// Run hooks
-	for _, entry := range idx.Entries {
-		if entry.Staged && !entry.HasTombstone() {
-			packFile, err := idx.ReadPackFile(entry.PackFileOID)
-			if err != nil {
-				return err
-			}
-			for _, packObject := range packFile.PackObjects {
-				if packObject.Kind == "note" {
-					note := packObject.Read().(*Note)
-					if note.HasHooks() {
-						if err := note.RunHooks(nil, false); err != nil {
-							return err
-						}
+	idx.Walk(AnyPath, func(entry *IndexEntry, objects []*IndexObject, blobs []*IndexBlob) error {
+		CurrentLogger().Infof("Processing %s...\n", entry.RelativePath)
+		if !entry.Staged || entry.HasTombstone() {
+			// Run hooks only on staged, non-deleted entries
+			return nil
+		}
+
+		// Extract the notes from the pack file
+		packFile, err := idx.ReadPackFile(entry.PackFileOID)
+		if err != nil {
+			return err
+		}
+		for _, packObject := range packFile.PackObjects {
+			if packObject.Kind == "note" {
+				note := packObject.Read().(*Note)
+				if note.HasHooks() {
+					if err := note.RunHooks(nil, false); err != nil {
+						return err
 					}
 				}
 			}
 		}
-	}
+		return nil
+	})
 
 	return idx.Commit()
 }
@@ -606,7 +649,7 @@ func (r *Repository) Status(paths PathSpecs) (*StatusResult, error) {
 
 		// We ignore changes on parents
 
-		mdFileModified := CurrentIndex().Modified(relativePath, mdFile.MTime)
+		mdFileModified := CurrentIndex().ModifiedBefore(relativePath, mdFile.MTime)
 		if !mdFileModified {
 			// Nothing changed = Nothing to parse
 			return nil
@@ -618,7 +661,7 @@ func (r *Repository) Status(paths PathSpecs) (*StatusResult, error) {
 
 		if !index.Exists(relativePath) {
 			entryVerbs[relativePath] = "added"
-		} else if index.Modified(relativePath, mdFile.MTime) {
+		} else if index.ModifiedBefore(relativePath, mdFile.MTime) {
 			entryVerbs[relativePath] = "modified"
 		}
 
@@ -630,7 +673,7 @@ func (r *Repository) Status(paths PathSpecs) (*StatusResult, error) {
 				// Check if media has changed since last indexation
 				if !index.Exists(parsedMedia.RelativePath) {
 					entryVerbs[parsedMedia.RelativePath] = "added"
-				} else if index.Modified(parsedMedia.RelativePath, parsedMedia.MTime) {
+				} else if index.ModifiedBefore(parsedMedia.RelativePath, parsedMedia.MTime) {
 					entryVerbs[parsedMedia.RelativePath] = "modified"
 				}
 			}
@@ -942,7 +985,7 @@ func (r *Repository) diffUnstaged(paths PathSpecs) (ObjectDiffs, error) {
 
 		// We ignore changes on parents
 
-		mdFileModified := index.Modified(relativePath, mdFile.MTime)
+		mdFileModified := index.ModifiedBefore(relativePath, mdFile.MTime)
 		if !mdFileModified {
 			// Nothing changed = Nothing to parse
 			return nil
@@ -973,7 +1016,7 @@ func (r *Repository) diffUnstaged(paths PathSpecs) (ObjectDiffs, error) {
 			traversedEntryPaths = append(traversedEntryPaths, parsedMedia.RelativePath)
 
 			// Check if media has not changed
-			if !index.Modified(parsedMedia.RelativePath, parsedMedia.MTime) {
+			if !index.ModifiedBefore(parsedMedia.RelativePath, parsedMedia.MTime) {
 				continue
 			}
 
