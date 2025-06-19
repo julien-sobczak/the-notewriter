@@ -68,7 +68,7 @@ func IsCodeBlock(line string) bool {
 }
 
 // IsHeading returns if a given line is a Markdown heading and its level.
-func IsHeading(line string) (bool, string, int) { // FIXME move to core/markdown.go?
+func IsHeading(line string) (bool, string, int) {
 	if !strings.HasPrefix(line, "#") {
 		return false, "", 0
 	}
@@ -87,9 +87,4 @@ func IsHeading(line string) (bool, string, int) { // FIXME move to core/markdown
 	}
 
 	return false, "", 0
-}
-
-// TODO document
-func (m *Document) ToCleanMarkdown() Document {
-	return m.MustTransform(AlignHeadings(), SquashBlankLines()).TrimSpace()
 }

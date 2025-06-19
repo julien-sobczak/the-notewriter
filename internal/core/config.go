@@ -404,8 +404,8 @@ type Config struct {
 	// .ntignore content
 	IgnoreFile IgnoreFile
 
-	// Temporary directory to generate blob files locally
-	tempDir string // FIXME still useful?
+	// Dir used to store temporary files like blob generations.
+	tempDir string
 
 	// Toggle this flag to skip some side-effects
 	DryRun bool
@@ -452,7 +452,7 @@ func (c *Config) TempDir() string {
 		c.tempDir = dir
 	}
 	return c.tempDir
-	// FIXME call defer os.RemoveAll(CurrentConfig().TempDir()) from tests?
+	// IMPROVEMENT Call defer os.RemoveAll(CurrentConfig().TempDir()) from tests?
 }
 
 // Converter returns the convertor to use when creating blobs from media files.
