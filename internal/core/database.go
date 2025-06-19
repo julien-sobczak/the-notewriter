@@ -345,7 +345,18 @@ func (db *DB) Origin() remote.Remote {
 			}
 			db.origin = remote
 		case "s3":
-			remote, err := remote.NewS3WithCredentials(configRemote.Endpoint, configRemote.BucketName, configRemote.AccessKey, configRemote.SecretKey, configRemote.Secure)
+			// Read sensitive credentials from environment variables
+			accessKey := os.Getenv("NT_S3_ACCESS_KEY")
+			if accessKey == "" {
+				fmt.Fprintf(os.Stderr, "Missing environment variable NT_S3_ACCESS_KEY\n")
+				os.Exit(1)
+			}
+			secretKey := os.Getenv("NT_S3_SECRET_KEY")
+			if secretKey == "" {
+				fmt.Fprintf(os.Stderr, "Missing environment variable NT_S3_SECRET_KEY\n")
+				os.Exit(1)
+			}
+			remote, err := remote.NewS3WithCredentials(configRemote.Endpoint, configRemote.BucketName, accessKey, secretKey, configRemote.Secure)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Unable to init S3 remote: %v\n", err)
 				os.Exit(1)

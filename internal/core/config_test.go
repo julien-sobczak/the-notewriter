@@ -423,3 +423,89 @@ func TestStaticConfigFiles(t *testing.T) {
 	require.NoError(t, err)
 	t.Log(actual)
 }
+
+func TestParseConfigFile(t *testing.T) {
+
+	t.Run("Valid minimal config", func(t *testing.T) {
+		configPath := MustWriteTempFile(t, "config.jsonnet", `{
+	Core: {
+		extensions: ["md"]
+	}
+}`)
+
+		cfg, err := ParseConfigFile(configPath)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		// Defined properties should be read
+		assert.Equal(t, []string{"md"}, cfg.Core.Extensions)
+		// Reserved attributes should be present
+		for k := range ReservedAttributes {
+			_, ok := cfg.Attributes[k]
+			assert.True(t, ok, "reserved attribute %q missing", k)
+		}
+		// Defaults for Medias should be set
+		assert.Equal(t, "ffmpeg", cfg.Core.Medias.Command)
+		assert.Equal(t, 1, cfg.Core.Medias.Parallel)
+		assert.Equal(t, "ultrafast", cfg.Core.Medias.Preset)
+	})
+
+	t.Run("Config with attributes and types", func(t *testing.T) {
+		configPath := MustWriteTempFile(t, "config.jsonnet", `
+{
+	Attributes: {
+		myattr: {
+			name: "myattr",
+			type: "string",
+		},
+	},
+	Types: {
+		Note: {
+			name: "Note",
+		},
+	},
+}`)
+
+		cfg, err := ParseConfigFile(configPath)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		// Custom attribute should be present
+		attr, ok := cfg.Attributes["myattr"]
+		require.True(t, ok)
+		assert.Equal(t, "myattr", attr.Name)
+		assert.Equal(t, "string", attr.Type)
+		// Should set Inherit to true by default
+		require.NotNil(t, attr.Inherit)
+		assert.True(t, *attr.Inherit)
+
+		// Custom type should be present
+		noteType, ok := cfg.Types["Note"]
+		require.True(t, ok)
+		assert.Equal(t, "Note", noteType.Name)
+		// Type pattern should be set by default
+		assert.Contains(t, noteType.Pattern, "^Note:")
+	})
+
+	t.Run("Config with invalid jsonnet", func(t *testing.T) {
+		configPath := MustWriteTempFile(t, "config.jsonnet", `{ invalid: [ }`)
+
+		_, err := ParseConfigFile(configPath)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to evaluate config.jsonnet")
+	})
+
+}
+
+/* Test Helpers */
+
+// MustWriteTempFile creates a temporary file with the given name and content.
+// It doesn't required a valid directory structure, unlike 'MustWriteFile' function.
+func MustWriteTempFile(t *testing.T, name, content string) string {
+	t.Helper()
+	dir := t.TempDir()
+	path := filepath.Join(dir, name)
+	err := os.WriteFile(path, []byte(content), 0644)
+	require.NoError(t, err)
+	return path
+}

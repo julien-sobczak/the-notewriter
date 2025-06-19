@@ -110,7 +110,7 @@ type ConfigFile struct {
 	Types      ConfigTypes
 
 	// Remotes
-	Remote ConfigRemote
+	Remote ConfigRemote // IMPROVEMENT Support multiple remotes
 
 	// Predefined searches
 	Searches map[string]*ConfigSearch
@@ -201,8 +201,8 @@ type ConfigRemote struct {
 	Dir string
 	// s3-specific attributes
 	Endpoint   string
-	AccessKey  string
-	SecretKey  string
+	AccessKey  string // Use $NT_S3_ACCESS_KEY to set
+	SecretKey  string // Use $NT_S3_SECRET_KEY to set
 	BucketName string
 	Secure     bool
 }
@@ -549,7 +549,7 @@ func ReadConfigFromDirectory(path string) (*Config, error) {
 	if os.IsNotExist(err) {
 		return nil, fmt.Errorf("failed to locate .nt/config.jsonnet file: %v", err)
 	}
-	configFile, err = parseConfigFile(ntConfigPath)
+	configFile, err = ParseConfigFile(ntConfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse .nt/config.jsonnet file: %v", err)
 	}
@@ -639,7 +639,8 @@ var ReservedAttributes = map[string]ConfigAttribute{
 	},
 }
 
-func parseConfigFile(jsonnetPath string) (*ConfigFile, error) {
+func ParseConfigFile(jsonnetPath string) (*ConfigFile, error) {
+	// Evaluate the Jsonnet template
 	vm := jsonnet.MakeVM()
 	jsonContent, err := vm.EvaluateFile(jsonnetPath)
 	if err != nil {
