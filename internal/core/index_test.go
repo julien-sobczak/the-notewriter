@@ -21,6 +21,7 @@ func TestIndexEntry(t *testing.T) {
 			RelativePath: "go.md",
 			PackFileOID:  oid.MustParse("1234567890123456789012345678901234567890"),
 			MTime:        clock.Now(),
+			ITime:        clock.Now(),
 			Size:         1,
 			Staged:       false,
 		}
@@ -30,10 +31,12 @@ func TestIndexEntry(t *testing.T) {
 			RelativePath:      "go.md",
 			PackFileOID:       oid.MustParse("1234567890123456789012345678901234567890"),
 			MTime:             clock.Now(),
+			ITime:             clock.Now(),
 			Size:              1,
 			Staged:            true,
 			StagedPackFileOID: oid.MustParse("33f1c9b2e0f94af4ac8c374051d7cf31724140ac"),
 			StagedMTime:       clock.Now(),
+			StagedITime:       clock.Now(),
 			StagedSize:        2,
 		}
 		assert.Equal(t, `entry "go.md" (packfile: 1234567890123456789012345678901234567890 => 33f1c9b2e0f94af4ac8c374051d7cf31724140ac)`, entryStaged.String())
@@ -42,6 +45,7 @@ func TestIndexEntry(t *testing.T) {
 			RelativePath:    "go.md",
 			PackFileOID:     oid.MustParse("1234567890123456789012345678901234567890"),
 			MTime:           clock.Now(),
+			ITime:           clock.Now(),
 			Size:            1,
 			Staged:          true,
 			StagedTombstone: clock.Now(),
@@ -89,12 +93,14 @@ func TestIndex(t *testing.T) {
 			RelativePath: "go.md",
 			PackFileOID:  packFile.OID,
 			MTime:        clock.Now(),
+			ITime:        clock.Now(),
 			Size:         1,
 			// File has just been staged
 			Staged:            true,
 			StagedPackFileOID: packFile.OID,
 			StagedTombstone:   time.Time{},
 			StagedMTime:       clock.Now(),
+			StagedITime:       clock.Now(),
 			StagedSize:        1,
 		}, entry)
 
@@ -115,12 +121,14 @@ func TestIndex(t *testing.T) {
 			RelativePath: "go.md",
 			PackFileOID:  packFile.OID,
 			MTime:        clock.Now(),
+			ITime:        clock.Now(),
 			Size:         1,
 			// File has just been staged
 			Staged:            false,
 			StagedPackFileOID: oid.Nil,
 			StagedTombstone:   time.Time{},
 			StagedMTime:       time.Time{},
+			StagedITime:       time.Time{},
 			StagedSize:        0,
 		}, entry)
 	})
@@ -192,12 +200,14 @@ func TestIndex(t *testing.T) {
 			RelativePath: "go.md",
 			PackFileOID:  packFile1.OID,
 			MTime:        clock.Now(),
+			ITime:        clock.Now(),
 			Size:         1,
 			// File has just been staged
 			Staged:            false,
 			StagedPackFileOID: oid.Nil,
 			StagedTombstone:   time.Time{},
 			StagedMTime:       time.Time{},
+			StagedITime:       time.Time{},
 			StagedSize:        0,
 		}, entry1)
 		// Second entry must be staged
@@ -205,12 +215,14 @@ func TestIndex(t *testing.T) {
 			RelativePath: "python.md",
 			PackFileOID:  packFile2.OID,
 			MTime:        clock.Now(),
+			ITime:        clock.Now(),
 			Size:         1,
 			// File has just been staged
 			Staged:            true,
 			StagedPackFileOID: packFile2.OID,
 			StagedTombstone:   time.Time{},
 			StagedMTime:       clock.Now(),
+			StagedITime:       clock.Now(),
 			StagedSize:        1,
 		}, entry2)
 
@@ -247,12 +259,14 @@ func TestIndex(t *testing.T) {
 			RelativePath: "python.md",
 			PackFileOID:  packFile2.OID,
 			MTime:        clock.Now(),
+			ITime:        clock.Now(),
 			Size:         1,
 			// File has been staged again
 			Staged:            true,
 			StagedPackFileOID: newPackFile2.OID,
 			StagedTombstone:   time.Time{},
 			StagedMTime:       clock.Now(),
+			StagedITime:       clock.Now(),
 			StagedSize:        1,
 		}, entry2)
 
@@ -322,7 +336,7 @@ func TestIndex(t *testing.T) {
 		// Delete the first file
 		idx.SetTombstone(packFile1.FileRelativePath)
 		countObjectsAfter := len(idx.Objects)
-		require.NotNil(t, idx.GetEntry("go.md"))                             // Still there...
+		require.NotNil(t, idx.GetEntry("go.md"))                            // Still there...
 		assert.Equal(t, clock.Now(), idx.GetEntry("go.md").StagedTombstone) // ...with a tombstone
 		assert.Equal(t, countObjectsBefore, countObjectsAfter)              // no change in the number of objects as the pack file is still there with a tombstone
 
@@ -404,13 +418,13 @@ func TestIndex(t *testing.T) {
 		require.NoError(t, idx.Commit())
 
 		// File not in index
-		assert.True(t, idx.Modified("python.md", clock.Now()))
+		assert.True(t, idx.ModifiedBefore("python.md", clock.Now()))
 
 		// File in index, not modified
-		assert.False(t, idx.Modified("go.md", clock.Now()))
+		assert.False(t, idx.ModifiedBefore("go.md", clock.Now()))
 
 		// File in index, modified
-		assert.True(t, idx.Modified("go.md", clock.Now().Add(1*time.Hour)))
+		assert.True(t, idx.ModifiedBefore("go.md", clock.Now().Add(1*time.Hour)))
 	})
 
 	t.Run("ShortOID", func(t *testing.T) {

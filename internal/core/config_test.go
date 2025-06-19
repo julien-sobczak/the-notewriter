@@ -412,18 +412,14 @@ func TestJsonnet(t *testing.T) {
 }
 
 func TestStaticConfigFiles(t *testing.T) {
-	vm := jsonnet.MakeVM()
-
 	// Copy static files to temporary directory
 	dir := t.TempDir()
-	libFilename := filepath.Join(dir, "nt.libsonnet")
-	configFilename := filepath.Join(dir, "config.jsonnet")
-	err := os.WriteFile(libFilename, []byte(DefaultConfigLibFile), 0644)
-	require.NoError(t, err)
-	err = os.WriteFile(configFilename, []byte(DefaultConfigFile), 0644)
+	err := InitConfigFileFromDirectory(dir, DefaultConfigOptions)
 	require.NoError(t, err)
 
-	actual, err := vm.EvaluateFile(configFilename)
+	// Evaluate generated configuration file
+	vm := jsonnet.MakeVM()
+	actual, err := vm.EvaluateFile(filepath.Join(dir, ".nt", "config.jsonnet"))
 	require.NoError(t, err)
 	t.Log(actual)
 }

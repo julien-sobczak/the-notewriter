@@ -70,6 +70,9 @@ func (v Violation) String() string {
 type LintRule func(*ParsedFile, *Query, []any) ([]*Violation, error)
 
 var LintRulesFn = map[string]LintRule{
+	// Enforce no empty titles
+	"no-empty-title": NoEmptyTitle,
+
 	// Enforce no duplicate between note titles
 	"no-duplicate-note-title": NoDuplicateNoteTitle,
 
@@ -102,6 +105,32 @@ var LintRulesFn = map[string]LintRule{
 }
 
 /* Rules */
+
+// NoEmptyTitle implements the rule "no-empty-title".
+func NoEmptyTitle(file *ParsedFile, query *Query, args []any) ([]*Violation, error) {
+	var violations []*Violation
+
+	if text.IsBlank(file.ShortTitle.String()) {
+		violations = append(violations, &Violation{
+			Name:         "no-empty-title",
+			Message:      "note with empty title",
+			RelativePath: file.RelativePath,
+			Line:         1, // The title is always on the first line
+		})
+	}
+	for _, note := range file.Notes {
+		if text.IsBlank(note.ShortTitle.String()) {
+			violations = append(violations, &Violation{
+				Name:         "no-empty-title",
+				Message:      "note with empty title",
+				RelativePath: file.RelativePath,
+				Line:         note.Line,
+			})
+		}
+	}
+
+	return violations, nil
+}
 
 // NoDuplicateNoteTitle implements the rule "no-duplicate-note-title".
 func NoDuplicateNoteTitle(file *ParsedFile, query *Query, args []any) ([]*Violation, error) {

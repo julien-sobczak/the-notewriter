@@ -13,7 +13,7 @@ import (
 func TestRegression(t *testing.T) {
 	root := SetUpRepositoryFromGoldenDirNamed(t, "TestComplex")
 
-	err := CurrentRepository().Add(AnyPath)
+	_, err := CurrentRepository().Add(AnyPath)
 	require.NoError(t, err)
 
 	err = CurrentRepository().Commit()
@@ -68,14 +68,14 @@ func TestRegression(t *testing.T) {
 			change.Apply(t, root)
 		}
 
-		err := CurrentRepository().Add(AnyPath)
+		_, err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 
 		err = CurrentRepository().Commit()
 		require.NoError(t, err)
 
 		if edition.RunGC {
-			err = CurrentDB().GC()
+			_, err = CurrentDB().GC(false)
 			require.NoError(t, err)
 		}
 

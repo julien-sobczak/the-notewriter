@@ -495,3 +495,11 @@ func (r *Repository) Add(paths ...string) error {
     return nil
 }
 ```
+
+### How to log
+
+Use `CurrentLogger()` methods to log. The verbose level can be defined using the flags
+
+* `--v`: Info messages (= action with side-effects)
+* `--vv`: Debug messages (= action without side-effects)
+* `--vvv`: Trace messages (= information useful to debug)

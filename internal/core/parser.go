@@ -407,7 +407,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 			for _, parsedNote := range parsedNotes {
 				generatedNotes, err := preprocessor(p, parsedNote)
 				if err != nil {
-					return nil, err
+					return nil, fmt.Errorf("failing preprocessor %q on note %q (%s:%d): %v", preprocessorName, parsedNote.ShortTitle, parsedNote.RelativePath, parsedNote.Line, err)
 				}
 				if len(generatedNotes) > 0 {
 					newParsedNotes = append(newParsedNotes, generatedNotes...)

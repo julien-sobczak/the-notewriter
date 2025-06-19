@@ -36,7 +36,7 @@ func (n *Note) RunHooks(hookNames []string, manual bool) error {
 
 	// Do not trigger hook with tag `#manual` except when using `nt run-hook` command
 	if n.Tags.Includes("manual") && !manual {
-		CurrentLogger().Infof("🙈 Skipping hooks as tag 'manual' is present")
+		CurrentLogger().Warnf("🙈 Skipping hooks as tag 'manual' is present")
 		return nil
 	}
 

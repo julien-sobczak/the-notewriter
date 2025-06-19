@@ -237,7 +237,7 @@ func (db *DB) UpsertPackFiles(packFiles ...*PackFile) error {
 				}
 			}
 		}
-		CurrentLogger().Infof("💾 Upserted pack file %s", filepath.Base(packFile.ObjectPath()))
+		CurrentLogger().Infof("💾 Upserted pack file %s (%s)", filepath.Base(packFile.ObjectPath()), packFile.FileRelativePath)
 	}
 	return nil
 }
@@ -251,7 +251,7 @@ func (db *DB) DeletePackFiles(packFiles ...*PackFile) error {
 				if err := statefulObj.Delete(); err != nil {
 					return err
 				}
-				CurrentLogger().Infof("💾 Deleted pack file %s", filepath.Base(packFile.ObjectPath()))
+				CurrentLogger().Infof("💾 Deleted pack file %s (%s)", filepath.Base(packFile.ObjectPath()), packFile.FileRelativePath)
 			}
 			// Ignore operations
 		}
@@ -367,8 +367,25 @@ func (db *DB) Diff() (string, error) {
 	return diff.String(), nil
 }
 
+type GCResult struct {
+	ReclaimedPackFiles []oid.OID // List of pack files deleted
+	ReclaimedBlobs     []oid.OID // List of blobs deleted
+}
+
+func (r *GCResult) AddBlob(oid oid.OID) {
+	if !slices.Contains(r.ReclaimedBlobs, oid) {
+		r.ReclaimedBlobs = append(r.ReclaimedBlobs, oid)
+	}
+}
+
+func (r *GCResult) AddPackFile(oid oid.OID) {
+	if !slices.Contains(r.ReclaimedPackFiles, oid) {
+		r.ReclaimedPackFiles = append(r.ReclaimedPackFiles, oid)
+	}
+}
+
 // GC removes non referenced objects/blobs in the local directory.
-func (db *DB) GC() error {
+func (db *DB) GC(dryRun bool) (*GCResult, error) {
 	// Why GC is required? Why commits cannot do the housekeeping directly?
 	//
 	// The main reason is to reclaim disk space (and thus limit the storage consumption, especially useful for remotes).
@@ -382,12 +399,11 @@ func (db *DB) GC() error {
 	//   to avoid recreating blobs (especially using for medias which require conversion).
 	//   If a file never added again, the packfile can be safely removed.
 
-	CurrentLogger().Info("Reclaiming blobs...")
-
 	index := CurrentIndex()
 	objectDir := index.ObjectsDir()
 
 	var reclaimedFiles []string
+	var result GCResult
 
 	// Traverse the file system to find orphan blobs and orphan pack files
 	err := filepath.WalkDir(objectDir, func(path string, info fs.DirEntry, err error) error {
@@ -410,9 +426,11 @@ func (db *DB) GC() error {
 				// Delete blobs first
 				for _, blobRef := range packFile.BlobRefs {
 					reclaimedFiles = append(reclaimedFiles, blobRef.ObjectPath())
+					result.AddBlob(blobRef.OID)
 				}
 				// Delete pack file last
 				reclaimedFiles = append(reclaimedFiles, packFile.ObjectPath())
+				result.AddPackFile(oid)
 			}
 		}
 
@@ -422,25 +440,30 @@ func (db *DB) GC() error {
 			if blob == nil {
 				// This blob is not longer present in the index.
 				reclaimedFiles = append(reclaimedFiles, BlobPath(oid))
+				result.AddBlob(oid)
 			}
 		}
 
 		return nil
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Batch the deletions having having remove duplicates
 	slices.Sort(reclaimedFiles)
 	reclaimedFiles = slices.Compact(reclaimedFiles)
 	for _, path := range reclaimedFiles {
+		if dryRun {
+			CurrentLogger().Infof("🗑️ Would delete: %s", path) // TODO log on stdout/stderr directly?
+			continue
+		}
 		if err := SafeRemove(path); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	return nil
+	return &result, nil
 }
 
 /* Utility */

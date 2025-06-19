@@ -20,6 +20,7 @@ var parallel int
 // Common flags used by multiple commands
 var force bool
 var interactive bool
+var dryRun bool
 
 var rootCmd = &cobra.Command{
 	Use:   "nt",

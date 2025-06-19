@@ -34,6 +34,10 @@
 
     // Declare available Linter rules
     LintRules: {
+        NoEmptyTitle()::
+            {
+                name: "no-empty-title",
+            },
         NoDuplicateNoteTitle()::
             {
                 name: "no-duplicate-note-title",

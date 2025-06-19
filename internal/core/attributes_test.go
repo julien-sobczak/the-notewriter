@@ -3,7 +3,6 @@ package core
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/stretchr/testify/assert"
@@ -190,37 +189,37 @@ func TestCastFn(t *testing.T) {
 		v, ok := CastDateFn("2024-12-31")
 		assert.True(t, ok)
 		assert.NotZero(t, v)
-		assert.Equal(t, time.Date(2024, time.Month(12), 31, 0, 0, 0, 0, time.UTC), v)
+		assert.Equal(t, "2024-12-31", v)
 
 		// datetimes are OK
 		v, ok = CastDateFn("2024-12-31 12:32:00")
 		assert.True(t, ok)
 		assert.NotZero(t, v)
-		assert.Equal(t, time.Date(2024, time.Month(12), 31, 12, 32, 0, 0, time.UTC), v)
+		assert.Equal(t, "2024-12-31 12:32:00", v)
 
 		// RFC datetimes are OK
 		v, ok = CastDateFn("2024-12-31T12:32:00Z")
 		assert.True(t, ok)
 		assert.NotZero(t, v)
-		assert.Equal(t, time.Date(2024, time.Month(12), 31, 12, 32, 0, 0, time.UTC), v)
+		assert.Equal(t, "2024-12-31T12:32:00Z", v)
 
 		// RFC with a different timezone datetimes are OK
 		v, ok = CastDateFn("2024-12-31T12:32:00-05:00")
 		assert.True(t, ok)
 		assert.NotZero(t, v)
-		assert.Equal(t, time.Date(2024, time.Month(12), 31, 17, 32, 0, 0, time.UTC), v.In(time.UTC))
+		assert.Equal(t, "2024-12-31T12:32:00-05:00", v)
 
 		// Year and month are OK
 		v, ok = CastDateFn("2024-12")
 		assert.True(t, ok)
 		assert.NotZero(t, v)
-		assert.Equal(t, time.Date(2024, time.Month(12), 1, 0, 0, 0, 0, time.UTC), v)
+		assert.Equal(t, "2024-12", v)
 
 		// Year is OK
 		v, ok = CastDateFn("2024")
 		assert.True(t, ok)
 		assert.NotZero(t, v)
-		assert.Equal(t, time.Date(2024, time.Month(1), 1, 0, 0, 0, 0, time.UTC), v)
+		assert.Equal(t, "2024", v)
 	})
 
 }

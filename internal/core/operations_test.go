@@ -151,7 +151,7 @@ Who invented Python?
 Guido van Rossum
 `)
 
-	err := CurrentRepository().Add(PathSpecs{"python.md"})
+	_, err := CurrentRepository().Add(PathSpecs{"python.md"})
 	require.NoError(t, err)
 	err = CurrentRepository().Commit()
 	require.NoError(t, err)

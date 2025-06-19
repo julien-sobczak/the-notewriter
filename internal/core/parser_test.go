@@ -803,7 +803,7 @@ Reread the book in 10 years to see how my perspective has changed.
 			"isbn":          "978-0525559474",
 			"review_rating": int64(20),
 			"review_stars":  int64(5),
-			"read_date":     time.Date(2025, 04, 01, 0, 0, 0, 0, time.UTC),
+			"read_date":     "2025-04-01",
 			"draft":         false,
 		}), note.Attributes)
 

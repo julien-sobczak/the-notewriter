@@ -167,6 +167,7 @@ func (p *PackObject) Read() Packable {
 	case "file":
 		file := new(File)
 		p.Data.Unmarshal(file)
+		file.Attributes = file.Attributes.CastOrIgnore(CurrentConfigFile().Attributes)
 		return file
 	case "flashcard":
 		flashcard := new(Flashcard)
@@ -179,6 +180,7 @@ func (p *PackObject) Read() Packable {
 	case "note":
 		note := new(Note)
 		p.Data.Unmarshal(note)
+		note.Attributes = note.Attributes.CastOrIgnore(CurrentConfigFile().Attributes)
 		return note
 	case "link":
 		link := new(GoLink)
@@ -202,7 +204,7 @@ func (p *PackObject) Read() Packable {
 
 // LoadPackFileFromPath reads a pack file file on disk.
 func LoadPackFileFromPath(path string) (*PackFile, error) {
-	CurrentLogger().Infof("🤓 Loading pack file %s", path)
+	CurrentLogger().Debugf("🤓 Loading pack file %s", path)
 	in, err := os.Open(path)
 	if err != nil {
 		return nil, err
