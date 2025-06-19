@@ -183,48 +183,45 @@ var CastBoolFn CastFn[bool] = func(value any) (bool, bool) {
 	return false, false
 }
 
-var CastDateFn CastFn[time.Time] = func(value any) (time.Time, bool) {
-	// Already the right type?
-	if v, ok := value.(time.Time); ok {
-		return v, true
+var CastDateFn CastFn[string] = func(v any) (string, bool) {
+	// Only convert from string to time.Time
+	if !IsString(v) {
+		return "", false
 	}
 
-	// Only convert from string to time.Time
-	if !IsString(value) {
-		return time.Time{}, false
-	}
+	value := v.(string)
 
 	// YAML uses ISO 8601 format. Try it first
 	// (using a subset RFC as Golang doesn't provide the ISO 8601 format specifically).
 	// See https://symfony.com/doc/current/reference/formats/yaml.html#dates
-	parsedDate, err := time.Parse(time.RFC3339, value.(string)) // Ex: "2023-10-15T14:12:00Z"
+	_, err := time.Parse(time.RFC3339, value) // Ex: "2023-10-15T14:12:00Z"
 	if err == nil {
-		return parsedDate, true
+		return value, true
 	}
 
 	// Try additional common format (more specific to least specific)
 
-	parsedDate, err = time.Parse(time.DateTime, value.(string)) // Ex: "2023-10-15 14:12:00"
+	_, err = time.Parse(time.DateTime, value) // Ex: "2023-10-15 14:12:00"
 	if err == nil {
-		return parsedDate, true
+		return value, true
 	}
 
-	parsedDate, err = time.Parse(time.DateOnly, value.(string)) // Ex: "2023-10-15"
+	_, err = time.Parse(time.DateOnly, value) // Ex: "2023-10-15"
 	if err == nil {
-		return parsedDate, true
+		return value, true
 	}
 
-	parsedDate, err = time.Parse("2006-01", value.(string)) // Ex: "2023-10"
+	_, err = time.Parse("2006-01", value) // Ex: "2023-10"
 	if err == nil {
-		return parsedDate, true
+		return value, true
 	}
 
-	parsedDate, err = time.Parse("2006", value.(string)) // Ex: "2023"
+	_, err = time.Parse("2006", value) // Ex: "2023"
 	if err == nil {
-		return parsedDate, true
+		return value, true
 	}
 
-	return time.Time{}, false
+	return "", false
 }
 
 func NewAttributeSetFromMarkdown(md *markdown.File) (AttributeSet, error) {

@@ -538,7 +538,7 @@ func (r *Repository) Commit() error {
 
 	// Run hooks
 	idx.Walk(AnyPath, func(entry *IndexEntry, objects []*IndexObject, blobs []*IndexBlob) error {
-		CurrentLogger().Infof("Processing %s...\n", entry.RelativePath)
+		CurrentLogger().Debugf("Processing %s...\n", entry.RelativePath)
 		if !entry.Staged || entry.HasTombstone() {
 			// Run hooks only on staged, non-deleted entries
 			return nil
