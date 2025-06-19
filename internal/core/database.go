@@ -16,6 +16,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/julien-sobczak/the-notewriter/internal/remote"
 	"github.com/julien-sobczak/the-notewriter/pkg/filesystem"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/julien-sobczak/the-notewriter/pkg/resync"
@@ -39,7 +40,7 @@ type DB struct {
 	// .nt/refs/*
 	refs map[string]string
 	// .nt/refs/origin
-	origin Remote
+	origin remote.Remote
 	// .nt/database.sql
 	client *sql.DB
 
@@ -328,7 +329,7 @@ func (db *DB) DeleteBlobOnDisk(blob BlobRef) error {
  */
 
 // Origin returns the origin implementation based on the optional configured type.
-func (db *DB) Origin() Remote {
+func (db *DB) Origin() remote.Remote {
 	dbRemoteOnce.Do(func() {
 		config := CurrentConfig()
 		configRemote := config.ConfigFile.Remote
@@ -337,14 +338,14 @@ func (db *DB) Origin() Remote {
 		}
 		switch configRemote.Type {
 		case "fs":
-			remote, err := NewFSRemote(configRemote.Dir)
+			remote, err := remote.NewFS(configRemote.Dir)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Unable to init FS remote: %v\n", err)
 				os.Exit(1)
 			}
 			db.origin = remote
 		case "s3":
-			remote, err := NewS3RemoteWithCredentials(configRemote.Endpoint, configRemote.BucketName, configRemote.AccessKey, configRemote.SecretKey, configRemote.Secure)
+			remote, err := remote.NewS3WithCredentials(configRemote.Endpoint, configRemote.BucketName, configRemote.AccessKey, configRemote.SecretKey, configRemote.Secure)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Unable to init S3 remote: %v\n", err)
 				os.Exit(1)

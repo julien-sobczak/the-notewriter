@@ -1,4 +1,4 @@
-package core
+package remote
 
 import (
 	"testing"
@@ -6,10 +6,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFSRemote(t *testing.T) {
+func TestFS(t *testing.T) {
 	origin := t.TempDir()
 
-	r, err := NewFSRemote(origin)
+	r, err := NewFS(origin)
 	require.NoError(t, err)
 
 	// Add a file

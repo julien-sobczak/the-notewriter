@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
+	"github.com/julien-sobczak/the-notewriter/internal/remote"
 	"github.com/julien-sobczak/the-notewriter/pkg/filesystem"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/julien-sobczak/the-notewriter/pkg/resync"
@@ -742,7 +743,7 @@ func (r *Repository) Push(interactive, force bool) error {
 	data, err := origin.GetObject("index")
 
 	originIndex := NewIndex()
-	if errors.Is(err, ErrObjectNotExist) {
+	if errors.Is(err, remote.ErrObjectNotExist) {
 		// First time we push
 	} else if err != nil {
 		return err
@@ -831,7 +832,7 @@ func (r *Repository) Pull(interactive, force bool) error {
 	data, err := origin.GetObject("index")
 
 	originIndex := NewIndex()
-	if errors.Is(err, ErrObjectNotExist) {
+	if errors.Is(err, remote.ErrObjectNotExist) {
 		// First time we push
 	} else if err != nil {
 		return err

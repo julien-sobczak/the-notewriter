@@ -1,6 +1,7 @@
 //go:build integration
+// Use `go test -tags=integration ./internal/remote` to run this test
 
-package core
+package remote
 
 import (
 	"context"
@@ -17,8 +18,8 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-func TestS3Remote(t *testing.T) {
-	r, _ := SetUpS3Remote(t)
+func TestS3(t *testing.T) {
+	r, _ := SetUpS3(t)
 
 	// Add a file
 	err := r.PutObject("index", []byte(`
@@ -59,7 +60,7 @@ committed_at: 2023-11-11T11:14:30Z
 
 /* Test Helpers */
 
-func SetUpS3Remote(t *testing.T) (*S3Remote, *minio.Client) {
+func SetUpS3(t *testing.T) (*S3, *minio.Client) {
 	// Settings
 	accessKey := "XXX"      // at least 3 characters
 	secretKey := "XXXXXXXX" // at least 8 characters
@@ -103,7 +104,7 @@ func SetUpS3Remote(t *testing.T) (*S3Remote, *minio.Client) {
 	endpoint := fmt.Sprintf("%s:%s", host, port.Port())
 
 	// Create the S3 remote
-	remoteClient, err := NewS3RemoteWithCredentials(endpoint, bucketName, accessKey, secretKey, false)
+	remoteClient, err := NewS3WithCredentials(endpoint, bucketName, accessKey, secretKey, false)
 	require.NoError(t, err)
 
 	// Create the Minio client
