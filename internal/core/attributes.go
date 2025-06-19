@@ -427,7 +427,7 @@ func (a AttributeSet) ToYAML() (string, error) {
 	return buf.String(), nil
 }
 
-func (a AttributeSet) CastValueAsString(name string) string { // FIXME really useful?
+func (a AttributeSet) CastValueAsString(name string) string {
 	if v, ok := a[name]; ok {
 		if s, ok := v.(string); ok {
 			return s

@@ -18,8 +18,6 @@ import (
 	"github.com/julien-sobczak/the-notewriter/internal/reference"
 )
 
-// FIXME The CLI does not exit when pressing Ctrl+C or ESC keys.
-
 /*
  * The command nt-reference uses Bubble Tea under the hood to provide an interactive CLI.
  * The code is heavily based on examples. It's probably possible better code using richer models.
@@ -56,20 +54,25 @@ var (
 * Category Selection
  */
 
-func ChooseCategory(categories []*core.ConfigReference) (string, *core.ConfigReference) {
+func ChooseCategory(categories []*core.ConfigReference) *core.ConfigReference {
 	/* Inspired by https://github.com/charmbracelet/bubbletea/blob/master/examples/list-simple/ */
 	res, err := tea.NewProgram(NewCategoryModel(categories)).Run()
 	if err != nil {
 		log.Fatal(err)
 	}
-	categoryTitle := res.(CategoryModel).choice
+	model := res.(CategoryModel)
+	if model.quitting || model.choice == "" {
+		// User quit with ctrl+c or esc, or made no selection
+		return nil
+	}
+	categoryTitle := model.choice
 	// Find the category in the list
 	for _, category := range categories {
 		if category.Title == categoryTitle {
-			return categoryTitle, category
+			return category
 		}
 	}
-	return "", nil // Not found
+	return nil // Not found
 }
 
 func NewCategoryModel(categories []*core.ConfigReference) CategoryModel {
@@ -139,7 +142,7 @@ func (m CategoryModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch keypress := msg.String(); keypress {
-		case "ctrl+c":
+		case "ctrl+c", "esc":
 			m.quitting = true
 			return m, tea.Quit
 
@@ -317,7 +320,12 @@ func SelectSearchResult(results []reference.Result) reference.Result {
 	if err != nil {
 		log.Fatal(err)
 	}
-	resultIndex := res.(ResultModel).choice
+	model := res.(ResultModel)
+	if model.quitting || model.choice == "" {
+		// User quit with ctrl+c or esc, or made no selection
+		return nil
+	}
+	resultIndex := model.choice
 	i, err := strconv.Atoi(resultIndex)
 	if err != nil {
 		log.Fatalf("Invalid result index %q", resultIndex)

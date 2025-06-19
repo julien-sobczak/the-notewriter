@@ -34,7 +34,10 @@ var newCmd = &cobra.Command{
 		configReference := core.CurrentConfig().ConfigFile.References
 
 		// Step 1: Choose a category (Book, Person, etc.)
-		_, selectedConfigReference := ChooseCategory(configReference)
+		selectedConfigReference := ChooseCategory(configReference)
+		if selectedConfigReference == nil {
+			os.Exit(0)
+		}
 
 		// Instantiate the manager
 		var manager = createManager(selectedConfigReference)
