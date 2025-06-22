@@ -192,9 +192,9 @@ func TestParseFileWithTestdata(t *testing.T) {
 				// Ex:
 				note, ok := file.FindNoteByTitle("Note: Blog Post Outline")
 				require.True(t, ok)
-				assert.Contains(t, note.Body.String(), "#### Motivations")
-				assert.Contains(t, note.Body.String(), "#### Introduction")
-				assert.Contains(t, note.Body.String(), "#### Demo")
+				assert.Contains(t, note.Body.String(), "## Motivations")
+				assert.Contains(t, note.Body.String(), "## Introduction")
+				assert.Contains(t, note.Body.String(), "## Demo")
 				// BUT
 				note, ok = file.FindNoteByTitle("Note: First Notebooks")
 				require.True(t, ok)

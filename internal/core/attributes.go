@@ -600,17 +600,17 @@ func ExtractBlockTagsAndAttributes(content markdown.Document) (TagSet, Attribute
 }
 
 // StripTagsAndAttributes remove all tags and attributes.
-func StripBlockTagsAndAttributes(content markdown.Document) markdown.Document {
-	var res bytes.Buffer
-
-	for _, line := range content.Lines() {
-		// not only tags and attributes?
-		if text.IsBlank(line) || strings.HasPrefix(line, "```") || !regexBlockTagAttributesLine.MatchString(line) {
-			res.WriteString(line + "\n")
+func StripBlockTagsAndAttributes() markdown.Transformer {
+	return func(document markdown.Document) (markdown.Document, error) {
+		var res bytes.Buffer
+		for _, line := range document.Lines() {
+			// not only tags and attributes?
+			if text.IsBlank(line) || strings.HasPrefix(line, "```") || !regexBlockTagAttributesLine.MatchString(line) {
+				res.WriteString(line + "\n")
+			}
 		}
+		return markdown.Document(text.SquashBlankLines(res.String())).TrimSpace(), nil
 	}
-
-	return markdown.Document(text.SquashBlankLines(res.String())).TrimSpace()
 }
 
 // StripAllTagsAndAttributes removes all tags and attributes from a text.

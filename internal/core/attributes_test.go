@@ -507,7 +507,8 @@ func TestMarkdownAttributes(t *testing.T) {
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				actual := StripBlockTagsAndAttributes(tt.md)
+				actual, err := StripBlockTagsAndAttributes()(tt.md)
+				require.NoError(t, err)
 				assert.Equal(t, tt.expected, actual)
 			})
 		}

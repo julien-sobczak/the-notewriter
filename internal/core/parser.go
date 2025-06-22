@@ -305,8 +305,10 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 
 		// Apply post-processing on note body
 		postProcessedNoteBody, err := noteBody.Transform(
+			StripBlockTagsAndAttributes(),
 			markdown.StripHTMLComments(),
 			markdown.StripMarkdownUnofficialComments(),
+			markdown.AlignHeadings(),
 			// TODO inject <Media> tags? => wait in File to be able to replace link with custom format "blob:<oid>" instead
 			markdown.ReplaceCharacters(markdown.AsciidocCharacterSubstitutions))
 		if err != nil {
