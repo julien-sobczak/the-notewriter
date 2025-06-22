@@ -240,19 +240,17 @@ func ParseFile(md *markdown.File, mdParent *markdown.File) (*ParsedFile, error) 
 	}
 
 	// Extract objects
+	medias, err := result.extractMedias() // Start with medias as they are used in notes
+	if err != nil {
+		return nil, err
+	}
+	result.Medias = medias
 	notes, err := result.extractNotes()
 	if err != nil {
 		return nil, err
 	}
-	medias, err := result.extractMedias()
-	if err != nil {
-		return nil, err
-	}
-	wikilinks := result.extractWikilinks()
-
 	result.Notes = notes
-	result.Medias = medias
-	result.Wikilinks = wikilinks
+	result.Wikilinks = result.extractWikilinks()
 
 	return result, nil
 }
@@ -309,7 +307,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 			markdown.StripHTMLComments(),
 			markdown.StripMarkdownUnofficialComments(),
 			markdown.AlignHeadings(),
-			// TODO inject <Media> tags? => wait in File to be able to replace link with custom format "blob:<oid>" instead
+			ReplaceMedias(p.Medias),
 			markdown.ReplaceCharacters(markdown.AsciidocCharacterSubstitutions))
 		if err != nil {
 			return nil, err
@@ -436,6 +434,50 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 	}
 
 	return notes, nil
+}
+
+// ReplaceMedias replaces the media links in a Markdown document by <media> tags easier to work with.
+func ReplaceMedias(medias []*ParsedMedia) markdown.Transformer {
+	return func(doc markdown.Document) (markdown.Document, error) {
+		rawDoc := doc.String()
+		// Replace medias by <media> tags
+		for _, media := range medias {
+			if media.Dangling {
+				continue // Do not replace dangling medias
+			}
+			// Replace the media link by a <media> tag
+			escapedRawPath := regexp.QuoteMeta(media.RawPath)
+			pattern := `!\[(.*?)\]\(` + escapedRawPath + `\s*(?:"(.*?)")?.*?\)`
+			re := regexp.MustCompile(pattern)
+			rawDoc = re.ReplaceAllStringFunc(rawDoc, func(match string) string {
+				groups := re.FindStringSubmatch(match)
+				if len(groups) < 3 {
+					// Not enough groups, return the original match
+					return match
+				}
+				alt := groups[1]
+				relativePath := media.RelativePath
+				title := groups[2]
+				// Extract the media link and replace it by a <media> tag
+				// Ex: ![image](../medias/pic.png)
+				// becomes <media relative-path="../medias/pic.png" />
+				var sb strings.Builder
+				sb.WriteString("<media ")
+				if relativePath != "" {
+					sb.WriteString(fmt.Sprintf("relative-path=\"%s\" ", relativePath))
+				}
+				if alt != "" {
+					sb.WriteString(fmt.Sprintf("alt=\"%s\" ", alt))
+				}
+				if title != "" {
+					sb.WriteString(fmt.Sprintf("title=\"%s\" ", title))
+				}
+				sb.WriteString("/>")
+				return sb.String()
+			})
+		}
+		return markdown.Document(rawDoc), nil
+	}
 }
 
 // FilterNonInheritableAttributes filters the attributes to keep only the inheritable ones

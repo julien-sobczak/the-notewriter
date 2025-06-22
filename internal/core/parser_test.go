@@ -525,6 +525,39 @@ Another note without a code block.
 		assert.Equal(t, "2024-12-06", note.Attributes["date"]) // Do not override existing attributes
 	})
 
+	t.Run("Medias Rewriting", func(t *testing.T) {
+		// Test attributes and tags defined in Front Matter and in notes
+		// are correctly parsed and merged.
+		core.FreezeNow(t)
+
+		root := core.SetUpRepositoryFromTempDir(t)
+		core.MustWriteFile(t, "medias/mona-lisa.png", "This is the worth reproduction.")
+		core.MustWriteFile(t, "paintings.md", text.UnescapeTestContent(`
+# Paintings
+
+## Artwork: Mona Lisa
+
+‛@painter: Leonardo da Vinci‛ ‛@year: ~1503‛ ‛@source: Louvre Museum‛
+
+‛#masterpiece‛
+
+![Mona Lisa](medias/mona-lisa.png)
+
+> The painting was stolen in 1911 and recovered in 1913.
+`))
+		md := markdown.MustParseFile(filepath.Join(root, "paintings.md"))
+		index, err := core.ParseFile(md, nil)
+		require.NoError(t, err)
+
+		require.Len(t, index.Notes, 1)
+
+		// Check attributes and notes
+		note := index.Notes[0]
+		assert.Contains(t, note.Content.String(), "![Mona Lisa](medias/mona-lisa.png")
+		assert.Contains(t, note.Body.String(), "<media relative-path=\"medias/mona-lisa.png\" alt=\"Mona Lisa\" />")
+		// Only the body is post-processed. Therefore, medias are replaced by <media> tags only inside it.
+	})
+
 }
 
 func TestDetermineFileSlug(t *testing.T) {
@@ -813,4 +846,95 @@ Reread the book in 10 years to see how my perspective has changed.
 		assert.Equal(t, "💡 Read again", note.Title.String())
 		assert.Equal(t, "Read again", note.ShortTitle.String())
 	})
+}
+
+func TestReplaceMedias(t *testing.T) {
+	tests := []struct {
+		name     string
+		medias   []*core.ParsedMedia
+		input    string
+		expected string
+	}{
+		{
+			name: "Replace single media",
+			medias: []*core.ParsedMedia{
+				{
+					RawPath:      "images/pic.png",
+					RelativePath: "images/pic.png",
+					Dangling:     false,
+				},
+			},
+			input:    `Here is an image: ![](images/pic.png)`,
+			expected: `Here is an image: <media relative-path="images/pic.png" />`,
+		},
+		{
+			name: "Replace multiple medias",
+			medias: []*core.ParsedMedia{
+				{
+					RawPath:      "images/pic1.png",
+					RelativePath: "images/pic1.png",
+					Dangling:     false,
+				},
+				{
+					RawPath:      "images/pic2.png",
+					RelativePath: "images/pic2.png",
+					Dangling:     false,
+				},
+			},
+			input:    `![img1](images/pic1.png) and ![img2](images/pic2.png)`,
+			expected: `<media relative-path="images/pic1.png" alt="img1" /> and <media relative-path="images/pic2.png" alt="img2" />`,
+		},
+		{
+			name: "Do not replace dangling media",
+			medias: []*core.ParsedMedia{
+				{
+					RawPath:      "images/pic.png",
+					RelativePath: "images/pic.png",
+					Dangling:     true,
+				},
+			},
+			input:    `![](images/pic.png)`,
+			expected: `![](images/pic.png)`,
+		},
+		{
+			name:     "Do not replace external media",
+			medias:   nil,
+			input:    `![alt](https://example.com/pic.png)`,
+			expected: `![alt](https://example.com/pic.png)`,
+		},
+		{
+			name: "Replace media with relative path containing special characters",
+			medias: []*core.ParsedMedia{
+				{
+					RawPath:      "images/my (special).png",
+					RelativePath: "images/my (special).png",
+					Dangling:     false,
+				},
+			},
+			input:    `![](images/my (special).png)`,
+			expected: `<media relative-path="images/my (special).png" />`,
+		},
+		{
+			name: "Preserve alt and title",
+			medias: []*core.ParsedMedia{
+				{
+					RawPath:      "images/pic.png",
+					RelativePath: "images/pic.png",
+					Dangling:     false,
+				},
+			},
+			input:    `Here is an image: ![Alt](images/pic.png "A title")`,
+			expected: `Here is an image: <media relative-path="images/pic.png" alt="Alt" title="A title" />`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := markdown.Document(tt.input)
+			transformer := core.ReplaceMedias(tt.medias)
+			result, err := doc.Transform(transformer)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, result.String())
+		})
+	}
 }
