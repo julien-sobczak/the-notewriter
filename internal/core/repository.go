@@ -740,6 +740,7 @@ func (r *Repository) Push(interactive, force bool) error {
 	}
 
 	// Read the origin index
+	CurrentLogger().Trace("👀 Reading remote index...")
 	data, err := origin.GetObject("index")
 
 	originIndex := NewIndex()
@@ -767,18 +768,22 @@ func (r *Repository) Push(interactive, force bool) error {
 		if err != nil {
 			return err
 		}
+		CurrentLogger().Tracef("👀 Pushing pack file %q...", missingPackFile.ObjectRelativePath())
 		if err := origin.PutObject(missingPackFile.ObjectRelativePath(), data); err != nil {
-			return err
+			return fmt.Errorf("failed to put object %q: %v", missingPackFile.ObjectRelativePath(), err)
 		}
+		CurrentLogger().Infof("🚀 Pushed pack file %q", missingPackFile.ObjectRelativePath())
 	}
 	for _, missingBlob := range diff.MissingBlobs {
 		data, err := CurrentIndex().ReadBlobData(missingBlob.OID)
 		if err != nil {
 			return err
 		}
+		CurrentLogger().Tracef("👀 Pushing blob %q...", missingBlob.ObjectRelativePath())
 		if err := origin.PutObject(missingBlob.ObjectRelativePath(), data); err != nil {
-			return err
+			return fmt.Errorf("failed to put object %q: %v", missingBlob.ObjectRelativePath(), err)
 		}
+		CurrentLogger().Infof("🚀 Pushed blob %q", missingBlob.ObjectRelativePath())
 	}
 
 	// Override origin index with the local one
@@ -786,26 +791,38 @@ func (r *Repository) Push(interactive, force bool) error {
 	if err := CurrentIndex().Write(buf); err != nil {
 		return err
 	}
+	CurrentLogger().Tracef("👀 Pushing index...")
 	if err := origin.PutObject("index", buf.Bytes()); err != nil {
-		return err
+		return fmt.Errorf("failed to put %q: %v", "index", err)
 	}
+	CurrentLogger().Infof("🚀 Pushed index")
 
 	// Override origin config with the local one
 	data, err = os.ReadFile(CurrentConfig().GetGeneratedPath())
 	if err != nil {
 		return fmt.Errorf("failed to read configuration file %s: %v", CurrentConfig().GetGeneratedPath(), err)
 	}
+	CurrentLogger().Tracef("👀 Pushing config.json...")
 	if err := origin.PutObject("config.json", data); err != nil {
-		return err
+		return fmt.Errorf("failed to put %q: %v", "config.json", err)
 	}
+	CurrentLogger().Info("🚀 Pushed config.json")
 
 	// Cleanup obsolete files
 	for _, missingPackFile := range diffReverse.MissingPackFiles {
-		_ = origin.DeleteObject(missingPackFile.ObjectRelativePath())
+		CurrentLogger().Tracef("👀 Trying to delete pack file %q...", missingPackFile.ObjectRelativePath())
+		err = origin.DeleteObject(missingPackFile.ObjectRelativePath())
+		if err == nil {
+			CurrentLogger().Infof("🚀 Deleted pack file %q", missingPackFile.ObjectRelativePath())
+		}
 		// Ignore error as the file may have been deleted in a prior execution
 	}
 	for _, missingBlob := range diffReverse.MissingBlobs {
-		_ = origin.DeleteObject(missingBlob.ObjectRelativePath())
+		CurrentLogger().Tracef("👀 Trying to delete blob %q...", missingBlob.ObjectRelativePath())
+		err = origin.DeleteObject(missingBlob.ObjectRelativePath())
+		if err == nil {
+			CurrentLogger().Infof("🚀 Deleted blob %q", missingBlob.ObjectRelativePath())
+		}
 		// Ignore error as the file may have been deleted in a prior execution
 	}
 

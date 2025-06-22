@@ -3,6 +3,9 @@ package remote
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
+	"time"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -43,12 +46,19 @@ func NewS3WithCredentials(endpoint string, bucketName string, accessKey, secretK
 
 func (r *S3) GetObject(key string) ([]byte, error) {
 	object, err := r.minioClient.GetObject(context.Background(), r.bucketName, key, minio.GetObjectOptions{})
+	var minioErr minio.ErrorResponse
+	if err != nil && errors.As(err, &minioErr) && minioErr.Code == "NoSuchKey" {
+		return nil, ErrObjectNotExist
+	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get object %q: %w", key, err)
 	}
 	stat, err := object.Stat()
+	if err != nil && errors.As(err, &minioErr) && minioErr.Code == "NoSuchKey" {
+		return nil, ErrObjectNotExist
+	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to stat object %q: %w", key, err)
 	}
 	if stat.Size == 0 {
 		return nil, ErrObjectNotExist
@@ -65,8 +75,7 @@ func (r *S3) PutObject(key string, data []byte) error {
 }
 
 func (r *S3) DeleteObject(key string) error {
-	_, err := r.GetObject(key)
-	if err != nil {
+	if _, err := r.GetObject(key); err != nil {
 		return err
 	}
 	return r.minioClient.RemoveObject(context.Background(), r.bucketName, key, minio.RemoveObjectOptions{})

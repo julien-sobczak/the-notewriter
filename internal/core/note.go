@@ -712,7 +712,7 @@ func (r *Repository) FindMatchingNote(parsedNote *ParsedNote) (*Note, error) {
 	}
 
 	// Try by wikilink
-	note, _ = r.FindNoteByWikilink(parsedNote.RelativePath + "#" + string(parsedNote.Title)) // FIXME trim extension?
+	note, _ = r.FindNoteByWikilink(parsedNote.RelativePath + "#" + string(parsedNote.Title))
 	if note != nil {
 		return note, nil
 	}
