@@ -6,6 +6,7 @@ import (
 	"github.com/julien-sobczak/the-notewriter/internal/core"
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestExtractDateFromTitle(t *testing.T) {
@@ -108,4 +109,189 @@ func TestQuoteRewriterPreprocessor(t *testing.T) {
 			assert.Equal(t, tt.expectedBody, resultNotes[0].Body.String())
 		})
 	}
+}
+
+func TestFlashcardExtractorPreprocessor(t *testing.T) {
+
+	t.Run("Basic syntax", func(t *testing.T) {
+		file := &core.ParsedFile{}
+		note := &core.ParsedNote{
+			Title:      markdown.Document("Flashcard: Basic"),
+			ShortTitle: markdown.Document("Basic"),
+			Slug:       "flashcard-basic",
+			Body: markdown.Document(`
+Front
+
+---
+
+Back
+`),
+		}
+		notes, err := core.FlashcardExtractorPreprocessor(file, note)
+		require.NoError(t, err)
+
+		// We still have the original note
+		require.Len(t, notes, 1)
+		note = notes[0]
+
+		// With a flashcard extracted
+		require.Len(t, note.Flashcards, 1)
+		flashcard := note.Flashcards[0]
+		assert.Equal(t, "Basic", flashcard.ShortTitle.String())
+		assert.Equal(t, "flashcard-basic", flashcard.Slug)
+		assert.Equal(t, "Front", flashcard.Front.String())
+		assert.Equal(t, "Back", flashcard.Back.String())
+	})
+
+	t.Run("Basic with reversed syntax", func(t *testing.T) {
+		file := &core.ParsedFile{}
+		note := &core.ParsedNote{
+			Title:      markdown.Document("Flashcard: Basic"),
+			ShortTitle: markdown.Document("Basic"),
+			Slug:       "flashcard-basic",
+			NoteTags:   []string{"reversed"},
+			Body: markdown.Document(`
+Front
+
+---
+
+Back
+`),
+		}
+		notes, err := core.FlashcardExtractorPreprocessor(file, note)
+		require.NoError(t, err)
+
+		// We still have the original note
+		require.Len(t, notes, 1)
+		note = notes[0]
+
+		// With two flashcards extracted
+		require.Len(t, note.Flashcards, 2)
+		flashcard := note.Flashcards[0]
+		flashcardReversed := note.Flashcards[1]
+		assert.Equal(t, &core.ParsedFlashcard{
+			ShortTitle: "Basic",
+			Slug:       "flashcard-basic",
+			Front:      "Front",
+			Back:       "Back",
+		}, flashcard)
+		assert.Equal(t, &core.ParsedFlashcard{
+			ShortTitle: "Basic",
+			Slug:       "flashcard-basic-reversed",
+			Front:      "Back",
+			Back:       "Front",
+		}, flashcardReversed)
+	})
+
+	t.Run("Cloze deletion syntax", func(t *testing.T) {
+		file := &core.ParsedFile{}
+		note := &core.ParsedNote{
+			Title:      markdown.Document("Flashcard: Cloze Deletion"),
+			ShortTitle: markdown.Document("Cloze Deletion"),
+			Slug:       "flashcard-cloze-deletion",
+			Body:       markdown.Document(`Canberra was founded in **[[c1::1913]]**.`),
+		}
+		notes, err := core.FlashcardExtractorPreprocessor(file, note)
+		require.NoError(t, err)
+
+		// We still have the original note
+		require.Len(t, notes, 1)
+		note = notes[0]
+
+		// A flashcard must have been generated from the cloze deletion
+		require.Len(t, note.Flashcards, 1)
+		flashcard := note.Flashcards[0]
+		assert.Equal(t, &core.ParsedFlashcard{
+			ShortTitle: "Cloze Deletion",
+			Slug:       "flashcard-cloze-deletion",
+			Front:      "Canberra was founded in **[...]**.",
+			Back:       "Canberra was founded in **1913**.",
+		}, flashcard)
+	})
+
+	t.Run("Cloze deletion with hint syntax", func(t *testing.T) {
+		file := &core.ParsedFile{}
+		note := &core.ParsedNote{
+			Title:      markdown.Document("Flashcard: Cloze Deletion"),
+			ShortTitle: markdown.Document("Cloze Deletion"),
+			Slug:       "flashcard-cloze-deletion",
+			Body:       markdown.Document(`Canberra was founded in [[c1::1913::year]].`),
+		}
+		notes, err := core.FlashcardExtractorPreprocessor(file, note)
+		require.NoError(t, err)
+
+		// We still have the original note
+		require.Len(t, notes, 1)
+		note = notes[0]
+
+		// A flashcard must have been generated from the cloze deletion
+		require.Len(t, note.Flashcards, 1)
+		flashcard := note.Flashcards[0]
+		assert.Equal(t, &core.ParsedFlashcard{
+			ShortTitle: "Cloze Deletion",
+			Slug:       "flashcard-cloze-deletion",
+			Front:      "Canberra was founded in [year].",
+			Back:       "Canberra was founded in 1913.",
+		}, flashcard)
+	})
+
+	t.Run("Multiple cloze deletions in same group", func(t *testing.T) {
+		file := &core.ParsedFile{}
+		note := &core.ParsedNote{
+			Title:      markdown.Document("Flashcard: Cloze Deletion"),
+			ShortTitle: markdown.Document("Cloze Deletion"),
+			Slug:       "flashcard-cloze-deletion",
+			Body:       markdown.Document(`[[c1::Canberra::city]] was founded in [[c1::1913]].`),
+		}
+		notes, err := core.FlashcardExtractorPreprocessor(file, note)
+		require.NoError(t, err)
+
+		// We still have the original note
+		require.Len(t, notes, 1)
+		note = notes[0]
+
+		// A flashcard must have been generated from the cloze deletion
+		require.Len(t, note.Flashcards, 1)
+		flashcard := note.Flashcards[0]
+		assert.Equal(t, &core.ParsedFlashcard{
+			ShortTitle: "Cloze Deletion",
+			Slug:       "flashcard-cloze-deletion",
+			Front:      "[city] was founded in [...].",
+			Back:       "Canberra was founded in 1913.",
+		}, flashcard)
+	})
+
+	t.Run("Multiple cloze deletions in different groups", func(t *testing.T) {
+		file := &core.ParsedFile{}
+		note := &core.ParsedNote{
+			Title:      markdown.Document("Flashcard: Cloze Deletion"),
+			ShortTitle: markdown.Document("Cloze Deletion"),
+			Slug:       "flashcard-cloze-deletion",
+			Body:       markdown.Document(`[[c1::Canberra::city]] was founded in [[c2::1913]].`),
+		}
+		notes, err := core.FlashcardExtractorPreprocessor(file, note)
+		require.NoError(t, err)
+
+		// We still have the original note
+		require.Len(t, notes, 1)
+		note = notes[0]
+
+		// Several flashcards must have been generated from the cloze deletions
+		require.Len(t, note.Flashcards, 2)
+		flashcard1 := note.Flashcards[0]
+		flashcard2 := note.Flashcards[1]
+		assert.Equal(t, &core.ParsedFlashcard{
+			ShortTitle: "Cloze Deletion",
+			Slug:       "flashcard-cloze-deletion",
+			Front:      "[city] was founded in 1913.",
+			Back:       "Canberra was founded in 1913.",
+		}, flashcard1)
+		assert.Equal(t, &core.ParsedFlashcard{
+			ShortTitle: "Cloze Deletion",
+			Slug:       "flashcard-cloze-deletion",
+			Front:      "Canberra was founded in [...].",
+			Back:       "Canberra was founded in 1913.",
+		}, flashcard2)
+	})
+
 }

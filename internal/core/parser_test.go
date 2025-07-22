@@ -88,7 +88,7 @@ func TestParseFileWithTestdata(t *testing.T) {
 					"tags":   []string{"thinking"},
 				}, noteNote.Attributes)
 				// No subobjects
-				assert.Nil(t, noteNote.Flashcard)
+				assert.Len(t, noteNote.Flashcards, 0)
 				assert.Len(t, noteNote.GoLinks, 0)
 				assert.Len(t, noteNote.Reminders, 0)
 
@@ -107,8 +107,8 @@ func TestParseFileWithTestdata(t *testing.T) {
 				// Check "Flashcard: Commonplace Book"
 				noteCommomplace, ok := file.FindNoteByShortTitle("Commonplace Book")
 				require.True(t, ok)
-				require.NotNil(t, noteCommomplace.Flashcard)
-				flashcardCommonplace := noteCommomplace.Flashcard
+				require.Len(t, noteCommomplace.Flashcards, 1)
+				flashcardCommonplace := noteCommomplace.Flashcards[0]
 				assert.Equal(t, "Commonplace Book", flashcardCommonplace.ShortTitle.String())
 				assert.Equal(t, "(Thinking) What are **commonplace books**?", flashcardCommonplace.Front.String())
 				assert.Equal(t, "A tool to compile knowledge, usually by writing information into books.", flashcardCommonplace.Back.String())
@@ -220,6 +220,93 @@ func TestParseFileWithTestdata(t *testing.T) {
 }
 
 func TestParseFileWithTempdir(t *testing.T) {
+
+	t.Run("Nested Flashcards", func(t *testing.T) {
+		root := core.SetUpRepositoryFromTempDir(t)
+
+		// Create a file with nested flashcards at different levels.
+		// We will check that the flashcards are correctly extracted without including sub-notes and siblings sections.
+		core.MustWriteFile(t, "learning.md", text.UnescapeTestContent(`
+---
+tags: learning
+---
+
+# Learning
+
+## Note: Rote Memorization
+
+Rote memorization is a technique of learning by repetition.
+
+### Flashcard: Rote Memorization
+
+(Learning) What is **rote memorization**?
+
+---
+
+A technique of **learning by repetition**.
+
+### Advantages
+
+* It is a simple technique.
+* It is effective for short-term memory.
+
+### Drawbacks
+
+* It is not effective for long-term memory.
+* It does not promote understanding of the material.
+
+#### Flashcard: Rote Memorization Limitations
+
+(Learning) What are the **limitations of rote memorization**?
+
+---
+
+It is not effective for **long-term memory** and does not promote **understanding of the material**.
+
+## Note: Spaced Repetition
+
+Spaced repetition is a technique of learning by reviewing material at increasing intervals.
+
+### Flashcard: Spaced Repetition
+
+(Learning) What is **spaced repetition**?
+
+---
+
+A technique of **learning by reviewing material at increasing intervals**.
+
+### Flashcard: Spaced Repetition History
+
+(Learning) [[c1::Hermann Ebbinghaus::person]] invented **spaced repetition**
+`))
+
+		md := markdown.MustParseFile(filepath.Join(root, "learning.md"))
+		index, err := core.ParseFile(md, nil)
+		require.NoError(t, err)
+
+		require.Len(t, index.Notes, 6)
+
+		note1 := index.Notes[0]
+		note2 := index.Notes[1]
+		note3 := index.Notes[2]
+		note4 := index.Notes[3]
+		note5 := index.Notes[4]
+		note6 := index.Notes[5]
+
+		assert.Equal(t, "Note: Rote Memorization", note1.Title.String())
+		assert.Equal(t, "Flashcard: Rote Memorization", note2.Title.String())
+		assert.Equal(t, "Flashcard: Rote Memorization Limitations", note3.Title.String())
+		assert.Equal(t, "Note: Spaced Repetition", note4.Title.String())
+		assert.Equal(t, "Flashcard: Spaced Repetition", note5.Title.String())
+		assert.Equal(t, "Flashcard: Spaced Repetition History", note6.Title.String())
+
+		assert.Equal(t, "Rote memorization is a technique of learning by repetition.", note1.Body.String())
+		assert.Equal(t, "(Learning) What is **rote memorization**?\n\n---\n\nA technique of **learning by repetition**.", note2.Body.String())
+		assert.Equal(t, "(Learning) What are the **limitations of rote memorization**?\n\n---\n\nIt is not effective for **long-term memory** and does not promote **understanding of the material**.", note3.Body.String())
+		assert.Equal(t, "Spaced repetition is a technique of learning by reviewing material at increasing intervals.", note4.Body.String())
+		assert.Equal(t, "(Learning) What is **spaced repetition**?\n\n---\n\nA technique of **learning by reviewing material at increasing intervals**.", note5.Body.String())
+		assert.Equal(t, "(Learning) [[c1::Hermann Ebbinghaus::person]] invented **spaced repetition**", note6.Body.String())
+	})
 
 	t.Run("Attributes & Tags", func(t *testing.T) {
 		// Test attributes and tags defined in Front Matter and in notes
