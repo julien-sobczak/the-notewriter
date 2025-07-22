@@ -21,14 +21,14 @@ func TestCommandLint(t *testing.T) {
 		// Enable a single rule
 		WriteFileFromRelativePath(t, ".nt/config.jsonnet", `
 {
-    Core: { extensions: ["md"] },
-	Types: {
+    core: { extensions: ["md"] },
+	types: {
 		"Note": {
 			name: "Note"
 		}
 	},
-	Linter: {
-		Rules: [
+	linter: {
+		rules: [
 			{ name: "no-duplicate-note-title" }
 		]
 	},

@@ -2,7 +2,7 @@
 local nt = import 'nt.libsonnet';
 
 {
-    Core: {
+    core: {
         {{- if .MediaConverter }}
         medias: {
             command: "{{ .MediaConverter }}",
@@ -15,5 +15,5 @@ local nt = import 'nt.libsonnet';
     },
 
     # TODO add links to the documentation
-    Types: nt.DefaultTypes,
+    types: nt.DefaultTypes,
 }

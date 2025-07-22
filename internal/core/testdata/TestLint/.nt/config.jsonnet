@@ -1,13 +1,13 @@
 local nt = import 'nt.libsonnet';
 
 {
-    Core: {
+    core: {
         medias: {
             command: "random",
         },
     },
 
-    Attributes: {
+    attributes: {
         // Add a name attribute that is required on type Quote
         name: {
             name: "name",
@@ -31,14 +31,14 @@ local nt = import 'nt.libsonnet';
         },
     },
 
-    Types: nt.DefaultTypes + {
+    types: nt.DefaultTypes + {
         Quote: nt.DefaultTypes.Quote + {
             requiredAttributes: ["name"],
         },
     },
 
-    Linter: {
-        Rules: [
+    linter: {
+        rules: [
             nt.LintRules.NoEmptyTitle(),
             nt.LintRules.NoDuplicateNoteTitle(),
             nt.LintRules.NoDuplicateSlug(),

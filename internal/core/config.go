@@ -102,29 +102,29 @@ func (a ConfigAttributes) Find(name string) (*ConfigAttribute, bool) {
 	return nil, false
 }
 
-// Note: Fields must be public for toml package to unmarshall
+// Note: Fields must be JSON parser to marshal them
 type ConfigFile struct {
-	Core ConfigCore
+	Core ConfigCore `json:"core"`
 
-	Attributes ConfigAttributes
-	Types      ConfigTypes
+	Attributes ConfigAttributes `json:"attributes"`
+	Types      ConfigTypes      `json:"types"`
 
 	// Remotes
-	Remote ConfigRemote // IMPROVEMENT Support multiple remotes
+	Remote ConfigRemote `json:"remote"` // IMPROVEMENT Support multiple remotes
 
 	// Predefined searches
-	Searches map[string]*ConfigSearch
+	Searches map[string]*ConfigSearch `json:"searches"`
 
 	// Linter
-	Linter ConfigLinter
+	Linter ConfigLinter `json:"linter"`
 
 	// Extensions
 
 	// Reference options when using the "nt-reference" command
-	References []*ConfigReference
+	References []*ConfigReference `json:"references"`
 
 	// Decks definition when declaring notes of type "Flashcard"
-	Decks []*ConfigDeck
+	Decks []*ConfigDeck `json:"decks"`
 }
 
 // GetType returns the definition of a type of note
@@ -156,76 +156,76 @@ func (c *ConfigFile) GetAttribute(name string) (*ConfigAttribute, bool) {
 }
 
 type ConfigCore struct {
-	Extensions []string
-	Medias     ConfigMedias
+	Extensions []string     `json:"extensions"` // List of supported file extensions (ex: "md", "markdown")
+	Medias     ConfigMedias `json:"medias"`     // Media converter configuration
 }
 type ConfigAttribute struct {
-	Name    string
-	Aliases []string
-	Type    string // string, int, bool, string[], int[], bool[]
-	Format  string // Useful for value types (ex: "markdown", "date", etc.)
-	Min     int    // Default: 0 (for "number"-type only)
-	Max     int    // Default: -1 (for "number"-type only)
-	Pattern string // Regex (for "string"-type only)
-	Memory  *bool  // (for "date"-type only)
-	Inherit *bool  // Default: true
+	Name    string   `json:"name"`
+	Aliases []string `json:"aliases,omitempty"`
+	Type    string   `json:"type"`              // string, int, bool, string[], int[], bool[]
+	Format  string   `json:"format"`            // Useful for value types (ex: "markdown", "date", etc.)
+	Min     int      `json:"min,omitempty"`     // Default: 0 (for "number"-type only)
+	Max     int      `json:"max,omitempty"`     // Default: -1 (for "number"-type only)
+	Pattern string   `json:"pattern,omitempty"` // Regex (for "string"-type only)
+	Memory  *bool    `json:"memory,omitempty"`  // (for "date"-type only)
+	Inherit *bool    `json:"inherit"`           // Default: true
 }
 
 type ConfigType struct {
-	Name               string
-	Pattern            string   // Regex to detect Markdown headings matching the type
-	Preprocessors      []string // Additional logic to run after parsing a note
-	RequiredAttributes []string // List of mandatory attributes
-	OptionalAttributes []string // List of optional attributes
-	Hooks              []string // List of hooks to run on this type of note
+	Name               string   `json:"name"`
+	Pattern            string   `json:"pattern,omitempty"`   // Regex to detect Markdown headings matching the type
+	Preprocessors      []string `json:"preprocessors"`       // Additional logic to run after parsing a note
+	RequiredAttributes []string `json:"requiredAttributes"` // List of mandatory attributes
+	OptionalAttributes []string `json:"optionalAttributes"` // List of optional attributes
+	Hooks              []string `json:"hooks"`               // List of hooks to run on this type of note
 	// IMPROVEMENT refactor to Attributes []ConfigTypeAttribute with an attribute `required` (= more extensible)
 }
 type ConfigLinter struct {
-	Rules []*ConfigLinterRule
+	Rules []*ConfigLinterRule `json:"rules"` // List of rules to apply to notes
 }
 type ConfigLinterRule struct {
-	Name     string
-	Args     []any
-	Severity string // error, warning (default: error)
-	Query    string // Optional query to restrict which notes are concerned
+	Name     string `json:"name"`
+	Args     []any  `json:"args"`
+	Severity string `json:"severity"`        // error, warning (default: error)
+	Query    string `json:"query,omitempty"` // Optional query to restrict which notes are concerned
 }
 
 type ConfigMedias struct {
-	Command  string
-	Parallel int
-	Preset   string
+	Command  string `json:"command"`
+	Parallel int    `json:"parallel"`
+	Preset   string `json:"preset"`
 }
 type ConfigRemote struct {
-	Type string // fs or s3
+	Type string `json:"type"` // fs or s3
 	// fs-specific attributes
-	Dir string
+	Dir string `json:"dir,omitempty"`
 	// s3-specific attributes
-	Endpoint   string
-	AccessKey  string // Use $NT_S3_ACCESS_KEY to set
-	SecretKey  string // Use $NT_S3_SECRET_KEY to set
-	BucketName string
-	Secure     bool
+	Endpoint   string `json:"endpoint,omitempty"`
+	AccessKey  string `json:"-"` // Use $NT_S3_ACCESS_KEY to set
+	SecretKey  string `json:"-"` // Use $NT_S3_SECRET_KEY to set
+	BucketName string `json:"bucketName,omitempty"`
+	Secure     bool   `json:"secure,omitempty"`
 }
 type ConfigDeck struct {
-	Name  string
-	Query string
+	Name  string `json:"name"`
+	Query string `json:"query"`
 	// General attributes
-	BoostFactor         int // How passionate I am on this topic (100 = neutral, 80 = challenging, 120 = smooth)
-	NewFlashcardsPerDay int // How many new flashcards to add every day (= 0 no more cards for now)
-	MaxFlashcardsPerDay int // How many flashcards (including new) to review every day (= 0 no limit, review what is due)
+	BoostFactor         int `json:"boostFactor"`         // How passionate I am on this topic (100 = neutral, 80 = challenging, 120 = smooth)
+	NewFlashcardsPerDay int `json:"newFlashcardsPerDay"` // How many new flashcards to add every day (= 0 no more cards for now)
+	MaxFlashcardsPerDay int `json:"maxFlashcardsPerDay"` // How many flashcards (including new) to review every day (= 0 no limit, review what is due)
 	// Specific attributes
-	Algorithm         string         // Anki2
-	AlgorithmSettings map[string]any // SRS-specific attributes
+	Algorithm         string         `json:"algorithm"`         // Anki2
+	AlgorithmSettings map[string]any `json:"algorithmSettings"` // SRS-specific attributes
 }
 type ConfigSearch struct {
-	Title string
-	Q     string
+	Title string `json:"title"`
+	Q     string `json:"q"`
 }
 type ConfigReference struct {
-	Title    string // Ex: "A book"
-	Manager  string // Ex: "zotero"
-	Path     string // Ex: "references/books"
-	Template string // Ex: "# {{.Title}}\n"
+	Title    string `json:"title"`    // Ex: "A book"
+	Manager  string `json:"manager"`  // Ex: "zotero"
+	Path     string `json:"path"`     // Ex: "references/books"
+	Template string `json:"template"` // Ex: "# {{.Title}}\n"
 }
 
 // SetParallel overrides the value in config file.

@@ -82,7 +82,7 @@ func TestReadConfigFromDirectory(t *testing.T) {
 
 			".nt/config.jsonnet": `
 {
-    Core: {
+    core: {
         extensions: ["md"]
     }
 }`,
@@ -138,8 +138,8 @@ func TestCheckConfig(t *testing.T) {
 
 			".nt/config.jsonnet": `
 {
-	Linter: {
-        Rules: [
+	linter: {
+        rules: [
 			{
                 name: "unknown-rule",
 				severity: "warning",
@@ -162,8 +162,8 @@ func TestCheckConfig(t *testing.T) {
 
 			".nt/config.jsonnet": `
 {
-	Linter: {
-        Rules: [
+	linter: {
+        rules: [
 			{
                 name: "no-duplicate-slug",
 				severity: "oops",
@@ -185,7 +185,7 @@ func TestCheckConfig(t *testing.T) {
 
 			".nt/config.jsonnet": `
 {
-    Attributes: {
+    attributes: {
         mydate: {
             name: "isbn",
             type: "string",
@@ -215,7 +215,7 @@ func TestCheckConfig(t *testing.T) {
 				name: "Invalid template in references",
 				config: `
 {
-	References: [
+	references: [
 		{
 			title: "A book",
 			manager: "google-books",
@@ -236,7 +236,7 @@ func TestCheckConfig(t *testing.T) {
 				name: "Invalid path in references",
 				config: `
 {
-	References: [
+	references: [
 		{
 			title: "A book",
 			manager: "google-books",
@@ -255,7 +255,7 @@ func TestCheckConfig(t *testing.T) {
 				name: "Deck attributes",
 				config: `
 {
-	Decks: [
+	decks: [
 		{
 			name: "Life",
 			query: "path:skills",
@@ -428,7 +428,7 @@ func TestParseConfigFile(t *testing.T) {
 
 	t.Run("Valid minimal config", func(t *testing.T) {
 		configPath := MustWriteTempFile(t, "config.jsonnet", `{
-	Core: {
+	core: {
 		extensions: ["md"]
 	}
 }`)
