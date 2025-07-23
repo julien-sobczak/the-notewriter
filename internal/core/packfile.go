@@ -670,13 +670,14 @@ func NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFile, error) {
 		objects = append(objects, note)
 
 		// Process the Flashcard
-		if parsedNote.Flashcard != nil {
-			parsedFlashcard := parsedNote.Flashcard
-			flashcard, err := NewOrExistingFlashcard(packFile, file, note, parsedFlashcard)
-			if err != nil {
-				return nil, err
+		if len(parsedNote.Flashcards) > 0 {
+			for _, parsedFlashcard := range parsedNote.Flashcards {
+				flashcard, err := NewOrExistingFlashcard(packFile, file, note, parsedFlashcard)
+				if err != nil {
+					return nil, err
+				}
+				objects = append(objects, flashcard)
 			}
-			objects = append(objects, flashcard)
 		}
 
 		// Process the Reminder(s)

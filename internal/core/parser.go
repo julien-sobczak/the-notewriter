@@ -62,6 +62,10 @@ type ParsedFile struct {
 	Wikilinks []markdown.Wikilink // TODO still useful now that the method is exposed on markdown.Document?
 }
 
+func (p ParsedFile) String() string {
+	return fmt.Sprintf("ParsedFile %q", p.RelativePath)
+}
+
 // ParsedNote represents a single raw note inside a file.
 type ParsedNote struct {
 	Parent *ParsedNote
@@ -89,9 +93,13 @@ type ParsedNote struct {
 	Attributes     AttributeSet // Attributes defined in the note and inherited from the parent notes/files
 
 	// Extracted objects
-	Flashcard *ParsedFlashcard
-	GoLinks   []*ParsedGoLink
-	Reminders []*ParsedReminder
+	Flashcards []*ParsedFlashcard
+	GoLinks    []*ParsedGoLink
+	Reminders  []*ParsedReminder
+}
+
+func (p ParsedNote) String() string {
+	return fmt.Sprintf("ParsedNote %q in file %q at line %d", p.Title, p.RelativePath, p.Line)
 }
 
 type ParsedFlashcard struct {
@@ -104,6 +112,10 @@ type ParsedFlashcard struct {
 	// Fields in Markdown
 	Front markdown.Document
 	Back  markdown.Document
+}
+
+func (p ParsedFlashcard) String() string {
+	return fmt.Sprintf("ParsedFlashcard %q", p.ShortTitle)
 }
 
 type ParsedGoLink struct {
@@ -120,12 +132,20 @@ type ParsedGoLink struct {
 	GoName string
 }
 
+func (p ParsedGoLink) String() string {
+	return fmt.Sprintf("ParsedGoLink %q", p.GoName)
+}
+
 type ParsedReminder struct {
 	// Description in Markdown of the reminder (ex: the line)
 	Description markdown.Document
 
 	// Tag value containig the formula to determine the next occurence
 	Tag string `yaml:"tag"`
+}
+
+func (p ParsedReminder) String() string {
+	return fmt.Sprintf("ParsedReminder `#%s`", p.Tag)
 }
 
 type ParsedMedia struct {
@@ -151,6 +171,10 @@ type ParsedMedia struct {
 
 	// Line number where the link present.
 	Line int
+}
+
+func (p ParsedMedia) String() string {
+	return fmt.Sprintf("ParsedMedia %q", p.RawPath)
 }
 
 func (p *ParsedMedia) FileMTime() time.Time {

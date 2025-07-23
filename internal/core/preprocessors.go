@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -183,23 +184,90 @@ func GeneratorPreprocessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, e
 
 // FlashcardExtractorPreprocessor extracts the flashcard to enrich a note. This preprocessor returns the same input note.
 func FlashcardExtractorPreprocessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, error) {
-	// Only front/back to parse
 	parts := note.Body.SplitByHorizontalRules()
-	if len(parts) < 2 {
-		return nil, errors.New("missing flashcard separator")
+
+	if len(parts) == 1 {
+		return flashcardWithClozeDeletionExtractor(file, note)
 	}
+
+	// Not possible to have more than 2 parts
 	if len(parts) > 2 {
 		return nil, errors.New("too many flashcard separator")
 	}
+	// 2 parts are required for cards (except for cloze deletions)
+	if len(parts) < 2 {
+		return nil, errors.New("missing flashcard separator")
+	}
+
 	front := parts[0]
 	back := parts[1]
 
-	// Simply enrich the current note with the flashcard
-	note.Flashcard = &ParsedFlashcard{
+	note.Flashcards = append(note.Flashcards, &ParsedFlashcard{
 		ShortTitle: note.ShortTitle,
 		Slug:       note.Slug,
 		Front:      front,
 		Back:       back,
+	})
+
+	if note.NoteTags.Includes("reversed") {
+		note.Flashcards = append(note.Flashcards, &ParsedFlashcard{
+			ShortTitle: note.ShortTitle,
+			Slug:       note.Slug + "-reversed",
+			Front:      back,
+			Back:       front,
+		})
+	}
+
+	return []*ParsedNote{note}, nil
+}
+
+// flashcardWithClozeDeletionExtractor extracts flashcards using the cloze deletion syntax.
+func flashcardWithClozeDeletionExtractor(_ *ParsedFile, note *ParsedNote) ([]*ParsedNote, error) {
+	body := note.Body.String()
+
+	// We use Anki syntax for cloze deletions using brackets instead of curly braces.
+	// Ex: [[c1::This is a cloze deletion::optional hint]]
+	// See https://docs.ankiweb.net/editing.html#cloze-deletion
+	// Curly braces are often used in programming languages (ex: Astro uses them for variables).
+	// Even if there is no support for variables in _The NoteWriter_, we use brackets to avoid
+	// future conflicts.
+
+	clozePattern := regexp.MustCompile(`\[\[(\w+)::([^\]:]+?)(?:::(.+?))?\]\]`)
+	if !clozePattern.MatchString(body) {
+		return nil, errors.New("missing cloze deletion syntax")
+	}
+
+	// Find all unique cloze groups
+	clozes := clozePattern.FindAllStringSubmatch(body, -1)
+	groupSet := []string{} // Use a set to keep group names in the order of their first appearance
+	for _, sub := range clozes {
+		if !slices.Contains(groupSet, sub[1]) {
+			groupSet = append(groupSet, sub[1])
+		}
+	}
+
+	// For each group, create a flashcard
+	for _, group := range groupSet {
+		front := clozePattern.ReplaceAllStringFunc(body, func(m string) string {
+			sub := clozePattern.FindStringSubmatch(m)
+			if sub[1] == group {
+				if sub[3] != "" {
+					return fmt.Sprintf("[%s]", sub[3])
+				}
+				return "[...]"
+			}
+			return sub[2]
+		})
+		back := clozePattern.ReplaceAllStringFunc(body, func(m string) string {
+			sub := clozePattern.FindStringSubmatch(m)
+			return sub[2]
+		})
+		note.Flashcards = append(note.Flashcards, &ParsedFlashcard{
+			ShortTitle: note.ShortTitle,
+			Slug:       note.Slug,
+			Front:      markdown.Document(front),
+			Back:       markdown.Document(back),
+		})
 	}
 
 	return []*ParsedNote{note}, nil
