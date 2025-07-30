@@ -16,12 +16,8 @@ func init() {
 var goCmd = &cobra.Command{
 	Use:   "go",
 	Short: "Redirect to a Go link",
+	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) > 1 {
-			fmt.Println("Too many arguments. You can only have one which must be a go link name")
-			os.Exit(1)
-		}
-
 		goName := args[0]
 
 		link, err := core.CurrentRepository().FindGoLinkByGoName(goName)
