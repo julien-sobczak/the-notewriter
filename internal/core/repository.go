@@ -724,7 +724,7 @@ func (r *Repository) Status(paths PathSpecs) (*StatusResult, error) {
 }
 
 // Push pushes new objects remotely.
-func (r *Repository) Push(interactive, force bool) error {
+func (r *Repository) Push(remoteName string, interactive, force bool) error {
 	CurrentConfig().DryRun = true
 
 	// Implementation: We don't use a locking mechanism to prevent another repository to push at the same time.
@@ -734,7 +734,7 @@ func (r *Repository) Push(interactive, force bool) error {
 		return errors.New("changes not commited (commit first and retry)")
 	}
 
-	origin := CurrentDB().Origin()
+	origin := CurrentDB().Remote(remoteName)
 	if origin == nil {
 		return errors.New("no remote found")
 	}
@@ -830,7 +830,7 @@ func (r *Repository) Push(interactive, force bool) error {
 }
 
 // Pull retrieves remote objects.
-func (r *Repository) Pull(interactive, force bool) error {
+func (r *Repository) Pull(remoteName string, interactive, force bool) error {
 	CurrentConfig().DryRun = false
 
 	// Implementation: We don't use a locking mechanism to prevent another repository to push at the same time.
@@ -840,7 +840,7 @@ func (r *Repository) Pull(interactive, force bool) error {
 		return errors.New("changes not commited (commit first and retry)")
 	}
 
-	origin := CurrentDB().Origin()
+	origin := CurrentDB().Remote(remoteName)
 	if origin == nil {
 		return errors.New("no remote found")
 	}

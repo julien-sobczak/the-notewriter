@@ -18,14 +18,16 @@ var pullCmd = &cobra.Command{
 	Use:   "pull",
 	Short: "Pull remote",
 	Long:  `Pull remote to retrieve new objects and update local database.`,
+	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		CheckConfig()
-		if core.CurrentDB().Origin() == nil {
-			fmt.Println("There is no remote currently configured.")
+		remoteName := args[0]
+		if core.CurrentDB().Remote(remoteName) == nil {
+			fmt.Printf("There is no remote %q currently configured.\n", remoteName)
 			fmt.Println("Please specify one in .nt/config")
 			os.Exit(1)
 		}
-		err := core.CurrentRepository().Pull(interactive, force)
+		err := core.CurrentRepository().Pull(remoteName, interactive, force)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

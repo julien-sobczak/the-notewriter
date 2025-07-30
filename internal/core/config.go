@@ -110,7 +110,7 @@ type ConfigFile struct {
 	Types      ConfigTypes      `json:"types"`
 
 	// Remotes
-	Remote ConfigRemote `json:"remote"` // IMPROVEMENT Support multiple remotes
+	Remotes []ConfigRemote `json:"remote"` // IMPROVEMENT Support multiple remotes
 
 	// Predefined searches
 	Searches map[string]*ConfigSearch `json:"searches"`
@@ -173,11 +173,11 @@ type ConfigAttribute struct {
 
 type ConfigType struct {
 	Name               string   `json:"name"`
-	Pattern            string   `json:"pattern,omitempty"`   // Regex to detect Markdown headings matching the type
-	Preprocessors      []string `json:"preprocessors"`       // Additional logic to run after parsing a note
+	Pattern            string   `json:"pattern,omitempty"`  // Regex to detect Markdown headings matching the type
+	Preprocessors      []string `json:"preprocessors"`      // Additional logic to run after parsing a note
 	RequiredAttributes []string `json:"requiredAttributes"` // List of mandatory attributes
 	OptionalAttributes []string `json:"optionalAttributes"` // List of optional attributes
-	Hooks              []string `json:"hooks"`               // List of hooks to run on this type of note
+	Hooks              []string `json:"hooks"`              // List of hooks to run on this type of note
 	// IMPROVEMENT refactor to Attributes []ConfigTypeAttribute with an attribute `required` (= more extensible)
 }
 type ConfigLinter struct {
@@ -196,6 +196,7 @@ type ConfigMedias struct {
 	Preset   string `json:"preset"`
 }
 type ConfigRemote struct {
+	Name string `json:"name"` // Name as specified when running commands
 	Type string `json:"type"` // fs or s3
 	// fs-specific attributes
 	Dir string `json:"dir,omitempty"`
@@ -251,26 +252,6 @@ func (f *ConfigFile) SupportExtension(path string) bool {
 		}
 	}
 	return false
-}
-
-// ConfigureFSRemote defines a local remote using the file system.
-func (f *ConfigFile) ConfigureFSRemote(dir string) *ConfigFile {
-	f.Remote = ConfigRemote{
-		Type: "fs",
-		Dir:  dir,
-	}
-	return f
-}
-
-// ConfigureS3Remote defines a remote using a S3 backend.
-func (f *ConfigFile) ConfigureS3Remote(bucketName, accessKey, secretKey string) *ConfigFile {
-	f.Remote = ConfigRemote{
-		Type:       "s3",
-		BucketName: bucketName,
-		AccessKey:  accessKey,
-		SecretKey:  secretKey,
-	}
-	return f
 }
 
 func (c ConfigAttribute) String() string {

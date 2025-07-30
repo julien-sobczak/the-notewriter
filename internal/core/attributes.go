@@ -171,16 +171,14 @@ var CastBoolFn CastFn[bool] = func(value any) (bool, bool) {
 		return value.(bool), true
 	}
 	// Only convert from string to bool
-	if IsString(value) {
-		if value == "true" {
-			return true, true
-		} else if value == "false" {
-			return false, true
-		} else {
-			return false, false
-		}
+	switch value {
+	case "true":
+		return true, true
+	case "false":
+		return false, true
+	default:
+		return false, false
 	}
-	return false, false
 }
 
 var CastDateFn CastFn[string] = func(v any) (string, bool) {

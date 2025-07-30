@@ -21,12 +21,8 @@ func init() {
 var catFileCmd = &cobra.Command{
 	Use:   "cat-file",
 	Short: "Display a repository file",
+	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) > 1 {
-			fmt.Println("Too many arguments. You can only have one which must be a wikilink or an OID")
-			os.Exit(1)
-		}
-
 		arg := args[0]
 
 		if oid := oid.ParseOrNil(arg); !oid.IsNil() {

@@ -20,12 +20,8 @@ var runHookCmd = &cobra.Command{
 	Use:   "run-hook",
 	Short: "Run hooks",
 	Long:  `Run all hooks on a single note.`,
+	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) > 1 {
-			fmt.Println("Too many arguments. You can only have one which must be a wikilink")
-			os.Exit(1)
-		}
-
 		// Process argument(s)
 		wikilink := args[0]
 

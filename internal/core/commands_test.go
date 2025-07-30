@@ -283,9 +283,12 @@ func TestCommandPushPull(t *testing.T) {
 		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 		// Configure origin
 		origin := t.TempDir()
-		CurrentConfig().ConfigFile.Remote = ConfigRemote{
-			Type: "fs",
-			Dir:  origin,
+		CurrentConfig().ConfigFile.Remotes = []ConfigRemote{
+			{
+				Name: "origin",
+				Type: "fs",
+				Dir:  origin,
+			},
 		}
 
 		// Push
@@ -294,7 +297,7 @@ func TestCommandPushPull(t *testing.T) {
 		err = CurrentRepository().Commit()
 		require.NoError(t, err)
 		require.NoError(t, CurrentConfig().Save()) // Simulate Cobra PostRun logic
-		err = CurrentRepository().Push(false, false)
+		err = CurrentRepository().Push("origin", false, false)
 		require.NoError(t, err)
 
 		// Check origin
@@ -315,11 +318,14 @@ func TestCommandPushPull(t *testing.T) {
 		// Force a new temp repository
 		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 		// but with the same origin
-		CurrentConfig().ConfigFile.Remote = ConfigRemote{
-			Type: "fs",
-			Dir:  origin,
+		CurrentConfig().ConfigFile.Remotes = []ConfigRemote{
+			{
+				Name: "origin",
+				Type: "fs",
+				Dir:  origin,
+			},
 		}
-		err = CurrentRepository().Pull(false, false)
+		err = CurrentRepository().Pull("origin", false, false)
 		require.NoError(t, err)
 		// We must now have the same number of entries, objects and blobs as pushed before
 		assert.Equal(t, countEntries, len(CurrentIndex().Entries))
@@ -331,9 +337,12 @@ func TestCommandPushPull(t *testing.T) {
 		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
 		// Configure origin
 		origin := t.TempDir()
-		CurrentConfig().ConfigFile.Remote = ConfigRemote{
-			Type: "fs",
-			Dir:  origin,
+		CurrentConfig().ConfigFile.Remotes = []ConfigRemote{
+			{
+				Name: "origin",
+				Type: "fs",
+				Dir:  origin,
+			},
 		}
 
 		// Commit
@@ -357,10 +366,10 @@ Guido van Rossum
 		require.NoError(t, err)
 
 		// Push
-		err = CurrentRepository().Push(false, false)
+		err = CurrentRepository().Push("origin", false, false)
 		require.ErrorContains(t, err, "changes not commited")
 		// Pull
-		err = CurrentRepository().Pull(false, false)
+		err = CurrentRepository().Pull("origin", false, false)
 		require.ErrorContains(t, err, "changes not commited")
 	})
 

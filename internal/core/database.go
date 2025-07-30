@@ -37,12 +37,10 @@ var (
 type DB struct {
 	// .nt/index
 	index *Index
-	// .nt/refs/*
-	refs map[string]string
-	// .nt/refs/origin
-	origin remote.Remote
 	// .nt/database.sql
 	client *sql.DB
+	// Remote references
+	remotes map[string]remote.Remote
 
 	// In-progress transaction
 	tx *sql.Tx
@@ -53,13 +51,9 @@ func CurrentDB() *DB {
 		// Load index
 		index := MustReadIndex()
 
-		// Load refs
-		refs := MustReadRefs()
-
 		// Create the database
 		dbSingleton = &DB{
 			index: index,
-			refs:  refs,
 		}
 	})
 	return dbSingleton
@@ -100,31 +94,6 @@ func (db *DB) initClient() *sql.DB {
 		}
 	})
 	return dbSingleton.client
-}
-
-func MustReadRefs() map[string]string {
-	refs := make(map[string]string)
-	refdir := CurrentRepository().GetAbsolutePath(".nt/refs")
-	files, err := os.ReadDir(refdir)
-	if os.IsNotExist(err) {
-		// No existing refs (occurs before the first commit)
-		return refs
-	}
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to read refs under .nt/refs directory: %v", err)
-		os.Exit(1)
-	}
-	for _, file := range files {
-		if !file.IsDir() {
-			data, err := os.ReadFile(filepath.Join(refdir, file.Name()))
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Unable to read .nt/refs/%s directory: %v", file.Name(), err)
-				os.Exit(1)
-			}
-			refs[file.Name()] = strings.TrimSpace(string(data))
-		}
-	}
-	return refs
 }
 
 func (db *DB) Close() error {
@@ -328,46 +297,65 @@ func (db *DB) DeleteBlobOnDisk(blob BlobRef) error {
  * Remote Management
  */
 
-// Origin returns the origin implementation based on the optional configured type.
-func (db *DB) Origin() remote.Remote {
+func (db *DB) Remote(name string) remote.Remote {
 	dbRemoteOnce.Do(func() {
-		config := CurrentConfig()
-		configRemote := config.ConfigFile.Remote
-		if configRemote.Type == "" {
-			return
+		db.remotes = make(map[string]remote.Remote)
+	})
+
+	config := CurrentConfig()
+	configRemotes := config.ConfigFile.Remotes
+	for _, configRemote := range configRemotes {
+		if configRemote.Name != name {
+			continue
 		}
-		switch configRemote.Type {
-		case "fs":
-			remote, err := remote.NewFS(configRemote.Dir)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Unable to init FS remote: %v\n", err)
-				os.Exit(1)
-			}
-			db.origin = remote
-		case "s3":
-			// Read sensitive credentials from environment variables
-			accessKey := os.Getenv("NT_S3_ACCESS_KEY")
-			if accessKey == "" {
-				fmt.Fprintf(os.Stderr, "Missing environment variable NT_S3_ACCESS_KEY\n")
-				os.Exit(1)
-			}
-			secretKey := os.Getenv("NT_S3_SECRET_KEY")
-			if secretKey == "" {
-				fmt.Fprintf(os.Stderr, "Missing environment variable NT_S3_SECRET_KEY\n")
-				os.Exit(1)
-			}
-			remote, err := remote.NewS3WithCredentials(configRemote.Endpoint, configRemote.BucketName, accessKey, secretKey, configRemote.Secure)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Unable to init S3 remote: %v\n", err)
-				os.Exit(1)
-			}
-			db.origin = remote
-		default:
-			fmt.Fprintf(os.Stderr, "Unknow remote type %q\n", configRemote.Type)
+		if remote, ok := db.remotes[name]; ok {
+			return remote // Already initialized
+		}
+		remote := db.initRemote(configRemote)
+		db.remotes[name] = remote
+		return remote
+	}
+	return nil // No remote found
+}
+
+// Origin returns the optional remote "origin".
+func (db *DB) Origin() remote.Remote {
+	return db.Remote("origin")
+}
+
+func (db *DB) initRemote(config ConfigRemote) remote.Remote {
+	// Initialize the remote
+	switch config.Type {
+	case "fs":
+		remote, err := remote.NewFS(config.Dir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to init FS remote: %v\n", err)
 			os.Exit(1)
 		}
-	})
-	return db.origin
+		return remote
+	case "s3":
+		// Read sensitive credentials from environment variables
+		accessKey := os.Getenv("NT_S3_ACCESS_KEY")
+		if accessKey == "" {
+			fmt.Fprintf(os.Stderr, "Missing environment variable NT_S3_ACCESS_KEY\n")
+			os.Exit(1)
+		}
+		secretKey := os.Getenv("NT_S3_SECRET_KEY")
+		if secretKey == "" {
+			fmt.Fprintf(os.Stderr, "Missing environment variable NT_S3_SECRET_KEY\n")
+			os.Exit(1)
+		}
+		remote, err := remote.NewS3WithCredentials(config.Endpoint, config.BucketName, accessKey, secretKey, config.Secure)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to init S3 remote: %v\n", err)
+			os.Exit(1)
+		}
+		return remote
+	default:
+		fmt.Fprintf(os.Stderr, "Unknow remote type %q\n", config.Type)
+		os.Exit(1)
+	}
+	return nil // Unreachable
 }
 
 // Diff show the changes in the staging area.
@@ -479,12 +467,6 @@ func (db *DB) GC(dryRun bool) (*GCResult, error) {
 }
 
 /* Utility */
-
-// Ref returns the commit OID for the given ref
-func (db *DB) Ref(name string) (string, bool) {
-	value, ok := db.refs[name]
-	return value, ok
-}
 
 // BlobExists checks if a blob exists locally.
 func (db *DB) BlobExists(oid oid.OID) bool {
