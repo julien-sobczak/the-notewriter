@@ -16,11 +16,10 @@ var smallestGIF = []byte{
 	71, 73, 70, 56, 57, 97, 1, 0, 1, 0, 0, 0, 0, 33, 249, 4, 1, 10, 0, 1, 0, 44, 0, 0, 0, 0, 1, 0, 1, 0, 0, 2, 2, 76, 1, 0, 59,
 }
 
-
 func TestMedia(t *testing.T) {
 
 	t.Run("Basic", func(t *testing.T) {
-		SetUpRepositoryFromTempDir(t)
+		tr := NewTestRepository(t)
 		FreezeNow(t)
 
 		media := &Media{
@@ -40,7 +39,7 @@ func TestMedia(t *testing.T) {
 
 		// Save
 		require.NoError(t, media.Save())
-		require.Equal(t, 1, MustCountMedias(t))
+		require.Equal(t, 1, tr.CountMedias())
 
 		// Check
 		actual, err := CurrentRepository().LoadMediaByOID(media.OID)
@@ -65,7 +64,7 @@ func TestMedia(t *testing.T) {
 		actual.MTime = clock.Now()
 		actual.Size = 42
 		require.NoError(t, actual.Save())
-		require.Equal(t, 1, MustCountMedias(t))
+		require.Equal(t, 1, tr.CountMedias())
 
 		// Check again
 		actual, err = CurrentRepository().LoadMediaByOID(media.OID)
@@ -78,7 +77,7 @@ func TestMedia(t *testing.T) {
 
 		// Delete
 		require.NoError(t, media.Delete())
-		AssertNoMedias(t)
+		tr.AssertNoMedias()
 	})
 
 }
@@ -263,4 +262,3 @@ func MustFindMediaByRelativePath(t *testing.T, relativePath string) *Media {
 	require.NotNil(t, obj)
 	return obj
 }
-

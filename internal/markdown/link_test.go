@@ -1,10 +1,11 @@
 package markdown_test
 
 import (
+	"path/filepath"
 	"testing"
 
+	"github.com/julien-sobczak/the-notewriter/internal/core"
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
-	"github.com/julien-sobczak/the-notewriter/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -94,8 +95,8 @@ func TestLinks(t *testing.T) {
 	})
 
 	t.Run("Example", func(t *testing.T) {
-		filename := testutil.SetUpFromGoldenFileNamed(t, "TestMarkdown/links.md")
-		md, err := markdown.ParseFile(filename)
+		tr := core.NewTestRepository(t, core.FromGoldenFileNamed(t, "TestMarkdown/links.md"))
+		md, err := markdown.ParseFile(filepath.Join(tr.Root, "links.md"))
 		require.NoError(t, err)
 
 		actual := md.Body.Links()

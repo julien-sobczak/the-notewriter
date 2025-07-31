@@ -13,10 +13,10 @@ import (
 )
 
 func TestFile(t *testing.T) {
-	SetUpRepositoryFromTempDir(t)
+	tr := NewTestRepository(t)
 	FreezeNow(t)
 
-	AssertNoFiles(t)
+	tr.AssertNoFiles()
 
 	createdAt := clock.Now()
 	file := &File{
@@ -69,7 +69,7 @@ A **gopher**.
 
 	// Create
 	require.NoError(t, file.Save())
-	require.Equal(t, 1, MustCountFiles(t))
+	require.Equal(t, 1, tr.CountFiles())
 
 	// Reread and recheck all fields
 	actual, err := CurrentRepository().LoadFileByOID(file.OID)
@@ -97,7 +97,7 @@ A **gopher**.
 	// Force update
 	actual.Title = markdown.Document("Golang")
 	require.NoError(t, actual.Save())
-	require.Equal(t, 1, MustCountFiles(t))
+	require.Equal(t, 1, tr.CountFiles())
 
 	// Recheck
 	actual, err = CurrentRepository().LoadFileByOID(file.OID)
@@ -106,7 +106,7 @@ A **gopher**.
 
 	// Delete
 	require.NoError(t, actual.Delete())
-	AssertNoFiles(t)
+	tr.AssertNoFiles()
 }
 
 func TestFileFormats(t *testing.T) {

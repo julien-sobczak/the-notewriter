@@ -10,9 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSetUpRepositoryFromGoldenDirNamed(t *testing.T) {
-	dirname := SetUpRepositoryFromGoldenDirNamed(t, "example")
-	require.FileExists(t, filepath.Join(dirname, "thoughts/on-notetaking.md"))
+func TestNewTestRepository(t *testing.T) {
+
+	t.Run("No option", func(t *testing.T) {
+		tr := NewTestRepository(t, FromGoldenDirNamed("example"))
+		require.FileExists(t, filepath.Join(tr.Root, "thoughts/on-notetaking.md"))
+	})
 }
 
 func TestReplaceLine(t *testing.T) {

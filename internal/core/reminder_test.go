@@ -12,10 +12,10 @@ import (
 )
 
 func TestReminder(t *testing.T) {
-	SetUpRepositoryFromTempDir(t)
+	tr := NewTestRepository(t)
 	FreezeNow(t)
 
-	AssertNoReminders(t)
+	tr.AssertNoReminders()
 
 	createdAt := clock.Now()
 	reminder := &Reminder{
@@ -37,7 +37,7 @@ func TestReminder(t *testing.T) {
 	require.NoError(t, reminder.Next())
 	require.NoError(t, reminder.Save())
 
-	require.Equal(t, 1, MustCountReminders(t))
+	require.Equal(t, 1, tr.CountReminders())
 
 	// Reread and recheck all fields
 	actual, err := CurrentRepository().LoadReminderByOID(reminder.OID)
@@ -59,7 +59,7 @@ func TestReminder(t *testing.T) {
 	// Force update
 	actual.Tag = "#reminder-2050-01"
 	require.NoError(t, actual.Save())
-	require.Equal(t, 1, MustCountReminders(t))
+	require.Equal(t, 1, tr.CountReminders())
 
 	// Compare
 	actual, err = CurrentRepository().LoadReminderByOID(reminder.OID)
@@ -68,7 +68,7 @@ func TestReminder(t *testing.T) {
 
 	// Delete
 	require.NoError(t, reminder.Delete())
-	AssertNoReminders(t)
+	tr.AssertNoReminders()
 }
 
 func TestReminderFormats(t *testing.T) {

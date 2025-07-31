@@ -382,7 +382,7 @@ key3:
 	})
 
 	t.Run("Cast", func(t *testing.T) {
-		SetUpRepositoryFromTempDir(t) // Force a .nt to have default types
+		NewTestRepository(t) // Force a .nt to have default types
 
 		attributes := AttributeSet(map[string]any{
 			"key1": 10,

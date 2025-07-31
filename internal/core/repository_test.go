@@ -98,7 +98,7 @@ func TestIndexFilesFirst(t *testing.T) {
 	}
 }
 
-func TestRepository(t *testing.T) {
+func TestRepositoryType(t *testing.T) {
 
 	t.Run("GetNoteRelativePath", func(t *testing.T) {
 		var tests = []struct {
@@ -127,12 +127,12 @@ func TestRepository(t *testing.T) {
 			},
 		}
 
-		root := SetUpRepositoryFromTempDir(t)
-		require.Equal(t, root, CurrentConfig().RootDirectory)
+		tr := NewTestRepository(t)
+		require.Equal(t, tr.Root, CurrentConfig().RootDirectory)
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				relpath, err := CurrentRepository().GetNoteRelativePath(filepath.Join(root, tt.referencePath), tt.noteRelativePath)
+				relpath, err := CurrentRepository().GetNoteRelativePath(filepath.Join(tr.Root, tt.referencePath), tt.noteRelativePath)
 				require.NoError(t, err)
 				assert.Equal(t, tt.repositoryRelativePath, relpath)
 			})
@@ -140,8 +140,7 @@ func TestRepository(t *testing.T) {
 	})
 
 	t.Run("GetFileRelativePath", func(t *testing.T) {
-		root := SetUpRepositoryFromTempDir(t)
-		require.Equal(t, root, CurrentConfig().RootDirectory)
+		tr := NewTestRepository(t)
 
 		var tests = []struct {
 			name             string // name
@@ -150,17 +149,17 @@ func TestRepository(t *testing.T) {
 		}{
 			{
 				name:             "File in root directory",
-				fileAbsolutePath: filepath.Join(root, "README.md"),
+				fileAbsolutePath: filepath.Join(tr.Root, "README.md"),
 				expected:         "README.md",
 			},
 			{
 				name:             "File in subdirectory",
-				fileAbsolutePath: filepath.Join(root, "/docs/guide.md"),
+				fileAbsolutePath: filepath.Join(tr.Root, "docs/guide.md"),
 				expected:         "docs/guide.md",
 			},
 			{
 				name:             "File in nested subdirectory",
-				fileAbsolutePath: filepath.Join(root, "docs/tutorials/go/intro.md"),
+				fileAbsolutePath: filepath.Join(tr.Root, "docs/tutorials/go/intro.md"),
 				expected:         "docs/tutorials/go/intro.md",
 			},
 		}
@@ -174,8 +173,7 @@ func TestRepository(t *testing.T) {
 	})
 
 	t.Run("GetFileAbsolutePath", func(t *testing.T) {
-		root := SetUpRepositoryFromTempDir(t)
-		require.Equal(t, root, CurrentConfig().RootDirectory)
+		tr := NewTestRepository(t)
 
 		var tests = []struct {
 			name             string // name
@@ -185,17 +183,17 @@ func TestRepository(t *testing.T) {
 			{
 				name:             "File in root directory",
 				fileRelativePath: "README.md",
-				expected:         filepath.Join(root, "README.md"),
+				expected:         filepath.Join(tr.Root, "README.md"),
 			},
 			{
 				name:             "File in subdirectory",
 				fileRelativePath: "docs/guide.md",
-				expected:         filepath.Join(root, "/docs/guide.md"),
+				expected:         filepath.Join(tr.Root, "/docs/guide.md"),
 			},
 			{
 				name:             "File in nested subdirectory",
 				fileRelativePath: "docs/tutorials/go/intro.md",
-				expected:         filepath.Join(root, "docs/tutorials/go/intro.md"),
+				expected:         filepath.Join(tr.Root, "docs/tutorials/go/intro.md"),
 			},
 		}
 
@@ -208,19 +206,19 @@ func TestRepository(t *testing.T) {
 	})
 
 	t.Run("Walk", func(t *testing.T) {
-		SetUpRepositoryFromTempDir(t)
-
-		WriteFileFromRelativePath(t, ".nt/config", "") // Skip
-		WriteFileFromRelativePath(t, ".git/index", "") // Skip
-		WriteFileFromRelativePath(t, "index.md", "")
-		WriteFileFromRelativePath(t, "skills/medias/go-logo.svg", "") // Skip
-		WriteFileFromRelativePath(t, "skills/index.md", "# Skills")
-		WriteFileFromRelativePath(t, "skills/programming/index.md", "# Programming")
-		WriteFileFromRelativePath(t, "skills/programming/go.md", "# Go")
-		WriteFileFromRelativePath(t, "skills/drawing.md", "# Drawing")
-		WriteFileFromRelativePath(t, "projects/the-notewriter.md", "# The NoteWriter")
-		WriteFileFromRelativePath(t, "projects/ignore.md", "---\ntags: ignore\n---\n# Ignore Me") // Skip
-		WriteFileFromRelativePath(t, "todo.md", "# TODO")
+		NewTestRepository(t,
+			WithFileContent("index.md", `# Index`),
+			WithFileContent(".git/index", ""), // Skip
+			WithFileContent("index.md", ""),
+			WithFileContent("skills/medias/go-logo.svg", ""), // Skip
+			WithFileContent("skills/index.md", "# Skills"),
+			WithFileContent("skills/programming/index.md", "# Programming"),
+			WithFileContent("skills/programming/go.md", "# Go"),
+			WithFileContent("skills/drawing.md", "# Drawing"),
+			WithFileContent("projects/the-notewriter.md", "# The NoteWriter"),
+			WithFileContent("projects/ignore.md", "---\ntags: ignore\n---\n# Ignore Me"), // Skip
+			WithFileContent("todo.md", "# TODO"),
+		)
 
 		var tests = []struct {
 			name      string
@@ -258,7 +256,7 @@ func TestRepository(t *testing.T) {
 }
 
 func TestStatsInDB(t *testing.T) {
-	SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+	NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 
 	stats, err := CurrentRepository().StatsInDB()
 	require.NoError(t, err)

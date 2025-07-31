@@ -11,7 +11,7 @@ import (
 )
 
 func TestRegression(t *testing.T) {
-	root := SetUpRepositoryFromGoldenDirNamed(t, "TestComplex")
+	tr := NewTestRepository(t, FromGoldenDirNamed("TestComplex"))
 
 	_, err := CurrentRepository().Add(AnyPath)
 	require.NoError(t, err)
@@ -65,7 +65,7 @@ func TestRegression(t *testing.T) {
 
 		for _, change := range edition.Changes {
 			fmt.Printf("\tApplying change %q...\n", change)
-			change.Apply(t, root)
+			change.Apply(t, tr.Root)
 		}
 
 		_, err := CurrentRepository().Add(AnyPath)

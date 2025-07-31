@@ -9,7 +9,7 @@ import (
 func TestHooks(t *testing.T) {
 
 	t.Run("Valid", func(t *testing.T) {
-		SetUpRepositoryFromGoldenDirNamed(t, "TestHooks")
+		NewTestRepository(t, FromGoldenDirNamed("TestHooks"))
 
 		_, err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
@@ -23,7 +23,7 @@ func TestHooks(t *testing.T) {
 	})
 
 	t.Run("Missing", func(t *testing.T) {
-		SetUpRepositoryFromGoldenDirNamed(t, "TestHooks")
+		NewTestRepository(t, FromGoldenDirNamed("TestHooks"))
 
 		_, err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
@@ -37,7 +37,7 @@ func TestHooks(t *testing.T) {
 	})
 
 	t.Run("Not executable", func(t *testing.T) {
-		SetUpRepositoryFromGoldenDirNamed(t, "TestHooks")
+		NewTestRepository(t, FromGoldenDirNamed("TestHooks"))
 
 		_, err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
@@ -51,7 +51,7 @@ func TestHooks(t *testing.T) {
 	})
 
 	t.Run("Multiple executables", func(t *testing.T) {
-		SetUpRepositoryFromGoldenDirNamed(t, "TestHooks")
+		NewTestRepository(t, FromGoldenDirNamed("TestHooks"))
 
 		_, err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
@@ -65,7 +65,7 @@ func TestHooks(t *testing.T) {
 	})
 
 	t.Run("Error", func(t *testing.T) {
-		SetUpRepositoryFromGoldenDirNamed(t, "TestHooks")
+		NewTestRepository(t, FromGoldenDirNamed("TestHooks"))
 
 		_, err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)

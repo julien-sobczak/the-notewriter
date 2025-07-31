@@ -2,11 +2,12 @@ package markdown_test
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/julien-sobczak/the-notewriter/internal/core"
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
-	"github.com/julien-sobczak/the-notewriter/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -337,8 +338,8 @@ func TestParseMarkdown(t *testing.T) {
 
 	for _, testcase := range testcases {
 		t.Run(testcase.name, func(t *testing.T) {
-			filename := testutil.SetUpFromGoldenFileNamed(t, "TestMarkdown/"+testcase.golden+".md")
-			md, err := markdown.ParseFile(filename)
+			tr := core.NewTestRepository(t, core.FromGoldenFileNamed(t, "TestMarkdown/"+testcase.golden+".md"))
+			md, err := markdown.ParseFile(filepath.Join(tr.Root, testcase.golden+".md"))
 			require.NoError(t, err)
 			testcase.test(t, md)
 		})

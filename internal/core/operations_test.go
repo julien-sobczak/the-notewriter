@@ -90,7 +90,7 @@ func TestNewOperations(t *testing.T) {
 }
 
 func TestNewPackFileFromOperations(t *testing.T) {
-	SetUpRepositoryFromTempDir(t)
+	NewTestRepository(t)
 	FreezeOn(t, "2024-01-01 00:00:00")
 
 	// Create a pack file with the different available operations
@@ -136,11 +136,11 @@ func TestNewPackFileFromOperations(t *testing.T) {
 }
 
 func TestOperationApply(t *testing.T) {
-	SetUpRepositoryFromTempDir(t)
+	tr := NewTestRepository(t)
 	FreezeOn(t, "2024-01-01 00:00:00")
 
 	// Insert the note
-	MustWriteFile(t, "python.md", `# Python
+	tr.WriteFile("python.md", `# Python
 
 ## Flashcard: Python's creator
 
@@ -180,7 +180,7 @@ Guido van Rossum
 	assert.Equal(t, oid.MustParse("42d74d967d9b4e989502647ac510777ca1e22f4a"), note.Annotations[0].OID)
 
 	// Edit the flashcard without changing the slug so that the existing note is updated
-	MustWriteFile(t, "python.md", `# Python
+	tr.WriteFile("python.md", `# Python
 
 ## Flashcard: Python's creator
 

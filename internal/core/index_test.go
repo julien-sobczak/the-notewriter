@@ -57,7 +57,7 @@ func TestIndexEntry(t *testing.T) {
 func TestIndex(t *testing.T) {
 
 	t.Run("Empty Index", func(t *testing.T) {
-		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 
 		idx := NewIndex()
 		err := idx.Save()
@@ -71,11 +71,11 @@ func TestIndex(t *testing.T) {
 		// Make tests reproductible
 		oid.UseSequence(t)
 		FreezeOn(t, "2023-01-01 12:30")
-		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 
 		idx := NewIndex()
 
-		parsedFile := ParseFileFromRelativePath(t, "go.md")
+		parsedFile := tr.ParseFile("go.md")
 		packFile, err := NewPackFileFromParsedFile(parsedFile)
 		require.NoError(t, err)
 
@@ -137,13 +137,13 @@ func TestIndex(t *testing.T) {
 		// Make tests reproductible
 		oid.UseSequence(t)
 		FreezeOn(t, "2023-01-01 12:30")
-		SetUpRepositoryFromTempDir(t)
+		tr := NewTestRepository(t)
 
 		idx := NewIndex()
 
-		WriteFileFromRelativePath(t, "programming.md", "## Note: Go\n\nGo is a statically typed, compiled high-level general purpose programming language.")
+		tr.WriteFile("programming.md", "## Note: Go\n\nGo is a statically typed, compiled high-level general purpose programming language.")
 
-		parsedFile1 := ParseFileFromRelativePath(t, "programming.md")
+		parsedFile1 := tr.ParseFile("programming.md")
 		packFile1, err := NewPackFileFromParsedFile(parsedFile1)
 		require.NoError(t, err)
 
@@ -154,9 +154,9 @@ func TestIndex(t *testing.T) {
 		assert.Len(t, idx.Objects, 2) // 1 file + 1 note
 
 		// Edit file to add a new note
-		WriteFileFromRelativePath(t, "programming.md", "## Note: Go\n\nGo is a statically typed, compiled high-level general purpose programming language.\n\n## Note: Python\n\nPython is a high-level, general-purpose programming language.")
+		tr.WriteFile("programming.md", "## Note: Go\n\nGo is a statically typed, compiled high-level general purpose programming language.\n\n## Note: Python\n\nPython is a high-level, general-purpose programming language.")
 
-		parsedFile2 := ParseFileFromRelativePath(t, "programming.md")
+		parsedFile2 := tr.ParseFile("programming.md")
 		packFile2, err := NewPackFileFromParsedFile(parsedFile2)
 		require.NoError(t, err)
 
@@ -176,19 +176,19 @@ func TestIndex(t *testing.T) {
 		// Make tests reproductible
 		oid.UseSequence(t)
 		FreezeOn(t, "2023-01-01 12:30")
-		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 
 		idx := NewIndex()
 
 		// Create and commit a first pack file
-		WriteFileFromRelativePath(t, "go.md", "## Note: Go\n\nGo is a statically typed, compiled high-level general purpose programming language.")
-		packFile1 := NewPackFileFromRelativePath(t, "go.md")
+		tr.WriteFile("go.md", "## Note: Go\n\nGo is a statically typed, compiled high-level general purpose programming language.")
+		packFile1 := tr.NewPackFile("go.md")
 		require.NoError(t, idx.Stage(packFile1))
 		require.NoError(t, idx.Commit())
 
 		// Create but only stage a second pack file
-		WriteFileFromRelativePath(t, "python.md", "## Note: Python\n\nPython is a high-level, general-purpose programming language.")
-		packFile2 := NewPackFileFromRelativePath(t, "python.md")
+		tr.WriteFile("python.md", "## Note: Python\n\nPython is a high-level, general-purpose programming language.")
+		packFile2 := tr.NewPackFile("python.md")
 		require.NoError(t, idx.Stage(packFile2))
 
 		entry1 := idx.GetEntry("go.md")
@@ -248,8 +248,8 @@ func TestIndex(t *testing.T) {
 		assert.False(t, entry2.Staged)
 
 		// Recreate a new pack file for python.md
-		WriteFileFromRelativePath(t, "python.md", "## Note: Python Lang\n\nPython is a high-level, general-purpose programming language.")
-		newPackFile2 := NewPackFileFromRelativePath(t, "python.md")
+		tr.WriteFile("python.md", "## Note: Python Lang\n\nPython is a high-level, general-purpose programming language.")
+		newPackFile2 := tr.NewPackFile("python.md")
 		require.NoError(t, idx.Stage(newPackFile2))
 
 		// The entry must be staged
@@ -282,25 +282,25 @@ func TestIndex(t *testing.T) {
 		// Make tests reproductible
 		oid.UseSequence(t)
 		FreezeOn(t, "2023-01-01 12:30")
-		SetUpRepositoryFromTempDir(t)
+		tr := NewTestRepository(t,
+			WithFileContent("index.md", ""),
+			WithFileContent("skills/index.md", "# Skills"),
+			WithFileContent("skills/programming/index.md", "# Programming"),
+			WithFileContent("skills/programming/go.md", "# Go"),
+			WithFileContent("skills/running.md", "# Running"),
+			WithFileContent("projects/the-notewriter.md", "# The NoteWriter"),
+			WithFileContent("todo.md", "# TODO"),
+		)
 
 		idx := NewIndex()
 
-		WriteFileFromRelativePath(t, "index.md", "")
-		WriteFileFromRelativePath(t, "skills/index.md", "# Skills")
-		WriteFileFromRelativePath(t, "skills/programming/index.md", "# Programming")
-		WriteFileFromRelativePath(t, "skills/programming/go.md", "# Go")
-		WriteFileFromRelativePath(t, "skills/running.md", "# Running")
-		WriteFileFromRelativePath(t, "projects/the-notewriter.md", "# The NoteWriter")
-		WriteFileFromRelativePath(t, "todo.md", "# TODO")
-
-		require.NoError(t, idx.Stage(NewPackFileFromRelativePath(t, "index.md")))
-		require.NoError(t, idx.Stage(NewPackFileFromRelativePath(t, "skills/index.md")))
-		require.NoError(t, idx.Stage(NewPackFileFromRelativePath(t, "skills/programming/index.md")))
-		require.NoError(t, idx.Stage(NewPackFileFromRelativePath(t, "skills/programming/go.md")))
-		require.NoError(t, idx.Stage(NewPackFileFromRelativePath(t, "skills/running.md")))
-		require.NoError(t, idx.Stage(NewPackFileFromRelativePath(t, "projects/the-notewriter.md")))
-		require.NoError(t, idx.Stage(NewPackFileFromRelativePath(t, "todo.md")))
+		require.NoError(t, idx.Stage(tr.NewPackFile("index.md")))
+		require.NoError(t, idx.Stage(tr.NewPackFile("skills/index.md")))
+		require.NoError(t, idx.Stage(tr.NewPackFile("skills/programming/index.md")))
+		require.NoError(t, idx.Stage(tr.NewPackFile("skills/programming/go.md")))
+		require.NoError(t, idx.Stage(tr.NewPackFile("skills/running.md")))
+		require.NoError(t, idx.Stage(tr.NewPackFile("projects/the-notewriter.md")))
+		require.NoError(t, idx.Stage(tr.NewPackFile("todo.md")))
 
 		require.NoError(t, idx.Commit())
 
@@ -317,15 +317,15 @@ func TestIndex(t *testing.T) {
 		// Make tests reproductible
 		oid.UseSequence(t)
 		FreezeOn(t, "2023-01-01 12:30")
-		SetUpRepositoryFromTempDir(t)
+		tr := NewTestRepository(t,
+			WithFileContent("go.md", "## Note: Go\n\nGo is a statically typed, compiled high-level general purpose programming language."),
+			WithFileContent("python.md", "## Note: Python\n\nPython is a high-level, general-purpose programming language."),
+		)
 
 		idx := NewIndex()
 
-		WriteFileFromRelativePath(t, "go.md", "## Note: Go\n\nGo is a statically typed, compiled high-level general purpose programming language.")
-		WriteFileFromRelativePath(t, "python.md", "## Note: Python\n\nPython is a high-level, general-purpose programming language.")
-
-		packFile1 := NewPackFileFromRelativePath(t, "go.md")
-		packFile2 := NewPackFileFromRelativePath(t, "python.md")
+		packFile1 := tr.NewPackFile("go.md")
+		packFile2 := tr.NewPackFile("python.md")
 
 		// Stage and commit
 		require.NoError(t, idx.Stage(packFile1))
@@ -347,20 +347,20 @@ func TestIndex(t *testing.T) {
 	})
 
 	t.Run("Walk", func(t *testing.T) {
-		SetUpRepositoryFromTempDir(t)
+		// Create and stage some pack files
+		tr := NewTestRepository(t,
+		WithFileContent("index.md", "# Index"),
+		WithFileContent("skills/programming/go.md", "# Go"),
+		WithFileContent("skills/running.md", "# Running"),
+		WithFileContent("projects/the-notewriter.md", "# The NoteWriter"),
+		)
 
 		idx := NewIndex()
 
-		// Create and stage some pack files
-		WriteFileFromRelativePath(t, "index.md", "# Index")
-		WriteFileFromRelativePath(t, "skills/programming/go.md", "# Go")
-		WriteFileFromRelativePath(t, "skills/running.md", "# Running")
-		WriteFileFromRelativePath(t, "projects/the-notewriter.md", "# The NoteWriter")
-
-		require.NoError(t, idx.Stage(NewPackFileFromRelativePath(t, "index.md")))
-		require.NoError(t, idx.Stage(NewPackFileFromRelativePath(t, "skills/programming/go.md")))
-		require.NoError(t, idx.Stage(NewPackFileFromRelativePath(t, "skills/running.md")))
-		require.NoError(t, idx.Stage(NewPackFileFromRelativePath(t, "projects/the-notewriter.md")))
+		require.NoError(t, idx.Stage(tr.NewPackFile("index.md")))
+		require.NoError(t, idx.Stage(tr.NewPackFile("skills/programming/go.md")))
+		require.NoError(t, idx.Stage(tr.NewPackFile("skills/running.md")))
+		require.NoError(t, idx.Stage(tr.NewPackFile("projects/the-notewriter.md")))
 
 		require.NoError(t, idx.Commit())
 
@@ -406,14 +406,14 @@ func TestIndex(t *testing.T) {
 	})
 
 	t.Run("Modified", func(t *testing.T) {
-		SetUpRepositoryFromTempDir(t)
+		tr := NewTestRepository(t)
 		FreezeNow(t)
 
 		idx := NewIndex()
 
 		// Create and stage a pack file
-		WriteFileFromRelativePath(t, "go.md", "## Note: Go\n\nGo is a statically typed, compiled high-level general purpose programming language.")
-		packFile := NewPackFileFromRelativePath(t, "go.md")
+		tr.WriteFile("go.md", "## Note: Go\n\nGo is a statically typed, compiled high-level general purpose programming language.")
+		packFile := tr.NewPackFile("go.md")
 		require.NoError(t, idx.Stage(packFile))
 		require.NoError(t, idx.Commit())
 
@@ -578,20 +578,20 @@ func TestIndexDiff(t *testing.T) {
 }
 
 func TestIndexOnDisk(t *testing.T) {
-	SetUpRepositoryFromTempDir(t)
+	tr := NewTestRepository(t)
 
 	idx := NewIndex()
 
 	// Create and stage some pack files
-	WriteFileFromRelativePath(t, "index.md", "# Index")
-	WriteFileFromRelativePath(t, "skills/programming/go.md", "# Go")
-	WriteFileFromRelativePath(t, "skills/running.md", "# Running")
-	WriteFileFromRelativePath(t, "projects/the-notewriter.md", "# The NoteWriter")
+	tr.WriteFile("index.md", "# Index")
+	tr.WriteFile("skills/programming/go.md", "# Go")
+	tr.WriteFile("skills/running.md", "# Running")
+	tr.WriteFile("projects/the-notewriter.md", "# The NoteWriter")
 
-	packFile1 := NewPackFileFromRelativePath(t, "index.md")
-	packFile2 := NewPackFileFromRelativePath(t, "skills/programming/go.md")
-	packFile3 := NewPackFileFromRelativePath(t, "skills/running.md")
-	packFile4 := NewPackFileFromRelativePath(t, "projects/the-notewriter.md")
+	packFile1 := tr.NewPackFile("index.md")
+	packFile2 := tr.NewPackFile("skills/programming/go.md")
+	packFile3 := tr.NewPackFile("skills/running.md")
+	packFile4 := tr.NewPackFile("projects/the-notewriter.md")
 	require.NoError(t, packFile1.Save())
 	require.NoError(t, packFile2.Save())
 	require.NoError(t, packFile3.Save())

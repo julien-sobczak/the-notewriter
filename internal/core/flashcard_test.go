@@ -12,10 +12,10 @@ import (
 )
 
 func TestFlashcard(t *testing.T) {
-	SetUpRepositoryFromTempDir(t)
+	tr := NewTestRepository(t)
 	FreezeNow(t)
 
-	AssertNoFlashcards(t)
+	tr.AssertNoFlashcards()
 
 	createdAt := clock.Now()
 	flashcard := &Flashcard{
@@ -36,7 +36,7 @@ func TestFlashcard(t *testing.T) {
 
 	// Save
 	require.NoError(t, flashcard.Save())
-	require.Equal(t, 1, MustCountFlashcards(t))
+	require.Equal(t, 1, tr.CountFlashcards())
 
 	// Reread and check the flashcard
 	actual, err := CurrentRepository().LoadFlashcardByOID(flashcard.OID)
@@ -59,7 +59,7 @@ func TestFlashcard(t *testing.T) {
 	// Force update
 	actual.Front = "What is the **Golang logo**?"
 	require.NoError(t, actual.Save())
-	require.Equal(t, 1, MustCountFlashcards(t))
+	require.Equal(t, 1, tr.CountFlashcards())
 
 	// ... and compare again
 	actual, err = CurrentRepository().LoadFlashcardByOID(flashcard.OID)
@@ -70,7 +70,7 @@ func TestFlashcard(t *testing.T) {
 
 	// Delete
 	require.NoError(t, flashcard.Delete())
-	AssertNoFlashcards(t)
+	tr.AssertNoFlashcards()
 }
 
 func TestFlashcardFormats(t *testing.T) {
@@ -155,11 +155,7 @@ A **gopher**.
 func TestFlashcardOperations(t *testing.T) {
 
 	t.Run("Review", func(t *testing.T) {
-		SetUpRepositoryFromTempDir(t)
-		FreezeOn(t, "2025-02-01 12:00:00")
-
-		// Insert the note
-		MustWriteFile(t, "python.md", `# Python
+		NewTestRepository(t, WithFileContent("python.md", `# Python
 
 ## Flashcard: Python's creator
 
@@ -168,7 +164,8 @@ Who invented Python?
 ---
 
 Guido van Rossum
-`)
+`))
+		FreezeOn(t, "2025-02-01 12:00:00")
 
 		_, err := CurrentRepository().Add(PathSpecs{"python.md"})
 		require.NoError(t, err)

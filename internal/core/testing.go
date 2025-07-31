@@ -18,6 +18,66 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestRepository is the main abstraction to set up a test environment.
+// Use options to customize the repository.
+type TestRepository struct {
+	t *testing.T
+
+	// The repository temporary root directory
+	Root string
+}
+
+type TestRepositoryOption func(*TestRepository)
+
+// NewTestRepository creates a new TestRepository instance with a temporary directory
+// and apply options.
+func NewTestRepository(t *testing.T, options ...TestRepositoryOption) *TestRepository {
+	t.Helper()
+
+	tr := &TestRepository{
+		t:    t,
+		Root: t.TempDir(),
+	}
+
+	tr.configureDir()
+	t.Logf("Working in configured directory %s", tr.Root)
+
+	for _, opt := range options {
+		opt(tr)
+	}
+
+	return tr
+}
+
+func (tr *TestRepository) configureDir() {
+	ntDir := filepath.Join(tr.Root, ".nt")
+	if _, err := os.Stat(ntDir); os.IsNotExist(err) {
+		// Create a default configuration dir if not exists for CurrentConfig() to work
+		if err := os.Mkdir(ntDir, os.ModePerm); err != nil {
+			tr.t.Fatal(err)
+		}
+	}
+
+	// Force debug level in tests to diagnose more easily
+	CurrentLogger().SetVerboseLevel(VerboseDebug)
+	CurrentLogger().Debugf("✨ Set up directory %q", ntDir)
+
+	configFile := filepath.Join(ntDir, "config.jsonnet")
+	if _, err := os.Stat(configFile); os.IsNotExist(err) {
+		// Create a default configuration file but ensure no side effects
+		InitConfigFileFromDirectory(tr.Root, ConfigOptions{
+			MediaConverter: "random",
+		})
+	}
+
+	// Force the application to consider the temporary directory as the home
+	os.Setenv("NT_HOME", tr.Root)
+	tr.t.Cleanup(func() {
+		os.Unsetenv("NT_HOME")
+		Reset()
+	})
+}
+
 // Reset forces singletons to be recreated. Useful between unit tests.
 func Reset() {
 	repositoryOnce.Reset()
@@ -33,74 +93,55 @@ func Reset() {
 
 /* Fixtures */
 
-// SetUpRepositoryFromGoldenFile populates a temp directory containing a valid .nt repository and a single file.
-func SetUpRepositoryFromGoldenFile(t *testing.T) string {
-	return SetUpRepositoryFromGoldenFileNamed(t, t.Name()+".md")
-}
-
-// SetUpRepositoryFromGoldenFileNamed populates a temp directory based on the given golden file name.
-func SetUpRepositoryFromGoldenFileNamed(t *testing.T, testname string) string {
-	filename := testutil.SetUpFromGoldenFileNamed(t, testname)
-	dirname := filepath.Dir(filename)
-	configureDir(t, dirname)
-	return filename
-}
-
-// SetUpRepositoryFromFileContent populates a temp directory based on the given file content.
-func SetUpRepositoryFromFileContent(t *testing.T, name, content string) string {
-	filename := testutil.SetUpFromFileContent(t, name, content)
-	dirname := filepath.Dir(filename)
-	configureDir(t, dirname)
-	return dirname
-}
-
-// SetUpRepositoryFromGoldenDir populates a temp directory containing a valid .nt repository.
-func SetUpRepositoryFromGoldenDir(t *testing.T) string {
-	return SetUpRepositoryFromGoldenDirNamed(t, t.Name())
-}
-
-// SetUpRepositoryFromGoldenDir populates a temp directory based on the given golden dir name.
-func SetUpRepositoryFromGoldenDirNamed(t *testing.T, testname string) string {
-	dirname := testutil.SetUpFromGoldenDirNamed(t, testname)
-	configureDir(t, dirname)
-	return dirname
-}
-
-// SetUpRepositoryFromTempDir populates a temp directory containing a valid .nt repository.
-func SetUpRepositoryFromTempDir(t *testing.T) string {
-	dirname := t.TempDir()
-	configureDir(t, dirname)
-	t.Logf("Working in configured directory %s", dirname)
-	return dirname
-}
-
-func configureDir(t *testing.T, dirname string) {
-	ntDir := filepath.Join(dirname, ".nt")
-	if _, err := os.Stat(ntDir); os.IsNotExist(err) {
-		// Create a default configuration dir if not exists for CurrentConfig() to work
-		if err := os.Mkdir(ntDir, os.ModePerm); err != nil {
-			t.Fatal(err)
-		}
+// WithFileRaw creates a file in the repository with the given content.
+func WithFileRaw(path string, content []byte) TestRepositoryOption {
+	return func(repo *TestRepository) {
+		root := repo.Root
+		newFilepath := filepath.Join(root, path)
+		err := os.MkdirAll(filepath.Dir(newFilepath), 0755)
+		require.NoError(repo.t, err)
+		repo.t.Logf("Writing file %s...", newFilepath)
+		err = os.WriteFile(newFilepath, content, 0644)
+		require.NoError(repo.t, err)
 	}
+}
 
-	// Force debug level in tests to diagnose more easily
-	CurrentLogger().SetVerboseLevel(VerboseDebug)
-	CurrentLogger().Debugf("✨ Set up directory %q", ntDir)
+// WithFileContent creates a file in the repository with the given content.
+// Special quotes are unescaped to support test content.
+func WithFileContent(path string, content string) TestRepositoryOption {
+	return WithFileRaw(path, []byte(text.UnescapeTestContent(content)))
+}
 
-	configFile := filepath.Join(dirname, ".nt", "config.jsonnet")
-	if _, err := os.Stat(configFile); os.IsNotExist(err) {
-		// Create a default configuration file but ensure no side effects
-		InitConfigFileFromDirectory(dirname, ConfigOptions{
-			MediaConverter: "random",
-		})
+// FromGoldenFile creates a file in the repository from the golden file.
+func FromGoldenFile(t *testing.T) TestRepositoryOption {
+	filename := t.Name() + ".md"
+	return WithFileRaw(filename, testutil.GoldenFileNamed(t, filename))
+}
+
+// FromGoldenFileNamed creates a file in the repository from the golden file.
+func FromGoldenFileNamed(t *testing.T, filename string) TestRepositoryOption {
+	newFilename := filepath.Base(filename)
+	return WithFileRaw(newFilename, testutil.GoldenFileNamed(t, filename))
+}
+
+// FromGoldenDir copies in the repository a testdata directory based on the given test name.
+func FromGoldenDir(t *testing.T) TestRepositoryOption {
+	return FromGoldenDirNamed(t.Name())
+}
+
+// FromGoldenDirNamed copies in the repository a testdata directory.
+func FromGoldenDirNamed(testname string) TestRepositoryOption {
+	return func(tr *TestRepository) {
+		dirIn := filepath.Join("testdata", testname)
+		dirOut := filepath.Join(tr.Root)
+
+		dirIn, err := filepath.Abs(dirIn)
+		require.NoError(tr.t, err)
+
+		// We duplicate everything so that test can create files/directories like .nt
+		// inside it without impacting the testdata original directory.)
+		testutil.DuplicateDirHierarchy(tr.t, dirIn, dirOut)
 	}
-
-	// Force the application to consider the temporary directory as the home
-	os.Setenv("NT_HOME", dirname)
-	t.Cleanup(func() {
-		os.Unsetenv("NT_HOME")
-		Reset()
-	})
 }
 
 /* Reproducible Tests */
@@ -132,133 +173,145 @@ func FreezeOn(t *testing.T, date string) *clock.TestClock {
 
 /* Test Helpers */
 
-func MustCountFiles(t *testing.T) int {
+func (tr *TestRepository) CountFiles() int {
 	count, err := CurrentRepository().CountFiles()
-	require.NoError(t, err)
+	require.NoError(tr.t, err)
 	return count
 }
 
-func MustCountMedias(t *testing.T) int {
+func (tr *TestRepository) CountMedias() int {
 	count, err := CurrentRepository().CountMedias()
-	require.NoError(t, err)
+	require.NoError(tr.t, err)
 	return count
 }
 
-func MustCountNotes(t *testing.T) int {
+func (tr *TestRepository) CountNotes() int {
 	count, err := CurrentRepository().CountNotes()
-	require.NoError(t, err)
+	require.NoError(tr.t, err)
 	return count
 }
 
-func MustCountGoLinks(t *testing.T) int {
+func (tr *TestRepository) CountGoLinks() int {
 	count, err := CurrentRepository().CountGoLinks()
-	require.NoError(t, err)
+	require.NoError(tr.t, err)
 	return count
 }
 
-func MustCountFlashcards(t *testing.T) int {
+func (tr *TestRepository) CountFlashcards() int {
 	count, err := CurrentRepository().CountFlashcards()
-	require.NoError(t, err)
+	require.NoError(tr.t, err)
 	return count
 }
 
-func MustCountReminders(t *testing.T) int {
+func (tr *TestRepository) CountReminders() int {
 	count, err := CurrentRepository().CountReminders()
-	require.NoError(t, err)
+	require.NoError(tr.t, err)
 	return count
 }
 
-func AssertNoFiles(t *testing.T) {
-	count, err := CurrentRepository().CountFiles()
-	require.NoError(t, err)
-	require.Equal(t, 0, count)
+func (tr *TestRepository) AssertNoFiles() {
+	require.Equal(tr.t, 0, tr.CountFiles())
 }
 
-func AssertNoNotes(t *testing.T) {
-	count, err := CurrentRepository().CountNotes()
-	require.NoError(t, err)
-	require.Equal(t, 0, count)
+func (tr *TestRepository) AssertNoNotes() {
+	require.Equal(tr.t, 0, tr.CountNotes())
 }
 
-func AssertNoFlashcards(t *testing.T) {
-	count, err := CurrentRepository().CountFlashcards()
-	require.NoError(t, err)
-	require.Equal(t, 0, count)
+func (tr *TestRepository) AssertNoFlashcards() {
+	require.Equal(tr.t, 0, tr.CountFlashcards())
 }
 
-func AssertNoGoLinks(t *testing.T) {
-	count, err := CurrentRepository().CountGoLinks()
-	require.NoError(t, err)
-	require.Equal(t, 0, count)
+func (tr *TestRepository) AssertNoGoLinks() {
+	require.Equal(tr.t, 0, tr.CountGoLinks())
 }
 
-func AssertNoReminders(t *testing.T) {
-	count, err := CurrentRepository().CountReminders()
-	require.NoError(t, err)
-	require.Equal(t, 0, count)
+func (tr *TestRepository) AssertNoReminders() {
+	require.Equal(tr.t, 0, tr.CountReminders())
 }
 
-func AssertNoMedias(t *testing.T) {
-	count, err := CurrentRepository().CountMedias()
-	require.NoError(t, err)
-	require.Equal(t, 0, count)
+func (tr *TestRepository) AssertNoMedias() {
+	require.Equal(tr.t, 0, tr.CountMedias())
 }
 
-func AssertFrontMatterEqual(t *testing.T, expected string, file *File) {
+func (tr *TestRepository) AssertFrontMatterEqual(expected string, file *File) {
 	actual, err := file.FrontMatter.AsBeautifulYAML()
-	require.NoError(t, err)
-	AssertTrimEqual(t, expected, actual)
+	require.NoError(tr.t, err)
+	tr.AssertTrimEqual(expected, actual)
 }
 
-func AssertContentEqual(t *testing.T, expected string, file *File) {
+func (tr *TestRepository) AssertContentEqual(expected string, file *File) {
 	actual := file.Body
-	AssertTrimEqual(t, expected, string(actual))
+	tr.AssertTrimEqual(expected, string(actual))
 }
 
-func AssertTrimEqual(t *testing.T, expected string, actual string) {
-	assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
+func (tr *TestRepository) AssertTrimEqual(expected string, actual string) {
+	assert.Equal(tr.t, strings.TrimSpace(expected), strings.TrimSpace(actual))
 }
 
-func MustFindFlashcardByShortTitle(t *testing.T, shortTitle string) *Flashcard {
+func (tr *TestRepository) FindFlashcardByShortTitle(shortTitle string) *Flashcard {
 	flashcard, err := CurrentRepository().FindFlashcardByShortTitle(shortTitle)
-	require.NoError(t, err)
-	require.NotNil(t, flashcard)
+	require.NoError(tr.t, err)
+	require.NotNil(tr.t, flashcard)
 	return flashcard
 }
 
-func MustFindNoteByPathAndTitle(t *testing.T, relativePath, longTitle string) *Note {
+func (tr *TestRepository) FindNoteByPathAndTitle(relativePath, longTitle string) *Note {
 	note, err := CurrentRepository().FindNoteByPathAndTitle(relativePath, longTitle)
-	require.NoError(t, err)
-	require.NotNil(t, note)
+	require.NoError(tr.t, err)
+	require.NotNil(tr.t, note)
 	return note
 }
 
 /* Test Helpers */
 
-// MustWriteFile edits the file in the current repository to force the given content.
-func MustWriteFile(t *testing.T, path string, content string) {
+// WriteFile edits the file in the current repository to force the given content.
+func (tr *TestRepository) WriteFile(relativePath string, content string) {
 	root := CurrentConfig().RootDirectory
-	if root == "" {
-		t.Fatal("No repository configured")
-	}
-	newFilepath := filepath.Join(root, path)
+	newFilepath := filepath.Join(root, relativePath)
 	err := os.MkdirAll(filepath.Dir(newFilepath), 0755)
-	require.NoError(t, err)
-	t.Logf("Writing file %s...", newFilepath)
+	require.NoError(tr.t, err)
+	tr.t.Logf("Writing file %s...", newFilepath)
 	err = os.WriteFile(newFilepath, []byte(text.UnescapeTestContent(content)), 0644)
-	require.NoError(t, err)
+	require.NoError(tr.t, err)
 }
 
-// MustDeleteFile remove a file iin the current repository.
-func MustDeleteFile(t *testing.T, path string) {
+// WriteFileRaw rewrite a file in the current repository to force the given content in bytes.
+func (tr *TestRepository) WriteFileRaw(relativePath string, data []byte) {
 	root := CurrentConfig().RootDirectory
-	existingFilepath := filepath.Join(root, path)
+	newFilepath := filepath.Join(root, relativePath)
+	tr.t.Logf("Writing file %s...", newFilepath)
+	err := os.WriteFile(newFilepath, data, 0644)
+	require.NoError(tr.t, err)
+}
 
+// DeleteFile removes a file in the current repository.
+func (tr *TestRepository) DeleteFile(relativePath string) {
+	root := CurrentConfig().RootDirectory
+	existingFilepath := filepath.Join(root, relativePath)
 	err := os.Remove(existingFilepath)
-	require.NoError(t, err)
+	require.NoError(tr.t, err)
 }
 
 /* Text Helpers */
+
+func (tr *TestRepository) RequireNoFileExists(relativePath string) {
+	filepath := filepath.Join(tr.Root, relativePath)
+	require.NoFileExists(tr.t, filepath)
+}
+func (tr *TestRepository) RequireFileExists(relativePath string) {
+	filepath := filepath.Join(tr.Root, relativePath)
+	require.FileExists(tr.t, filepath)
+}
+
+func (tr *TestRepository) AssertFileExists(relativePath string) {
+	filepath := filepath.Join(tr.Root, relativePath)
+	assert.FileExists(tr.t, filepath)
+}
+
+// ReplaceLine replaces a line inside a file.
+func (tr *TestRepository) ReplaceLine(relativePath string, lineNumber int, oldLine string, newLine string) {
+	ReplaceLine(tr.t, filepath.Join(tr.Root, relativePath), lineNumber, oldLine, newLine)
+}
 
 // ReplaceLine replaces a line inside a file.
 func ReplaceLine(t *testing.T, path string, lineNumber int, oldLine string, newLine string) {
@@ -271,6 +324,11 @@ func ReplaceLine(t *testing.T, path string, lineNumber int, oldLine string, newL
 	lines[lineNumber-1] = newLine
 	content := strings.Join(lines, "\n")
 	os.WriteFile(path, []byte(content), 0644)
+}
+
+// AppendLines append multiple lines in a file.
+func (tr *TestRepository) AppendLines(relativePath string, text string) {
+	AppendLines(tr.t, filepath.Join(tr.Root, relativePath), text)
 }
 
 // AppendLines append multiple lines in a file.
@@ -305,40 +363,24 @@ func HumanTime(t *testing.T, str string) time.Time {
 	return time.Time{} // zero
 }
 
-/* Creation Helpers */
-
-// WriteFileFromRelativePath creates a file in the repository.
-func WriteFileFromRelativePath(t *testing.T, relativePath string, content string) {
-	absolutePath := CurrentRepository().GetFileAbsolutePath(relativePath)
-
-	dir := filepath.Dir(absolutePath)
-
-	// Create intermediate directories if they don't exist
-	err := os.MkdirAll(dir, 0755)
-	require.NoError(t, err)
-
-	err = os.WriteFile(absolutePath, []byte(content), 0644)
-	require.NoError(t, err)
-}
-
-// ParseFileFromRelativePath creates a ParsedFile from a file in the repository.
-func ParseFileFromRelativePath(t *testing.T, relativePath string) *ParsedFile {
+// ParseFile creates a ParsedFile from a file in the repository.
+func (tr *TestRepository) ParseFile(relativePath string) *ParsedFile {
 	absolutePath := CurrentRepository().GetFileAbsolutePath(relativePath)
 
 	// Read the markdown
 	markdownFile, err := markdown.ParseFile(absolutePath)
-	require.NoError(t, err)
+	require.NoError(tr.t, err)
 
 	parsedFile, err := ParseOrphanFile(markdownFile)
-	require.NoError(t, err)
+	require.NoError(tr.t, err)
 
 	return parsedFile
 }
 
-// NewPackFileFromRelativePath creates a PackFile from a file in the repository.
+// NewPackFile creates a PackFile from a file in the repository.
 // The file can be a Markdown document or a media file.
 // Parent files are not supported when parsing the Markdown file.
-func NewPackFileFromRelativePath(t *testing.T, fileRelativePath string) *PackFile {
+func (tr *TestRepository) NewPackFile(fileRelativePath string) *PackFile {
 	fileAbsolutePath := CurrentRepository().GetFileAbsolutePath(fileRelativePath)
 
 	// We create pack files for Markdown and media files.
@@ -347,13 +389,13 @@ func NewPackFileFromRelativePath(t *testing.T, fileRelativePath string) *PackFil
 	if filepath.Ext(fileAbsolutePath) == ".md" {
 		// Read the markdown
 		markdownFile, err := markdown.ParseFile(fileAbsolutePath)
-		require.NoError(t, err)
+		require.NoError(tr.t, err)
 
 		parsedFile, err := ParseOrphanFile(markdownFile)
-		require.NoError(t, err)
+		require.NoError(tr.t, err)
 
 		packFile, err := NewPackFileFromParsedFile(parsedFile)
-		require.NoError(t, err)
+		require.NoError(tr.t, err)
 
 		return packFile
 	}
@@ -361,7 +403,7 @@ func NewPackFileFromRelativePath(t *testing.T, fileRelativePath string) *PackFil
 	// Read the media
 	parsedMedia := ParseMedia(CurrentRepository().Path(), fileAbsolutePath)
 	packFile, err := NewPackFileFromParsedMedia(parsedMedia)
-	require.NoError(t, err)
+	require.NoError(tr.t, err)
 
 	return packFile
 }

@@ -8,7 +8,6 @@ import (
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
-	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,19 +15,16 @@ import (
 func TestObjectPersistance(t *testing.T) {
 	// The goal of this test is to populate the database to fill all columns
 	// and check all values are correctly persisted.
-	SetUpRepositoryFromTempDir(t)
-	FreezeNow(t)
-	oid.UseSequence(t)
-
-	// Create the minimal setup to have all columns populated in DB
-	MustWriteFile(t, "programming/index.md", `
+	tr := NewTestRepository(t,
+		// Create the minimal setup to have all columns populated in DB
+		WithFileContent("programming/index.md", `
 ---
 tags: programming
 ---
 # Programming
 ---
-`)
-	MustWriteFile(t, "programming/python.md", text.UnescapeTestContent(`
+`),
+		WithFileContent("programming/python.md", `
 ---
 tags: python
 ---
@@ -66,16 +62,19 @@ class SillyClass:
 > Make your type Python-friendly
 `))
 
+	FreezeNow(t)
+	oid.UseSequence(t)
+
 	// Add to persist objects in DB
 	_, err := CurrentRepository().Add(AnyPath)
 	require.NoError(t, err)
 
-	require.Equal(t, 2, MustCountFiles(t))
-	require.Equal(t, 1, MustCountMedias(t))
-	require.Equal(t, 4, MustCountNotes(t)) // including the flashcard note
-	require.Equal(t, 1, MustCountFlashcards(t))
-	require.Equal(t, 1, MustCountGoLinks(t))
-	require.Equal(t, 2, MustCountReminders(t))
+	require.Equal(t, 2, tr.CountFiles())
+	require.Equal(t, 1, tr.CountMedias())
+	require.Equal(t, 4, tr.CountNotes()) // including the flashcard note
+	require.Equal(t, 1, tr.CountFlashcards())
+	require.Equal(t, 1, tr.CountGoLinks())
+	require.Equal(t, 2, tr.CountReminders())
 
 	// Read a single object of each kind and check all fields
 
@@ -145,7 +144,7 @@ class SillyClass:
 
 	// Flashcard
 	note = MustFindNoteByTitle(t, "Flashcard: Python's creator")
-	flashcard := MustFindFlashcardByShortTitle(t, "Python's creator")
+	flashcard := tr.FindFlashcardByShortTitle("Python's creator")
 	assert.NotEmpty(t, flashcard.OID)
 	assert.Equal(t, file.PackFileOID, flashcard.PackFileOID)
 	assert.Equal(t, file.OID, flashcard.FileOID)
@@ -190,7 +189,7 @@ class SillyClass:
 }
 
 func TestStatsOnDisk(t *testing.T) {
-	SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+	NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 
 	stats, err := CurrentDB().StatsOnDisk()
 	require.NoError(t, err)
