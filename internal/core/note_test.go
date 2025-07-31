@@ -13,9 +13,10 @@ import (
 )
 
 func TestNote(t *testing.T) {
-	SetUpRepositoryFromTempDir(t)
+	tr := NewTestRepository(t)
 	FreezeNow(t)
-	AssertNoNotes(t)
+
+	tr.AssertNoNotes()
 
 	createdAt := clock.Now()
 	note := &Note{
@@ -61,7 +62,7 @@ func TestNote(t *testing.T) {
 
 	// Save
 	require.NoError(t, note.Save())
-	require.Equal(t, 1, MustCountNotes(t))
+	require.Equal(t, 1, tr.CountNotes())
 
 	// Reread and recheck all fields
 	actual, err := CurrentRepository().LoadNoteByOID(note.OID)
@@ -91,7 +92,7 @@ func TestNote(t *testing.T) {
 	// Update
 	actual.Comment = "Golang was created in 2007"
 	require.NoError(t, actual.Save())
-	require.Equal(t, 1, MustCountNotes(t))
+	require.Equal(t, 1, tr.CountNotes())
 
 	// ...and compare again
 	actual, err = CurrentRepository().LoadNoteByOID(note.OID)
@@ -102,23 +103,23 @@ func TestNote(t *testing.T) {
 
 	// Delete
 	require.NoError(t, note.Delete())
-	AssertNoNotes(t)
+	tr.AssertNoNotes()
 }
 
 func TestNoteHooks(t *testing.T) {
 
 	t.Run("HasHooks", func(t *testing.T) {
-		SetUpRepositoryFromTempDir(t)
+		tr := NewTestRepository(t)
 
 		// Insert the note
-		MustWriteFile(t, "go.md", text.UnescapeTestContent(`# Go
+		tr.WriteFile("go.md", `# Go
 
 ## Note: Golang History
 
 ‛@hook: gist‛
 
 Golang was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.
-		`))
+		`)
 
 		_, err := CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
@@ -271,12 +272,12 @@ Golang was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in
 }
 
 func TestSearchNotes(t *testing.T) {
-	SetUpRepositoryFromGoldenDirNamed(t, "TestNoteFTS")
+	tr := NewTestRepository(t, FromGoldenDirNamed("TestNoteFTS"))
 
 	CurrentLogger().SetVerboseLevel(VerboseTrace)
 
 	// Insert the note
-	parsedFile := ParseFileFromRelativePath(t, "note.md")
+	parsedFile := tr.ParseFile("note.md")
 
 	dummyPackFile := DummyPackFile()
 
@@ -316,10 +317,10 @@ func TestSearchNotes(t *testing.T) {
 func TestNoteOperations(t *testing.T) {
 
 	t.Run("Mark and Unmark", func(t *testing.T) {
-		SetUpRepositoryFromTempDir(t)
+		tr := NewTestRepository(t)
 
 		// Insert the note
-		MustWriteFile(t, "python.md", `# Python
+		tr.WriteFile("python.md", `# Python
 
 ## Flashcard: Python's creator
 
@@ -358,13 +359,13 @@ Guido van Rossum
 	})
 
 	t.Run("Annotate", func(t *testing.T) {
-		SetUpRepositoryFromTempDir(t)
+		tr := NewTestRepository(t)
 		c := FreezeNow(t)
 
 		date1 := clock.Now()
 
 		// Insert the note
-		MustWriteFile(t, "python.md", `# Python
+		tr.WriteFile("python.md", `# Python
 
 ## Flashcard: Python's creator
 

@@ -13,10 +13,10 @@ import (
 )
 
 func TestGoLink(t *testing.T) {
-	SetUpRepositoryFromTempDir(t)
+	tr := NewTestRepository(t)
 	FreezeNow(t)
 
-	AssertNoGoLinks(t)
+	tr.AssertNoGoLinks()
 
 	createdAt := clock.Now()
 	goLink := &GoLink{
@@ -35,7 +35,7 @@ func TestGoLink(t *testing.T) {
 
 	// Save
 	require.NoError(t, goLink.Save())
-	require.Equal(t, 1, MustCountGoLinks(t))
+	require.Equal(t, 1, tr.CountGoLinks())
 
 	// Reread and recheck all fields
 	actual, err := CurrentRepository().LoadGoLinkByOID(goLink.OID)
@@ -57,7 +57,7 @@ func TestGoLink(t *testing.T) {
 	goLink.Text = "Go Language"
 	goLink.URL = "https://go.dev"
 	require.NoError(t, goLink.Save())
-	require.Equal(t, 1, MustCountGoLinks(t))
+	require.Equal(t, 1, tr.CountGoLinks())
 
 	// ...and compare again
 	actual, err = CurrentRepository().LoadGoLinkByOID(goLink.OID)
@@ -69,7 +69,7 @@ func TestGoLink(t *testing.T) {
 
 	// Delete
 	require.NoError(t, goLink.Delete())
-	AssertNoGoLinks(t)
+	tr.AssertNoGoLinks()
 }
 
 func TestGoLinkFormats(t *testing.T) {

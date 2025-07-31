@@ -8,9 +8,9 @@ import (
 )
 
 func TestNoEmptyTitle(t *testing.T) {
-	SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
+	tr := NewTestRepository(t, FromGoldenDirNamed("TestLint"))
 
-	file := ParseFileFromRelativePath(t, "no-empty-title.md")
+	file := tr.ParseFile("no-empty-title.md")
 
 	violations, err := NoEmptyTitle(file, nil, nil)
 	require.NoError(t, err)
@@ -31,9 +31,9 @@ func TestNoEmptyTitle(t *testing.T) {
 }
 
 func TestNoDuplicateNoteTitle(t *testing.T) {
-	SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
+	tr := NewTestRepository(t, FromGoldenDirNamed("TestLint"))
 
-	file := ParseFileFromRelativePath(t, "no-duplicate-note-title.md")
+	file := tr.ParseFile("no-duplicate-note-title.md")
 
 	violations, err := NoDuplicateNoteTitle(file, nil, nil)
 	require.NoError(t, err)
@@ -48,17 +48,17 @@ func TestNoDuplicateNoteTitle(t *testing.T) {
 }
 
 func TestNoDuplicateSlug(t *testing.T) {
-	SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
+	tr := NewTestRepository(t, FromGoldenDirNamed("TestLint"))
 
 	// File a.md is valid
-	file := ParseFileFromRelativePath(t, "no-duplicate-slug/a.md")
+	file := tr.ParseFile("no-duplicate-slug/a.md")
 
 	violations, err := NoDuplicateSlug(file, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, violations, 0)
 
 	// File b.md contains non-unique slugs
-	file = ParseFileFromRelativePath(t, "no-duplicate-slug/b.md")
+	file = tr.ParseFile("no-duplicate-slug/b.md")
 
 	violations, err = NoDuplicateSlug(file, nil, nil)
 	require.NoError(t, err)
@@ -78,7 +78,7 @@ func TestNoDuplicateSlug(t *testing.T) {
 	}, violations)
 
 	// File c.md contains unique slugs but using an invalid format
-	file = ParseFileFromRelativePath(t, "no-duplicate-slug/c.md")
+	file = tr.ParseFile("no-duplicate-slug/c.md")
 
 	violations, err = NoDuplicateSlug(file, nil, nil)
 	require.NoError(t, err)
@@ -105,9 +105,9 @@ func TestNoDuplicateSlug(t *testing.T) {
 }
 
 func TestMinLinesBetweenNotes(t *testing.T) {
-	SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
+	tr := NewTestRepository(t, FromGoldenDirNamed("TestLint"))
 
-	file := ParseFileFromRelativePath(t, "min-lines-between-notes.md")
+	file := tr.ParseFile("min-lines-between-notes.md")
 
 	violations, err := MinLinesBetweenNotes(file, nil, []any{2})
 	require.NoError(t, err)
@@ -128,9 +128,9 @@ func TestMinLinesBetweenNotes(t *testing.T) {
 }
 
 func TestMaxLinesBetweenNotes(t *testing.T) {
-	SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
+	tr := NewTestRepository(t, FromGoldenDirNamed("TestLint"))
 
-	file := ParseFileFromRelativePath(t, "max-lines-between-notes.md")
+	file := tr.ParseFile("max-lines-between-notes.md")
 
 	violations, err := MaxLinesBetweenNotes(file, nil, []any{2})
 	require.NoError(t, err)
@@ -151,9 +151,9 @@ func TestMaxLinesBetweenNotes(t *testing.T) {
 }
 
 func TestNoteTitleMatch(t *testing.T) {
-	SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
+	tr := NewTestRepository(t, FromGoldenDirNamed("TestLint"))
 
-	file := ParseFileFromRelativePath(t, "note-title-match.md")
+	file := tr.ParseFile("note-title-match.md")
 
 	violations, err := NoteTitleMatch(file, nil, []any{`^(Note|Quote):\s\S.*$`})
 	require.NoError(t, err)
@@ -168,10 +168,10 @@ func TestNoteTitleMatch(t *testing.T) {
 }
 
 func TestRequireTag(t *testing.T) {
-	SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
+	tr := NewTestRepository(t, FromGoldenDirNamed("TestLint"))
 
-	file1 := ParseFileFromRelativePath(t, "require-tag/require-tag-1.md")
-	file2 := ParseFileFromRelativePath(t, "require-tag/require-tag-2.md")
+	file1 := tr.ParseFile("require-tag/require-tag-1.md")
+	file2 := tr.ParseFile("require-tag/require-tag-2.md")
 
 	// Default pattern
 	violations, err := RequireTag(file1, nil, []any{})
@@ -211,9 +211,9 @@ func TestRequireTag(t *testing.T) {
 }
 
 func TestNoDanglingMedia(t *testing.T) {
-	SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
+	tr := NewTestRepository(t, FromGoldenDirNamed("TestLint"))
 
-	file := ParseFileFromRelativePath(t, "no-dangling-media.md")
+	file := tr.ParseFile("no-dangling-media.md")
 
 	violations, err := NoDanglingMedia(file, nil, nil)
 	require.NoError(t, err)
@@ -234,9 +234,9 @@ func TestNoDanglingMedia(t *testing.T) {
 }
 
 func TestNoDeadWikilink(t *testing.T) {
-	SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
+	tr := NewTestRepository(t, FromGoldenDirNamed("TestLint"))
 
-	file := ParseFileFromRelativePath(t, "no-dead-wikilink.md")
+	file := tr.ParseFile("no-dead-wikilink.md")
 
 	violations, err := NoDeadWikilink(file, nil, nil)
 	require.NoError(t, err)
@@ -275,9 +275,9 @@ func TestNoDeadWikilink(t *testing.T) {
 }
 
 func TestNoExtensionWikilink(t *testing.T) {
-	SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
+	tr := NewTestRepository(t, FromGoldenDirNamed("TestLint"))
 
-	file := ParseFileFromRelativePath(t, "no-extension-wikilink.md")
+	file := tr.ParseFile("no-extension-wikilink.md")
 
 	violations, err := NoExtensionWikilink(file, nil, nil)
 	require.NoError(t, err)
@@ -304,9 +304,9 @@ func TestNoExtensionWikilink(t *testing.T) {
 }
 
 func TestNoAmbiguousWikilink(t *testing.T) {
-	SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
+	tr := NewTestRepository(t, FromGoldenDirNamed("TestLint"))
 
-	file := ParseFileFromRelativePath(t, "no-ambiguous-wikilink.md")
+	file := tr.ParseFile("no-ambiguous-wikilink.md")
 
 	violations, err := NoAmbiguousWikilink(file, nil, nil)
 	require.NoError(t, err)
@@ -327,10 +327,10 @@ func TestNoAmbiguousWikilink(t *testing.T) {
 }
 
 func TestCheckAttributes(t *testing.T) {
-	SetUpRepositoryFromGoldenDirNamed(t, "TestLint")
+	tr := NewTestRepository(t, FromGoldenDirNamed("TestLint"))
 
-	fileRoot := ParseFileFromRelativePath(t, "check-attributes.md")
-	fileSub := ParseFileFromRelativePath(t, "check-attributes/check-attributes.md")
+	fileRoot := tr.ParseFile("check-attributes.md")
+	fileSub := tr.ParseFile("check-attributes/check-attributes.md")
 
 	violations, err := CheckAttributes(fileRoot)
 	require.NoError(t, err)

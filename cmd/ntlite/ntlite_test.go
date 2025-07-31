@@ -10,10 +10,10 @@ import (
 )
 
 func TestLite(t *testing.T) {
-	root := core.SetUpRepositoryFromGoldenDir(t)
+	tr := core.NewTestRepository(t, core.FromGoldenDir(t))
 
 	// Check input file
-	require.FileExists(t, filepath.Join(root, "notes.md"))
+	require.FileExists(t, filepath.Join(tr.Root, "notes.md"))
 	// Same as
 	require.FileExists(t, filepath.Join(CurrentRepository().Path, "notes.md"))
 

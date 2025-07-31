@@ -209,8 +209,8 @@ func TestParseFileWithTestdata(t *testing.T) {
 
 	for _, testcase := range testcases {
 		t.Run(testcase.name, func(t *testing.T) {
-			root := core.SetUpRepositoryFromGoldenDirNamed(t, "TestParser")
-			md, err := markdown.ParseFile(filepath.Join(root, testcase.golden+".md"))
+			tr := core.NewTestRepository(t, core.FromGoldenDirNamed("TestParser"))
+			md, err := markdown.ParseFile(filepath.Join(tr.Root, testcase.golden+".md"))
 			require.NoError(t, err)
 			file, err := core.ParseFile(md, nil)
 			require.NoError(t, err)
@@ -222,11 +222,11 @@ func TestParseFileWithTestdata(t *testing.T) {
 func TestParseFileWithTempdir(t *testing.T) {
 
 	t.Run("Nested Flashcards", func(t *testing.T) {
-		root := core.SetUpRepositoryFromTempDir(t)
+		tr := core.NewTestRepository(t)
 
 		// Create a file with nested flashcards at different levels.
 		// We will check that the flashcards are correctly extracted without including sub-notes and siblings sections.
-		core.MustWriteFile(t, "learning.md", text.UnescapeTestContent(`
+		tr.WriteFile("learning.md", `
 ---
 tags: learning
 ---
@@ -278,9 +278,9 @@ A technique of **learning by reviewing material at increasing intervals**.
 ### Flashcard: Spaced Repetition History
 
 (Learning) [[c1::Hermann Ebbinghaus::person]] invented **spaced repetition**
-`))
+`)
 
-		md := markdown.MustParseFile(filepath.Join(root, "learning.md"))
+		md := markdown.MustParseFile(filepath.Join(tr.Root, "learning.md"))
 		index, err := core.ParseFile(md, nil)
 		require.NoError(t, err)
 
@@ -313,8 +313,8 @@ A technique of **learning by reviewing material at increasing intervals**.
 		// are correctly parsed and merged.
 		core.FreezeNow(t)
 
-		root := core.SetUpRepositoryFromTempDir(t)
-		core.MustWriteFile(t, "index.md", text.UnescapeTestContent(`
+		tr := core.NewTestRepository(t)
+		tr.WriteFile("index.md", `
 ---
 name: Voltaire
 occupation: writer, philosopher
@@ -332,8 +332,8 @@ tags: [philosophy]
 Appreciation is a wonderful thing: It makes what is excellent in others belong to us as well.
 
 
-`))
-		md := markdown.MustParseFile(filepath.Join(root, "index.md"))
+`)
+		md := markdown.MustParseFile(filepath.Join(tr.Root, "index.md"))
 		index, err := core.ParseFile(md, nil)
 		require.NoError(t, err)
 
@@ -359,15 +359,15 @@ Appreciation is a wonderful thing: It makes what is excellent in others belong t
 	t.Run("Slug", func(t *testing.T) {
 		core.FreezeNow(t)
 
-		root := core.SetUpRepositoryFromTempDir(t)
-		core.MustWriteFile(t, "dira/index.md", `
+		tr := core.NewTestRepository(t)
+		tr.WriteFile("dira/index.md", `
 # Index A
 
 ## Note: Note in index A
 
 This is a note in index A.
 `)
-		core.MustWriteFile(t, "dira/a.md", `
+		tr.WriteFile("dira/a.md", `
 # File A
 
 ## Note: First note in file A
@@ -381,7 +381,7 @@ This is a note in file A.
 This is a note in file A.
 
 `)
-		core.MustWriteFile(t, "dirb/index.md", `
+		tr.WriteFile("dirb/index.md", `
 ---
 slug: b
 ---
@@ -390,7 +390,7 @@ slug: b
 ## Note: Note in Index B
 
 This is a note in index B.`)
-		core.MustWriteFile(t, "dirb/b.md", `
+		tr.WriteFile("dirb/b.md", `
 ---
 slug: b
 ---
@@ -400,10 +400,10 @@ slug: b
 
 This is a note in file B.`)
 
-		mdIndexA := markdown.MustParseFile(filepath.Join(root, "dira/index.md"))
-		mdA := markdown.MustParseFile(filepath.Join(root, "dira/a.md"))
-		mdIndexB := markdown.MustParseFile(filepath.Join(root, "dirb/index.md"))
-		mdB := markdown.MustParseFile(filepath.Join(root, "dirb/b.md"))
+		mdIndexA := markdown.MustParseFile(filepath.Join(tr.Root, "dira/index.md"))
+		mdA := markdown.MustParseFile(filepath.Join(tr.Root, "dira/a.md"))
+		mdIndexB := markdown.MustParseFile(filepath.Join(tr.Root, "dirb/index.md"))
+		mdB := markdown.MustParseFile(filepath.Join(tr.Root, "dirb/b.md"))
 
 		indexA, err := core.ParseFile(mdIndexA, nil)
 		require.NoError(t, err)
@@ -436,8 +436,8 @@ This is a note in file B.`)
 	t.Run("LongTitle", func(t *testing.T) {
 		core.FreezeNow(t)
 
-		root := core.SetUpRepositoryFromTempDir(t)
-		core.MustWriteFile(t, "a.md", `
+		tr := core.NewTestRepository(t)
+		tr.WriteFile("a.md", `
 # File A
 
 ## Note: Short title
@@ -465,7 +465,7 @@ Except when [...].
 Except when **identical to the parent note**.
 `)
 
-		md := markdown.MustParseFile(filepath.Join(root, "a.md"))
+		md := markdown.MustParseFile(filepath.Join(tr.Root, "a.md"))
 		file, err := core.ParseFile(md, nil)
 		require.NoError(t, err)
 
@@ -493,7 +493,7 @@ Except when **identical to the parent note**.
 		assert.Equal(t, "File A / Title with a long name", note.LongTitle.String())
 
 		// Let's try with a more subtle example where titles have a common prefix
-		core.MustWriteFile(t, "b.md", `
+		tr.WriteFile("b.md", `
 # Go
 
 ## Note: Golang
@@ -505,7 +505,7 @@ This is a note.
 This is a sub-note
 `)
 
-		md = markdown.MustParseFile(filepath.Join(root, "b.md"))
+		md = markdown.MustParseFile(filepath.Join(tr.Root, "b.md"))
 		file, err = core.ParseFile(md, nil)
 		require.NoError(t, err)
 
@@ -528,8 +528,8 @@ This is a sub-note
 		// These lines must not be parsed as heading (and thus as notes).
 		core.FreezeNow(t)
 
-		root := core.SetUpRepositoryFromTempDir(t)
-		core.MustWriteFile(t, "md.md", text.UnescapeTestContent(`
+		tr := core.NewTestRepository(t)
+		tr.WriteFile("md.md", `
 # File
 
 ## Note: Markdown Example 1
@@ -543,9 +543,9 @@ This note is not a note but a code block inside a note.
 ## Note: Markdown Example 2
 
 Another note without a code block.
-`))
+`)
 
-		md := markdown.MustParseFile(filepath.Join(root, "md.md"))
+		md := markdown.MustParseFile(filepath.Join(tr.Root, "md.md"))
 
 		// Check Markdown.File correctly interprets the headings
 		sections, err := md.GetSections()
@@ -570,15 +570,15 @@ Another note without a code block.
 		// Journal note titles are parsed to extract the date.
 		core.FreezeNow(t)
 
-		root := core.SetUpRepositoryFromTempDir(t)
-		core.MustWriteFile(t, "2024-12-05.md", text.UnescapeTestContent(`
+		tr := core.NewTestRepository(t)
+		tr.WriteFile("2024-12-05.md", `
 # Journal: 2024-12-05
 
 ## Work
 
 * Completed some work.
-`))
-		core.MustWriteFile(t, "2024-12-06.md", text.UnescapeTestContent(`
+`)
+		tr.WriteFile("2024-12-06.md", `
 # Journal: 2024-12-05
 
 ‛@date: 2024-12-06‛
@@ -586,13 +586,13 @@ Another note without a code block.
 ## Work
 
 * Completed some work.
-`))
+`)
 
-		md1 := markdown.MustParseFile(filepath.Join(root, "2024-12-05.md"))
+		md1 := markdown.MustParseFile(filepath.Join(tr.Root, "2024-12-05.md"))
 		file1, err := core.ParseFile(md1, nil)
 		require.NoError(t, err)
 
-		md2 := markdown.MustParseFile(filepath.Join(root, "2024-12-06.md"))
+		md2 := markdown.MustParseFile(filepath.Join(tr.Root, "2024-12-06.md"))
 		file2, err := core.ParseFile(md2, nil)
 		require.NoError(t, err)
 
@@ -617,9 +617,9 @@ Another note without a code block.
 		// are correctly parsed and merged.
 		core.FreezeNow(t)
 
-		root := core.SetUpRepositoryFromTempDir(t)
-		core.MustWriteFile(t, "medias/mona-lisa.png", "This is the worth reproduction.")
-		core.MustWriteFile(t, "paintings.md", text.UnescapeTestContent(`
+		tr := core.NewTestRepository(t)
+		tr.WriteFile("medias/mona-lisa.png", "This is the worth reproduction.")
+		tr.WriteFile("paintings.md", `
 # Paintings
 
 ## Artwork: Mona Lisa
@@ -631,8 +631,8 @@ Another note without a code block.
 ![Mona Lisa](medias/mona-lisa.png)
 
 > The painting was stolen in 1911 and recovered in 1913.
-`))
-		md := markdown.MustParseFile(filepath.Join(root, "paintings.md"))
+`)
+		md := markdown.MustParseFile(filepath.Join(tr.Root, "paintings.md"))
 		index, err := core.ParseFile(md, nil)
 		require.NoError(t, err)
 
@@ -683,7 +683,7 @@ func TestDetermineFileSlug(t *testing.T) {
 func TestMarkdownTransformers(t *testing.T) {
 
 	t.Run("StripSubNotesTransformer", func(t *testing.T) {
-		core.SetUpRepositoryFromTempDir(t)
+		core.NewTestRepository(t)
 
 		tests := []struct {
 			name     string
@@ -831,10 +831,10 @@ func TestFormatLongTitle(t *testing.T) {
 func TestCustomNoteTypes(t *testing.T) {
 
 	t.Run("New Type", func(t *testing.T) {
-		root := core.SetUpRepositoryFromTempDir(t)
+		tr := core.NewTestRepository(t)
 
 		// Edit config to declare a new custom type
-		core.MustWriteFile(t, ".nt/config.jsonnet", `
+		tr.WriteFile(".nt/config.jsonnet", `
 local nt = import 'nt.libsonnet';
 {
     Attributes: {
@@ -889,7 +889,7 @@ local nt = import 'nt.libsonnet';
 		`)
 		core.CurrentConfig().Reload()
 
-		core.MustWriteFile(t, "the-midnight-library.md", text.UnescapeTestContent(`
+		tr.WriteFile("the-midnight-library.md", `
 ---
 title: The Midnight Library
 isbn: 978-0525559474
@@ -908,8 +908,8 @@ Definitely a book to read while your are still young to act before growing your 
 ## 💡 Read again
 
 Reread the book in 10 years to see how my perspective has changed.
-`))
-		md := markdown.MustParseFile(filepath.Join(root, "the-midnight-library.md"))
+`)
+		md := markdown.MustParseFile(filepath.Join(tr.Root, "the-midnight-library.md"))
 		file, err := core.ParseFile(md, nil)
 		require.NoError(t, err)
 		require.Len(t, file.Notes, 2)

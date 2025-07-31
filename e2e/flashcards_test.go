@@ -11,10 +11,8 @@ import (
 )
 
 func TestFlashcards(t *testing.T) {
-	SetUpRepositoryFromTempDir(t)
-	c := FreezeNow(t)
-
-	MustWriteFile(t, "learning.md", `
+	tr := NewTestRepository(t,
+		WithFileContent("learning.md", `
 # Learning
 
 ## Flashcard: Rote Memorization
@@ -23,8 +21,8 @@ func TestFlashcards(t *testing.T) {
 
 ## Flashcard: Spaced Repetition
 
-[[c1::Spaced repetition]] is a technique that involves reviewing information at increasing intervals to enhance retention.
-		`)
+[[c1::Spaced repetition]] is a technique that involves reviewing information at increasing intervals to enhance retention.`))
+	c := FreezeNow(t)
 
 	_, err := CurrentRepository().Add(AnyPath)
 	require.NoError(t, err)
@@ -72,7 +70,7 @@ func TestFlashcards(t *testing.T) {
 
 	// Edit the flashcard text
 	c.FastForward(1 * time.Hour) // Force a new timestamp
-	MustWriteFile(t, "learning.md", `
+	tr.WriteFile("learning.md", `
 # Learning
 
 ## Flashcard: Rote Memorization

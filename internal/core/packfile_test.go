@@ -2,7 +2,6 @@ package core
 
 import (
 	"bytes"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -15,15 +14,15 @@ import (
 )
 
 func TestObjectData(t *testing.T) {
-	SetUpRepositoryFromTempDir(t)
+	tr := NewTestRepository(t)
 
-	WriteFileFromRelativePath(t, "project.md", ""+
+	tr.WriteFile("project.md", ""+
 		"# Project\n"+
 		"\n"+
 		"## TODO: Backlog\n"+
 		"\n"+
 		"[ ] Test `ObjectData`\n")
-	parsedFile := ParseFileFromRelativePath(t, "project.md")
+	parsedFile := tr.ParseFile("project.md")
 
 	dummyPackFile := DummyPackFile()
 
@@ -55,9 +54,9 @@ func TestPackFile(t *testing.T) {
 	t.Run("NewPackFileFromParsedFile", func(t *testing.T) {
 		oid.UseSequence(t)
 		FreezeNow(t)
-		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 
-		parsedFile := ParseFileFromRelativePath(t, "go.md")
+		parsedFile := tr.ParseFile("go.md")
 
 		packFile, err := NewPackFileFromParsedFile(parsedFile)
 		require.NoError(t, err)
@@ -78,10 +77,10 @@ func TestPackFile(t *testing.T) {
 	t.Run("NewPackFileFromParsedFile_DryRun", func(t *testing.T) {
 		oid.UseSequence(t)
 		FreezeNow(t)
-		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 		CurrentConfig().DryRun = true
 
-		parsedFile := ParseFileFromRelativePath(t, "go.md")
+		parsedFile := tr.ParseFile("go.md")
 
 		packFile, err := NewPackFileFromParsedFile(parsedFile)
 		require.NoError(t, err)
@@ -94,19 +93,19 @@ func TestPackFile(t *testing.T) {
 
 	t.Run("NewPackFileFromParsedFile_Retry", func(t *testing.T) {
 		FreezeNow(t)
-		SetUpRepositoryFromTempDir(t)
+		tr := NewTestRepository(t)
 
-		MustWriteFile(t, "go.md", "# Go")
+		tr.WriteFile("go.md", "# Go")
 
 		// Create a pack file from a parsed file
-		parsedFile := ParseFileFromRelativePath(t, "go.md")
+		parsedFile := tr.ParseFile("go.md")
 		packFile, err := NewPackFileFromParsedFile(parsedFile)
 		require.NoError(t, err)
 		assert.Len(t, packFile.BlobRefs, 1)
 		blob := packFile.BlobRefs[0]
 
 		// Reread the same file must not trigger a new pack file
-		parsedFile = ParseFileFromRelativePath(t, "go.md")
+		parsedFile = tr.ParseFile("go.md")
 		newPackFile, err := NewPackFileFromParsedFile(parsedFile)
 		require.NoError(t, err)
 		assert.Equal(t, packFile.OID, newPackFile.OID) // Same pack file
@@ -115,10 +114,10 @@ func TestPackFile(t *testing.T) {
 		assert.Equal(t, blob.OID, newBlob.OID) // Same blobs
 
 		// Edit the Markdown file
-		MustWriteFile(t, "go.md", "# Golang")
+		tr.WriteFile("go.md", "# Golang")
 
 		// An updated file must trigger a new pack file
-		parsedFile = ParseFileFromRelativePath(t, "go.md")
+		parsedFile = tr.ParseFile("go.md")
 		newPackFile, err = NewPackFileFromParsedFile(parsedFile)
 		require.NoError(t, err)
 		assert.NotEqual(t, packFile.OID, newPackFile.OID) // New pack file
@@ -130,9 +129,9 @@ func TestPackFile(t *testing.T) {
 	t.Run("NewPackFileFromParsedMedia", func(t *testing.T) {
 		oid.UseSequence(t)
 		FreezeNow(t)
-		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 
-		parsedFile := ParseFileFromRelativePath(t, "go.md")
+		parsedFile := tr.ParseFile("go.md")
 		require.Len(t, parsedFile.Medias, 1)
 		parsedMedia := parsedFile.Medias[0]
 		packFile, err := NewPackFileFromParsedMedia(parsedMedia)
@@ -151,10 +150,10 @@ func TestPackFile(t *testing.T) {
 	t.Run("NewPackFileFromParsedMedia_DryRun", func(t *testing.T) {
 		oid.UseSequence(t)
 		FreezeNow(t)
-		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 		CurrentConfig().DryRun = true
 
-		parsedFile := ParseFileFromRelativePath(t, "go.md")
+		parsedFile := tr.ParseFile("go.md")
 		require.Len(t, parsedFile.Medias, 1)
 		parsedMedia := parsedFile.Medias[0]
 		packFile, err := NewPackFileFromParsedMedia(parsedMedia)
@@ -167,18 +166,16 @@ func TestPackFile(t *testing.T) {
 	})
 
 	t.Run("NewPackFileFromParsedMedia_Retry", func(t *testing.T) {
-		root := SetUpRepositoryFromTempDir(t)
+		tr := NewTestRepository(t)
 		FreezeNow(t)
 
-		pathGif := filepath.Join(root, "smallest.gif")
-		err := os.WriteFile(pathGif, smallestGIF, 0644)
-		require.NoError(t, err)
+		tr.WriteFileRaw("smallest.gif", smallestGIF)
 
 		convertionDone := false
 		CurrentConfig().Converter().OnPreGeneration(func(cmd string, args ...string) {
 			convertionDone = true
 		})
-		parsedMedia := ParseMedia(root, pathGif)
+		parsedMedia := ParseMedia(tr.Root, filepath.Join(tr.Root, "smallest.gif"))
 		packFile, err := NewPackFileFromParsedMedia(parsedMedia)
 		require.NoError(t, err)
 		assert.True(t, convertionDone)
@@ -191,9 +188,7 @@ func TestPackFile(t *testing.T) {
 		assert.False(t, convertionDone)                // No convertion was done
 
 		// An updated media must trigger a new pack file
-		invalidGif := []byte("invalid gif")
-		err = os.WriteFile(pathGif, invalidGif, 0644)
-		require.NoError(t, err)
+		tr.WriteFileRaw("smallest.gif", []byte("invalid gif"))
 		convertionDone = false
 		newPackFile, err = NewPackFileFromParsedMedia(parsedMedia)
 		require.NoError(t, err)
@@ -204,9 +199,9 @@ func TestPackFile(t *testing.T) {
 	t.Run("LoadPackFileFromPath", func(t *testing.T) {
 		oid.UseSequence(t)
 		FreezeNow(t)
-		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 
-		parsedFile := ParseFileFromRelativePath(t, "go.md")
+		parsedFile := tr.ParseFile("go.md")
 
 		packFileOriginal, err := NewPackFileFromParsedFile(parsedFile)
 		require.NoError(t, err)
@@ -223,9 +218,9 @@ func TestPackFile(t *testing.T) {
 	t.Run("LoadPackFileFromPath", func(t *testing.T) {
 		oid.UseSequence(t)
 		FreezeNow(t)
-		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 
-		parsedFile := ParseFileFromRelativePath(t, "go.md")
+		parsedFile := tr.ParseFile("go.md")
 
 		packFile, err := NewPackFileFromParsedFile(parsedFile)
 		require.NoError(t, err)
@@ -241,9 +236,9 @@ func TestPackFile(t *testing.T) {
 	t.Run("YAML", func(t *testing.T) {
 		oid.UseSequence(t)
 		FreezeOn(t, "2023-01-01 12:30")
-		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 
-		parsedFile := ParseFileFromRelativePath(t, "go.md")
+		parsedFile := tr.ParseFile("go.md")
 
 		packFileSrc, err := NewPackFileFromParsedFile(parsedFile)
 		require.NoError(t, err)

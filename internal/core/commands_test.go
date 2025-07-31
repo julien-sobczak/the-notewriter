@@ -16,10 +16,10 @@ import (
 func TestCommandLint(t *testing.T) {
 
 	t.Run("Basic", func(t *testing.T) {
-		SetUpRepositoryFromTempDir(t)
+		NewTestRepository(t,
 
-		// Enable a single rule
-		WriteFileFromRelativePath(t, ".nt/config.jsonnet", `
+			// Enable a single rule
+			WithFileContent(".nt/config.jsonnet", `
 {
     core: { extensions: ["md"] },
 	types: {
@@ -33,11 +33,10 @@ func TestCommandLint(t *testing.T) {
 		]
 	},
 }
-`)
-		configOnce.Reset()
+`),
 
-		// Create a file violating the rule
-		WriteFileFromRelativePath(t, "lint.md", `
+			// Create a file violating the rule
+			WithFileContent("lint.md", `
 # Linter
 
 ## Note: Name
@@ -47,7 +46,8 @@ This is a first note
 ## Note: Name
 
 This is a second note
-`)
+`))
+		configOnce.Reset() // Force the config to be reloaded
 
 		result, err := CurrentRepository().Lint(AnyPath, nil)
 		require.NoError(t, err)
@@ -66,7 +66,7 @@ This is a second note
 func TestCommandAdd(t *testing.T) {
 
 	t.Run("Basic", func(t *testing.T) {
-		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 
 		_, err := CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
@@ -103,7 +103,7 @@ func TestCommandAdd(t *testing.T) {
 	})
 
 	t.Run("Add Media", func(t *testing.T) {
-		SetUpRepositoryFromGoldenDirNamed(t, "TestMedias")
+		NewTestRepository(t, FromGoldenDirNamed("TestMedias"))
 
 		_, err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
@@ -149,7 +149,7 @@ func TestCommandAdd(t *testing.T) {
 	})
 
 	t.Run("Repetitive", func(t *testing.T) {
-		root := SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 
 		_, err := CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
@@ -162,11 +162,11 @@ func TestCommandAdd(t *testing.T) {
 		require.Len(t, idx.Blobs, 4)
 
 		// Check 1: Try to add the same file edited several times
-		ReplaceLine(t, filepath.Join(root, "go.md"), 19, "What does the **Golang logo** represent?", "(Go) What does the **Golang logo** represent?")
+		tr.ReplaceLine("go.md", 19, "What does the **Golang logo** represent?", "(Go) What does the **Golang logo** represent?")
 		_, err = CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
 		// Edit again before the commit
-		ReplaceLine(t, filepath.Join(root, "go.md"), 19, "(Go) What does the **Golang logo** represent?", "(Go) What does the **logo** represent?")
+		tr.ReplaceLine("go.md", 19, "(Go) What does the **Golang logo** represent?", "(Go) What does the **logo** represent?")
 		_, err = CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
 
@@ -174,12 +174,12 @@ func TestCommandAdd(t *testing.T) {
 		require.NoError(t, err)
 
 		// Check 2: Try to commit the same file repeatability
-		ReplaceLine(t, filepath.Join(root, "go.md"), 19, "(Go) What does the **logo** represent?", "What is the **logo**?")
+		tr.ReplaceLine("go.md", 19, "(Go) What does the **logo** represent?", "What is the **logo**?")
 		_, err = CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
 		err = CurrentRepository().Commit()
 		require.NoError(t, err)
-		ReplaceLine(t, filepath.Join(root, "go.md"), 19, "What is the **logo**?", "What represents the **logo**?")
+		tr.ReplaceLine("go.md", 19, "What is the **logo**?", "What represents the **logo**?")
 		_, err = CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
 		err = CurrentRepository().Commit()
@@ -197,7 +197,7 @@ func TestCommandAdd(t *testing.T) {
 func TestCommandReset(t *testing.T) {
 
 	t.Run("Basic", func(t *testing.T) {
-		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 
 		CurrentLogger().SetVerboseLevel(VerboseDebug)
 
@@ -244,7 +244,7 @@ func TestCommandReset(t *testing.T) {
 func TestCommandCommit(t *testing.T) {
 
 	t.Run("Basic", func(t *testing.T) {
-		root := SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 
 		_, err := CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
@@ -252,8 +252,8 @@ func TestCommandCommit(t *testing.T) {
 		err = CurrentRepository().Commit()
 		require.NoError(t, err)
 
-		require.NoFileExists(t, filepath.Join(root, "python.md"))
-		MustWriteFile(t, "python.md", `# Python
+		tr.RequireNoFileExists("python.md")
+		tr.WriteFile("python.md", `# Python
 
 ## Flashcard: Python's creator
 
@@ -280,7 +280,7 @@ Guido van Rossum
 func TestCommandPushPull(t *testing.T) {
 
 	t.Run("Push", func(t *testing.T) {
-		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 		// Configure origin
 		origin := t.TempDir()
 		CurrentConfig().ConfigFile.Remotes = []ConfigRemote{
@@ -316,7 +316,7 @@ func TestCommandPushPull(t *testing.T) {
 		countBlobs := len(CurrentIndex().Blobs)
 
 		// Force a new temp repository
-		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 		// but with the same origin
 		CurrentConfig().ConfigFile.Remotes = []ConfigRemote{
 			{
@@ -334,7 +334,7 @@ func TestCommandPushPull(t *testing.T) {
 	})
 
 	t.Run("Push/Pull with staged changes", func(t *testing.T) {
-		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 		// Configure origin
 		origin := t.TempDir()
 		CurrentConfig().ConfigFile.Remotes = []ConfigRemote{
@@ -352,7 +352,7 @@ func TestCommandPushPull(t *testing.T) {
 		require.NoError(t, err)
 
 		// Stage a few changes
-		MustWriteFile(t, "python.md", `# Python
+		tr.WriteFile("python.md", `# Python
 
 ## Flashcard: Python's creator
 
@@ -380,14 +380,14 @@ func TestCommandStatus(t *testing.T) {
 	t.Run("Basic", func(t *testing.T) {
 		oid.UseSequence(t)
 
-		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 
 		// Add
 		_, err := CurrentRepository().Add([]PathSpec{"go.md"})
 		require.NoError(t, err)
 
 		// Edit a new file
-		MustWriteFile(t, "python.md", `# Python
+		tr.WriteFile("python.md", `# Python
 
 ## Flashcard: Python's creator
 
@@ -505,7 +505,7 @@ Guido van Rossum
 func TestCommandDiff(t *testing.T) {
 
 	t.Run("Diff", func(t *testing.T) {
-		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 		oid.UseSequence(t)
 		c := FreezeNow(t)
 
@@ -563,7 +563,7 @@ func TestCommandDiff(t *testing.T) {
 
 		// Step 4: Edit a single note file
 
-		MustWriteFile(t, "go.md", `
+		tr.WriteFile("go.md", `
 # Go
 
 ## Note: Golang History
@@ -607,10 +607,10 @@ func TestCommandDiff(t *testing.T) {
 func TestCommandGC(t *testing.T) {
 
 	t.Run("Reset File", func(t *testing.T) {
-		SetUpRepositoryFromTempDir(t)
+		tr := NewTestRepository(t)
 
 		// Add a new file without committing
-		MustWriteFile(t, "go.md", `# Go`)
+		tr.WriteFile("go.md", `# Go`)
 		_, err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 
@@ -636,7 +636,7 @@ func TestCommandGC(t *testing.T) {
 	})
 
 	t.Run("Unreferenced media", func(t *testing.T) {
-		SetUpRepositoryFromGoldenDirNamed(t, "TestMinimal")
+		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 
 		// Add
 		_, err := CurrentRepository().Add(AnyPath)
@@ -652,7 +652,7 @@ func TestCommandGC(t *testing.T) {
 		assert.FileExists(t, entryMedia.Ref().ObjectPath())
 
 		// Rewrite the file without referencing the media
-		MustWriteFile(t, "go.md", `# Go`)
+		tr.WriteFile("go.md", `# Go`)
 		_, err = CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 		err = CurrentRepository().Commit()
@@ -672,15 +672,14 @@ func TestCommandGC(t *testing.T) {
 	})
 
 	t.Run("Modified/Unmodified", func(t *testing.T) {
-		SetUpRepositoryFromTempDir(t)
-
-		// Step 1: Add new minimal files
-		MustWriteFile(t, "index.md", `
+		tr := NewTestRepository(t,
+			// Step 1: Add new minimal files
+			WithFileContent("index.md", `
 ---
 tags: programming
 ---
-`)
-		MustWriteFile(t, "go.md", `
+`),
+			WithFileContent("go.md", `
 # Go
 
 ## Flashcard: Golang Creators
@@ -690,7 +689,7 @@ tags: programming
 ---
 
 Robert Greisemer, Rob Pike, and Ken Thompson.
-`)
+`))
 		resultAdd, err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 		require.Len(t, resultAdd.Upserted, 2) // 2 pack files
@@ -703,7 +702,7 @@ Robert Greisemer, Rob Pike, and Ken Thompson.
 
 		// Step 2: Modify the file to force a new pack file + new blob
 		time.Sleep(1 * time.Millisecond) // Ensure mtimes are different
-		MustWriteFile(t, "go.md", `
+		tr.WriteFile("go.md", `
 # Go
 
 ## Flashcard: Golang Creators
@@ -736,7 +735,7 @@ Robert Greisemer, Rob Pike, and Ken Thompson.
 		// Step 3: Edit the index file
 		// All pack files/blobs to be recreated
 		time.Sleep(1 * time.Millisecond) // Ensure mtimes are different
-		MustWriteFile(t, "index.md", `
+		tr.WriteFile("index.md", `
 ---
 tags: go
 ---
@@ -770,7 +769,7 @@ tags: go
 		}
 
 		// Step 5: Delete go.md
-		MustDeleteFile(t, "go.md")
+		tr.DeleteFile("go.md")
 		resultAdd, err = CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 		require.Len(t, resultAdd.Upserted, 0)
