@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/julien-sobczak/the-notewriter/internal/testutil"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
@@ -13,8 +14,7 @@ import (
 )
 
 func TestGoLink(t *testing.T) {
-	tr := NewTestRepository(t)
-	FreezeNow(t)
+	tr := NewTestRepository(t, WithFreezeNow())
 
 	tr.AssertNoGoLinks()
 
@@ -73,7 +73,7 @@ func TestGoLink(t *testing.T) {
 }
 
 func TestGoLinkFormats(t *testing.T) {
-	FreezeOn(t, "2023-01-01 01:12:30")
+	testutil.FreezeOn(t, "2023-01-01 01:12:30")
 
 	goLink := &GoLink{
 		OID:          "42d74d967d9b4e989502647ac510777ca1e22f4a",

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
+	"github.com/julien-sobczak/the-notewriter/internal/testutil"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/stretchr/testify/assert"
@@ -15,7 +16,7 @@ import (
 func TestIndexEntry(t *testing.T) {
 
 	t.Run("String", func(t *testing.T) {
-		FreezeOn(t, "2023-01-01 12:30")
+		testutil.FreezeOn(t, "2023-01-01 12:30")
 
 		entry := &IndexEntry{
 			RelativePath: "go.md",
@@ -69,9 +70,12 @@ func TestIndex(t *testing.T) {
 
 	t.Run("Empty/Stage/Commit", func(t *testing.T) {
 		// Make tests reproductible
-		oid.UseSequence(t)
-		FreezeOn(t, "2023-01-01 12:30")
-		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
+		tr := NewTestRepository(t,
+			FromGoldenDirNamed("TestMinimal"),
+			WithFreezeOn("2023-01-01 12:30"),
+			WithClockBasedFileInfoReader(),
+			WithSequenceOIDs(),
+		)
 
 		idx := NewIndex()
 
@@ -135,9 +139,11 @@ func TestIndex(t *testing.T) {
 
 	t.Run("Existing/Stage/Commit", func(t *testing.T) {
 		// Make tests reproductible
-		oid.UseSequence(t)
-		FreezeOn(t, "2023-01-01 12:30")
-		tr := NewTestRepository(t)
+		tr := NewTestRepository(t,
+			WithFreezeOn("2023-01-01 12:30"),
+			WithClockBasedFileInfoReader(),
+			WithSequenceOIDs(),
+		)
 
 		idx := NewIndex()
 
@@ -174,9 +180,12 @@ func TestIndex(t *testing.T) {
 
 	t.Run("Reset", func(t *testing.T) {
 		// Make tests reproductible
-		oid.UseSequence(t)
-		FreezeOn(t, "2023-01-01 12:30")
-		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
+		tr := NewTestRepository(t,
+			FromGoldenDirNamed("TestMinimal"),
+			WithFreezeOn("2023-01-01 12:30"),
+			WithClockBasedFileInfoReader(),
+			WithSequenceOIDs(),
+		)
 
 		idx := NewIndex()
 
@@ -279,17 +288,16 @@ func TestIndex(t *testing.T) {
 	})
 
 	t.Run("GetParentEntry", func(t *testing.T) {
-		// Make tests reproductible
-		oid.UseSequence(t)
-		FreezeOn(t, "2023-01-01 12:30")
 		tr := NewTestRepository(t,
-			WithFileContent("index.md", ""),
-			WithFileContent("skills/index.md", "# Skills"),
-			WithFileContent("skills/programming/index.md", "# Programming"),
-			WithFileContent("skills/programming/go.md", "# Go"),
-			WithFileContent("skills/running.md", "# Running"),
-			WithFileContent("projects/the-notewriter.md", "# The NoteWriter"),
-			WithFileContent("todo.md", "# TODO"),
+			WithSequenceOIDs(),
+			WithFreezeOn("2023-01-01 12:30"),
+			WithFile("index.md", ""),
+			WithFile("skills/index.md", "# Skills"),
+			WithFile("skills/programming/index.md", "# Programming"),
+			WithFile("skills/programming/go.md", "# Go"),
+			WithFile("skills/running.md", "# Running"),
+			WithFile("projects/the-notewriter.md", "# The NoteWriter"),
+			WithFile("todo.md", "# TODO"),
 		)
 
 		idx := NewIndex()
@@ -315,11 +323,11 @@ func TestIndex(t *testing.T) {
 
 	t.Run("Tombstone", func(t *testing.T) {
 		// Make tests reproductible
-		oid.UseSequence(t)
-		FreezeOn(t, "2023-01-01 12:30")
 		tr := NewTestRepository(t,
-			WithFileContent("go.md", "## Note: Go\n\nGo is a statically typed, compiled high-level general purpose programming language."),
-			WithFileContent("python.md", "## Note: Python\n\nPython is a high-level, general-purpose programming language."),
+			WithSequenceOIDs(),
+			WithFreezeOn("2023-01-01 12:30"),
+			WithFile("go.md", "## Note: Go\n\nGo is a statically typed, compiled high-level general purpose programming language."),
+			WithFile("python.md", "## Note: Python\n\nPython is a high-level, general-purpose programming language."),
 		)
 
 		idx := NewIndex()
@@ -349,10 +357,10 @@ func TestIndex(t *testing.T) {
 	t.Run("Walk", func(t *testing.T) {
 		// Create and stage some pack files
 		tr := NewTestRepository(t,
-		WithFileContent("index.md", "# Index"),
-		WithFileContent("skills/programming/go.md", "# Go"),
-		WithFileContent("skills/running.md", "# Running"),
-		WithFileContent("projects/the-notewriter.md", "# The NoteWriter"),
+			WithFile("index.md", "# Index"),
+			WithFile("skills/programming/go.md", "# Go"),
+			WithFile("skills/running.md", "# Running"),
+			WithFile("projects/the-notewriter.md", "# The NoteWriter"),
 		)
 
 		idx := NewIndex()
@@ -406,8 +414,7 @@ func TestIndex(t *testing.T) {
 	})
 
 	t.Run("Modified", func(t *testing.T) {
-		tr := NewTestRepository(t)
-		FreezeNow(t)
+		tr := NewTestRepository(t, WithFreezeNow())
 
 		idx := NewIndex()
 

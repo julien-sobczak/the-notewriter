@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
+	"github.com/julien-sobczak/the-notewriter/internal/testutil"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"github.com/stretchr/testify/assert"
@@ -13,8 +14,7 @@ import (
 )
 
 func TestFile(t *testing.T) {
-	tr := NewTestRepository(t)
-	FreezeNow(t)
+	tr := NewTestRepository(t, WithFreezeNow())
 
 	tr.AssertNoFiles()
 
@@ -110,7 +110,7 @@ A **gopher**.
 }
 
 func TestFileFormats(t *testing.T) {
-	FreezeOn(t, "2023-01-01 01:12:30")
+	testutil.FreezeOn(t, "2023-01-01 01:12:30")
 
 	createdAt := clock.Now()
 	file := &File{

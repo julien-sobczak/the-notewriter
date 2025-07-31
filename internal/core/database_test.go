@@ -7,7 +7,6 @@ import (
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
-	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,15 +15,18 @@ func TestObjectPersistance(t *testing.T) {
 	// The goal of this test is to populate the database to fill all columns
 	// and check all values are correctly persisted.
 	tr := NewTestRepository(t,
+		WithFreezeNow(),
+		WithSequenceOIDs(),
+
 		// Create the minimal setup to have all columns populated in DB
-		WithFileContent("programming/index.md", `
+		WithFile("programming/index.md", `
 ---
 tags: programming
 ---
 # Programming
 ---
 `),
-		WithFileContent("programming/python.md", `
+		WithFile("programming/python.md", `
 ---
 tags: python
 ---
@@ -61,9 +63,6 @@ class SillyClass:
 
 > Make your type Python-friendly
 `))
-
-	FreezeNow(t)
-	oid.UseSequence(t)
 
 	// Add to persist objects in DB
 	_, err := CurrentRepository().Add(AnyPath)

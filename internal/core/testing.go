@@ -3,7 +3,6 @@ package core
 import (
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -11,7 +10,6 @@ import (
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/internal/testutil"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
-	"github.com/julien-sobczak/the-notewriter/pkg/filesystem"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"github.com/stretchr/testify/assert"
@@ -22,6 +20,8 @@ import (
 // Use options to customize the repository.
 type TestRepository struct {
 	t *testing.T
+
+	clock *clock.TestClock
 
 	// The repository temporary root directory
 	Root string
@@ -35,8 +35,9 @@ func NewTestRepository(t *testing.T, options ...TestRepositoryOption) *TestRepos
 	t.Helper()
 
 	tr := &TestRepository{
-		t:    t,
-		Root: t.TempDir(),
+		t:     t,
+		clock: clock.NewTestClock(), // default to current time
+		Root:  t.TempDir(),
 	}
 
 	tr.configureDir()
@@ -91,7 +92,37 @@ func Reset() {
 	slugInventoryOnce.Reset()
 }
 
-/* Fixtures */
+/* File Helpers */
+
+// WriteFile edits the file in the current repository to force the given content.
+func (tr *TestRepository) WriteFile(relativePath string, content string) {
+	root := CurrentConfig().RootDirectory
+	newFilepath := filepath.Join(root, relativePath)
+	err := os.MkdirAll(filepath.Dir(newFilepath), 0755)
+	require.NoError(tr.t, err)
+	tr.t.Logf("Writing file %s...", newFilepath)
+	err = os.WriteFile(newFilepath, []byte(text.UnescapeTestContent(content)), 0644)
+	require.NoError(tr.t, err)
+}
+
+// WriteFileRaw rewrite a file in the current repository to force the given content in bytes.
+func (tr *TestRepository) WriteFileRaw(relativePath string, data []byte) {
+	root := CurrentConfig().RootDirectory
+	newFilepath := filepath.Join(root, relativePath)
+	tr.t.Logf("Writing file %s...", newFilepath)
+	err := os.WriteFile(newFilepath, data, 0644)
+	require.NoError(tr.t, err)
+}
+
+// DeleteFile removes a file in the current repository.
+func (tr *TestRepository) DeleteFile(relativePath string) {
+	root := CurrentConfig().RootDirectory
+	existingFilepath := filepath.Join(root, relativePath)
+	err := os.Remove(existingFilepath)
+	require.NoError(tr.t, err)
+}
+
+/* Options */
 
 // WithFileRaw creates a file in the repository with the given content.
 func WithFileRaw(path string, content []byte) TestRepositoryOption {
@@ -106,9 +137,9 @@ func WithFileRaw(path string, content []byte) TestRepositoryOption {
 	}
 }
 
-// WithFileContent creates a file in the repository with the given content.
+// WithFile creates a file in the repository with the given content.
 // Special quotes are unescaped to support test content.
-func WithFileContent(path string, content string) TestRepositoryOption {
+func WithFile(path string, content string) TestRepositoryOption {
 	return WithFileRaw(path, []byte(text.UnescapeTestContent(content)))
 }
 
@@ -146,29 +177,86 @@ func FromGoldenDirNamed(testname string) TestRepositoryOption {
 
 /* Reproducible Tests */
 
-// FreezeNow wraps the clock API to register the cleanup function at the end of the test.
-func FreezeNow(t *testing.T) *clock.TestClock {
-	now := clock.Freeze()
-	t.Cleanup(clock.Unfreeze)
-	filesystem.OverrideFileInfoReader(filesystem.NewClockBasedFileInfoReader())
-	t.Cleanup(filesystem.RestoreFileInfoReader)
-	return now
+// FastForward advances the clock by the given duration.
+// If the clock is not frozen, it will be frozen first.
+func (tr *TestRepository) FastForward(duration time.Duration) time.Time {
+	return tr.clock.FastForward(duration)
 }
 
-// FreezeAt wraps the clock API to register the cleanup function at the end of the test.
-func FreezeAt(t *testing.T, point time.Time) *clock.TestClock {
-	now := clock.FreezeAt(point)
-	t.Cleanup(clock.Unfreeze)
-	filesystem.OverrideFileInfoReader(filesystem.NewClockBasedFileInfoReader())
-	t.Cleanup(filesystem.RestoreFileInfoReader)
-	return now
+// WithClockBasedFileInfoReader forces the use of a clock-based file info reader
+// to have predictable file modification times in tests.
+func WithClockBasedFileInfoReader() TestRepositoryOption {
+	return func(tr *TestRepository) {
+		testutil.FreezeFileInfoReader(tr.t)
+	}
 }
 
-// FreezeOn wraps the clock API to register the cleanup function at the end of the test.
-func FreezeOn(t *testing.T, date string) *clock.TestClock {
-	point := HumanTime(t, date)
-	require.False(t, point.IsZero())
-	return FreezeAt(t, point)
+func (tr *TestRepository) FreezeNow() *clock.TestClock {
+	tr.clock = testutil.FreezeNow(tr.t)
+	return tr.clock
+}
+
+func WithFreezeNow() TestRepositoryOption {
+	return func(tr *TestRepository) {
+		tr.FreezeNow()
+	}
+}
+
+func (tr *TestRepository) FreezeAt(point time.Time) *clock.TestClock {
+	tr.clock = testutil.FreezeAt(tr.t, point)
+	return tr.clock
+}
+
+func WithFreezeAt(point time.Time) TestRepositoryOption {
+	return func(tr *TestRepository) {
+		tr.FreezeAt(point)
+	}
+}
+
+func WithFreezeOn(date string) TestRepositoryOption {
+	return func(tr *TestRepository) {
+		tr.FreezeOn(date)
+	}
+}
+
+func (tr *TestRepository) FreezeOn(date string) *clock.TestClock {
+	tr.clock = testutil.FreezeOn(tr.t, date)
+	return tr.clock
+}
+
+// WithSequenceOIDs allows to use predictable OIDs in tests.
+func WithSequenceOIDs() TestRepositoryOption {
+	return func(tr *TestRepository) {
+		oid.UseSequence(tr.t)
+	}
+}
+
+// WithFixedOIDs allows to force a fixed OID for every object.
+func WithFixedOIDs(value oid.OID) TestRepositoryOption {
+	return func(tr *TestRepository) {
+		oid.UseFixed(tr.t, value)
+	}
+}
+
+// WithNextOIDs allows to set the next OIDs to use in tests.
+func WithNextOIDs(oids ...string) TestRepositoryOption {
+	return func(tr *TestRepository) {
+		oid.UseNext(tr.t, oids...)
+	}
+}
+
+// WithConfigOverride allows to override the current global configuration
+func WithConfigOverride(override func(c *Config)) TestRepositoryOption {
+	return func(tr *TestRepository) {
+		override(CurrentConfig())
+	}
+}
+
+// WithConfigFileOverride allows to override the current configuration file
+func WithConfigFileOverride(override func(c *ConfigFile)) TestRepositoryOption {
+	return func(tr *TestRepository) {
+		override(CurrentConfigFile())
+	}
 }
 
 /* Test Helpers */
@@ -209,6 +297,8 @@ func (tr *TestRepository) CountReminders() int {
 	return count
 }
 
+/* Test Assertions */
+
 func (tr *TestRepository) AssertNoFiles() {
 	require.Equal(tr.t, 0, tr.CountFiles())
 }
@@ -248,6 +338,8 @@ func (tr *TestRepository) AssertTrimEqual(expected string, actual string) {
 	assert.Equal(tr.t, strings.TrimSpace(expected), strings.TrimSpace(actual))
 }
 
+/* Test Queriers */
+
 func (tr *TestRepository) FindFlashcardByShortTitle(shortTitle string) *Flashcard {
 	flashcard, err := CurrentRepository().FindFlashcardByShortTitle(shortTitle)
 	require.NoError(tr.t, err)
@@ -260,36 +352,6 @@ func (tr *TestRepository) FindNoteByPathAndTitle(relativePath, longTitle string)
 	require.NoError(tr.t, err)
 	require.NotNil(tr.t, note)
 	return note
-}
-
-/* Test Helpers */
-
-// WriteFile edits the file in the current repository to force the given content.
-func (tr *TestRepository) WriteFile(relativePath string, content string) {
-	root := CurrentConfig().RootDirectory
-	newFilepath := filepath.Join(root, relativePath)
-	err := os.MkdirAll(filepath.Dir(newFilepath), 0755)
-	require.NoError(tr.t, err)
-	tr.t.Logf("Writing file %s...", newFilepath)
-	err = os.WriteFile(newFilepath, []byte(text.UnescapeTestContent(content)), 0644)
-	require.NoError(tr.t, err)
-}
-
-// WriteFileRaw rewrite a file in the current repository to force the given content in bytes.
-func (tr *TestRepository) WriteFileRaw(relativePath string, data []byte) {
-	root := CurrentConfig().RootDirectory
-	newFilepath := filepath.Join(root, relativePath)
-	tr.t.Logf("Writing file %s...", newFilepath)
-	err := os.WriteFile(newFilepath, data, 0644)
-	require.NoError(tr.t, err)
-}
-
-// DeleteFile removes a file in the current repository.
-func (tr *TestRepository) DeleteFile(relativePath string) {
-	root := CurrentConfig().RootDirectory
-	existingFilepath := filepath.Join(root, relativePath)
-	err := os.Remove(existingFilepath)
-	require.NoError(tr.t, err)
 }
 
 /* Text Helpers */
@@ -340,27 +402,6 @@ func AppendLines(t *testing.T, path string, text string) {
 	lines = append(lines, newLines...)
 	content := strings.Join(lines, "\n")
 	os.WriteFile(path, []byte(content), 0644)
-}
-
-/* Date Management */
-
-// HumanTime parses a string into a time.Time supporting different formats to make tests more readable.
-func HumanTime(t *testing.T, str string) time.Time {
-	patterns := map[string]string{
-		"2006-01-02":              `^\d{4}-\d{2}-\d{2}$`,
-		"2006-01-02 15:04":        `^\d{4}-\d{2}-\d{2} \d{1,2}:\d{2}$`,
-		"2006-01-02 15:04:05":     `^\d{4}-\d{2}-\d{2} \d{1,2}:\d{2}:\d{2}$`,
-		"2006-01-02 15:04:05.000": `^\d{4}-\d{2}-\d{2} \d{1,2}:\d{2}:\d{2}[.]\d{3}$`,
-	}
-	for layout, regex := range patterns {
-		if match, _ := regexp.MatchString(regex, str); match {
-			result, err := time.Parse(layout, str)
-			require.NoError(t, err)
-			return result
-		}
-	}
-	t.Fatalf("No matching pattern for date %q", str)
-	return time.Time{} // zero
 }
 
 // ParseFile creates a ParsedFile from a file in the repository.

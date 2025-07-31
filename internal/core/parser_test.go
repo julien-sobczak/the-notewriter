@@ -8,6 +8,7 @@ import (
 
 	"github.com/julien-sobczak/the-notewriter/internal/core"
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
+	"github.com/julien-sobczak/the-notewriter/internal/testutil"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"github.com/stretchr/testify/assert"
@@ -15,7 +16,8 @@ import (
 )
 
 func TestParseFileWithTestdata(t *testing.T) {
-	core.FreezeNow(t)
+	testutil.FreezeNow(t)
+	testutil.FreezeFileInfoReader(t)
 
 	testcases := []struct {
 		name   string
@@ -311,7 +313,7 @@ A technique of **learning by reviewing material at increasing intervals**.
 	t.Run("Attributes & Tags", func(t *testing.T) {
 		// Test attributes and tags defined in Front Matter and in notes
 		// are correctly parsed and merged.
-		core.FreezeNow(t)
+		testutil.FreezeNow(t)
 
 		tr := core.NewTestRepository(t)
 		tr.WriteFile("index.md", `
@@ -357,7 +359,7 @@ Appreciation is a wonderful thing: It makes what is excellent in others belong t
 	})
 
 	t.Run("Slug", func(t *testing.T) {
-		core.FreezeNow(t)
+		testutil.FreezeNow(t)
 
 		tr := core.NewTestRepository(t)
 		tr.WriteFile("dira/index.md", `
@@ -434,7 +436,7 @@ This is a note in file B.`)
 	})
 
 	t.Run("LongTitle", func(t *testing.T) {
-		core.FreezeNow(t)
+		testutil.FreezeNow(t)
 
 		tr := core.NewTestRepository(t)
 		tr.WriteFile("a.md", `
@@ -526,7 +528,7 @@ This is a sub-note
 	t.Run("Markdown in Markdown", func(t *testing.T) {
 		// Markdown document can includes code blocks with lines starting with # characters.
 		// These lines must not be parsed as heading (and thus as notes).
-		core.FreezeNow(t)
+		testutil.FreezeNow(t)
 
 		tr := core.NewTestRepository(t)
 		tr.WriteFile("md.md", `
@@ -568,7 +570,7 @@ Another note without a code block.
 
 	t.Run("Journal", func(t *testing.T) {
 		// Journal note titles are parsed to extract the date.
-		core.FreezeNow(t)
+		testutil.FreezeNow(t)
 
 		tr := core.NewTestRepository(t)
 		tr.WriteFile("2024-12-05.md", `
@@ -615,7 +617,7 @@ Another note without a code block.
 	t.Run("Medias Rewriting", func(t *testing.T) {
 		// Test attributes and tags defined in Front Matter and in notes
 		// are correctly parsed and merged.
-		core.FreezeNow(t)
+		testutil.FreezeNow(t)
 
 		tr := core.NewTestRepository(t)
 		tr.WriteFile("medias/mona-lisa.png", "This is the worth reproduction.")

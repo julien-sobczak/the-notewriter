@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/julien-sobczak/the-notewriter/internal/testutil"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"github.com/stretchr/testify/assert"
@@ -12,8 +13,7 @@ import (
 )
 
 func TestReminder(t *testing.T) {
-	tr := NewTestRepository(t)
-	FreezeNow(t)
+	tr := NewTestRepository(t, WithFreezeNow())
 
 	tr.AssertNoReminders()
 
@@ -51,7 +51,7 @@ func TestReminder(t *testing.T) {
 	assert.Equal(t, reminder.Description, actual.Description)
 	assert.Equal(t, reminder.Tag, actual.Tag)
 	assert.Empty(t, reminder.LastPerformedAt)
-	assert.Equal(t, HumanTime(t, "2085-09-01 00:00:00"), reminder.NextPerformedAt)
+	assert.Equal(t, testutil.HumanTime(t, "2085-09-01 00:00:00"), reminder.NextPerformedAt)
 	assert.WithinDuration(t, createdAt, actual.CreatedAt, 1*time.Second)
 	assert.WithinDuration(t, createdAt, actual.UpdatedAt, 1*time.Second)
 	assert.WithinDuration(t, createdAt, actual.IndexedAt, 1*time.Second)
@@ -72,7 +72,7 @@ func TestReminder(t *testing.T) {
 }
 
 func TestReminderFormats(t *testing.T) {
-	FreezeOn(t, "2023-01-01 01:12:30")
+	testutil.FreezeOn(t, "2023-01-01 01:12:30")
 
 	reminder := &Reminder{
 		OID:         "42d74d967d9b4e989502647ac510777ca1e22f4a",
@@ -136,7 +136,7 @@ indexed_at: 2023-01-01T01:12:30Z
 }
 
 func TestEvaluateTimeExpression(t *testing.T) {
-	FreezeOn(t, "2023-07-01 12:30")
+	testutil.FreezeOn(t, "2023-07-01 12:30")
 
 	var tests = []struct {
 		name     string    // name
@@ -202,21 +202,21 @@ func TestEvaluateTimeExpression(t *testing.T) {
 }
 
 func TestEvaluateTimeExpressionAfter(t *testing.T) {
-	FreezeOn(t, "2023-07-01 12:30")
+	testutil.FreezeOn(t, "2023-07-01 12:30")
 	t.Skip() // FIXME
 
 	expr := "every-2025-${month}"
-	next := HumanTime(t, "2025-01-01 00:00:00")
+	next := testutil.HumanTime(t, "2025-01-01 00:00:00")
 
 	// Iteration 1
 	next, err := EvaluateTimeExpressionAfter(next, expr)
 	require.NoError(t, err)
-	assert.EqualValues(t, HumanTime(t, "2025-02-01 00:00:00"), next) // invalid value
+	assert.EqualValues(t, testutil.HumanTime(t, "2025-02-01 00:00:00"), next) // invalid value
 
 	// Iteration 2
 	next, err = EvaluateTimeExpressionAfter(next, expr)
 	require.NoError(t, err)
-	assert.EqualValues(t, HumanTime(t, "2025-03-01 00:00:00"), next) // invalid value
+	assert.EqualValues(t, testutil.HumanTime(t, "2025-03-01 00:00:00"), next) // invalid value
 }
 
 /* Test Helpers */

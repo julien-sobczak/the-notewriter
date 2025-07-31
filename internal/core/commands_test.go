@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	godiffpatch "github.com/sourcegraph/go-diff-patch"
 
 	"github.com/stretchr/testify/assert"
@@ -19,7 +18,7 @@ func TestCommandLint(t *testing.T) {
 		NewTestRepository(t,
 
 			// Enable a single rule
-			WithFileContent(".nt/config.jsonnet", `
+			WithFile(".nt/config.jsonnet", `
 {
     core: { extensions: ["md"] },
 	types: {
@@ -36,7 +35,7 @@ func TestCommandLint(t *testing.T) {
 `),
 
 			// Create a file violating the rule
-			WithFileContent("lint.md", `
+			WithFile("lint.md", `
 # Linter
 
 ## Note: Name
@@ -378,9 +377,7 @@ Guido van Rossum
 func TestCommandStatus(t *testing.T) {
 
 	t.Run("Basic", func(t *testing.T) {
-		oid.UseSequence(t)
-
-		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
+		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"), WithSequenceOIDs())
 
 		// Add
 		_, err := CurrentRepository().Add([]PathSpec{"go.md"})
@@ -505,9 +502,7 @@ Guido van Rossum
 func TestCommandDiff(t *testing.T) {
 
 	t.Run("Diff", func(t *testing.T) {
-		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
-		oid.UseSequence(t)
-		c := FreezeNow(t)
+		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"), WithSequenceOIDs(), WithFreezeNow())
 
 		// Step 1: Nothing staged
 
@@ -576,7 +571,7 @@ func TestCommandDiff(t *testing.T) {
 * [Gophercon Europe](https://gophercon.eu/) `+"`#reminder-2023-06-26`"+`
 `)
 
-		c.FastForward(1 * time.Minute) // Force a new timestamp when creating the new pack file
+		tr.FastForward(1 * time.Minute) // Force a new timestamp when creating the new pack file
 
 		diffs, err = CurrentRepository().Diff(AnyPath, true) // Staging area is empty = must be empty
 		require.NoError(t, err)
@@ -674,12 +669,12 @@ func TestCommandGC(t *testing.T) {
 	t.Run("Modified/Unmodified", func(t *testing.T) {
 		tr := NewTestRepository(t,
 			// Step 1: Add new minimal files
-			WithFileContent("index.md", `
+			WithFile("index.md", `
 ---
 tags: programming
 ---
 `),
-			WithFileContent("go.md", `
+			WithFile("go.md", `
 # Go
 
 ## Flashcard: Golang Creators

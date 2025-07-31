@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
+	"github.com/julien-sobczak/the-notewriter/internal/testutil"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"github.com/stretchr/testify/assert"
@@ -13,8 +14,7 @@ import (
 )
 
 func TestNote(t *testing.T) {
-	tr := NewTestRepository(t)
-	FreezeNow(t)
+	tr := NewTestRepository(t, WithFreezeNow())
 
 	tr.AssertNoNotes()
 
@@ -147,7 +147,7 @@ Golang was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in
 }
 
 func TestNoteFormats(t *testing.T) {
-	FreezeOn(t, "2023-01-01 01:12:30")
+	testutil.FreezeOn(t, "2023-01-01 01:12:30")
 
 	note := &Note{
 		OID:          "42d74d967d9b4e989502647ac510777ca1e22f4a",
@@ -359,8 +359,7 @@ Guido van Rossum
 	})
 
 	t.Run("Annotate", func(t *testing.T) {
-		tr := NewTestRepository(t)
-		c := FreezeNow(t)
+		tr := NewTestRepository(t, WithFreezeNow())
 
 		date1 := clock.Now()
 
@@ -400,8 +399,7 @@ Guido van Rossum
 		assert.Equal(t, "Use Markdown emphasis", note.Annotations[0].Text)
 		assert.Equal(t, date1.UTC(), note.Annotations[0].CreatedAt.UTC())
 
-		c.FastForward(1 * time.Hour)
-		date2 := clock.Now()
+		date2 := tr.FastForward(1 * time.Hour)
 
 		// Add a second annotation
 		note.AddAnnotation(clock.Now(), Annotation{
@@ -418,7 +416,8 @@ Guido van Rossum
 		assert.Equal(t, date2.UTC(), note.Annotations[1].CreatedAt.UTC())
 
 		// Delete the first annotation
-		note.RemoveAnnotation(clock.Now(), note.Annotations[0])
+		date3 := tr.FastForward(1 * time.Hour)
+		note.RemoveAnnotation(date3, note.Annotations[0])
 		require.NoError(t, note.SaveMetadata())
 		note, err = CurrentRepository().LoadNoteByOID(note.OID)
 		require.NoError(t, err)

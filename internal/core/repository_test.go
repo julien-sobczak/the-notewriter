@@ -207,17 +207,17 @@ func TestRepositoryType(t *testing.T) {
 
 	t.Run("Walk", func(t *testing.T) {
 		NewTestRepository(t,
-			WithFileContent("index.md", `# Index`),
-			WithFileContent(".git/index", ""), // Skip
-			WithFileContent("index.md", ""),
-			WithFileContent("skills/medias/go-logo.svg", ""), // Skip
-			WithFileContent("skills/index.md", "# Skills"),
-			WithFileContent("skills/programming/index.md", "# Programming"),
-			WithFileContent("skills/programming/go.md", "# Go"),
-			WithFileContent("skills/drawing.md", "# Drawing"),
-			WithFileContent("projects/the-notewriter.md", "# The NoteWriter"),
-			WithFileContent("projects/ignore.md", "---\ntags: ignore\n---\n# Ignore Me"), // Skip
-			WithFileContent("todo.md", "# TODO"),
+			WithFile("index.md", `# Index`),
+			WithFile(".git/index", ""), // Skip
+			WithFile("index.md", ""),
+			WithFile("skills/medias/go-logo.svg", ""), // Skip
+			WithFile("skills/index.md", "# Skills"),
+			WithFile("skills/programming/index.md", "# Programming"),
+			WithFile("skills/programming/go.md", "# Go"),
+			WithFile("skills/drawing.md", "# Drawing"),
+			WithFile("projects/the-notewriter.md", "# The NoteWriter"),
+			WithFile("projects/ignore.md", "---\ntags: ignore\n---\n# Ignore Me"), // Skip
+			WithFile("todo.md", "# TODO"),
 		)
 
 		var tests = []struct {
