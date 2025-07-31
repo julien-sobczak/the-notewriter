@@ -52,9 +52,12 @@ func TestObjectData(t *testing.T) {
 func TestPackFile(t *testing.T) {
 
 	t.Run("NewPackFileFromParsedFile", func(t *testing.T) {
-		oid.UseSequence(t)
-		FreezeNow(t)
-		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
+		tr := NewTestRepository(t,
+			FromGoldenDirNamed("TestMinimal"),
+			WithFreezeNow(),
+			WithClockBasedFileInfoReader(),
+			WithSequenceOIDs(),
+		)
 
 		parsedFile := tr.ParseFile("go.md")
 
@@ -75,10 +78,14 @@ func TestPackFile(t *testing.T) {
 	})
 
 	t.Run("NewPackFileFromParsedFile_DryRun", func(t *testing.T) {
-		oid.UseSequence(t)
-		FreezeNow(t)
-		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
-		CurrentConfig().DryRun = true
+		tr := NewTestRepository(t,
+			FromGoldenDirNamed("TestMinimal"),
+			WithFreezeNow(),
+			WithSequenceOIDs(),
+			WithConfigOverride(func(c *Config) {
+				c.DryRun = true
+			}),
+		)
 
 		parsedFile := tr.ParseFile("go.md")
 
@@ -92,8 +99,7 @@ func TestPackFile(t *testing.T) {
 	})
 
 	t.Run("NewPackFileFromParsedFile_Retry", func(t *testing.T) {
-		FreezeNow(t)
-		tr := NewTestRepository(t)
+		tr := NewTestRepository(t, WithFreezeNow())
 
 		tr.WriteFile("go.md", "# Go")
 
@@ -127,9 +133,11 @@ func TestPackFile(t *testing.T) {
 	})
 
 	t.Run("NewPackFileFromParsedMedia", func(t *testing.T) {
-		oid.UseSequence(t)
-		FreezeNow(t)
-		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
+		tr := NewTestRepository(t,
+			FromGoldenDirNamed("TestMinimal"),
+			WithFreezeNow(),
+			WithSequenceOIDs(),
+		)
 
 		parsedFile := tr.ParseFile("go.md")
 		require.Len(t, parsedFile.Medias, 1)
@@ -148,10 +156,14 @@ func TestPackFile(t *testing.T) {
 	})
 
 	t.Run("NewPackFileFromParsedMedia_DryRun", func(t *testing.T) {
-		oid.UseSequence(t)
-		FreezeNow(t)
-		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
-		CurrentConfig().DryRun = true
+		tr := NewTestRepository(t,
+			FromGoldenDirNamed("TestMinimal"),
+			WithFreezeNow(),
+			WithSequenceOIDs(),
+			WithConfigOverride(func(c *Config) {
+				c.DryRun = true
+			}),
+		)
 
 		parsedFile := tr.ParseFile("go.md")
 		require.Len(t, parsedFile.Medias, 1)
@@ -166,15 +178,21 @@ func TestPackFile(t *testing.T) {
 	})
 
 	t.Run("NewPackFileFromParsedMedia_Retry", func(t *testing.T) {
-		tr := NewTestRepository(t)
-		FreezeNow(t)
+		// We use a boolean to determine if the conversion was done
+		convertionDone := false
+		tr := NewTestRepository(t,
+			WithFreezeNow(),
+
+			// Update the boolean using hooks
+			WithConfigOverride(func(c *Config) {
+				c.Converter().OnPreGeneration(func(cmd string, args ...string) {
+					convertionDone = true
+				})
+			}),
+		)
 
 		tr.WriteFileRaw("smallest.gif", smallestGIF)
 
-		convertionDone := false
-		CurrentConfig().Converter().OnPreGeneration(func(cmd string, args ...string) {
-			convertionDone = true
-		})
 		parsedMedia := ParseMedia(tr.Root, filepath.Join(tr.Root, "smallest.gif"))
 		packFile, err := NewPackFileFromParsedMedia(parsedMedia)
 		require.NoError(t, err)
@@ -197,9 +215,7 @@ func TestPackFile(t *testing.T) {
 	})
 
 	t.Run("LoadPackFileFromPath", func(t *testing.T) {
-		oid.UseSequence(t)
-		FreezeNow(t)
-		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
+		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"), WithFreezeNow(), WithSequenceOIDs())
 
 		parsedFile := tr.ParseFile("go.md")
 
@@ -216,9 +232,7 @@ func TestPackFile(t *testing.T) {
 	})
 
 	t.Run("LoadPackFileFromPath", func(t *testing.T) {
-		oid.UseSequence(t)
-		FreezeNow(t)
-		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
+		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"), WithFreezeNow(), WithSequenceOIDs())
 
 		parsedFile := tr.ParseFile("go.md")
 
@@ -234,9 +248,11 @@ func TestPackFile(t *testing.T) {
 	})
 
 	t.Run("YAML", func(t *testing.T) {
-		oid.UseSequence(t)
-		FreezeOn(t, "2023-01-01 12:30")
-		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
+		tr := NewTestRepository(t,
+			FromGoldenDirNamed("TestMinimal"),
+			WithFreezeOn("2023-01-01 12:30"),
+			WithClockBasedFileInfoReader(),
+			WithSequenceOIDs())
 
 		parsedFile := tr.ParseFile("go.md")
 

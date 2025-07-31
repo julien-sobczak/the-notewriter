@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/julien-sobczak/the-notewriter/internal/testutil"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"github.com/stretchr/testify/assert"
@@ -12,8 +13,7 @@ import (
 )
 
 func TestFlashcard(t *testing.T) {
-	tr := NewTestRepository(t)
-	FreezeNow(t)
+	tr := NewTestRepository(t, WithFreezeNow())
 
 	tr.AssertNoFlashcards()
 
@@ -74,7 +74,7 @@ func TestFlashcard(t *testing.T) {
 }
 
 func TestFlashcardFormats(t *testing.T) {
-	FreezeOn(t, "2023-01-01 01:12:30")
+	testutil.FreezeOn(t, "2023-01-01 01:12:30")
 
 	flashcard := &Flashcard{
 		OID:          "42d74d967d9b4e989502647ac510777ca1e22f4a",
@@ -155,7 +155,9 @@ A **gopher**.
 func TestFlashcardOperations(t *testing.T) {
 
 	t.Run("Review", func(t *testing.T) {
-		NewTestRepository(t, WithFileContent("python.md", `# Python
+		NewTestRepository(t,
+			WithFreezeOn("2025-02-01 12:00:00"),
+			WithFile("python.md", `# Python
 
 ## Flashcard: Python's creator
 
@@ -165,7 +167,6 @@ Who invented Python?
 
 Guido van Rossum
 `))
-		FreezeOn(t, "2025-02-01 12:00:00")
 
 		_, err := CurrentRepository().Add(PathSpecs{"python.md"})
 		require.NoError(t, err)

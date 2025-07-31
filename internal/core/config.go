@@ -380,7 +380,7 @@ type Config struct {
 	RootDirectory string
 
 	// .nt/config content
-	ConfigFile ConfigFile
+	ConfigFile *ConfigFile
 
 	// .ntignore content
 	IgnoreFile IgnoreFile
@@ -420,7 +420,7 @@ func CurrentConfigFile() *ConfigFile {
 	if config == nil {
 		log.Fatalf("Not a NoteWriter repository (or any of the parent directories)")
 	}
-	return &config.ConfigFile
+	return config.ConfigFile
 }
 
 // TempDir returns the privileged temporary directory to use when generating temporary files.
@@ -557,7 +557,7 @@ func ReadConfigFromDirectory(path string) (*Config, error) {
 
 	config := &Config{
 		RootDirectory: rootPath,
-		ConfigFile:    *configFile,
+		ConfigFile:    configFile,
 		DryRun:        false,
 	}
 	if ignoreFile != nil {

@@ -19,8 +19,7 @@ var smallestGIF = []byte{
 func TestMedia(t *testing.T) {
 
 	t.Run("Basic", func(t *testing.T) {
-		tr := NewTestRepository(t)
-		FreezeNow(t)
+		tr := NewTestRepository(t, WithFreezeNow())
 
 		media := &Media{
 			OID:          "42d74d967d9b4e989502647ac510777ca1e22f4a",
@@ -83,7 +82,7 @@ func TestMedia(t *testing.T) {
 }
 
 func TestMediaFormats(t *testing.T) {
-	FreezeOn(t, "2023-01-01 01:12:30")
+	NewTestRepository(t, WithFreezeOn("2023-01-01 01:12:30"))
 
 	media := &Media{
 		OID:          "42d74d967d9b4e989502647ac510777ca1e22f4a",

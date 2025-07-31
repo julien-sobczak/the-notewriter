@@ -2,7 +2,7 @@
 
 ## TODO: Backlog
 
-* [ ] Implement proposal `RepositoryTest` (search for Freeze, oid and `CurrentConfig().` in tests)
+* [ ] Add helper to compare a YAML with a map[string]any containing regexp
 * [ ] Add file `operation-graph` in `.nt/` (similar to `commit-graph` even if the graph will be linear)
 * [ ] Push/Pull operations too
 * [ ] Create remote for [Filen](https://filen.io/pricing) => Go SDK is not mature... wait&see 🤞

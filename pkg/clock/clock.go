@@ -23,26 +23,33 @@ func (c DefaultClock) Now() time.Time {
 }
 
 type TestClock struct {
-	now time.Time
+	frozen time.Time
 }
 
 func NewTestClock() *TestClock {
-	return NewTestClockAt(time.Now())
+	return &TestClock{}
 }
 
 func NewTestClockAt(date time.Time) *TestClock {
 	return &TestClock{
-		now: date,
+		frozen: date,
 	}
 }
 
 func (c *TestClock) FastForward(d time.Duration) time.Time {
-	c.now = c.now.Add(d)
-	return c.now
+	if c.frozen.IsZero() {
+		c.frozen = time.Now()
+	}
+	c.frozen = c.frozen.Add(d)
+	return c.frozen
 }
 
 func (c *TestClock) Now() time.Time {
-	return c.now
+	if c.frozen.IsZero() {
+		return time.Now()
+	}
+	// Return the frozen time
+	return c.frozen
 }
 
 func CurrentClock() Clock {
@@ -67,9 +74,7 @@ func FreezeAt(now time.Time) *TestClock {
 }
 
 func Freeze() *TestClock {
-	testClock := NewTestClock()
-	clockSingleton = testClock
-	return testClock
+	return FreezeAt(time.Now())
 }
 
 func Unfreeze() {

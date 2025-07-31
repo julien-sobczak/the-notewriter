@@ -90,8 +90,7 @@ func TestNewOperations(t *testing.T) {
 }
 
 func TestNewPackFileFromOperations(t *testing.T) {
-	NewTestRepository(t)
-	FreezeOn(t, "2024-01-01 00:00:00")
+	NewTestRepository(t, WithFreezeOn("2024-01-01 00:00:00"))
 
 	// Create a pack file with the different available operations
 	packFile, err := NewPackFileFromOperations([]*Operation{
@@ -136,8 +135,7 @@ func TestNewPackFileFromOperations(t *testing.T) {
 }
 
 func TestOperationApply(t *testing.T) {
-	tr := NewTestRepository(t)
-	FreezeOn(t, "2024-01-01 00:00:00")
+	tr := NewTestRepository(t, WithFreezeOn("2024-01-01 00:00:00"))
 
 	// Insert the note
 	tr.WriteFile("python.md", `# Python
