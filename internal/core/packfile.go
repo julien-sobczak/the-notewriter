@@ -109,7 +109,7 @@ func (od ObjectData) Unmarshal(target interface{}) error {
 		m.Read(dest)
 		return nil
 	}
-	if l, ok := target.(*GoLink); ok {
+	if l, ok := target.(*Goto); ok {
 		l.Read(dest)
 		return nil
 	}
@@ -183,7 +183,7 @@ func (p *PackObject) Read() Packable {
 		note.Attributes = note.Attributes.CastOrIgnore(CurrentConfigFile().Attributes)
 		return note
 	case "link":
-		link := new(GoLink)
+		link := new(Goto)
 		p.Data.Unmarshal(link)
 		return link
 	case "media":
@@ -470,12 +470,12 @@ func (d ObjectDiffs) FindNoteByTitle(relativePath string, title string) *ObjectD
 	return nil
 }
 
-// FindGoLinkByName returns the diff for a go link with a given name.
-func (d ObjectDiffs) FindGoLinkByName(relativePath string, name string) *ObjectDiff {
+// FindGotoByName returns the diff for a goto with a given name.
+func (d ObjectDiffs) FindGotoByName(relativePath string, name string) *ObjectDiff {
 	for _, diff := range d {
 		if diff.Kind() == "link" && diff.RelativePath() == relativePath {
-			goLink := diff.AfterOrBefore().(*GoLink)
-			if goLink.GoName == name {
+			gotoLink := diff.AfterOrBefore().(*Goto)
+			if gotoLink.Name == name {
 				return diff
 			}
 		}
@@ -689,13 +689,13 @@ func NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFile, error) {
 			objects = append(objects, reminder)
 		}
 
-		// Process the Golink(s)
-		for _, parsedGoLink := range parsedNote.GoLinks {
-			goLink, err := NewOrExistingGoLink(packFile, note, parsedGoLink)
+		// Process the Goto(s)
+		for _, parsedGoto := range parsedNote.GoLinks {
+			gotoLink, err := NewOrExistingGoto(packFile, note, parsedGoto)
 			if err != nil {
 				return nil, err
 			}
-			objects = append(objects, goLink)
+			objects = append(objects, gotoLink)
 		}
 	}
 

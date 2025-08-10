@@ -20,7 +20,7 @@ var goCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		goName := args[0]
 
-		link, err := core.CurrentRepository().FindGoLinkByGoName(goName)
+		link, err := core.CurrentRepository().FindGotoByName(goName)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "No Go link %q found", goName)
 			os.Exit(1)

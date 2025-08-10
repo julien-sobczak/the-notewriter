@@ -71,5 +71,3 @@ func TestContainsMarkdownSection(t *testing.T) {
 		})
 	}
 }
-
-
