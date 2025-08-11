@@ -30,10 +30,10 @@ var Emotions = []*Emotion{
 		Tags:  []string{"planning", "doing"},
 	},
 	{
-		Key: "Demotivated",
+		Key:   "Demotivated",
 		Emoji: "😣",
 		Title: "Demotivated",
-		Tags: []string{"self-esteem", "self-motivating"},
+		Tags:  []string{"self-esteem", "self-motivating"},
 	},
 	{
 		Key:   "Disappointed",

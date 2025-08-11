@@ -51,7 +51,7 @@ func TestConvertToAVIF(t *testing.T) {
 	t.Run("Original", func(t *testing.T) {
 		t.Setenv("TEST_BEHAVIOR", "dump_cmd")
 		converter := &FFmpegConverter{
-			exe: testExe(t),
+			exe:    testExe(t),
 			preset: "medium",
 		}
 
@@ -75,7 +75,7 @@ func TestConvertToAVIF(t *testing.T) {
 	t.Run("Preview", func(t *testing.T) {
 		t.Setenv("TEST_BEHAVIOR", "dump_cmd")
 		converter := &FFmpegConverter{
-			exe: testExe(t),
+			exe:    testExe(t),
 			preset: "medium",
 		}
 
@@ -98,7 +98,7 @@ func TestConvertToAVIF(t *testing.T) {
 	t.Run("Preview from video", func(t *testing.T) {
 		t.Setenv("TEST_BEHAVIOR", "dump_cmd")
 		converter := &FFmpegConverter{
-			exe: testExe(t),
+			exe:    testExe(t),
 			preset: "medium",
 		}
 
@@ -121,7 +121,7 @@ func TestConvertToAVIF(t *testing.T) {
 	t.Run("Original from video", func(t *testing.T) {
 		t.Setenv("TEST_BEHAVIOR", "dump_cmd")
 		converter := &FFmpegConverter{
-			exe: testExe(t),
+			exe:    testExe(t),
 			preset: "medium",
 		}
 
@@ -148,7 +148,7 @@ func TestConvertToMP3(t *testing.T) {
 	t.Run("Basic", func(t *testing.T) {
 		t.Setenv("TEST_BEHAVIOR", "dump_cmd")
 		converter := &FFmpegConverter{
-			exe: testExe(t),
+			exe:    testExe(t),
 			preset: "medium",
 		}
 
@@ -175,7 +175,7 @@ func TestConvertToWebM(t *testing.T) {
 	t.Run("Basic", func(t *testing.T) {
 		t.Setenv("TEST_BEHAVIOR", "dump_cmd")
 		converter := &FFmpegConverter{
-			exe: testExe(t),
+			exe:    testExe(t),
 			preset: "medium",
 		}
 
