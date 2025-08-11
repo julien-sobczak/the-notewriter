@@ -162,13 +162,13 @@ CREATE TABLE blob (
   tags TEXT NOT NULL DEFAULT ''
 );
 
-CREATE TABLE link (
+CREATE TABLE goto (
   oid TEXT PRIMARY KEY,
 
-  -- Last known pack file containing this link
+  -- Last known pack file containing this goto
   packfile_oid TEXT,
 
-  -- Note representing the link
+  -- Note representing the goto
   note_oid TEXT NOT NULL,
 
   -- The relative path of the file containing the note (denormalized field)
@@ -180,7 +180,7 @@ CREATE TABLE link (
 
   title TEXT,
 
-  go_name TEXT,
+  name TEXT,
 
   -- Timestamps to track changes
   created_at TEXT NOT NULL,
@@ -188,7 +188,7 @@ CREATE TABLE link (
   indexed_at TEXT
 );
 -- Ex (skills/node.md): [Link 2](https://docs.npmjs.com "Tutorial to creating Node.js modules #go/node/module")
--- insert into link(1, 'Link 2', 'https://docs.npmjs.com', 'Tutorial to creating Node.js', 'node/module', 'skills/node.md')
+-- insert into goto(1, 'Link 2', 'https://docs.npmjs.com', 'Tutorial to creating Node.js', 'node/module', 'skills/node.md')
 
 CREATE TABLE flashcard (
   oid TEXT PRIMARY KEY,
