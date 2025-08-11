@@ -70,6 +70,7 @@ parent:
 	}
 }
 
+
 // Learning tests to apprehend the yaml.v3 library when working with yaml.Node
 
 func ExampleCompactYAML_withScalars() {
