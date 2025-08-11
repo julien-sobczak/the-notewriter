@@ -12,13 +12,13 @@ import (
 //
 // Ex:
 //
-//   doc:
-//     - toto: tata
+//	doc:
+//	  - toto: tata
 //
 // Becomes
 //
-//   doc:
-//   - toto: tata
+//	doc:
+//	- toto: tata
 func CompactYAML(doc string) string {
 	// Identing sequences using zero-space (compact form) is not supported:
 	// https://github.com/go-yaml/yaml/issues/661

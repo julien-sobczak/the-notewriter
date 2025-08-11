@@ -72,7 +72,7 @@ class SillyClass:
 	require.Equal(t, 1, tr.CountMedias())
 	require.Equal(t, 4, tr.CountNotes()) // including the flashcard note
 	require.Equal(t, 1, tr.CountFlashcards())
-	require.Equal(t, 1, tr.CountGoLinks())
+	require.Equal(t, 1, tr.CountGotos())
 	require.Equal(t, 2, tr.CountReminders())
 
 	// Read a single object of each kind and check all fields
@@ -172,19 +172,19 @@ class SillyClass:
 	assert.Equal(t, clock.Now().Truncate(time.Second), reminder.UpdatedAt.Truncate(time.Second))
 	assert.Equal(t, clock.Now().Truncate(time.Second), reminder.IndexedAt.Truncate(time.Second))
 
-	// Golink
-	goLink := MustFindGoLinkByGoName(t, "pycon-fr")
-	assert.NotEmpty(t, goLink.OID)
-	assert.Equal(t, file.PackFileOID, goLink.PackFileOID)
-	assert.Equal(t, note.OID, goLink.NoteOID)
-	assert.Equal(t, "programming/python.md", goLink.RelativePath)
-	assert.Equal(t, markdown.Document("PyCon France"), goLink.Text)
-	assert.Equal(t, "https://www.pycon.fr/2025/", goLink.URL)
-	assert.Equal(t, "PyCon", goLink.Title)
-	assert.Equal(t, "pycon-fr", goLink.GoName)
-	assert.Equal(t, clock.Now().Truncate(time.Second), goLink.CreatedAt.Truncate(time.Second))
-	assert.Equal(t, clock.Now().Truncate(time.Second), goLink.UpdatedAt.Truncate(time.Second))
-	assert.Equal(t, clock.Now().Truncate(time.Second), goLink.IndexedAt.Truncate(time.Second))
+	// Goto
+	gotoLink := MustFindGotoByName(t, "pycon-fr")
+	assert.NotEmpty(t, gotoLink.OID)
+	assert.Equal(t, file.PackFileOID, gotoLink.PackFileOID)
+	assert.Equal(t, note.OID, gotoLink.NoteOID)
+	assert.Equal(t, "programming/python.md", gotoLink.RelativePath)
+	assert.Equal(t, markdown.Document("PyCon France"), gotoLink.Text)
+	assert.Equal(t, "https://www.pycon.fr/2025/", gotoLink.URL)
+	assert.Equal(t, "PyCon", gotoLink.Title)
+	assert.Equal(t, "pycon-fr", gotoLink.Name)
+	assert.Equal(t, clock.Now().Truncate(time.Second), gotoLink.CreatedAt.Truncate(time.Second))
+	assert.Equal(t, clock.Now().Truncate(time.Second), gotoLink.UpdatedAt.Truncate(time.Second))
+	assert.Equal(t, clock.Now().Truncate(time.Second), gotoLink.IndexedAt.Truncate(time.Second))
 }
 
 func TestStatsOnDisk(t *testing.T) {

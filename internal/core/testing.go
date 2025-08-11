@@ -279,8 +279,8 @@ func (tr *TestRepository) CountNotes() int {
 	return count
 }
 
-func (tr *TestRepository) CountGoLinks() int {
-	count, err := CurrentRepository().CountGoLinks()
+func (tr *TestRepository) CountGotos() int {
+	count, err := CurrentRepository().CountGotos()
 	require.NoError(tr.t, err)
 	return count
 }
@@ -311,8 +311,8 @@ func (tr *TestRepository) AssertNoFlashcards() {
 	require.Equal(tr.t, 0, tr.CountFlashcards())
 }
 
-func (tr *TestRepository) AssertNoGoLinks() {
-	require.Equal(tr.t, 0, tr.CountGoLinks())
+func (tr *TestRepository) AssertNoGotos() {
+	require.Equal(tr.t, 0, tr.CountGotos())
 }
 
 func (tr *TestRepository) AssertNoReminders() {

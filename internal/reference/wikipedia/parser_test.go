@@ -361,5 +361,3 @@ func TestParseAttributeValue(t *testing.T) {
 		})
 	}
 }
-
-

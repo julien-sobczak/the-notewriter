@@ -94,7 +94,7 @@ type ParsedNote struct {
 
 	// Extracted objects
 	Flashcards []*ParsedFlashcard
-	GoLinks    []*ParsedGoLink
+	GoLinks    []*ParsedGoto
 	Reminders  []*ParsedReminder
 }
 
@@ -118,7 +118,7 @@ func (p ParsedFlashcard) String() string {
 	return fmt.Sprintf("ParsedFlashcard %q", p.ShortTitle)
 }
 
-type ParsedGoLink struct {
+type ParsedGoto struct {
 	// The link text
 	Text markdown.Document
 
@@ -129,11 +129,11 @@ type ParsedGoLink struct {
 	Title string
 
 	// The optional GO name
-	GoName string
+	Name string
 }
 
-func (p ParsedGoLink) String() string {
-	return fmt.Sprintf("ParsedGoLink %q", p.GoName)
+func (p ParsedGoto) String() string {
+	return fmt.Sprintf("ParsedGoto %q", p.Name)
 }
 
 type ParsedReminder struct {
@@ -599,8 +599,8 @@ func ParseMedia(repositoryPath, absolutePath string) *ParsedMedia {
 	return parsedMedia
 }
 
-func (p *ParsedNote) extractGoLinks() ([]*ParsedGoLink, error) {
-	var links []*ParsedGoLink
+func (p *ParsedNote) extractGoLinks() ([]*ParsedGoto, error) {
+	var links []*ParsedGoto
 
 	reLink := regexp.MustCompile(`(?:^|[^!])\[(.*?)\]\("?(http[^\s"]*)"?(?:\s+["'](.*?)["'])?\)`)
 	// Note: Markdown images uses the same syntax as links but precedes the link by !
@@ -618,11 +618,11 @@ func (p *ParsedNote) extractGoLinks() ([]*ParsedGoLink, error) {
 		shortTitle := submatch[1]
 		goName := submatch[2]
 
-		link := &ParsedGoLink{
-			Text:   markdown.Document(text),
-			URL:    url,
-			Title:  shortTitle,
-			GoName: goName,
+		link := &ParsedGoto{
+			Text:  markdown.Document(text),
+			URL:   url,
+			Title: shortTitle,
+			Name:  goName,
 		}
 		links = append(links, link)
 	}
@@ -705,11 +705,11 @@ func (f *ParsedFile) FindNoteByShortTitle(shortTitle string) (*ParsedNote, bool)
 	return nil, false
 }
 
-// FindGoLinkByGoName searches for a go link from its go name.
-func (p *ParsedNote) FindGoLinkByGoName(name string) (*ParsedGoLink, bool) {
-	for _, goLink := range p.GoLinks {
-		if goLink.GoName == name {
-			return goLink, true
+// FindGotoByName searches for a goto from its name.
+func (p *ParsedNote) FindGotoByName(name string) (*ParsedGoto, bool) {
+	for _, gotoLink := range p.GoLinks {
+		if gotoLink.Name == name {
+			return gotoLink, true
 		}
 	}
 	return nil, false

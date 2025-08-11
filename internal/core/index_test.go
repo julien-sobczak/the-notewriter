@@ -445,8 +445,8 @@ func TestIndex(t *testing.T) {
 			CTime:            clock.Now(),
 		}
 
-		packFile.AppendObject(NewTestGoLink(packFile, "1be4098fdc2549a9b78169533076e5540758fa8f"))
-		packFile.AppendObject(NewTestGoLink(packFile, "96eefc2919a8491aacd3f8f1d348cb03740140bd"))
+		packFile.AppendObject(NewTestGoto(packFile, "1be4098fdc2549a9b78169533076e5540758fa8f"))
+		packFile.AppendObject(NewTestGoto(packFile, "96eefc2919a8491aacd3f8f1d348cb03740140bd"))
 		packFile.AppendBlob(NewTestBlob(packFile, "c38d88ca474f4376ab871a363052ffc99f7b5fff"))
 		idx.Stage(packFile)
 
@@ -834,8 +834,8 @@ func NewTestPackFile(newOID oid.OID) *PackFile {
 	}
 }
 
-func NewTestGoLink(packFile *PackFile, newOID oid.OID) *GoLink {
-	return &GoLink{
+func NewTestGoto(packFile *PackFile, newOID oid.OID) *Goto {
+	return &Goto{
 		OID:          newOID,
 		PackFileOID:  packFile.OID,
 		NoteOID:      oid.Nil,
@@ -843,7 +843,7 @@ func NewTestGoLink(packFile *PackFile, newOID oid.OID) *GoLink {
 		Text:         markdown.Document(newOID),
 		URL:          fmt.Sprintf("https//%s.fr", newOID),
 		Title:        newOID.String(),
-		GoName:       newOID.String(),
+		Name:         newOID.String(),
 		CreatedAt:    clock.Now(),
 		UpdatedAt:    clock.Now(),
 	}

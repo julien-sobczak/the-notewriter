@@ -13,13 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGoLink(t *testing.T) {
+func TestGoto(t *testing.T) {
 	tr := NewTestRepository(t, WithFreezeNow())
 
-	tr.AssertNoGoLinks()
+	tr.AssertNoGotos()
 
 	createdAt := clock.Now()
-	goLink := &GoLink{
+	gotoLink := &Goto{
 		OID:          "42d74d967d9b4e989502647ac510777ca1e22f4a",
 		PackFileOID:  "9c0c0682bd18439d992639f19f8d552bde3bd3c0",
 		NoteOID:      "52d02a28a961471db62c6d40d30639dafe4aba00",
@@ -27,40 +27,40 @@ func TestGoLink(t *testing.T) {
 		Text:         "Golang",
 		URL:          "https://go.dev/doc/",
 		Title:        "",
-		GoName:       "go",
+		Name:         "go",
 		CreatedAt:    createdAt,
 		UpdatedAt:    createdAt,
 		IndexedAt:    createdAt,
 	}
 
 	// Save
-	require.NoError(t, goLink.Save())
-	require.Equal(t, 1, tr.CountGoLinks())
+	require.NoError(t, gotoLink.Save())
+	require.Equal(t, 1, tr.CountGotos())
 
 	// Reread and recheck all fields
-	actual, err := CurrentRepository().LoadGoLinkByOID(goLink.OID)
+	actual, err := CurrentRepository().LoadGotoByOID(gotoLink.OID)
 	require.NoError(t, err)
 	require.NotNil(t, actual)
-	assert.Equal(t, goLink.OID, actual.OID)
-	assert.Equal(t, goLink.PackFileOID, actual.PackFileOID)
-	assert.Equal(t, goLink.NoteOID, actual.NoteOID)
-	assert.Equal(t, goLink.RelativePath, actual.RelativePath)
-	assert.Equal(t, goLink.Text, actual.Text)
-	assert.Equal(t, goLink.URL, actual.URL)
-	assert.Equal(t, goLink.Title, actual.Title)
-	assert.Equal(t, goLink.GoName, actual.GoName)
+	assert.Equal(t, gotoLink.OID, actual.OID)
+	assert.Equal(t, gotoLink.PackFileOID, actual.PackFileOID)
+	assert.Equal(t, gotoLink.NoteOID, actual.NoteOID)
+	assert.Equal(t, gotoLink.RelativePath, actual.RelativePath)
+	assert.Equal(t, gotoLink.Text, actual.Text)
+	assert.Equal(t, gotoLink.URL, actual.URL)
+	assert.Equal(t, gotoLink.Title, actual.Title)
+	assert.Equal(t, gotoLink.Name, actual.Name)
 	assert.WithinDuration(t, clock.Now(), actual.CreatedAt, 1*time.Second)
 	assert.WithinDuration(t, clock.Now(), actual.UpdatedAt, 1*time.Second)
 	assert.WithinDuration(t, clock.Now(), actual.IndexedAt, 1*time.Second)
 
 	// Force update
-	goLink.Text = "Go Language"
-	goLink.URL = "https://go.dev"
-	require.NoError(t, goLink.Save())
-	require.Equal(t, 1, tr.CountGoLinks())
+	gotoLink.Text = "Go Language"
+	gotoLink.URL = "https://go.dev"
+	require.NoError(t, gotoLink.Save())
+	require.Equal(t, 1, tr.CountGotos())
 
 	// ...and compare again
-	actual, err = CurrentRepository().LoadGoLinkByOID(goLink.OID)
+	actual, err = CurrentRepository().LoadGotoByOID(gotoLink.OID)
 	require.NoError(t, err)
 	require.NotNil(t, actual)
 	assert.Equal(t, oid.OID("42d74d967d9b4e989502647ac510777ca1e22f4a"), actual.OID) // Must have found the previous one
@@ -68,14 +68,14 @@ func TestGoLink(t *testing.T) {
 	assert.Equal(t, "https://go.dev", actual.URL)
 
 	// Delete
-	require.NoError(t, goLink.Delete())
-	tr.AssertNoGoLinks()
+	require.NoError(t, gotoLink.Delete())
+	tr.AssertNoGotos()
 }
 
-func TestGoLinkFormats(t *testing.T) {
+func TestGotoFormats(t *testing.T) {
 	testutil.FreezeOn(t, "2023-01-01 01:12:30")
 
-	goLink := &GoLink{
+	gotoLink := &Goto{
 		OID:          "42d74d967d9b4e989502647ac510777ca1e22f4a",
 		PackFileOID:  "9c0c0682bd18439d992639f19f8d552bde3bd3c0",
 		NoteOID:      "52d02a28a961471db62c6d40d30639dafe4aba00",
@@ -83,14 +83,14 @@ func TestGoLinkFormats(t *testing.T) {
 		Text:         "Golang",
 		URL:          "https://go.dev/doc/",
 		Title:        "",
-		GoName:       "go",
+		Name:         "go",
 		CreatedAt:    clock.Now(),
 		UpdatedAt:    clock.Now(),
 		IndexedAt:    clock.Now(),
 	}
 
 	t.Run("ToYAML", func(t *testing.T) {
-		actual := goLink.ToYAML()
+		actual := gotoLink.ToYAML()
 
 		expected := text.UnescapeTestContent(`
 oid: 42d74d967d9b4e989502647ac510777ca1e22f4a
@@ -100,7 +100,7 @@ relative_path: go.md
 text: Golang
 url: https://go.dev/doc/
 title: ""
-go_name: go
+name: go
 created_at: 2023-01-01T01:12:30Z
 updated_at: 2023-01-01T01:12:30Z
 indexed_at: 2023-01-01T01:12:30Z
@@ -109,7 +109,7 @@ indexed_at: 2023-01-01T01:12:30Z
 	})
 
 	t.Run("ToJSON", func(t *testing.T) {
-		actual := goLink.ToJSON()
+		actual := gotoLink.ToJSON()
 		expected := text.UnescapeTestContent(`
 {
   "oid": "42d74d967d9b4e989502647ac510777ca1e22f4a",
@@ -119,7 +119,7 @@ indexed_at: 2023-01-01T01:12:30Z
   "text": "Golang",
   "url": "https://go.dev/doc/",
   "title": "",
-  "go_name": "go",
+  "name": "go",
   "created_at": "2023-01-01T01:12:30Z",
   "updated_at": "2023-01-01T01:12:30Z",
   "indexed_at": "2023-01-01T01:12:30Z"
@@ -129,7 +129,7 @@ indexed_at: 2023-01-01T01:12:30Z
 	})
 
 	t.Run("ToMarkdown", func(t *testing.T) {
-		actual := goLink.ToMarkdown()
+		actual := gotoLink.ToMarkdown()
 		expected := text.UnescapeTestContent(`[Golang](https://go.dev/doc/)`)
 		assert.Equal(t, expected, actual)
 	})
@@ -138,8 +138,8 @@ indexed_at: 2023-01-01T01:12:30Z
 
 /* Test Helpers */
 
-func MustFindGoLinkByGoName(t *testing.T, name string) *GoLink {
-	obj, err := CurrentRepository().FindGoLinkByGoName(name)
+func MustFindGotoByName(t *testing.T, name string) *Goto {
+	obj, err := CurrentRepository().FindGotoByName(name)
 	require.NoError(t, err)
 	require.NotNil(t, obj)
 	return obj

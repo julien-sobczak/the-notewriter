@@ -12,7 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type GoLink struct {
+type Goto struct {
 	OID oid.OID `yaml:"oid" json:"oid"`
 
 	// Pack file where this object belongs
@@ -33,7 +33,7 @@ type GoLink struct {
 	Title string `yaml:"title" json:"title"`
 
 	// The optional GO name
-	GoName string `yaml:"go_name" json:"go_name"`
+	Name string `yaml:"name" json:"name"`
 
 	// Timestamps to track changes
 	CreatedAt time.Time `yaml:"created_at" json:"created_at"`
@@ -41,21 +41,21 @@ type GoLink struct {
 	IndexedAt time.Time `yaml:"indexed_at,omitempty" json:"indexed_at,omitempty"`
 }
 
-func NewOrExistingGoLink(packFile *PackFile, note *Note, parsedGoLink *ParsedGoLink) (*GoLink, error) {
+func NewOrExistingGoto(packFile *PackFile, note *Note, parsedGoto *ParsedGoto) (*Goto, error) {
 	// Try to find an existing object (instead of recreating it from scratch after every change)
-	existingGoLink, err := CurrentRepository().FindGoLinkByGoName(string(parsedGoLink.GoName))
+	existingGoto, err := CurrentRepository().FindGotoByName(string(parsedGoto.Name))
 	if err != nil {
 		return nil, err
 	}
-	if existingGoLink != nil {
-		existingGoLink.update(packFile, note, parsedGoLink)
-		return existingGoLink, nil
+	if existingGoto != nil {
+		existingGoto.update(packFile, note, parsedGoto)
+		return existingGoto, nil
 	}
-	return NewGoLink(packFile, note, parsedGoLink), nil
+	return NewGoto(packFile, note, parsedGoto), nil
 }
 
-func NewGoLink(packFile *PackFile, note *Note, parsedLink *ParsedGoLink) *GoLink {
-	return &GoLink{
+func NewGoto(packFile *PackFile, note *Note, parsedLink *ParsedGoto) *Goto {
+	return &Goto{
 		OID:          oid.New(),
 		PackFileOID:  packFile.OID,
 		NoteOID:      note.OID,
@@ -63,7 +63,7 @@ func NewGoLink(packFile *PackFile, note *Note, parsedLink *ParsedGoLink) *GoLink
 		Text:         parsedLink.Text,
 		URL:          parsedLink.URL,
 		Title:        parsedLink.Title,
-		GoName:       parsedLink.GoName,
+		Name:         parsedLink.Name,
 
 		CreatedAt: packFile.CTime,
 		UpdatedAt: packFile.CTime,
@@ -73,23 +73,23 @@ func NewGoLink(packFile *PackFile, note *Note, parsedLink *ParsedGoLink) *GoLink
 
 /* Object */
 
-func (l *GoLink) FileRelativePath() string {
+func (l *Goto) FileRelativePath() string {
 	return l.RelativePath
 }
 
-func (l *GoLink) Kind() string {
+func (l *Goto) Kind() string {
 	return "link"
 }
 
-func (l *GoLink) UniqueOID() oid.OID {
+func (l *Goto) UniqueOID() oid.OID {
 	return l.OID
 }
 
-func (l *GoLink) ModificationTime() time.Time {
+func (l *Goto) ModificationTime() time.Time {
 	return l.UpdatedAt
 }
 
-func (l *GoLink) Read(r io.Reader) error {
+func (l *Goto) Read(r io.Reader) error {
 	err := yaml.NewDecoder(r).Decode(l)
 	if err != nil {
 		return err
@@ -97,7 +97,7 @@ func (l *GoLink) Read(r io.Reader) error {
 	return nil
 }
 
-func (l *GoLink) Write(w io.Writer) error {
+func (l *Goto) Write(w io.Writer) error {
 	data, err := yaml.Marshal(l)
 	if err != nil {
 		return err
@@ -106,25 +106,25 @@ func (l *GoLink) Write(w io.Writer) error {
 	return err
 }
 
-func (l *GoLink) Relations() []*Relation {
+func (l *Goto) Relations() []*Relation {
 	return nil
 }
 
-func (l GoLink) String() string {
+func (l Goto) String() string {
 	return fmt.Sprintf("link %q [%s]", l.URL, l.OID)
 }
 
 /* Format */
 
-func (l *GoLink) ToYAML() string {
+func (l *Goto) ToYAML() string {
 	return ToBeautifulYAML(l)
 }
 
-func (l *GoLink) ToJSON() string {
+func (l *Goto) ToJSON() string {
 	return ToBeautifulJSON(l)
 }
 
-func (l *GoLink) ToMarkdown() string {
+func (l *Goto) ToMarkdown() string {
 	var sb strings.Builder
 	sb.WriteString("[")
 	sb.WriteString(string(l.Text))
@@ -136,7 +136,7 @@ func (l *GoLink) ToMarkdown() string {
 
 /* Update */
 
-func (l *GoLink) update(packFile *PackFile, note *Note, parsedLink *ParsedGoLink) {
+func (l *Goto) update(packFile *PackFile, note *Note, parsedLink *ParsedGoto) {
 	stale := false
 
 	if l.NoteOID != note.OID {
@@ -155,8 +155,8 @@ func (l *GoLink) update(packFile *PackFile, note *Note, parsedLink *ParsedGoLink
 		l.Title = parsedLink.Title
 		stale = true
 	}
-	if l.GoName != parsedLink.GoName {
-		l.GoName = parsedLink.GoName
+	if l.Name != parsedLink.Name {
+		l.Name = parsedLink.Name
 		stale = true
 	}
 
@@ -170,10 +170,10 @@ func (l *GoLink) update(packFile *PackFile, note *Note, parsedLink *ParsedGoLink
 
 /* Database Management */
 
-func (l *GoLink) Save() error {
-	CurrentLogger().Debugf("Saving go link %s...", l.GoName)
+func (l *Goto) Save() error {
+	CurrentLogger().Debugf("Saving goto %s...", l.Name)
 	query := `
-		INSERT INTO link(
+		INSERT INTO goto(
 			oid,
 			packfile_oid,
 			note_oid,
@@ -181,7 +181,7 @@ func (l *GoLink) Save() error {
 			"text",
 			url,
 			title,
-			go_name,
+			name,
 			created_at,
 			updated_at,
 			indexed_at
@@ -194,7 +194,7 @@ func (l *GoLink) Save() error {
 			"text" = ?,
 			url = ?,
 			title = ?,
-			go_name = ?,
+			name = ?,
 			updated_at = ?,
 			indexed_at = ?
 		;
@@ -208,7 +208,7 @@ func (l *GoLink) Save() error {
 		l.Text,
 		l.URL,
 		l.Title,
-		l.GoName,
+		l.Name,
 		timeToSQL(l.CreatedAt),
 		timeToSQL(l.UpdatedAt),
 		timeToSQL(l.IndexedAt),
@@ -219,7 +219,7 @@ func (l *GoLink) Save() error {
 		l.Text,
 		l.URL,
 		l.Title,
-		l.GoName,
+		l.Name,
 		timeToSQL(l.UpdatedAt),
 		timeToSQL(l.IndexedAt),
 	)
@@ -230,50 +230,50 @@ func (l *GoLink) Save() error {
 	return nil
 }
 
-func (l *GoLink) SaveMetadata() error {
+func (l *Goto) SaveMetadata() error {
 	// No operation-related fields for now
 	return nil
 }
 
-func (l *GoLink) Delete() error {
-	CurrentLogger().Debugf("Deleting link %s...", l.GoName)
-	query := `DELETE FROM link WHERE oid = ? AND packfile_oid = ?;`
+func (l *Goto) Delete() error {
+	CurrentLogger().Debugf("Deleting goto %s...", l.Name)
+	query := `DELETE FROM goto WHERE oid = ? AND packfile_oid = ?;`
 	_, err := CurrentDB().Client().Exec(query, l.OID, l.PackFileOID)
 	return err
 }
 
 /* SQL Queries */
 
-// CountGoLinks returns the total number of links.
-func (r *Repository) CountGoLinks() (int, error) {
+// CountGotos returns the total number of gotos.
+func (r *Repository) CountGotos() (int, error) {
 	var count int
-	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM link`).Scan(&count); err != nil {
+	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM goto`).Scan(&count); err != nil {
 		return 0, err
 	}
 
 	return count, nil
 }
 
-func (r *Repository) LoadGoLinkByOID(oid oid.OID) (*GoLink, error) {
-	return QueryGoLink(CurrentDB().Client(), "WHERE oid = ?", oid)
+func (r *Repository) LoadGotoByOID(oid oid.OID) (*Goto, error) {
+	return QueryGoto(CurrentDB().Client(), "WHERE oid = ?", oid)
 }
 
-func (r *Repository) LoadGoLinks() ([]*GoLink, error) {
-	return QueryGoLinks(CurrentDB().Client(), "")
+func (r *Repository) LoadGotos() ([]*Goto, error) {
+	return QueryGotos(CurrentDB().Client(), "")
 }
 
-func (r *Repository) FindGoLinkByGoName(goName string) (*GoLink, error) {
-	return QueryGoLink(CurrentDB().Client(), "WHERE go_name = ?", goName)
+func (r *Repository) FindGotoByName(name string) (*Goto, error) {
+	return QueryGoto(CurrentDB().Client(), "WHERE name = ?", name)
 }
 
-func (r *Repository) FindGoLinksByText(text string) ([]*GoLink, error) {
-	return QueryGoLinks(CurrentDB().Client(), "WHERE text = ?", text)
+func (r *Repository) FindGotosByText(text string) ([]*Goto, error) {
+	return QueryGotos(CurrentDB().Client(), "WHERE text = ?", text)
 }
 
 /* SQL Helpers */
 
-func QueryGoLink(db SQLClient, whereClause string, args ...any) (*GoLink, error) {
-	var l GoLink
+func QueryGoto(db SQLClient, whereClause string, args ...any) (*Goto, error) {
+	var l Goto
 	var createdAt string
 	var updatedAt string
 	var lastIndexedAt string
@@ -288,11 +288,11 @@ func QueryGoLink(db SQLClient, whereClause string, args ...any) (*GoLink, error)
 			"text",
 			url,
 			title,
-			go_name,
+			name,
 			created_at,
 			updated_at,
 			indexed_at
-		FROM link
+		FROM goto
 		%s;`, whereClause), args...).
 		Scan(
 			&l.OID,
@@ -302,7 +302,7 @@ func QueryGoLink(db SQLClient, whereClause string, args ...any) (*GoLink, error)
 			&l.Text,
 			&l.URL,
 			&l.Title,
-			&l.GoName,
+			&l.Name,
 			&createdAt,
 			&updatedAt,
 			&lastIndexedAt,
@@ -320,8 +320,8 @@ func QueryGoLink(db SQLClient, whereClause string, args ...any) (*GoLink, error)
 	return &l, nil
 }
 
-func QueryGoLinks(db SQLClient, whereClause string, args ...any) ([]*GoLink, error) {
-	var links []*GoLink
+func QueryGotos(db SQLClient, whereClause string, args ...any) ([]*Goto, error) {
+	var links []*Goto
 
 	rows, err := db.Query(fmt.Sprintf(`
 		SELECT
@@ -332,18 +332,18 @@ func QueryGoLinks(db SQLClient, whereClause string, args ...any) ([]*GoLink, err
 			"text",
 			url,
 			title,
-			go_name,
+			name,
 			created_at,
 			updated_at,
 			indexed_at
-		FROM link
+		FROM goto
 		%s;`, whereClause), args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var l GoLink
+		var l Goto
 		var createdAt string
 		var updatedAt string
 		var lastIndexedAt string
@@ -356,7 +356,7 @@ func QueryGoLinks(db SQLClient, whereClause string, args ...any) ([]*GoLink, err
 			&l.Text,
 			&l.URL,
 			&l.Title,
-			&l.GoName,
+			&l.Name,
 			&createdAt,
 			&updatedAt,
 			&lastIndexedAt,

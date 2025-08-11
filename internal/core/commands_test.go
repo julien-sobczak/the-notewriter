@@ -515,7 +515,7 @@ func TestCommandDiff(t *testing.T) {
 
 		assert.NotNil(t, diffs.FindFileByTitle("go.md", "Go"))
 		assert.NotNil(t, diffs.FindNoteByTitle("go.md", "Note: Golang History"))
-		assert.NotNil(t, diffs.FindGoLinkByName("go.md", "go"))
+		assert.NotNil(t, diffs.FindGotoByName("go.md", "go"))
 		assert.NotNil(t, diffs.FindNoteByTitle("go.md", "Flashcard: Golang Logo"))
 		assert.NotNil(t, diffs.FindFlashcardByShortTitle("go.md", "Golang Logo"))
 		assert.NotNil(t, diffs.FindNoteByTitle("go.md", "TODO: Conferences"))
@@ -531,7 +531,7 @@ func TestCommandDiff(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, diffs.FindFileByTitle("go.md", "Go"))
 		assert.NotNil(t, diffs.FindNoteByTitle("go.md", "Note: Golang History"))
-		assert.NotNil(t, diffs.FindGoLinkByName("go.md", "go"))
+		assert.NotNil(t, diffs.FindGotoByName("go.md", "go"))
 		assert.NotNil(t, diffs.FindNoteByTitle("go.md", "Flashcard: Golang Logo"))
 		assert.NotNil(t, diffs.FindFlashcardByShortTitle("go.md", "Golang Logo"))
 		assert.NotNil(t, diffs.FindNoteByTitle("go.md", "TODO: Conferences"))
