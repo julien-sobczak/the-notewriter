@@ -925,7 +925,7 @@ func (r *Repository) CountObjectsByType() (map[string]int, error) {
 	if err != nil {
 		return nil, err
 	}
-	countLinks, err := r.CountGoLinks()
+	countLinks, err := r.CountGotos()
 	if err != nil {
 		return nil, err
 	}
