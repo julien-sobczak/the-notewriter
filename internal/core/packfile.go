@@ -368,6 +368,13 @@ func (p *PackFile) SaveTo(path string) error {
 
 /* Diff */
 
+// PackDiff represents the difference between two pack file collections
+// (previously IndexDiff, moved here for reusability with OperationGraph)
+type PackDiff struct {
+	MissingPackFiles PackFileRefs
+	MissingBlobs     BlobRefs
+}
+
 type ObjectDiff struct {
 	Before ParsedObject
 	After  ParsedObject

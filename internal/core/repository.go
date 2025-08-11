@@ -760,8 +760,31 @@ func (r *Repository) Push(remoteName string, interactive, force bool) error {
 		}
 	}
 
+	// Read the origin operation-graph
+	CurrentLogger().Trace("👀 Reading remote operation-graph...")
+	opGraphData, err := origin.GetObject("operation-graph")
+
+	originOperationGraph := NewOperationGraph()
+	if errors.Is(err, remote.ErrObjectNotExist) {
+		// First time we push operations
+	} else if err != nil {
+		return err
+	} else {
+		if err := originOperationGraph.Read(bytes.NewReader(opGraphData)); err != nil {
+			return err
+		}
+	}
+
+	// Read local operation-graph
+	localOperationGraph, err := ReadOperationGraph()
+	if err != nil {
+		return err
+	}
+
 	diff := originIndex.Diff(CurrentIndex())
 	diffReverse := CurrentIndex().Diff(originIndex)
+	opDiff := originOperationGraph.Diff(localOperationGraph)
+	opDiffReverse := localOperationGraph.Diff(originOperationGraph)
 
 	for _, missingPackFile := range diff.MissingPackFiles {
 		data, err := CurrentIndex().ReadPackFileData(missingPackFile.OID)
@@ -786,6 +809,22 @@ func (r *Repository) Push(remoteName string, interactive, force bool) error {
 		CurrentLogger().Infof("🚀 Pushed blob %q", missingBlob.ObjectRelativePath())
 	}
 
+	// Push operation pack files
+	for _, missingOpPackFile := range opDiff.MissingPackFiles {
+		// Read operation pack file from operations directory
+		opPackFilePath := filepath.Join(CurrentConfig().RootDirectory, ".nt/operations", missingOpPackFile.OID.RelativePath(".pack"))
+		data, err := os.ReadFile(opPackFilePath)
+		if err != nil {
+			return err
+		}
+		operationRelPath := "operations/" + missingOpPackFile.OID.RelativePath(".pack")
+		CurrentLogger().Tracef("👀 Pushing operation pack file %q...", operationRelPath)
+		if err := origin.PutObject(operationRelPath, data); err != nil {
+			return fmt.Errorf("failed to put operation %q: %v", operationRelPath, err)
+		}
+		CurrentLogger().Infof("🚀 Pushed operation pack file %q", operationRelPath)
+	}
+
 	// Override origin index with the local one
 	buf := new(bytes.Buffer)
 	if err := CurrentIndex().Write(buf); err != nil {
@@ -796,6 +835,17 @@ func (r *Repository) Push(remoteName string, interactive, force bool) error {
 		return fmt.Errorf("failed to put %q: %v", "index", err)
 	}
 	CurrentLogger().Infof("🚀 Pushed index")
+
+	// Override origin operation-graph with the local one
+	buf = new(bytes.Buffer)
+	if err := localOperationGraph.Write(buf); err != nil {
+		return err
+	}
+	CurrentLogger().Tracef("👀 Pushing operation-graph...")
+	if err := origin.PutObject("operation-graph", buf.Bytes()); err != nil {
+		return fmt.Errorf("failed to put %q: %v", "operation-graph", err)
+	}
+	CurrentLogger().Infof("🚀 Pushed operation-graph")
 
 	// Override origin config with the local one
 	data, err = os.ReadFile(CurrentConfig().GetGeneratedPath())
@@ -822,6 +872,17 @@ func (r *Repository) Push(remoteName string, interactive, force bool) error {
 		err = origin.DeleteObject(missingBlob.ObjectRelativePath())
 		if err == nil {
 			CurrentLogger().Infof("🚀 Deleted blob %q", missingBlob.ObjectRelativePath())
+		}
+		// Ignore error as the file may have been deleted in a prior execution
+	}
+
+	// Cleanup obsolete operation pack files
+	for _, missingOpPackFile := range opDiffReverse.MissingPackFiles {
+		operationRelPath := "operations/" + missingOpPackFile.OID.RelativePath(".pack")
+		CurrentLogger().Tracef("👀 Trying to delete operation pack file %q...", operationRelPath)
+		err = origin.DeleteObject(operationRelPath)
+		if err == nil {
+			CurrentLogger().Infof("🚀 Deleted operation pack file %q", operationRelPath)
 		}
 		// Ignore error as the file may have been deleted in a prior execution
 	}
@@ -865,8 +926,30 @@ func (r *Repository) Pull(remoteName string, interactive, force bool) error {
 		}
 	}
 
+	// Read the origin operation-graph
+	opGraphData, err := origin.GetObject("operation-graph")
+
+	originOperationGraph := NewOperationGraph()
+	if errors.Is(err, remote.ErrObjectNotExist) {
+		// First time we pull operations
+	} else if err != nil {
+		return err
+	} else {
+		if err := originOperationGraph.Read(bytes.NewReader(opGraphData)); err != nil {
+			return err
+		}
+	}
+
+	// Read local operation-graph
+	localOperationGraph, err := ReadOperationGraph()
+	if err != nil {
+		return err
+	}
+
 	diff := CurrentIndex().Diff(originIndex)
 	diffReverse := originIndex.Diff(CurrentIndex())
+	opDiff := localOperationGraph.Diff(originOperationGraph)
+	opDiffReverse := originOperationGraph.Diff(localOperationGraph)
 
 	for _, missingPackFile := range diff.MissingPackFiles {
 		data, err := origin.GetObject(missingPackFile.ObjectRelativePath())
@@ -883,11 +966,34 @@ func (r *Repository) Pull(remoteName string, interactive, force bool) error {
 		writeObject(missingBlob, data)
 	}
 
+	// Pull operation pack files
+	for _, missingOpPackFile := range opDiff.MissingPackFiles {
+		operationRelPath := "operations/" + missingOpPackFile.OID.RelativePath(".pack")
+		data, err := origin.GetObject(operationRelPath)
+		if err != nil {
+			return err
+		}
+		opPackFilePath := filepath.Join(CurrentConfig().RootDirectory, ".nt/operations", missingOpPackFile.OID.RelativePath(".pack"))
+		// Ensure directory exists
+		if err := os.MkdirAll(filepath.Dir(opPackFilePath), os.ModePerm); err != nil {
+			return err
+		}
+		if err := writeBytesToFile(opPackFilePath, data); err != nil {
+			return err
+		}
+		CurrentLogger().Infof("⬇️ Pulled operation pack file %q", operationRelPath)
+	}
+
 	// Override local index with the remote one
 	if err := originIndex.Save(); err != nil {
 		return err
 	}
 	if err := CurrentIndex().Reload(); err != nil {
+		return err
+	}
+
+	// Override local operation-graph with the remote one
+	if err := originOperationGraph.Save(); err != nil {
 		return err
 	}
 
@@ -899,6 +1005,13 @@ func (r *Repository) Pull(remoteName string, interactive, force bool) error {
 	for _, missingBlob := range diffReverse.MissingBlobs {
 		_ = CurrentDB().DeleteBlobOnDisk(missingBlob)
 		// Ignore error as the file may have been deleted in a prior
+	}
+
+	// Cleanup obsolete operation pack files
+	for _, missingOpPackFile := range opDiffReverse.MissingPackFiles {
+		opPackFilePath := filepath.Join(CurrentConfig().RootDirectory, ".nt/operations", missingOpPackFile.OID.RelativePath(".pack"))
+		_ = os.Remove(opPackFilePath)
+		// Ignore error as the file may have been deleted in a prior execution
 	}
 
 	return nil

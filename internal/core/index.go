@@ -836,14 +836,9 @@ func ShortenToUniquePrefix(value string, knownValues []string) string {
 
 /* Diff */
 
-type IndexDiff struct {
-	MissingPackFiles PackFileRefs
-	MissingBlobs     BlobRefs
-}
-
 // Diff compares two indexes and returns what is missing in the first one.
 // Invert the arguments to get what is missing in the second one.
-func (i *Index) Diff(remote *Index) *IndexDiff {
+func (i *Index) Diff(remote *Index) *PackDiff {
 	knownPackFileOIDs := make(map[oid.OID]bool)
 	knownBlobOIDs := make(map[oid.OID]bool)
 
@@ -860,7 +855,7 @@ func (i *Index) Diff(remote *Index) *IndexDiff {
 		}
 	}
 
-	var diff IndexDiff
+	var diff PackDiff
 
 	// Traverse remote index
 	missingPackFilesOID := make(map[oid.OID]bool)

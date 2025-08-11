@@ -227,3 +227,76 @@ another_field: 42
 		assert.Equal(t, "oid: 94a3f7eedf3d4963926d267c1e114bd14f65123a\nanother_field: 42\ncreated_at: 2024-01-01T00:00:00Z\nextra_field: hello\n", string(data))
 	})
 }
+
+func TestOperationGraph(t *testing.T) {
+	t.Run("NewOperationGraph", func(t *testing.T) {
+		og := NewOperationGraph()
+		assert.NotNil(t, og)
+		assert.Empty(t, og.Entries)
+	})
+
+	t.Run("ReadWriteOperationGraph", func(t *testing.T) {
+		_ = NewTestRepository(t, WithFreezeOn("2024-01-01 00:00:00"))
+		
+		// Create an operation graph with some entries
+		og := &OperationGraph{
+			Entries: []*OperationGraphEntry{
+				{
+					PackFileOID: oid.OID("42d74d967d9b4e989502647ac510777ca1e22f4a"),
+					CTime:       clock.Now(),
+				},
+				{
+					PackFileOID: oid.OID("f97ba6134cb447f88ae831ff745cf259ebe7d9ad"),
+					CTime:       clock.Now().Add(-time.Hour),
+				},
+			},
+		}
+
+		// Test Save and Read
+		err := og.Save()
+		require.NoError(t, err)
+
+		// Read it back
+		readOG, err := ReadOperationGraph()
+		require.NoError(t, err)
+		require.Len(t, readOG.Entries, 2)
+		assert.Equal(t, oid.OID("42d74d967d9b4e989502647ac510777ca1e22f4a"), readOG.Entries[0].PackFileOID)
+		assert.Equal(t, oid.OID("f97ba6134cb447f88ae831ff745cf259ebe7d9ad"), readOG.Entries[1].PackFileOID)
+	})
+
+	t.Run("OperationGraphDiff", func(t *testing.T) {
+		// Create local operation graph
+		local := &OperationGraph{
+			Entries: []*OperationGraphEntry{
+				{
+					PackFileOID: oid.OID("42d74d967d9b4e989502647ac510777ca1e22f4a"),
+					CTime:       clock.Now(),
+				},
+			},
+		}
+
+		// Create remote operation graph with additional entry
+		remote := &OperationGraph{
+			Entries: []*OperationGraphEntry{
+				{
+					PackFileOID: oid.OID("42d74d967d9b4e989502647ac510777ca1e22f4a"),
+					CTime:       clock.Now(),
+				},
+				{
+					PackFileOID: oid.OID("f97ba6134cb447f88ae831ff745cf259ebe7d9ad"),
+					CTime:       clock.Now().Add(-time.Hour),
+				},
+			},
+		}
+
+		// Test diff: what's missing in local from remote
+		diff := local.Diff(remote)
+		require.Len(t, diff.MissingPackFiles, 1)
+		assert.Equal(t, oid.OID("f97ba6134cb447f88ae831ff745cf259ebe7d9ad"), diff.MissingPackFiles[0].OID)
+
+		// Test reverse diff: what's missing in remote from local (should be empty)
+		diffReverse := remote.Diff(local)
+		assert.Empty(t, diffReverse.MissingPackFiles)
+		assert.Empty(t, diffReverse.MissingBlobs)
+	})
+}

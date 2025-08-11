@@ -1,8 +1,11 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
@@ -267,4 +270,108 @@ func NewPackFileFromOperations(operations []*Operation) (*PackFile, error) {
 	}
 
 	return packFile, nil
+}
+
+/* Operation Graph */
+
+// OperationGraph tracks pack files in the .nt/operations directory
+// Similar to how Index tracks pack files in .nt/objects directory
+type OperationGraph struct {
+	// List of files known in the operation graph
+	Entries []*OperationGraphEntry `yaml:"entries"`
+}
+
+// OperationGraphEntry represents a pack file entry in the operation graph
+type OperationGraphEntry struct {
+	// Pack file OID representing this file under .nt/operations
+	PackFileOID oid.OID `yaml:"packfile_oid"`
+	// File creation date
+	CTime time.Time `yaml:"ctime"`
+}
+
+// NewOperationGraph instantiates a new operation graph.
+func NewOperationGraph() *OperationGraph {
+	return &OperationGraph{
+		Entries: []*OperationGraphEntry{},
+	}
+}
+
+// NewOperationGraphFromPath loads an operation graph file from a file.
+func NewOperationGraphFromPath(path string) (*OperationGraph, error) {
+	in, err := os.Open(path)
+	if errors.Is(err, os.ErrNotExist) {
+		// First use
+		return NewOperationGraph(), nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	operationGraph := new(OperationGraph)
+	if err := operationGraph.Read(in); err != nil {
+		return nil, err
+	}
+	in.Close()
+	return operationGraph, nil
+}
+
+// ReadOperationGraph reads the operation graph file from the current repository.
+func ReadOperationGraph() (*OperationGraph, error) {
+	return NewOperationGraphFromPath(CurrentRepository().GetAbsolutePath(".nt/operation-graph"))
+}
+
+// Read reads an operation graph from a reader.
+func (og *OperationGraph) Read(r io.Reader) error {
+	err := yaml.NewDecoder(r).Decode(&og)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// Write dumps the operation graph to a writer.
+func (og *OperationGraph) Write(w io.Writer) error {
+	data, err := yaml.Marshal(og)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(data)
+	return err
+}
+
+// Save persists the operation graph on disk.
+func (og *OperationGraph) Save() error {
+	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/operation-graph")
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return og.Write(f)
+}
+
+// Diff compares two operation graphs and returns what is missing in the first one.
+// Invert the arguments to get what is missing in the second one.
+func (og *OperationGraph) Diff(remote *OperationGraph) *PackDiff {
+	knownPackFileOIDs := make(map[oid.OID]bool)
+
+	// Collect known OIDs for lookup
+	for _, entry := range og.Entries {
+		knownPackFileOIDs[entry.PackFileOID] = true
+	}
+
+	var diff PackDiff
+
+	// Traverse remote operation graph
+	for _, remoteEntry := range remote.Entries {
+		if _, ok := knownPackFileOIDs[remoteEntry.PackFileOID]; !ok {
+			// Pack file is missing
+			diff.MissingPackFiles = append(diff.MissingPackFiles, PackFileRef{
+				OID:          remoteEntry.PackFileOID,
+				RelativePath: "",
+				CTime:        remoteEntry.CTime,
+			})
+		}
+	}
+
+	return &diff
 }
