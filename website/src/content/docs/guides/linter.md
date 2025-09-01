@@ -25,6 +25,7 @@ Rules are declared under the attribute `rules`. Some rules accept arguments usin
 |---|---|---|
 | `no-duplicate-note-title` | Enforce no duplicate between note titles inside the same file | - |
 | `no-duplicate-slug` | Enforce no duplicate slugs between notes across files | - |
+| `no-implicit-slug-on-flashcard` | Enforce explicit slugs on flashcards to preverse study history on rewriting | - |
 | `min-lines-between-notes` | Enforce a minimum number of lines between notes | <ul><li><code>int</code> The number of lines</li></ul> |
 |	`max-lines-between-notes` | Enforce a maximum number of lines between notes | <ul><li><code>int</code> The number of lines</li></ul> |
 |	`note-title-match` | Enforce a consistent naming for notes | <ul><li><code>string</code> A Golang regex</li></ul> |
@@ -33,7 +34,6 @@ Rules are declared under the attribute `rules`. Some rules accept arguments usin
 |	`no-extension-wikilink` | No extension in wikilinks | - |
 |	`no-ambiguous-wikilink` | No ambiguity in wikilinks | - |
 |	`require-tag` | At least one tag on quotes (must match the optional pattern) | <ul><li><code>string</code> A regex that must match all accepted tags on quotes</li></ul> |
-|	`check-attribute` | Attributes must satisfy their schema if defined (see below) | - |
 
 
 ### `no-duplicate-note-title`

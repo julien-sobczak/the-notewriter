@@ -79,6 +79,9 @@ var LintRulesFn = map[string]LintRule{
 	// Every slug must be unique
 	"no-duplicate-slug": NoDuplicateSlug,
 
+	// Flashcards must have a slug
+	"no-implicit-slug-on-flashcard": NoImplicitSlugOnFlashcard,
+
 	// Enforce a minimum number of lines between notes
 	"min-lines-between-notes": MinLinesBetweenNotes,
 
@@ -187,6 +190,27 @@ func NoDuplicateSlug(file *ParsedFile, query *Query, args []any) ([]*Violation, 
 				})
 			}
 			slugInventory[note.Slug] = true
+		}
+	}
+
+	return violations, nil
+}
+
+// NoImplicitSlugOnFlashcard implements the rule "enforce-flashcard-slug".
+func NoImplicitSlugOnFlashcard(file *ParsedFile, query *Query, args []any) ([]*Violation, error) {
+	var violations []*Violation
+
+	for _, note := range file.Notes {
+		if len(note.Flashcards) > 0 {
+			if _, ok := note.NoteAttributes.Slug(); !ok {
+				violations = append(violations, &Violation{
+					Name:         "no-implicit-slug-on-flashcard",
+					Message:      "flashcard must have a slug",
+					RelativePath: file.RelativePath,
+					Line:         note.Line,
+				})
+
+			}
 		}
 	}
 

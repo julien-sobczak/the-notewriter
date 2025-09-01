@@ -104,6 +104,24 @@ func TestNoDuplicateSlug(t *testing.T) {
 	}, violations)
 }
 
+func TestNoImplicitSlugOnFlashcard(t *testing.T) {
+	tr := NewTestRepository(t, FromGoldenDirNamed("TestLint"))
+
+	// File a.md is valid
+	file := tr.ParseFile("no-implicit-slug-on-flashcard.md")
+
+	violations, err := NoImplicitSlugOnFlashcard(file, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, []*Violation{
+		{
+			Name:         "no-implicit-slug-on-flashcard",
+			RelativePath: "no-implicit-slug-on-flashcard.md",
+			Message:      `flashcard must have a slug`,
+			Line:         11,
+		},
+	}, violations)
+}
+
 func TestMinLinesBetweenNotes(t *testing.T) {
 	tr := NewTestRepository(t, FromGoldenDirNamed("TestLint"))
 

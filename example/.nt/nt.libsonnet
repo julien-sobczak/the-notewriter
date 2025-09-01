@@ -46,6 +46,10 @@
             {
                 name: "no-duplicate-slug",
             },
+        NoImplicitSlugOnFlashcard()::
+            {
+                name: "no-implicit-slug-on-flashcard",
+            },
         MinLinesBetweenNotes(count)::
             {
                 name: "min-lines-between-notes",
