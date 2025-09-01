@@ -398,6 +398,30 @@ func (a AttributeSet) AddHook(hookNames ...string) {
 	}
 }
 
+// Attribution returns a formatted attribution string based on available attributes.
+func (a AttributeSet) Attribution() string {
+	name := a.CastValueAsString("name")
+	occupation := a.CastValueAsString("occupation")
+	nationality := a.CastValueAsString("nationality")
+
+	if name == "" {
+		return ""
+	}
+
+	var res strings.Builder
+	res.WriteString("― ")
+	res.WriteString(name)
+	if occupation != "" {
+		res.WriteString(", ")
+		if nationality != "" {
+			res.WriteString(nationality)
+			res.WriteString(" ")
+		}
+		res.WriteString(occupation)
+	}
+	return res.String()
+}
+
 /* Format */
 
 func (a AttributeSet) ToJSON() (string, error) {

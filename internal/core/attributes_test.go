@@ -566,3 +566,63 @@ key:
 	assert.Equal(t, "string", values[1])
 	assert.Equal(t, true, values[2])
 }
+
+func TestAttributeSetSpecialAttributes(t *testing.T) {
+
+	t.Run("Attribution", func(t *testing.T) {
+		tests := []struct {
+			name       string
+			attributes AttributeSet
+			expected   string
+		}{
+			{
+				name: "All fields present",
+				attributes: AttributeSet{
+					"name":        "Jane Doe",
+					"occupation":  "writer",
+					"nationality": "Canadian",
+				},
+				expected: "― Jane Doe, Canadian writer",
+			},
+			{
+				name: "Only name present",
+				attributes: AttributeSet{
+					"name": "Jane Doe",
+				},
+				expected: "― Jane Doe",
+			},
+			{
+				name: "Name and occupation present",
+				attributes: AttributeSet{
+					"name":       "Jane Doe",
+					"occupation": "writer",
+				},
+				expected: "― Jane Doe, writer",
+			},
+			{
+				name: "Name and nationality present",
+				attributes: AttributeSet{
+					"name":        "Jane Doe",
+					"nationality": "Canadian",
+				},
+				expected: "― Jane Doe",
+			},
+			{
+				name: "Missing name",
+				attributes: AttributeSet{
+					"occupation":  "writer",
+					"nationality": "Canadian",
+				},
+				expected: "",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				actual := tt.attributes.Attribution()
+				assert.Equal(t, tt.expected, actual)
+			})
+		}
+	})
+
+}

@@ -69,12 +69,29 @@ func QuoteRewriterPreprocessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNot
 	lines := strings.Split(note.Body.String(), "\n")
 	var rewrittenLines []string
 
+	insideQuote := false
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
+
 		if trimmed != "" && !OnlyTagsAndAttributes(trimmed) && !strings.HasPrefix(trimmed, ">") {
 			rewrittenLines = append(rewrittenLines, "> "+line)
+			insideQuote = true
 		} else {
+			if insideQuote {
+				// The quote is complete. Add the attribution
+				attribution := note.Attributes.Attribution()
+				if attribution != "" {
+					rewrittenLines = append(rewrittenLines, "> "+attribution)
+				}
+			}
+			insideQuote = false
 			rewrittenLines = append(rewrittenLines, line)
+		}
+	}
+	if insideQuote {
+		attribution := note.Attributes.Attribution()
+		if attribution != "" {
+			rewrittenLines = append(rewrittenLines, "> "+attribution)
 		}
 	}
 

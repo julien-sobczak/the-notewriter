@@ -65,9 +65,10 @@ func TestExtractDateFromTitle(t *testing.T) {
 
 func TestQuoteRewriterPreprocessor(t *testing.T) {
 	tests := []struct {
-		name         string
-		inputBody    string
-		expectedBody string
+		name            string
+		inputBody       string
+		inputAttributes map[string]any
+		expectedBody    string
 	}{
 		{
 			name:         "Regular text is prefixed with quotes",
@@ -75,9 +76,19 @@ func TestQuoteRewriterPreprocessor(t *testing.T) {
 			expectedBody: "> This is a regular line\n> Another regular line",
 		},
 		{
-			name:         "Empty lines remain unchanged",
-			inputBody:    "First line\n\nThird line",
-			expectedBody: "> First line\n\n> Third line",
+			name: "Attribution is appended if attributes are present",
+			inputAttributes: map[string]any{
+				"name":        "Jean Doe",
+				"occupation":  "writer",
+				"nationality": "French",
+			},
+			inputBody:    "This is a regular line\nAnother regular line",
+			expectedBody: "> This is a regular line\n> Another regular line\n> ― Jean Doe, French writer",
+		},
+		{
+			name:         "Empty lines are included if present in the middle of a quote",
+			inputBody:    "First line\n>\nThird line",
+			expectedBody: "> First line\n>\n> Third line",
 		},
 		{
 			name:         "Already quoted lines remain unchanged",
@@ -86,8 +97,8 @@ func TestQuoteRewriterPreprocessor(t *testing.T) {
 		},
 		{
 			name:         "Tags/attributes lines are not quoted",
-			inputBody:    "Regular text\n`#tag1` `#tag2` `@attribute1:value1`",
-			expectedBody: "> Regular text\n`#tag1` `#tag2` `@attribute1:value1`",
+			inputBody:    "`#tag1` `#tag2`\nRegular text\n`@attribute1:value1`",
+			expectedBody: "`#tag1` `#tag2`\n> Regular text\n`@attribute1:value1`",
 		},
 	}
 
@@ -96,7 +107,8 @@ func TestQuoteRewriterPreprocessor(t *testing.T) {
 			// Setup test data
 			// IMPROVEMENT: Use builder or factory pattern for creating test data
 			note := &core.ParsedNote{
-				Body: markdown.Document(tt.inputBody),
+				Attributes: core.AttributeSet(tt.inputAttributes),
+				Body:       markdown.Document(tt.inputBody),
 			}
 			file := &core.ParsedFile{}
 
