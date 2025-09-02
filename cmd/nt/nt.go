@@ -26,13 +26,6 @@ var rootCmd = &cobra.Command{
 	Use:   "nt",
 	Short: "The NoteWriter is a file-based note management tool",
 	Long:  `A Powerful and Flexible Note Management Tool using only Markdown files.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		// Default behavior: show a random quote
-		if err := showRandomQuote(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
-		}
-	},
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		if cmd.Name() != "init" {
 			// Ignore when configuration doesn't still exist
@@ -82,28 +75,6 @@ func Execute() {
 		<-sigs
 		core.CurrentRepository().Close()
 	}()
-}
-
-/* Quote Display Functions */
-
-// showRandomQuote displays a random quote from the database
-func showRandomQuote() error {
-	quote, err := core.CurrentRepository().GetRandomQuote()
-	if err != nil {
-		return err
-	}
-	
-	if quote == nil {
-		fmt.Println("No quotes found in the repository.")
-		return nil
-	}
-
-	// Display LongTitle and Body with blank line between them
-	fmt.Println(quote.LongTitle.ToANSI())
-	fmt.Println()
-	fmt.Println(quote.Body.ToANSI())
-	
-	return nil
 }
 
 func main() {
