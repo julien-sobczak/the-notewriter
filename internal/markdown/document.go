@@ -1,9 +1,11 @@
 package markdown
 
 import (
+	"regexp"
 	"strings"
 	"unicode"
 
+	"github.com/fatih/color"
 	"github.com/julien-sobczak/the-notewriter/internal/helpers"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
@@ -55,6 +57,34 @@ func (m Document) TrimBlankLines() (result Document, countLinesAtStartTrimmed in
 // TrimSpace removes spaces at the start and end of a markdown document.
 func (m Document) TrimSpace() Document {
 	return Document(strings.TrimSpace(string(m)))
+}
+
+// ToANSI processes markdown text to remove emphasis and apply color formatting
+func (m Document) ToANSI() string {
+	text := string(m)
+	
+	// Force color output for this method since we always want colors
+	prevNoColor := color.NoColor
+	color.NoColor = false
+	defer func() { color.NoColor = prevNoColor }()
+	
+	// First handle bold emphasis (**text** and __text__) and apply bold+cyan color
+	boldRegex := regexp.MustCompile(`\*\*([^*]+)\*\*|__([^_]+)__`)
+	text = boldRegex.ReplaceAllStringFunc(text, func(match string) string {
+		// Extract the content between ** or __
+		content := strings.Trim(match, "*_")
+		return color.New(color.FgCyan, color.Bold).Sprint(content)
+	})
+	
+	// Then handle italic emphasis (*text* and _text_) and apply yellow color
+	italicRegex := regexp.MustCompile(`\*([^*]+)\*|_([^_]+)_`)
+	text = italicRegex.ReplaceAllStringFunc(text, func(match string) string {
+		// Extract the content between * or _
+		content := strings.Trim(match, "*_")
+		return color.YellowString(content)
+	})
+	
+	return text
 }
 
 /*
