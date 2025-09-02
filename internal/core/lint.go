@@ -596,16 +596,104 @@ func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 						}
 					}
 				}
+				
+				// Also check the merged attributes (which include defaults and inherited values)
+				mergedValue, presentInMerged := note.Attributes[name]
+				if presentInMerged && !presentOnNote && !presentOnFile {
+					found = true
+					// This is an attribute that comes from defaults or inheritance
+					if _, ok := CastAttribute(mergedValue, *attributeDefinition); !ok {
+						violations = append(violations, &Violation{
+							Name:         "check-attributes",
+							RelativePath: file.RelativePath,
+							Message:      fmt.Sprintf("attribute %q on note %q in file %q is not a valid %s or cannot be converted", name, note.Title, file.RelativePath, attributeDefinition.Type),
+							Line:         note.Line,
+						})
+					} else if attributeDefinition.Pattern != "" {
+						// Check pattern
+						regexAttribute := regexp.MustCompile(attributeDefinition.Pattern)
+						// Convert value to string
+						stringValue := fmt.Sprintf("%s", mergedValue)
+						if !regexAttribute.MatchString(stringValue) {
+							violations = append(violations, &Violation{
+								Name:         "check-attributes",
+								RelativePath: file.RelativePath,
+								Message:      fmt.Sprintf("attribute %q on note %q in file %q does not match pattern %q", name, note.Title, file.RelativePath, attributeDefinition.Pattern),
+								Line:         note.Line,
+							})
+						}
+					}
+				}
 			}
 
-			// Check required
-			if slices.Contains(objectDefinition.RequiredAttributes, attributeDefinition.Name) && !found {
+			// Check required attributes using new structure first, then legacy
+			isRequired := false
+			
+			// Check new attribute structure
+			for _, attr := range objectDefinition.Attributes {
+				if attr.Name == attributeDefinition.Name && attr.Optional != nil && !*attr.Optional {
+					isRequired = true
+					break
+				}
+			}
+			
+			// If not found in new structure, check legacy structure for backward compatibility
+			if !isRequired {
+				isRequired = slices.Contains(objectDefinition.RequiredAttributes, attributeDefinition.Name)
+			}
+			
+			if isRequired && !found {
 				violations = append(violations, &Violation{
 					Name:         "check-attributes",
 					RelativePath: file.RelativePath,
 					Message:      fmt.Sprintf("attribute %q missing on note %q in file %q", attributeDefinition.Name, note.Title, file.RelativePath),
 					Line:         note.Line,
 				})
+			}
+			
+			// Check allowedValues for both file and note attributes
+			if len(attributeDefinition.AllowedValues) > 0 {
+				fileValue, presentOnFile := file.FileAttributes[attributeDefinition.Name]
+				if presentOnFile {
+					stringValue := fmt.Sprintf("%s", fileValue)
+					if !slices.Contains(attributeDefinition.AllowedValues, stringValue) {
+						line := text.LineNumber(string(file.Markdown.Content), attributeDefinition.Name+":")
+						violations = append(violations, &Violation{
+							Name:         "check-attributes",
+							RelativePath: file.RelativePath,
+							Message:      fmt.Sprintf("attribute %q in file %q has value %q which is not in allowedValues %v", attributeDefinition.Name, file.Title, stringValue, attributeDefinition.AllowedValues),
+							Line:         line,
+						})
+					}
+				}
+				
+				noteValue, presentOnNote := note.NoteAttributes[attributeDefinition.Name]
+				if presentOnNote {
+					stringValue := fmt.Sprintf("%s", noteValue)
+					if !slices.Contains(attributeDefinition.AllowedValues, stringValue) {
+						line := text.LineNumber(string(file.Markdown.Content), attributeDefinition.Name+":")
+						violations = append(violations, &Violation{
+							Name:         "check-attributes",
+							RelativePath: file.RelativePath,
+							Message:      fmt.Sprintf("attribute %q on note %q in file %q has value %q which is not in allowedValues %v", attributeDefinition.Name, note.Title, file.RelativePath, stringValue, attributeDefinition.AllowedValues),
+							Line:         line,
+						})
+					}
+				}
+				
+				// Also check merged attributes for allowedValues
+				mergedValue, presentInMerged := note.Attributes[attributeDefinition.Name]
+				if presentInMerged && !presentOnNote && !presentOnFile {
+					stringValue := fmt.Sprintf("%s", mergedValue)
+					if !slices.Contains(attributeDefinition.AllowedValues, stringValue) {
+						violations = append(violations, &Violation{
+							Name:         "check-attributes",
+							RelativePath: file.RelativePath,
+							Message:      fmt.Sprintf("attribute %q on note %q in file %q has value %q which is not in allowedValues %v", attributeDefinition.Name, note.Title, file.RelativePath, stringValue, attributeDefinition.AllowedValues),
+							Line:         note.Line,
+						})
+					}
+				}
 			}
 
 			// Nothing more to check

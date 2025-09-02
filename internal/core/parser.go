@@ -237,6 +237,21 @@ func ParseFile(md *markdown.File, mdParent *markdown.File) (*ParsedFile, error) 
 	}
 	_, shortTitle, _ := CurrentConfigFile().IsSupportedType(string(title))
 
+	// Process shorthands from file shortTitle
+	if shortTitle != "" {
+		extractedFileAttributes := ExtractShorthandsFromTitle(string(shortTitle), CurrentConfigFile().Attributes)
+		// Apply extracted shorthand attributes to file attributes
+		for attrName, attrValue := range extractedFileAttributes {
+			fileAttributes[attrName] = attrValue
+		}
+		
+		// Update shortTitle by removing shorthands if preserveShorthand is false
+		modifiedShortTitle := RemoveShorthandsFromTitle(string(shortTitle), CurrentConfigFile().Attributes)
+		if modifiedShortTitle != string(shortTitle) {
+			shortTitle = markdown.Document(modifiedShortTitle)
+		}
+	}
+
 	// Extract/Generate slug
 	relativePath := CurrentRepository().GetFileRelativePath(md.AbsolutePath)
 	slug := DetermineFileSlug(relativePath)
@@ -314,6 +329,20 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 			continue
 		}
 
+		// Process shorthands from shortTitle
+		extractedAttributes := ExtractShorthandsFromTitle(string(shortTitle), CurrentConfigFile().Attributes)
+		
+		// Apply extracted shorthand attributes
+		for attrName, attrValue := range extractedAttributes {
+			noteAttributes[attrName] = attrValue
+		}
+		
+		// Update shortTitle by removing shorthands if preserveShorthand is false
+		modifiedShortTitle := RemoveShorthandsFromTitle(string(shortTitle), CurrentConfigFile().Attributes)
+		if modifiedShortTitle != string(shortTitle) {
+			shortTitle = markdown.Document(modifiedShortTitle)
+		}
+
 		// Ignore ignorabled notes
 		if noteTags.Includes("ignore") {
 			continue
@@ -384,6 +413,9 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		if noteType.Hooks != nil {
 			attributes.AddHook(noteType.Hooks...)
 		}
+		
+		// Apply default values for missing required attributes
+		ApplyDefaultAttributeValues(noteType, attributes, CurrentConfigFile().Attributes)
 
 		// Determine the long title
 		var titles []markdown.Document
@@ -920,4 +952,110 @@ func (n *ParsedNote) Matches(query *Query) bool {
 	// query.Terms is not supported as parsed notes are still not indexed
 
 	return true
+}
+
+// ExtractShorthandsFromTitle extracts shorthand attributes from a title string
+func ExtractShorthandsFromTitle(title string, attributes ConfigAttributes) map[string]interface{} {
+	extractedAttributes := make(map[string]interface{})
+	
+	for _, attribute := range attributes {
+		if len(attribute.Shorthands) == 0 {
+			continue
+		}
+		
+		// Sort shorthand keys by length (longest first) to match longer patterns first
+		var sortedKeys []string
+		for shorthandKey := range attribute.Shorthands {
+			sortedKeys = append(sortedKeys, shorthandKey)
+		}
+		// Simple sort by length (longest first)
+		for i := 0; i < len(sortedKeys); i++ {
+			for j := i + 1; j < len(sortedKeys); j++ {
+				if len(sortedKeys[i]) < len(sortedKeys[j]) {
+					sortedKeys[i], sortedKeys[j] = sortedKeys[j], sortedKeys[i]
+				}
+			}
+		}
+		
+		// Look for each shorthand key in the title (longest first)
+		for _, shorthandKey := range sortedKeys {
+			if strings.Contains(title, shorthandKey) {
+				extractedAttributes[attribute.Name] = attribute.Shorthands[shorthandKey]
+				break // Only match the first shorthand for this attribute
+			}
+		}
+	}
+	
+	return extractedAttributes
+}
+
+// RemoveShorthandsFromTitle removes shorthand emojis from title when preserveShorthand is false
+func RemoveShorthandsFromTitle(title string, attributes ConfigAttributes) string {
+	modifiedTitle := title
+	
+	for _, attribute := range attributes {
+		// Skip if preserveShorthand is true (default)
+		if attribute.PreserveShorthand == nil || *attribute.PreserveShorthand {
+			continue
+		}
+		
+		if len(attribute.Shorthands) == 0 {
+			continue
+		}
+		
+		// Sort shorthand keys by length (longest first) to remove longer patterns first
+		var sortedKeys []string
+		for shorthandKey := range attribute.Shorthands {
+			sortedKeys = append(sortedKeys, shorthandKey)
+		}
+		// Simple sort by length (longest first)
+		for i := 0; i < len(sortedKeys); i++ {
+			for j := i + 1; j < len(sortedKeys); j++ {
+				if len(sortedKeys[i]) < len(sortedKeys[j]) {
+					sortedKeys[i], sortedKeys[j] = sortedKeys[j], sortedKeys[i]
+				}
+			}
+		}
+		
+		// Remove shorthand keys from title (longest first)
+		for _, shorthandKey := range sortedKeys {
+			if strings.Contains(modifiedTitle, shorthandKey) {
+				modifiedTitle = strings.ReplaceAll(modifiedTitle, shorthandKey, "")
+				break // Only remove the first match for this attribute
+			}
+		}
+	}
+	
+	// Clean up consecutive spaces and trim
+	modifiedTitle = strings.TrimSpace(regexp.MustCompile(`\s+`).ReplaceAllString(modifiedTitle, " "))
+	
+	return modifiedTitle
+}
+
+// ApplyDefaultAttributeValues applies default values for missing required attributes
+func ApplyDefaultAttributeValues(noteType *ConfigType, attributes AttributeSet, configAttributes ConfigAttributes) {
+	// Check new attribute structure first
+	for _, attr := range noteType.Attributes {
+		if attr.Optional != nil && !*attr.Optional { // required attribute
+			if _, exists := attributes[attr.Name]; !exists {
+				// Attribute is missing, apply default value if available
+				if configAttr, found := configAttributes.Find(attr.Name); found {
+					if configAttr.DefaultValue != nil {
+						attributes[attr.Name] = configAttr.DefaultValue
+					}
+				}
+			}
+		}
+	}
+	
+	// Also check legacy RequiredAttributes for backward compatibility
+	for _, attrName := range noteType.RequiredAttributes {
+		if _, exists := attributes[attrName]; !exists {
+			if configAttr, found := configAttributes.Find(attrName); found {
+				if configAttr.DefaultValue != nil {
+					attributes[attrName] = configAttr.DefaultValue
+				}
+			}
+		}
+	}
 }

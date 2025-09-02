@@ -10,6 +10,53 @@ local nt = import 'nt.libsonnet';
         },
     },
 
+    attributes: {
+        status: {
+            name: "status",
+            aliases: ["state"],
+            type: "string",
+            allowedValues: ["todo", "in-progress", "blocked", "done"],
+            shorthands: {
+                "📋": "todo",
+                "🕒": "in-progress",
+                "⛔": "blocked",
+                "✅": "done",
+            },
+            preserveShorthand: false,
+        },
+        rating: {
+            name: "rating",
+            type: "string",
+            allowedValues: ["★", "★★", "★★★"],
+            defaultValue: "★★",
+            shorthands: {
+                "★": "★",
+                "★★": "★★",
+                "★★★": "★★★",
+            },
+        },
+    },
+
     # TODO add links to the documentation
-    types: nt.DefaultTypes,
+    types: nt.DefaultTypes + {
+        Todo: nt.DefaultTypes.Todo + {
+            attributes: [
+                {
+                    name: "status",
+                    optional: false,
+                    inline: true,
+                },
+            ],
+        },
+        BookReview: nt.DefaultTypes.Note + {
+            name: "BookReview",
+            attributes: [
+                {
+                    name: "rating",
+                    optional: false,
+                    inline: false,
+                },
+            ],
+        },
+    },
 }

@@ -160,24 +160,35 @@ type ConfigCore struct {
 	Medias     ConfigMedias `json:"medias"`     // Media converter configuration
 }
 type ConfigAttribute struct {
-	Name    string   `json:"name"`
-	Aliases []string `json:"aliases,omitempty"`
-	Type    string   `json:"type"`              // string, int, bool, string[], int[], bool[]
-	Format  string   `json:"format"`            // Useful for value types (ex: "markdown", "date", etc.)
-	Min     int      `json:"min,omitempty"`     // Default: 0 (for "number"-type only)
-	Max     int      `json:"max,omitempty"`     // Default: -1 (for "number"-type only)
-	Pattern string   `json:"pattern,omitempty"` // Regex (for "string"-type only)
-	Memory  *bool    `json:"memory,omitempty"`  // (for "date"-type only)
-	Inherit *bool    `json:"inherit"`           // Default: true
+	Name              string            `json:"name"`
+	Aliases           []string          `json:"aliases,omitempty"`
+	Type              string            `json:"type"`                     // string, int, bool, string[], int[], bool[]
+	Format            string            `json:"format"`                   // Useful for value types (ex: "markdown", "date", etc.)
+	Min               int               `json:"min,omitempty"`            // Default: 0 (for "number"-type only)
+	Max               int               `json:"max,omitempty"`            // Default: -1 (for "number"-type only)
+	Pattern           string            `json:"pattern,omitempty"`        // Regex (for "string"-type only)
+	Memory            *bool             `json:"memory,omitempty"`         // (for "date"-type only)
+	Inherit           *bool             `json:"inherit"`                  // Default: true
+	AllowedValues     []string          `json:"allowedValues,omitempty"`  // For "string"-type only
+	Shorthands        map[string]string `json:"shorthands,omitempty"`     // For "string"-type only
+	PreserveShorthand *bool             `json:"preserveShorthand"`        // Default: true
+	DefaultValue      interface{}       `json:"defaultValue,omitempty"`   // For any type
+}
+
+type ConfigTypeAttribute struct {
+	Name     string `json:"name"`
+	Optional *bool  `json:"optional,omitempty"` // Default: true
+	Inline   *bool  `json:"inline,omitempty"`   // Default: false
 }
 
 type ConfigType struct {
-	Name               string   `json:"name"`
-	Pattern            string   `json:"pattern,omitempty"`  // Regex to detect Markdown headings matching the type
-	Preprocessors      []string `json:"preprocessors"`      // Additional logic to run after parsing a note
-	RequiredAttributes []string `json:"requiredAttributes"` // List of mandatory attributes
-	OptionalAttributes []string `json:"optionalAttributes"` // List of optional attributes
-	Hooks              []string `json:"hooks"`              // List of hooks to run on this type of note
+	Name               string                 `json:"name"`
+	Pattern            string                 `json:"pattern,omitempty"`       // Regex to detect Markdown headings matching the type
+	Preprocessors      []string               `json:"preprocessors"`           // Additional logic to run after parsing a note
+	RequiredAttributes []string               `json:"requiredAttributes"`      // List of mandatory attributes (DEPRECATED: use Attributes instead)
+	OptionalAttributes []string               `json:"optionalAttributes"`      // List of optional attributes (DEPRECATED: use Attributes instead)
+	Attributes         []ConfigTypeAttribute  `json:"attributes,omitempty"`    // New structure for attributes
+	Hooks              []string               `json:"hooks"`                   // List of hooks to run on this type of note
 	// IMPROVEMENT refactor to Attributes []ConfigTypeAttribute with an attribute `required` (= more extensible)
 }
 type ConfigLinter struct {
@@ -651,6 +662,9 @@ func ParseConfigFile(jsonnetPath string) (*ConfigFile, error) {
 		if attribute.Inherit == nil {
 			attribute.Inherit = BoolPointer(true)
 		}
+		if attribute.PreserveShorthand == nil {
+			attribute.PreserveShorthand = BoolPointer(true)
+		}
 	}
 	// Add reserved attributes
 	if result.Attributes == nil {
@@ -663,6 +677,15 @@ func ParseConfigFile(jsonnetPath string) (*ConfigFile, error) {
 	for _, noteType := range result.Types {
 		if noteType.Pattern == "" {
 			noteType.Pattern = fmt.Sprintf("(?i)^%s:\\s*(.*)$", noteType.Name) // Ex: "Note: A basic note" or "note: A basic note"
+		}
+		// Set defaults for new attribute structure
+		for i := range noteType.Attributes {
+			if noteType.Attributes[i].Optional == nil {
+				noteType.Attributes[i].Optional = BoolPointer(true)
+			}
+			if noteType.Attributes[i].Inline == nil {
+				noteType.Attributes[i].Inline = BoolPointer(false)
+			}
 		}
 	}
 	// ... to decks
@@ -827,10 +850,47 @@ func (c *Config) Check() error {
 	// Check for invalid attributes
 	for _, attribute := range c.ConfigFile.Attributes {
 		// Check for invalid regex pattern
-		if attribute.Pattern != "string" {
+		if attribute.Pattern != "" && attribute.Pattern != "string" {
 			if _, err := regexp.Compile(attribute.Pattern); err != nil {
 				return fmt.Errorf("invalid pattern %q for attribute %q: %v", attribute.Pattern, attribute.Name, err)
 			}
+		}
+		
+		// Validate shorthands (only for string type)
+		if len(attribute.Shorthands) > 0 {
+			if attribute.Type != "string" {
+				return fmt.Errorf("shorthands are only supported for string-type attributes, but attribute %q has type %q", attribute.Name, attribute.Type)
+			}
+			
+			// Validate shorthand values against pattern and allowedValues
+			for shorthandKey, shorthandValue := range attribute.Shorthands {
+				// Check pattern
+				if attribute.Pattern != "" {
+					regexAttribute := regexp.MustCompile(attribute.Pattern)
+					if !regexAttribute.MatchString(shorthandValue) {
+						return fmt.Errorf("shorthand value %q for key %q in attribute %q does not match pattern %q", shorthandValue, shorthandKey, attribute.Name, attribute.Pattern)
+					}
+				}
+				
+				// Check allowedValues
+				if len(attribute.AllowedValues) > 0 {
+					found := false
+					for _, allowedValue := range attribute.AllowedValues {
+						if allowedValue == shorthandValue {
+							found = true
+							break
+						}
+					}
+					if !found {
+						return fmt.Errorf("shorthand value %q for key %q in attribute %q is not in allowedValues %v", shorthandValue, shorthandKey, attribute.Name, attribute.AllowedValues)
+					}
+				}
+			}
+		}
+		
+		// Validate allowedValues (only for string type)
+		if len(attribute.AllowedValues) > 0 && attribute.Type != "string" {
+			return fmt.Errorf("allowedValues are only supported for string-type attributes, but attribute %q has type %q", attribute.Name, attribute.Type)
 		}
 	}
 
