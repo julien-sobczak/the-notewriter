@@ -1,9 +1,11 @@
 package markdown
 
 import (
+	"regexp"
 	"strings"
 	"unicode"
 
+	"github.com/fatih/color"
 	"github.com/julien-sobczak/the-notewriter/internal/helpers"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
@@ -55,6 +57,29 @@ func (m Document) TrimBlankLines() (result Document, countLinesAtStartTrimmed in
 // TrimSpace removes spaces at the start and end of a markdown document.
 func (m Document) TrimSpace() Document {
 	return Document(strings.TrimSpace(string(m)))
+}
+
+// ToANSI processes markdown text to replace emphasis with ANSI escape codes.
+func (m Document) ToANSI() string {
+	text := string(m)
+
+	// First handle bold emphasis (**text** and __text__)
+	boldRegex := regexp.MustCompile(`\*\*([^*]+)\*\*|__([^_]+)__`)
+	text = boldRegex.ReplaceAllStringFunc(text, func(match string) string {
+		// Extract the content between ** or __
+		content := strings.Trim(match, "*_")
+		return color.New(color.Bold).Sprint(content)
+	})
+
+	// Then handle italic emphasis (*text* and _text_)
+	italicRegex := regexp.MustCompile(`\*([^*]+)\*|_([^_]+)_`)
+	text = italicRegex.ReplaceAllStringFunc(text, func(match string) string {
+		// Extract the content between * or _
+		content := strings.Trim(match, "*_")
+		return color.New(color.Italic).Sprint(content)
+	})
+
+	return text
 }
 
 /*
