@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 	"time"
 
@@ -11,6 +12,24 @@ import (
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"gopkg.in/yaml.v3"
 )
+
+// Placeholder represents a URL placeholder variable
+type Placeholder struct {
+	Name         string   // Variable name (e.g., "page")
+	Raw          string   // Full placeholder text (e.g., "${page:[issues,pulls]}")
+	AllowedValues []string // Specific allowed values, nil if any value allowed
+	HasMore      bool     // True if "..." is present, indicating autocomplete suggestions
+}
+
+// String returns a human-readable description of the placeholder
+func (p Placeholder) String() string {
+	if len(p.AllowedValues) > 0 && !p.HasMore {
+		return fmt.Sprintf("%s (choose from: %s)", p.Name, strings.Join(p.AllowedValues, ", "))
+	} else if len(p.AllowedValues) > 0 && p.HasMore {
+		return fmt.Sprintf("%s (suggestions: %s, or enter custom value)", p.Name, strings.Join(p.AllowedValues, ", "))
+	}
+	return fmt.Sprintf("%s (enter any value)", p.Name)
+}
 
 type Goto struct {
 	OID oid.OID `yaml:"oid" json:"oid"`
@@ -112,6 +131,60 @@ func (l *Goto) Relations() []*Relation {
 
 func (l Goto) String() string {
 	return fmt.Sprintf("link %q [%s]", l.URL, l.OID)
+}
+
+// Placeholders extracts all placeholders from the goto URL
+func (l *Goto) Placeholders() []Placeholder {
+	// Regex to match ${variable} or ${variable:[value1,value2,...]}
+	re := regexp.MustCompile(`\$\{([^}:]+)(?::?\[([^\]]*)\])?\}`)
+	matches := re.FindAllStringSubmatch(l.URL, -1)
+	
+	if len(matches) == 0 {
+		return nil
+	}
+	
+	var placeholders []Placeholder
+	for _, match := range matches {
+		placeholder := Placeholder{
+			Name: match[1],
+			Raw:  match[0],
+		}
+		
+		// Parse allowed values if present
+		if len(match) > 2 && match[2] != "" {
+			values := strings.Split(match[2], ",")
+			for i, value := range values {
+				value = strings.TrimSpace(value)
+				if value == "..." {
+					placeholder.HasMore = true
+				} else {
+					values[i] = value
+				}
+			}
+			
+			// Remove "..." from values list if present
+			if placeholder.HasMore && len(values) > 0 && values[len(values)-1] == "..." {
+				values = values[:len(values)-1]
+			}
+			
+			placeholder.AllowedValues = values
+		}
+		
+		placeholders = append(placeholders, placeholder)
+	}
+	
+	return placeholders
+}
+
+// Expand replaces placeholders in the goto URL with provided values
+func (l *Goto) Expand(values map[string]string) string {
+	result := l.URL
+	for name, value := range values {
+		// Replace all occurrences of this placeholder
+		re := regexp.MustCompile(`\$\{` + regexp.QuoteMeta(name) + `(?::\[[^\]]*\])?\}`)
+		result = re.ReplaceAllString(result, value)
+	}
+	return result
 }
 
 /* Format */

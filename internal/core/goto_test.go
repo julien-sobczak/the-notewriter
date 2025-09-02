@@ -144,3 +144,172 @@ func MustFindGotoByName(t *testing.T, name string) *Goto {
 	require.NotNil(t, obj)
 	return obj
 }
+
+// Placeholder tests
+
+func TestGotoPlaceholders(t *testing.T) {
+	tests := []struct {
+		name     string
+		url      string
+		expected []Placeholder
+	}{
+		{
+			name:     "No placeholders",
+			url:      "https://github.com/julien-sobczak/the-notewriter/",
+			expected: nil,
+		},
+		{
+			name: "Single simple placeholder",
+			url:  "https://github.com/julien-sobczak/the-notewriter/${page}",
+			expected: []Placeholder{
+				{
+					Name:          "page",
+					Raw:           "${page}",
+					AllowedValues: nil,
+					HasMore:       false,
+				},
+			},
+		},
+		{
+			name: "Placeholder with allowed values",
+			url:  "https://github.com/julien-sobczak/the-notewriter/${page:[issues,pulls,actions]}",
+			expected: []Placeholder{
+				{
+					Name:          "page",
+					Raw:           "${page:[issues,pulls,actions]}",
+					AllowedValues: []string{"issues", "pulls", "actions"},
+					HasMore:       false,
+				},
+			},
+		},
+		{
+			name: "Placeholder with suggestions (has more)",
+			url:  "https://github.com/julien-sobczak/the-notewriter/${page:[issues,pulls,actions,...]}",
+			expected: []Placeholder{
+				{
+					Name:          "page",
+					Raw:           "${page:[issues,pulls,actions,...]}",
+					AllowedValues: []string{"issues", "pulls", "actions"},
+					HasMore:       true,
+				},
+			},
+		},
+		{
+			name: "Multiple placeholders",
+			url:  "https://github.com/${user}/${repo}/${page:[issues,pulls]}",
+			expected: []Placeholder{
+				{
+					Name:          "user",
+					Raw:           "${user}",
+					AllowedValues: nil,
+					HasMore:       false,
+				},
+				{
+					Name:          "repo",
+					Raw:           "${repo}",
+					AllowedValues: nil,
+					HasMore:       false,
+				},
+				{
+					Name:          "page",
+					Raw:           "${page:[issues,pulls]}",
+					AllowedValues: []string{"issues", "pulls"},
+					HasMore:       false,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			goto_ := &Goto{URL: tt.url}
+			result := goto_.Placeholders()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestGotoExpand(t *testing.T) {
+	tests := []struct {
+		name     string
+		url      string
+		values   map[string]string
+		expected string
+	}{
+		{
+			name:     "No placeholders",
+			url:      "https://github.com/julien-sobczak/the-notewriter/",
+			values:   map[string]string{},
+			expected: "https://github.com/julien-sobczak/the-notewriter/",
+		},
+		{
+			name:     "Single simple placeholder",
+			url:      "https://github.com/julien-sobczak/the-notewriter/${page}",
+			values:   map[string]string{"page": "issues"},
+			expected: "https://github.com/julien-sobczak/the-notewriter/issues",
+		},
+		{
+			name:     "Placeholder with allowed values",
+			url:      "https://github.com/julien-sobczak/the-notewriter/${page:[issues,pulls,actions]}",
+			values:   map[string]string{"page": "pulls"},
+			expected: "https://github.com/julien-sobczak/the-notewriter/pulls",
+		},
+		{
+			name:     "Multiple placeholders",
+			url:      "https://github.com/${user}/${repo}/${page:[issues,pulls]}",
+			values:   map[string]string{"user": "julien-sobczak", "repo": "the-notewriter", "page": "issues"},
+			expected: "https://github.com/julien-sobczak/the-notewriter/issues",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			goto_ := &Goto{URL: tt.url}
+			result := goto_.Expand(tt.values)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestPlaceholderString(t *testing.T) {
+	tests := []struct {
+		name        string
+		placeholder Placeholder
+		expected    string
+	}{
+		{
+			name: "Input type",
+			placeholder: Placeholder{
+				Name:          "page",
+				AllowedValues: nil,
+				HasMore:       false,
+			},
+			expected: "page (enter any value)",
+		},
+		{
+			name: "Select type",
+			placeholder: Placeholder{
+				Name:          "page",
+				AllowedValues: []string{"issues", "pulls"},
+				HasMore:       false,
+			},
+			expected: "page (choose from: issues, pulls)",
+		},
+		{
+			name: "Autocomplete type",
+			placeholder: Placeholder{
+				Name:          "page",
+				AllowedValues: []string{"issues", "pulls"},
+				HasMore:       true,
+			},
+			expected: "page (suggestions: issues, pulls, or enter custom value)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.placeholder.String()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}

@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/julien-sobczak/the-notewriter/internal/core"
 )
 
 var (
@@ -20,7 +21,7 @@ var (
 
 // PlaceholderInputModel handles input for a single placeholder
 type PlaceholderInputModel struct {
-	placeholder Placeholder
+	placeholder core.Placeholder
 	currentURL  string
 	textInput   textinput.Model
 	list        list.Model
@@ -29,8 +30,8 @@ type PlaceholderInputModel struct {
 	quitting    bool
 }
 
-func NewPlaceholderInputModel(placeholder Placeholder, currentURL string) PlaceholderInputModel {
-	inputType := placeholder.getPlaceholderType()
+func NewPlaceholderInputModel(placeholder core.Placeholder, currentURL string) PlaceholderInputModel {
+	inputType := getPlaceholderType(placeholder)
 	
 	model := PlaceholderInputModel{
 		placeholder: placeholder,
@@ -163,12 +164,13 @@ func (d selectDelegate) Render(w io.Writer, m list.Model, index int, listItem li
 }
 
 // promptForPlaceholders handles the interactive input for all placeholders
-func promptForPlaceholders(url string, placeholders []Placeholder) (map[string]string, error) {
+func promptForPlaceholders(url string, placeholders []core.Placeholder) (map[string]string, error) {
 	values := make(map[string]string)
 	
 	for _, placeholder := range placeholders {
-		// Update current URL preview
-		currentURL := expandURL(url, values)
+		// Create a temporary goto with current URL to use Expand method
+		tempGoto := &core.Goto{URL: url}
+		currentURL := tempGoto.Expand(values)
 		
 		model := NewPlaceholderInputModel(placeholder, currentURL)
 		p := tea.NewProgram(model)

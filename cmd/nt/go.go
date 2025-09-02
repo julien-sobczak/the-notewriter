@@ -9,6 +9,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// getPlaceholderType returns the type of input needed for a placeholder
+func getPlaceholderType(p core.Placeholder) string {
+	if len(p.AllowedValues) > 0 && !p.HasMore {
+		return "select"
+	} else if len(p.AllowedValues) > 0 && p.HasMore {
+		return "autocomplete"
+	}
+	return "input"
+}
+
 func init() {
 	rootCmd.AddCommand(goCmd)
 }
@@ -22,6 +32,10 @@ var goCmd = &cobra.Command{
 
 		link, err := core.CurrentRepository().FindGotoByName(goName)
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error finding Go link %q: %v", goName, err)
+			os.Exit(1)
+		}
+		if link == nil {
 			fmt.Fprintf(os.Stderr, "No Go link %q found", goName)
 			os.Exit(1)
 		}
@@ -29,7 +43,7 @@ var goCmd = &cobra.Command{
 		finalURL := link.URL
 
 		// Check for placeholders in the URL
-		placeholders := parsePlaceholders(link.URL)
+		placeholders := link.Placeholders()
 		if len(placeholders) > 0 {
 			fmt.Printf("URL contains placeholders: %s\n\n", link.URL)
 			
@@ -39,7 +53,7 @@ var goCmd = &cobra.Command{
 				os.Exit(1)
 			}
 			
-			finalURL = expandURL(link.URL, values)
+			finalURL = link.Expand(values)
 			fmt.Printf("\nExpanded URL: %s\n", finalURL)
 		}
 
