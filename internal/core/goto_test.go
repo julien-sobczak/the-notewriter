@@ -65,7 +65,7 @@ func TestGoto(t *testing.T) {
 	require.NotNil(t, actual)
 	assert.Equal(t, oid.OID("42d74d967d9b4e989502647ac510777ca1e22f4a"), actual.OID) // Must have found the previous one
 	assert.Equal(t, "Go Language", actual.Text.String())
-	assert.Equal(t, "https://go.dev", actual.URL)
+	assert.Equal(t, "https://go.dev", string(actual.URL))
 
 	// Delete
 	require.NoError(t, gotoLink.Delete())
@@ -143,7 +143,7 @@ func TestParameterizedURL(t *testing.T) {
 			name     string
 			url      ParameterizedURL
 			values   map[string]string
-			expected string
+			expected ParameterizedURL
 		}{
 			{
 				name:     "No placeholders",
@@ -152,21 +152,29 @@ func TestParameterizedURL(t *testing.T) {
 				expected: "https://github.com/julien-sobczak/the-notewriter/",
 			},
 			{
-				name:     "Single simple placeholder",
-				url:      "https://github.com/julien-sobczak/the-notewriter/${page}",
-				values:   map[string]string{"page": "issues"},
+				name: "Single simple placeholder",
+				url:  "https://github.com/julien-sobczak/the-notewriter/${page}",
+				values: map[string]string{
+					"page": "issues",
+				},
 				expected: "https://github.com/julien-sobczak/the-notewriter/issues",
 			},
 			{
-				name:     "Placeholder with allowed values",
-				url:      "https://github.com/julien-sobczak/the-notewriter/${page:[issues,pulls,actions]}",
-				values:   map[string]string{"page": "pulls"},
+				name: "Placeholder with allowed values",
+				url:  "https://github.com/julien-sobczak/the-notewriter/${page:[issues,pulls,actions]}",
+				values: map[string]string{
+					"page": "pulls",
+				},
 				expected: "https://github.com/julien-sobczak/the-notewriter/pulls",
 			},
 			{
-				name:     "Multiple placeholders",
-				url:      "https://github.com/${user}/${repo}/${page:[issues,pulls]}",
-				values:   map[string]string{"user": "julien-sobczak", "repo": "the-notewriter", "page": "issues"},
+				name: "Multiple placeholders",
+				url:  "https://github.com/${user}/${repo}/${page:[issues,pulls]}",
+				values: map[string]string{
+					"user": "julien-sobczak",
+					"repo": "the-notewriter",
+					"page": "issues",
+				},
 				expected: "https://github.com/julien-sobczak/the-notewriter/issues",
 			},
 		}

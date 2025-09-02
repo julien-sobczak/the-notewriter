@@ -46,7 +46,7 @@ func TestParseFileWithTestdata(t *testing.T) {
 				// File attributes extracted from the Front Matter
 				assert.Equal(t, core.AttributeSet(map[string]any{
 					"title":  "Basic Note-Taking",
-					"rating": 5,
+					"rating": int64(5),
 					"slug":   "basic-notetaking",
 					"tags":   []string{"thinking"},
 				}), file.FileAttributes)
@@ -86,7 +86,7 @@ func TestParseFileWithTestdata(t *testing.T) {
 				assert.Equal(t, "## Note: A Note\n\nNotes has many uses:\n\n* Journaling\n* To-Do list\n* Drawing\n* Diary\n* Flashcard\n* Reminder", noteNote.Content.String())
 				assert.Equal(t, "Notes has many uses:\n\n* Journaling\n* To-Do list\n* Drawing\n* Diary\n* Flashcard\n* Reminder", noteNote.Body.String())
 				assert.Equal(t, core.AttributeSet{
-					"rating": 5,
+					"rating": int64(5),
 					"tags":   []string{"thinking"},
 				}, noteNote.Attributes)
 				// No subobjects
@@ -102,7 +102,7 @@ func TestParseFileWithTestdata(t *testing.T) {
 				}), noteTimFerris.NoteAttributes)
 				require.Equal(t, core.AttributeSet(map[string]any{
 					"author": "Tim Ferris",
-					"rating": 5,
+					"rating": int64(5),
 					"tags":   []string{"thinking"},
 				}), noteTimFerris.Attributes)
 
@@ -124,7 +124,7 @@ func TestParseFileWithTestdata(t *testing.T) {
 				}), noteDaVinci.NoteAttributes)
 				require.Equal(t, core.AttributeSet(map[string]any{
 					"author": "Leonardo da Vinci",
-					"rating": 5,
+					"rating": int64(5),
 					"tags":   []string{"thinking"},
 					"year":   "~1510",
 				}), noteDaVinci.Attributes)
@@ -203,6 +203,34 @@ func TestParseFileWithTestdata(t *testing.T) {
 				assert.NotContains(t, note.Body.String(), "Flashcard: First Notebooks")
 
 				// TODO complete
+			},
+		},
+
+		{
+			name:   "Shorthands",
+			golden: "Shorthands",
+			test: func(t *testing.T, file *core.ParsedFile) {
+				require.NotNil(t, file)
+
+				// Check notes for modified titles and extracted attributes
+				assert.Len(t, file.Notes, 2)
+				note1 := file.Notes[0]
+				note2 := file.Notes[1]
+
+				assert.Equal(t, "Shorthands Demo / Support emojis in title as attributes", note1.LongTitle.String())
+				assert.Equal(t, "Task: Support emojis in title as attributes", note1.Title.String())
+				assert.Equal(t, "Support emojis in title as attributes", note1.ShortTitle.String())
+				assert.Equal(t, core.AttributeSet(map[string]any{
+					"status":   "in-progress",
+					"priority": "high",
+				}), note1.Attributes)
+
+				assert.Equal(t, "Shorthands Demo / Review _Building a Second Brain_ ★★★★", note2.LongTitle.String())
+				assert.Equal(t, "Note: Review _Building a Second Brain_ ★★★★", note2.Title.String())
+				assert.Equal(t, "Review _Building a Second Brain_ ★★★★", note2.ShortTitle.String())
+				assert.Equal(t, core.AttributeSet(map[string]any{
+					"rating": int64(8),
+				}), note2.Attributes)
 			},
 		},
 
@@ -878,7 +906,12 @@ local nt = import 'nt.libsonnet';
 		// A new type similar to existing ones
 		BookReview: nt.DefaultTypes.Note + {
 			name: "BookReview",
-			requiredAttributes: ["isbn"],
+			attributes: [
+				{
+					name: "isbn",
+					required: true,
+				},
+			],
 		},
 
 		// A new type with a custom pattern
@@ -1024,6 +1057,83 @@ func TestReplaceMedias(t *testing.T) {
 			result, err := doc.Transform(transformer)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, result.String())
+		})
+	}
+}
+
+func TestShorthands(t *testing.T) {
+	attributes := core.ConfigAttributes{
+		"status": &core.ConfigAttribute{
+			Name: "status",
+			Type: "string",
+			Shorthands: map[string]any{
+				"📋": "todo",
+				"🕒": "in-progress",
+				"⛔": "blocked",
+				"✅": "done",
+			},
+			PreserveShorthand: core.BoolPointer(false), // Remove from title
+		},
+		"rating": &core.ConfigAttribute{
+			Name: "rating",
+			Type: "string",
+			Shorthands: map[string]any{
+				"★":   "★",
+				"★★":  "★★",
+				"★★★": "★★★",
+			},
+			PreserveShorthand: core.BoolPointer(true), // Keep in title
+		},
+	}
+
+	tests := []struct {
+		name               string
+		text               string
+		expectedText       string
+		expectedAttributes core.AttributeSet
+	}{
+		{
+			name:         "Status shorthand removed",
+			text:         "Add Zen Mode 🕒",
+			expectedText: "Add Zen Mode",
+			expectedAttributes: map[string]any{
+				"status": "in-progress",
+			},
+		},
+		{
+			name:         "Rating shorthand preserved",
+			text:         "Great Book ★★★",
+			expectedText: "Great Book ★★★",
+			expectedAttributes: map[string]any{
+				"rating": "★★★",
+			},
+		},
+		{
+			name:         "Status shorthand at beginning",
+			text:         "Add 🕒 Zen Mode",
+			expectedText: "Add Zen Mode",
+			expectedAttributes: map[string]any{
+				"status": "in-progress",
+			},
+		},
+		{
+			name:         "Multiple emojis",
+			text:         "Add Zen Mode 🕒 ★★",
+			expectedText: "Add Zen Mode ★★",
+			expectedAttributes: map[string]any{
+				"status": "in-progress",
+				"rating": "★★",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Test extraction
+			actualText := core.RemoveShorthands(test.text, attributes)
+			actualAttributes := core.ExtractShorthands(test.text, attributes)
+			assert.Equal(t, test.expectedText, actualText)
+			assert.Equal(t, test.expectedAttributes, actualAttributes)
 		})
 	}
 }

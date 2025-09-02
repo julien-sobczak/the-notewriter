@@ -11,5 +11,40 @@ local nt = import 'nt.libsonnet';
     },
 
     # TODO add links to the documentation
-    types: nt.DefaultTypes,
+    attributes: nt.DefaultAttributes + {
+        rating: {
+            name: "rating",
+            type: "string",
+            allowedValues: ["★", "★★", "★★★"],
+            defaultValue: "★★",
+            shorthands: {
+                "★": "★",
+                "★★": "★★",
+                "★★★": "★★★",
+            },
+        },
+    },
+
+    # TODO add links to the documentation
+    types: nt.DefaultTypes + {
+        Todo: nt.DefaultTypes.Todo + {
+            attributes: [
+                {
+                    name: "status",
+                    optional: false,
+                    inline: true,
+                },
+            ],
+        },
+        BookReview: nt.DefaultTypes.Note + {
+            name: "BookReview",
+            attributes: [
+                {
+                    name: "rating",
+                    optional: false,
+                    inline: false,
+                },
+            ],
+        },
+    },
 }

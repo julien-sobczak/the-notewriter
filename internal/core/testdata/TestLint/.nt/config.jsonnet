@@ -33,7 +33,12 @@ local nt = import 'nt.libsonnet';
 
     types: nt.DefaultTypes + {
         Quote: nt.DefaultTypes.Quote + {
-            requiredAttributes: ["name"],
+            attributes: [
+                {
+                    name: "name",
+                    required: true,
+                },
+            ],
         },
     },
 

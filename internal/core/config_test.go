@@ -497,6 +497,95 @@ func TestParseConfigFile(t *testing.T) {
 
 }
 
+func TestConfigFile(t *testing.T) {
+
+	t.Run("GetType", func(t *testing.T) {
+		cfg := &ConfigFile{
+			Types: ConfigTypes{
+				"Note": &ConfigType{Name: "Note"},
+			},
+		}
+
+		noteType, ok := cfg.GetType("Note")
+		assert.True(t, ok)
+		require.NotNil(t, noteType)
+		assert.Equal(t, "Note", noteType.Name)
+
+		unknownType, ok := cfg.GetType("Unknown")
+		assert.False(t, ok)
+		assert.Nil(t, unknownType)
+	})
+
+	t.Run("GetAttribute", func(t *testing.T) {
+		cfg := &ConfigFile{
+			Attributes: ConfigAttributes{
+				"myattr": &ConfigAttribute{Name: "myattr"},
+			},
+		}
+
+		attr, ok := cfg.GetAttribute("myattr")
+		assert.True(t, ok)
+		require.NotNil(t, attr)
+		assert.Equal(t, "myattr", attr.Name)
+
+		unknownAttr, ok := cfg.GetAttribute("unknown")
+		assert.False(t, ok)
+		assert.Nil(t, unknownAttr)
+	})
+
+	t.Run("GetAttributeDefaults", func(t *testing.T) {
+		cfg := &ConfigFile{
+			Attributes: ConfigAttributes{
+				"attr1": &ConfigAttribute{
+					Name:         "attr1",
+					Type:         "string",
+					DefaultValue: "value1",
+				},
+				"attr2": &ConfigAttribute{
+					Name: "attr2",
+					Type: "string",
+					// no default value
+				},
+				"attr3": &ConfigAttribute{
+					Name:         "attr3",
+					Type:         "integer",
+					DefaultValue: 42,
+				},
+			},
+			Types: ConfigTypes{
+				"Note1": &ConfigType{
+					Name: "Note1",
+					Attributes: []ConfigTypeAttribute{
+						{Name: "attr1", Required: BoolPointer(true)},
+						{Name: "attr2", Required: BoolPointer(false)},
+						{Name: "attr3", Required: BoolPointer(false)}, // not required, default doesn't apply
+					},
+				},
+				"Note2": &ConfigType{
+					Name: "Note2",
+					Attributes: []ConfigTypeAttribute{
+						{Name: "attr1", Required: BoolPointer(true)},
+						{Name: "attr2", Required: BoolPointer(true)},
+						{Name: "attr3", Required: BoolPointer(true)},
+					},
+				},
+			},
+		}
+
+		defaultsNote1 := cfg.GetAttributeDefaults("Note1")
+		require.Equal(t, AttributeSet(map[string]any{
+			"attr1": "value1",
+		}), defaultsNote1)
+
+		defaultsNote2 := cfg.GetAttributeDefaults("Note2")
+		require.Equal(t, AttributeSet(map[string]any{
+			"attr1": "value1",
+			"attr3": int64(42),
+		}), defaultsNote2)
+	})
+
+}
+
 /* Test Helpers */
 
 // MustWriteTempFile creates a temporary file with the given name and content.

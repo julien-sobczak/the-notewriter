@@ -128,11 +128,42 @@ type ConfigFile struct {
 }
 
 // GetType returns the definition of a type of note
-func (c ConfigFile) GetType(noteType string) *ConfigType {
+func (c *ConfigFile) GetType(noteType string) (*ConfigType, bool) {
 	if obj, ok := c.Types[noteType]; ok {
+		return obj, true
+	}
+	return nil, false
+}
+
+// MustGetType returns the definition of a type of note or panics if not found
+func (c *ConfigFile) MustGetType(noteType string) *ConfigType {
+	if obj, ok := c.GetType(noteType); ok {
 		return obj
 	}
 	panic(fmt.Sprintf("Unknown type %q", noteType))
+}
+
+// GetAttribute returns the definition of an attribute
+func (c *ConfigFile) GetAttribute(name string) (*ConfigAttribute, bool) {
+	if obj, ok := c.Attributes[name]; ok {
+		return obj, true
+	}
+	return nil, false // Attributes used without a definition is allowed, unlike types
+}
+
+// GetAttributeDefaults returns the default values for required attributes of the given type of note.
+func (c ConfigFile) GetAttributeDefaults(noteType string) AttributeSet {
+	result := make(AttributeSet)
+	typeDefinition := c.MustGetType(noteType)
+	for _, attribute := range typeDefinition.RequiredAttributes() {
+		if attributeDefinition, ok := c.GetAttribute(attribute.Name); ok {
+			if attributeDefinition.DefaultValue != nil {
+				attributeValue := MustCastAttribute(attributeDefinition.DefaultValue, *attributeDefinition)
+				result[attribute.Name] = attributeValue
+			}
+		}
+	}
+	return result
 }
 
 // DefaultConfigFile is the default configuration file
@@ -146,39 +177,38 @@ func (c *ConfigLinter) Severity(name string) string {
 	return "error"
 }
 
-// GetAttribute returns the attribute with the given name.
-func (c *ConfigFile) GetAttribute(name string) (*ConfigAttribute, bool) {
-	attribute, ok := c.Attributes[name]
-	if !ok {
-		return nil, false
-	}
-	return attribute, true
-}
-
 type ConfigCore struct {
 	Extensions []string     `json:"extensions"` // List of supported file extensions (ex: "md", "markdown")
 	Medias     ConfigMedias `json:"medias"`     // Media converter configuration
 }
 type ConfigAttribute struct {
-	Name    string   `json:"name"`
-	Aliases []string `json:"aliases,omitempty"`
-	Type    string   `json:"type"`              // string, int, bool, string[], int[], bool[]
-	Format  string   `json:"format"`            // Useful for value types (ex: "markdown", "date", etc.)
-	Min     int      `json:"min,omitempty"`     // Default: 0 (for "number"-type only)
-	Max     int      `json:"max,omitempty"`     // Default: -1 (for "number"-type only)
-	Pattern string   `json:"pattern,omitempty"` // Regex (for "string"-type only)
-	Memory  *bool    `json:"memory,omitempty"`  // (for "date"-type only)
-	Inherit *bool    `json:"inherit"`           // Default: true
+	Name              string         `json:"name"`
+	Aliases           []string       `json:"aliases,omitempty"`
+	Type              string         `json:"type"`                    // string, int, bool, string[], int[], bool[]
+	Format            string         `json:"format"`                  // Useful for value types (ex: "markdown", "date", etc.)
+	Min               int            `json:"min,omitempty"`           // Default: 0 (for "number"-type only)
+	Max               int            `json:"max,omitempty"`           // Default: -1 (for "number"-type only)
+	Pattern           string         `json:"pattern,omitempty"`       // Regex (for "string"-type only)
+	Memory            *bool          `json:"memory,omitempty"`        // (for "date"-type only)
+	Inherit           *bool          `json:"inherit"`                 // Default: true
+	AllowedValues     []string       `json:"allowedValues,omitempty"` // For "string"-type only
+	Shorthands        map[string]any `json:"shorthands,omitempty"`
+	PreserveShorthand *bool          `json:"preserveShorthand"`      // Default: true
+	DefaultValue      interface{}    `json:"defaultValue,omitempty"` // For any type
+}
+
+type ConfigTypeAttribute struct {
+	Name     string `json:"name"`
+	Required *bool  `json:"required,omitempty"` // Default: false
+	Inline   *bool  `json:"inline,omitempty"`   // Default: false
 }
 
 type ConfigType struct {
-	Name               string   `json:"name"`
-	Pattern            string   `json:"pattern,omitempty"`  // Regex to detect Markdown headings matching the type
-	Preprocessors      []string `json:"preprocessors"`      // Additional logic to run after parsing a note
-	RequiredAttributes []string `json:"requiredAttributes"` // List of mandatory attributes
-	OptionalAttributes []string `json:"optionalAttributes"` // List of optional attributes
-	Hooks              []string `json:"hooks"`              // List of hooks to run on this type of note
-	// IMPROVEMENT refactor to Attributes []ConfigTypeAttribute with an attribute `required` (= more extensible)
+	Name          string                `json:"name"`
+	Pattern       string                `json:"pattern,omitempty"`    // Regex to detect Markdown headings matching the type
+	Preprocessors []string              `json:"preprocessors"`        // Additional logic to run after parsing a note
+	Attributes    []ConfigTypeAttribute `json:"attributes,omitempty"` // Structure for attributes
+	Hooks         []string              `json:"hooks"`                // List of hooks to run on this type of note
 }
 type ConfigLinter struct {
 	Rules []*ConfigLinterRule `json:"rules"` // List of rules to apply to notes
@@ -243,6 +273,27 @@ func (c *ConfigType) MatchHeading(heading string) (string, bool) {
 	return "", false
 }
 
+// RequiredAttribute checks if the given attribute is required for this type of note.
+func (c *ConfigType) RequiredAttribute(name string) bool {
+	for _, attr := range c.Attributes {
+		if attr.Name == name && attr.Required != nil && *attr.Required {
+			return true
+		}
+	}
+	return false
+}
+
+// RequiredAttributes returns the list of required attributes for this type of note.
+func (c *ConfigType) RequiredAttributes() []*ConfigTypeAttribute {
+	var requiredAttrs []*ConfigTypeAttribute
+	for _, attr := range c.Attributes {
+		if attr.Required != nil && *attr.Required {
+			requiredAttrs = append(requiredAttrs, &attr)
+		}
+	}
+	return requiredAttrs
+}
+
 // SupportExtension checks if the given file extension must be considered.
 func (f *ConfigFile) SupportExtension(path string) bool {
 	ext := strings.TrimPrefix(filepath.Ext(path), ".") // ".md" => "md"
@@ -252,6 +303,41 @@ func (f *ConfigFile) SupportExtension(path string) bool {
 		}
 	}
 	return false
+}
+
+// Valid validates a string value against this attribute's constraints.
+// Returns an empty string if valid, or an error message if invalid.
+func (c *ConfigAttribute) Valid(value any) (bool, error) {
+	// First check if the value can be cast to the correct type
+	typedValue, ok := CastAttribute(value, *c)
+	if !ok {
+		return false, fmt.Errorf("value %q is not a valid %s or cannot be converted", value, c.Type)
+	}
+
+	// Check pattern constraint (only for string type)
+	if c.Pattern != "" && c.Type == "string" {
+		if matched, err := regexp.MatchString(c.Pattern, typedValue.(string)); err != nil {
+			return false, fmt.Errorf("pattern %q is invalid: %v", c.Pattern, err)
+		} else if !matched {
+			return false, fmt.Errorf("value %q does not match pattern %q", value, c.Pattern)
+		}
+	}
+
+	// Check allowedValues constraint (only for string type)
+	if len(c.AllowedValues) > 0 && c.Type == "string" {
+		found := false
+		for _, allowedValue := range c.AllowedValues {
+			if allowedValue == value {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false, fmt.Errorf("value %q is not in allowedValues %v", value, c.AllowedValues)
+		}
+	}
+
+	return true, nil
 }
 
 func (c ConfigAttribute) String() string {
@@ -651,6 +737,9 @@ func ParseConfigFile(jsonnetPath string) (*ConfigFile, error) {
 		if attribute.Inherit == nil {
 			attribute.Inherit = BoolPointer(true)
 		}
+		if attribute.PreserveShorthand == nil {
+			attribute.PreserveShorthand = BoolPointer(true)
+		}
 	}
 	// Add reserved attributes
 	if result.Attributes == nil {
@@ -663,6 +752,15 @@ func ParseConfigFile(jsonnetPath string) (*ConfigFile, error) {
 	for _, noteType := range result.Types {
 		if noteType.Pattern == "" {
 			noteType.Pattern = fmt.Sprintf("(?i)^%s:\\s*(.*)$", noteType.Name) // Ex: "Note: A basic note" or "note: A basic note"
+		}
+		// Set defaults for new attribute structure
+		for i := range noteType.Attributes {
+			if noteType.Attributes[i].Required == nil {
+				noteType.Attributes[i].Required = BoolPointer(false)
+			}
+			if noteType.Attributes[i].Inline == nil {
+				noteType.Attributes[i].Inline = BoolPointer(false)
+			}
 		}
 	}
 	// ... to decks
@@ -824,12 +922,29 @@ func (c *Config) Check() error {
 		}
 	}
 
+	// Check for default attribute values
+	for _, attribute := range c.ConfigFile.Attributes {
+		if attribute.DefaultValue != nil {
+			_, valid := CastAttribute(attribute.DefaultValue, *attribute)
+			if !valid {
+				return fmt.Errorf("default value %q for attribute %q is not valid", attribute.DefaultValue, attribute.Name)
+			}
+		}
+	}
+
 	// Check for invalid attributes
 	for _, attribute := range c.ConfigFile.Attributes {
 		// Check for invalid regex pattern
-		if attribute.Pattern != "string" {
+		if attribute.Pattern != "" && attribute.Pattern != "string" {
 			if _, err := regexp.Compile(attribute.Pattern); err != nil {
 				return fmt.Errorf("invalid pattern %q for attribute %q: %v", attribute.Pattern, attribute.Name, err)
+			}
+		}
+
+		// Check for invalid shorthand values
+		for shorthandKey, shorthandValue := range attribute.Shorthands {
+			if valid, err := attribute.Valid(shorthandValue); !valid {
+				return fmt.Errorf("shorthand value %q for key %q in attribute %q is not valid: %s", shorthandValue, shorthandKey, attribute.Name, err)
 			}
 		}
 	}
