@@ -18,11 +18,11 @@ func TestFlashcards(t *testing.T) {
 
 ## Flashcard: Rote Memorization
 
-[[c1::Rote memorization]] is a technique for learning information through repetition and recall.
+[{c1::Rote memorization}] is a technique for learning information through repetition and recall.
 
 ## Flashcard: Spaced Repetition
 
-[[c1::Spaced repetition]] is a technique that involves reviewing information at increasing intervals to enhance retention.`))
+[{c1::Spaced repetition}] is a technique that involves reviewing information at increasing intervals to enhance retention.`))
 
 	_, err := CurrentRepository().Add(AnyPath)
 	require.NoError(t, err)
@@ -75,11 +75,11 @@ func TestFlashcards(t *testing.T) {
 
 ## Flashcard: Rote Memorization
 
-[[c1::Rote memorization]] is a **learning technique** using repetition and recall.
+[{c1::Rote memorization}] is a **learning technique** using repetition and recall.
 
 ## Flashcard: Spaced Repetition
 
-[[c1::Spaced repetition]] is a **learning technique** using increasing intervals to enhance retention.
+[{c1::Spaced repetition}] is a **learning technique** using increasing intervals to enhance retention.
 		`)
 	_, err = CurrentRepository().Add(AnyPath)
 	require.NoError(t, err)

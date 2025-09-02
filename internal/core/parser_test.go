@@ -279,7 +279,7 @@ A technique of **learning by reviewing material at increasing intervals**.
 
 ### Flashcard: Spaced Repetition History
 
-(Learning) [[c1::Hermann Ebbinghaus::person]] invented **spaced repetition**
+(Learning) [{c1::Hermann Ebbinghaus::person}] invented **spaced repetition**
 `)
 
 		md := markdown.MustParseFile(filepath.Join(tr.Root, "learning.md"))
@@ -307,7 +307,7 @@ A technique of **learning by reviewing material at increasing intervals**.
 		assert.Equal(t, "(Learning) What are the **limitations of rote memorization**?\n\n---\n\nIt is not effective for **long-term memory** and does not promote **understanding of the material**.", note3.Body.String())
 		assert.Equal(t, "Spaced repetition is a technique of learning by reviewing material at increasing intervals.", note4.Body.String())
 		assert.Equal(t, "(Learning) What is **spaced repetition**?\n\n---\n\nA technique of **learning by reviewing material at increasing intervals**.", note5.Body.String())
-		assert.Equal(t, "(Learning) [[c1::Hermann Ebbinghaus::person]] invented **spaced repetition**", note6.Body.String())
+		assert.Equal(t, "(Learning) [{c1::Hermann Ebbinghaus::person}] invented **spaced repetition**", note6.Body.String())
 	})
 
 	t.Run("Attributes & Tags", func(t *testing.T) {

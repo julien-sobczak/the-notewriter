@@ -201,7 +201,7 @@ Back
 			Title:      markdown.Document("Flashcard: Cloze Deletion"),
 			ShortTitle: markdown.Document("Cloze Deletion"),
 			Slug:       "flashcard-cloze-deletion",
-			Body:       markdown.Document(`Canberra was founded in **[[c1::1913]]**.`),
+			Body:       markdown.Document(`Canberra was founded in **[{c1::1913}]**.`),
 		}
 		notes, err := core.FlashcardExtractorPreprocessor(file, note)
 		require.NoError(t, err)
@@ -227,7 +227,7 @@ Back
 			Title:      markdown.Document("Flashcard: Cloze Deletion"),
 			ShortTitle: markdown.Document("Cloze Deletion"),
 			Slug:       "flashcard-cloze-deletion",
-			Body:       markdown.Document(`Canberra was founded in [[c1::1913::year]].`),
+			Body:       markdown.Document(`Canberra was founded in [{c1::1913::year}].`),
 		}
 		notes, err := core.FlashcardExtractorPreprocessor(file, note)
 		require.NoError(t, err)
@@ -253,7 +253,7 @@ Back
 			Title:      markdown.Document("Flashcard: Cloze Deletion"),
 			ShortTitle: markdown.Document("Cloze Deletion"),
 			Slug:       "flashcard-cloze-deletion",
-			Body:       markdown.Document(`[[c1::Canberra::city]] was founded in [[c1::1913]].`),
+			Body:       markdown.Document(`[{c1::Canberra::city}] was founded in [{c1::1913}].`),
 		}
 		notes, err := core.FlashcardExtractorPreprocessor(file, note)
 		require.NoError(t, err)
@@ -279,7 +279,7 @@ Back
 			Title:      markdown.Document("Flashcard: Cloze Deletion"),
 			ShortTitle: markdown.Document("Cloze Deletion"),
 			Slug:       "flashcard-cloze-deletion",
-			Body:       markdown.Document(`[[c1::Canberra::city]] was founded in [[c2::1913]].`),
+			Body:       markdown.Document(`[{c1::Canberra::city}] was founded in [{c2::1913}].`),
 		}
 		notes, err := core.FlashcardExtractorPreprocessor(file, note)
 		require.NoError(t, err)

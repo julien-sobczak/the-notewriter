@@ -242,14 +242,12 @@ func FlashcardExtractorPreprocessor(file *ParsedFile, note *ParsedNote) ([]*Pars
 func flashcardWithClozeDeletionExtractor(_ *ParsedFile, note *ParsedNote) ([]*ParsedNote, error) {
 	body := note.Body.String()
 
-	// We use Anki syntax for cloze deletions using brackets instead of curly braces.
-	// Ex: [[c1::This is a cloze deletion::optional hint]]
+	// We use Anki syntax for cloze deletions using curly braces inside brackets.
+	// Ex: [{c1::This is a cloze deletion::optional hint}]
 	// See https://docs.ankiweb.net/editing.html#cloze-deletion
-	// Curly braces are often used in programming languages (ex: Astro uses them for variables).
-	// Even if there is no support for variables in _The NoteWriter_, we use brackets to avoid
-	// future conflicts.
+	// This syntax avoids conflicts with wikilinks ([[...]]) and templating systems ({{...}}).
 
-	clozePattern := regexp.MustCompile(`\[\[(\w+)::([^\]:]+?)(?:::(.+?))?\]\]`)
+	clozePattern := regexp.MustCompile(`\[\{(\w+)::([^\}:]+?)(?:::(.+?))?\}\]`)
 	if !clozePattern.MatchString(body) {
 		return nil, errors.New("missing cloze deletion syntax")
 	}
