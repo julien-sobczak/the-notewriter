@@ -32,7 +32,7 @@ type PlaceholderInputModel struct {
 
 func NewPlaceholderInputModel(placeholder core.Placeholder, currentURL string) PlaceholderInputModel {
 	inputType := getPlaceholderType(placeholder)
-	
+
 	model := PlaceholderInputModel{
 		placeholder: placeholder,
 		currentURL:  currentURL,
@@ -46,17 +46,17 @@ func NewPlaceholderInputModel(placeholder core.Placeholder, currentURL string) P
 		for i, value := range placeholder.AllowedValues {
 			items[i] = selectItem{value}
 		}
-		
+
 		l := list.New(items, selectDelegate{}, 50, 10)
-		l.Title = fmt.Sprintf("Select value for %s", placeholder.Name)
+		l.Title = fmt.Sprintf("Select value for $%s", placeholder.Name)
 		l.SetShowStatusBar(false)
 		l.SetFilteringEnabled(false)
 		l.SetShowPagination(false)
 		l.Styles.Title = titleStyle
 		l.Styles.HelpStyle = helpStyle
-		
+
 		model.list = l
-		
+
 	case "input", "autocomplete":
 		// Create text input
 		ti := textinput.New()
@@ -64,10 +64,10 @@ func NewPlaceholderInputModel(placeholder core.Placeholder, currentURL string) P
 		ti.Focus()
 		ti.CharLimit = 100
 		ti.Width = 50
-		
+
 		model.textInput = ti
 	}
-	
+
 	return model
 }
 
@@ -91,7 +91,7 @@ func (m PlaceholderInputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.value = m.textInput.Value()
 			}
 			return m, tea.Quit
-			
+
 		case tea.KeyCtrlC, tea.KeyEsc:
 			m.quitting = true
 			return m, tea.Quit
@@ -104,19 +104,16 @@ func (m PlaceholderInputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	} else {
 		m.textInput, cmd = m.textInput.Update(msg)
 	}
-	
+
 	return m, cmd
 }
 
 func (m PlaceholderInputModel) View() string {
 	var b strings.Builder
-	
+
 	// Show current URL
-	b.WriteString(fmt.Sprintf("Current URL: %s\n\n", m.currentURL))
-	
-	// Show placeholder description
-	b.WriteString(fmt.Sprintf("Fill placeholder: %s\n\n", m.placeholder.String()))
-	
+	b.WriteString(fmt.Sprintf("%s\n\n", m.currentURL))
+
 	// Show input component
 	switch m.inputType {
 	case "select":
@@ -128,9 +125,9 @@ func (m PlaceholderInputModel) View() string {
 	default:
 		b.WriteString(m.textInput.View())
 	}
-	
+
 	b.WriteString("\n\n(Enter to confirm, Esc to cancel)")
-	
+
 	return b.String()
 }
 
@@ -166,27 +163,27 @@ func (d selectDelegate) Render(w io.Writer, m list.Model, index int, listItem li
 // promptForPlaceholders handles the interactive input for all placeholders
 func promptForPlaceholders(url string, placeholders []core.Placeholder) (map[string]string, error) {
 	values := make(map[string]string)
-	
+
 	for _, placeholder := range placeholders {
 		// Create a temporary goto with current URL to use Expand method
 		tempGoto := &core.Goto{URL: url}
 		currentURL := tempGoto.Expand(values)
-		
+
 		model := NewPlaceholderInputModel(placeholder, currentURL)
 		p := tea.NewProgram(model)
-		
+
 		result, err := p.Run()
 		if err != nil {
 			return nil, err
 		}
-		
+
 		finalModel := result.(PlaceholderInputModel)
 		if finalModel.quitting || finalModel.value == "" {
 			return nil, fmt.Errorf("user cancelled input")
 		}
-		
+
 		values[placeholder.Name] = finalModel.value
 	}
-	
+
 	return values, nil
 }

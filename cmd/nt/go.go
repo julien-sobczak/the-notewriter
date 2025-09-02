@@ -45,19 +45,15 @@ var goCmd = &cobra.Command{
 		// Check for placeholders in the URL
 		placeholders := link.Placeholders()
 		if len(placeholders) > 0 {
-			fmt.Printf("URL contains placeholders: %s\n\n", link.URL)
-			
 			values, err := promptForPlaceholders(link.URL, placeholders)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error getting placeholder values: %v\n", err)
 				os.Exit(1)
 			}
-			
+
 			finalURL = link.Expand(values)
-			fmt.Printf("\nExpanded URL: %s\n", finalURL)
 		}
 
-		fmt.Printf("Opening URL: %s\n", finalURL)
 		err = browser.OpenURL(finalURL)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Unable to browse to %s: %v", finalURL, err)
