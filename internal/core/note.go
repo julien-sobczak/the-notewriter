@@ -677,7 +677,7 @@ func (r *Repository) DumpNotes() error {
 }
 
 func (r *Repository) LoadNoteByOID(oid oid.OID) (*Note, error) {
-	return QueryNote(CurrentDB().Client(), `WHERE oid = ?`, oid)
+	return QueryNote(CurrentDB().Client(), `WHERE oid = ?`, "", oid)
 }
 
 func (r *Repository) LoadNotes() ([]*Note, error) {
@@ -689,19 +689,19 @@ func (r *Repository) FindNotesByFileOID(oid oid.OID) ([]*Note, error) {
 }
 
 func (r *Repository) FindNoteByTitle(title string) (*Note, error) {
-	return QueryNote(CurrentDB().Client(), `WHERE title = ?`, title)
+	return QueryNote(CurrentDB().Client(), `WHERE title = ?`, "", title)
 }
 
 func (r *Repository) FindNoteBySlug(slug string) (*Note, error) {
-	return QueryNote(CurrentDB().Client(), `WHERE slug = ?`, slug)
+	return QueryNote(CurrentDB().Client(), `WHERE slug = ?`, "", slug)
 }
 
 func (r *Repository) FindNoteByHash(hash string) (*Note, error) {
-	return QueryNote(CurrentDB().Client(), `WHERE hashsum = ?`, hash)
+	return QueryNote(CurrentDB().Client(), `WHERE hashsum = ?`, "", hash)
 }
 
 func (r *Repository) FindNoteByPathAndTitle(relativePath string, title string) (*Note, error) {
-	return QueryNote(CurrentDB().Client(), `WHERE relative_path = ? AND title = ?`, relativePath, title)
+	return QueryNote(CurrentDB().Client(), `WHERE relative_path = ? AND title = ?`, "", relativePath, title)
 }
 
 func (r *Repository) FindMatchingNote(parsedNote *ParsedNote) (*Note, error) {
@@ -718,15 +718,19 @@ func (r *Repository) FindMatchingNote(parsedNote *ParsedNote) (*Note, error) {
 	}
 
 	// Last by same title or same content in the same file
-	return QueryNote(CurrentDB().Client(), `WHERE relative_path = ? AND (title = ? OR hashsum = ?)`, parsedNote.RelativePath, parsedNote.Title, parsedNote.Hash())
+	return QueryNote(CurrentDB().Client(), `WHERE relative_path = ? AND (title = ? OR hashsum = ?)`, "", parsedNote.RelativePath, parsedNote.Title, parsedNote.Hash())
 }
 
 func (r *Repository) FindNoteByWikilink(wikilink string) (*Note, error) {
-	return QueryNote(CurrentDB().Client(), `WHERE wikilink LIKE ?`, "%"+wikilink)
+	return QueryNote(CurrentDB().Client(), `WHERE wikilink LIKE ?`, "", "%"+wikilink)
 }
 
 func (r *Repository) FindNotesByWikilink(wikilink string) ([]*Note, error) {
 	return QueryNotes(CurrentDB().Client(), `WHERE wikilink LIKE ?`, "%"+wikilink)
+}
+
+func (r *Repository) GetRandomQuote() (*Note, error) {
+	return QueryNote(CurrentDB().Client(), `WHERE note_type = "Quote"`, "ORDER BY RANDOM() LIMIT 1")
 }
 
 // SearchNotes query notes to find the ones matching a list of criteria.
@@ -803,7 +807,7 @@ func (r *Repository) SearchNotes(q string) ([]*Note, error) {
 
 /* SQL Helpers */
 
-func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
+func QueryNote(db SQLClient, whereClause string, randomClause string, args ...any) (*Note, error) {
 	var n Note
 	var createdAt string
 	var updatedAt string
@@ -813,8 +817,8 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 	var attributesRaw string
 	var annotationsRaw string
 
-	// Query for a value based on a single row.
-	if err := db.QueryRow(fmt.Sprintf(`
+	// Build the complete query with optional random clause
+	query := fmt.Sprintf(`
 		SELECT
 			oid,
 			packfile_oid,
@@ -840,7 +844,10 @@ func QueryNote(db SQLClient, whereClause string, args ...any) (*Note, error) {
 			marked_at,
 			annotations
 		FROM note
-		%s;`, whereClause), args...).
+		%s %s;`, whereClause, randomClause)
+
+	// Query for a value based on a single row.
+	if err := db.QueryRow(query, args...).
 		Scan(
 			&n.OID,
 			&n.PackFileOID,
