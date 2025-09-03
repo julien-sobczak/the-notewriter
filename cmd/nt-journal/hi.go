@@ -19,7 +19,7 @@ func init() {
 
 // Run locally:
 //
-//	$ go run cmd/nt-journal/*.go hi
+//	$ go run ./cmd/nt-journal hi
 var hiCmd = &cobra.Command{
 	Use:     "hi",
 	Aliases: []string{"hello", "bonjour"},

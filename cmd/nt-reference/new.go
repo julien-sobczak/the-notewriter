@@ -20,7 +20,7 @@ func init() {
 
 // Run locally:
 //
-//	$ go run cmd/nt-reference/*.go new
+//	$ go run ./cmd/nt-reference new
 var newCmd = &cobra.Command{
 	Use:   "new",
 	Short: "Prompt for a new reference",

@@ -35,7 +35,7 @@ var goCmd = &cobra.Command{
 		// Check for placeholders in the URL
 		placeholders := link.Placeholders()
 		if len(placeholders) > 0 {
-			values, err := promptForPlaceholders(link)
+			values, err := PromptForPlaceholders(link)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error getting placeholder values: %v\n", err)
 				os.Exit(1)

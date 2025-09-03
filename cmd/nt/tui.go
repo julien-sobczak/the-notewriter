@@ -7,8 +7,13 @@ import (
 	"github.com/julien-sobczak/the-notewriter/internal/core"
 )
 
-// promptForPlaceholders handles the interactive input for all placeholders using huh
-func promptForPlaceholders(gotoLink *core.Goto) (map[string]string, error) {
+/*
+ * Place code for TUI interactions using charmbracelet/huh here.
+ * This makes it easier to refactor or switch to another library someday.
+ */
+
+// PromptForPlaceholders handles the interactive input for all placeholders using huh
+func PromptForPlaceholders(gotoLink *core.Goto) (map[string]string, error) {
 	values := make(map[string]string)
 	placeholders := gotoLink.Placeholders()
 	fields := make([]huh.Field, 0, len(placeholders))

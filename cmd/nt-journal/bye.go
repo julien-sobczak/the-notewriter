@@ -18,7 +18,7 @@ func init() {
 
 // Run locally:
 //
-//	$ go run cmd/nt-journal/*.go bye
+//	$ go run ./cmd/nt-journal bye
 var byeCmd = &cobra.Command{
 	Use:     "bye",
 	Aliases: []string{"bye-bye"},
@@ -55,11 +55,11 @@ var byeCmd = &cobra.Command{
 		routineContent := GenerateShutdownRoutine()
 
 		// Step 3: Append to the journal
-		if err := AppendToJournal(TitleShutdownRoutine, routineContent); err != nil { // TODO use config to customize the title instead
+		if err := AppendToJournal(TitleShutdownRoutine, routineContent); err != nil { 
 			log.Fatal(err)
 		}
 
-		fmt.Printf("✨ Routine generated. Browse %s\n", entryPath) // TODO use bubbletea to ask to open the file instead and run command `open`
+		fmt.Printf("✨ Routine generated. Browse %s\n", entryPath)
 
 		if AskToOpenInEditor() {
 			if err := OpenInEditor(entryPath); err != nil {

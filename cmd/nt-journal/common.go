@@ -18,7 +18,8 @@ import (
 // GetJournalPath returns the absolute path to the journal entry for the given date
 func GetJournalPath(date time.Time) string {
 	year, month, day := date.Date()
-	dirPath := filepath.Join(core.CurrentConfig().RootDirectory, "journal", fmt.Sprintf("%04d", year)) // TODO use Config instead
+	// IMPROVEMENT use config to customize the title instead
+	dirPath := filepath.Join(core.CurrentConfig().RootDirectory, "journal", fmt.Sprintf("%04d", year))
 	filePath := filepath.Join(dirPath, fmt.Sprintf("%04d-%02d-%02d.md", year, month, day))
 	return filePath
 }
