@@ -9,16 +9,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// getPlaceholderType returns the type of input needed for a placeholder
-func getPlaceholderType(p core.Placeholder) string {
-	if len(p.AllowedValues) > 0 && !p.Ellipsis {
-		return "select"
-	} else if len(p.AllowedValues) > 0 && p.Ellipsis {
-		return "autocomplete"
-	}
-	return "input"
-}
-
 func init() {
 	rootCmd.AddCommand(goCmd)
 }

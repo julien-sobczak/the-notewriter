@@ -434,18 +434,18 @@ func (u ParameterizedURL) ToANSI() string {
 
 // Placeholder represents a URL placeholder variable
 type Placeholder struct {
-	Name          string   // Variable name (e.g., "page")
-	Raw           string   // Full placeholder text (e.g., "${page:[issues,pulls]}")
-	AllowedValues []string // Specific allowed values, empty if no value provided
-	Ellipsis      bool     // Additionanl values are allowed
+	Name     string   // Variable name (e.g., "page")
+	Raw      string   // Full placeholder text (e.g., "${page:[issues,pulls]}")
+	Options  []string // Specific allowed values, empty if no value provided
+	Ellipsis bool     // Additionanl values are allowed
 }
 
 // String returns a human-readable description of the placeholder
 func (p Placeholder) String() string {
-	if len(p.AllowedValues) > 0 && !p.Ellipsis {
-		return fmt.Sprintf("%s (choose from: %s)", p.Name, strings.Join(p.AllowedValues, ", "))
-	} else if len(p.AllowedValues) > 0 && p.Ellipsis {
-		return fmt.Sprintf("%s (suggestions: %s, or enter custom value)", p.Name, strings.Join(p.AllowedValues, ", "))
+	if len(p.Options) > 0 && !p.Ellipsis {
+		return fmt.Sprintf("%s (choose from: %s)", p.Name, strings.Join(p.Options, ", "))
+	} else if len(p.Options) > 0 && p.Ellipsis {
+		return fmt.Sprintf("%s (suggestions: %s, or enter custom value)", p.Name, strings.Join(p.Options, ", "))
 	}
 	return fmt.Sprintf("%s (enter any value)", p.Name)
 }
@@ -472,19 +472,14 @@ func ExtractPlaceholders(text string) []Placeholder {
 			values := strings.Split(match[2], ",")
 			for i, value := range values {
 				value = strings.TrimSpace(value)
-				if value == "..." {
+				if value == "..." || value == "…"{
 					placeholder.Ellipsis = true
 				} else {
 					values[i] = value
 				}
 			}
 
-			// Remove "..." from values list if present
-			if placeholder.Ellipsis && len(values) > 0 && values[len(values)-1] == "..." {
-				values = values[:len(values)-1]
-			}
-
-			placeholder.AllowedValues = values
+			placeholder.Options = values
 		}
 
 		placeholders = append(placeholders, placeholder)
