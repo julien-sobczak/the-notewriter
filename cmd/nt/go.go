@@ -11,9 +11,9 @@ import (
 
 // getPlaceholderType returns the type of input needed for a placeholder
 func getPlaceholderType(p core.Placeholder) string {
-	if len(p.AllowedValues) > 0 && !p.HasMore {
+	if len(p.AllowedValues) > 0 && !p.Ellipsis {
 		return "select"
-	} else if len(p.AllowedValues) > 0 && p.HasMore {
+	} else if len(p.AllowedValues) > 0 && p.Ellipsis {
 		return "autocomplete"
 	}
 	return "input"
@@ -45,7 +45,7 @@ var goCmd = &cobra.Command{
 		// Check for placeholders in the URL
 		placeholders := link.Placeholders()
 		if len(placeholders) > 0 {
-			values, err := promptForPlaceholders(link.URL, placeholders)
+			values, err := promptForPlaceholders(link)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error getting placeholder values: %v\n", err)
 				os.Exit(1)
@@ -54,7 +54,7 @@ var goCmd = &cobra.Command{
 			finalURL = link.Expand(values)
 		}
 
-		err = browser.OpenURL(finalURL)
+		err = browser.OpenURL(string(finalURL))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Unable to browse to %s: %v", finalURL, err)
 			os.Exit(1)

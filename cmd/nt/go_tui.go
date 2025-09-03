@@ -22,7 +22,7 @@ var (
 // PlaceholderInputModel handles input for a single placeholder
 type PlaceholderInputModel struct {
 	placeholder core.Placeholder
-	currentURL  string
+	currentURL  core.ParameterizedURL
 	textInput   textinput.Model
 	list        list.Model
 	inputType   string
@@ -30,7 +30,17 @@ type PlaceholderInputModel struct {
 	quitting    bool
 }
 
-func NewPlaceholderInputModel(placeholder core.Placeholder, currentURL string) PlaceholderInputModel {
+func getPlaceholderType(placeholder core.Placeholder) string {
+	if placeholder.Ellipsis {
+		return "autocomplete"
+	}
+	if len(placeholder.AllowedValues) > 0 {
+		return "select"
+	}
+	return "input"
+}
+
+func NewPlaceholderInputModel(currentURL core.ParameterizedURL, placeholder core.Placeholder) PlaceholderInputModel {
 	inputType := getPlaceholderType(placeholder)
 
 	model := PlaceholderInputModel{
@@ -57,8 +67,19 @@ func NewPlaceholderInputModel(placeholder core.Placeholder, currentURL string) P
 
 		model.list = l
 
-	case "input", "autocomplete":
-		// Create text input
+	case "autocomplete":
+		// Create text input with suggestions
+		ti := textinput.New()
+		ti.
+		ti.Placeholder = fmt.Sprintf("Enter value for %s...", placeholder.Name)
+		ti.Focus()
+		ti.CharLimit = 100
+		ti.Width = 50
+
+		model.textInput = ti
+
+	case "input":
+		// Create plain text input
 		ti := textinput.New()
 		ti.Placeholder = fmt.Sprintf("Enter value for %s...", placeholder.Name)
 		ti.Focus()
@@ -112,7 +133,7 @@ func (m PlaceholderInputModel) View() string {
 	var b strings.Builder
 
 	// Show current URL
-	b.WriteString(fmt.Sprintf("%s\n\n", m.currentURL))
+	b.WriteString(fmt.Sprintf("🚀 Goto %s\n\n", m.currentURL.Short().ToANSI()))
 
 	// Show input component
 	switch m.inputType {
@@ -161,15 +182,14 @@ func (d selectDelegate) Render(w io.Writer, m list.Model, index int, listItem li
 }
 
 // promptForPlaceholders handles the interactive input for all placeholders
-func promptForPlaceholders(url string, placeholders []core.Placeholder) (map[string]string, error) {
+func promptForPlaceholders(gotoLink *core.Goto) (map[string]string, error) {
 	values := make(map[string]string)
 
+	placeholders := gotoLink.Placeholders()
 	for _, placeholder := range placeholders {
-		// Create a temporary goto with current URL to use Expand method
-		tempGoto := &core.Goto{URL: url}
-		currentURL := tempGoto.Expand(values)
+		currentURL := gotoLink.Expand(values)
 
-		model := NewPlaceholderInputModel(placeholder, currentURL)
+		model := NewPlaceholderInputModel(currentURL, placeholder)
 		p := tea.NewProgram(model)
 
 		result, err := p.Run()

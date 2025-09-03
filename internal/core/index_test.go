@@ -841,7 +841,7 @@ func NewTestGoto(packFile *PackFile, newOID oid.OID) *Goto {
 		NoteOID:      oid.Nil,
 		RelativePath: packFile.FileRelativePath,
 		Text:         markdown.Document(newOID),
-		URL:          fmt.Sprintf("https//%s.fr", newOID),
+		URL:          ParameterizedURL(fmt.Sprintf("https//%s.fr", newOID)),
 		Title:        newOID.String(),
 		Name:         newOID.String(),
 		CreatedAt:    clock.Now(),
