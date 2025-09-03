@@ -136,6 +136,230 @@ indexed_at: 2023-01-01T01:12:30Z
 
 }
 
+func TestParameterizedURL(t *testing.T) {
+
+	t.Run("Expand", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			url      ParameterizedURL
+			values   map[string]string
+			expected string
+		}{
+			{
+				name:     "No placeholders",
+				url:      "https://github.com/julien-sobczak/the-notewriter/",
+				values:   map[string]string{},
+				expected: "https://github.com/julien-sobczak/the-notewriter/",
+			},
+			{
+				name:     "Single simple placeholder",
+				url:      "https://github.com/julien-sobczak/the-notewriter/${page}",
+				values:   map[string]string{"page": "issues"},
+				expected: "https://github.com/julien-sobczak/the-notewriter/issues",
+			},
+			{
+				name:     "Placeholder with allowed values",
+				url:      "https://github.com/julien-sobczak/the-notewriter/${page:[issues,pulls,actions]}",
+				values:   map[string]string{"page": "pulls"},
+				expected: "https://github.com/julien-sobczak/the-notewriter/pulls",
+			},
+			{
+				name:     "Multiple placeholders",
+				url:      "https://github.com/${user}/${repo}/${page:[issues,pulls]}",
+				values:   map[string]string{"user": "julien-sobczak", "repo": "the-notewriter", "page": "issues"},
+				expected: "https://github.com/julien-sobczak/the-notewriter/issues",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				result := tt.url.Expand(tt.values)
+				assert.Equal(t, tt.expected, result)
+			})
+		}
+	})
+
+	t.Run("Placeholders", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			url      ParameterizedURL
+			expected []Placeholder
+		}{
+			{
+				name:     "No placeholders",
+				url:      "https://github.com/julien-sobczak/the-notewriter/",
+				expected: nil,
+			},
+			{
+				name: "Single simple placeholder",
+				url:  "https://github.com/julien-sobczak/the-notewriter/${page}",
+				expected: []Placeholder{
+					{
+						Name:     "page",
+						Raw:      "${page}",
+						Options:  nil,
+						Ellipsis: false,
+					},
+				},
+			},
+			{
+				name: "Placeholder with allowed values",
+				url:  "https://github.com/julien-sobczak/the-notewriter/${page:[issues,pulls,actions]}",
+				expected: []Placeholder{
+					{
+						Name:     "page",
+						Raw:      "${page:[issues,pulls,actions]}",
+						Options:  []string{"issues", "pulls", "actions"},
+						Ellipsis: false,
+					},
+				},
+			},
+			{
+				name: "Placeholder with suggestions (has more)",
+				url:  "https://github.com/julien-sobczak/the-notewriter/${page:[issues,pulls,actions,...]}",
+				expected: []Placeholder{
+					{
+						Name:     "page",
+						Raw:      "${page:[issues,pulls,actions,...]}",
+						Options:  []string{"issues", "pulls", "actions"},
+						Ellipsis: true,
+					},
+				},
+			},
+			{
+				name: "Multiple placeholders",
+				url:  "https://github.com/${user}/${repo}/${page:[issues,pulls]}",
+				expected: []Placeholder{
+					{
+						Name:     "user",
+						Raw:      "${user}",
+						Options:  nil,
+						Ellipsis: false,
+					},
+					{
+						Name:     "repo",
+						Raw:      "${repo}",
+						Options:  nil,
+						Ellipsis: false,
+					},
+					{
+						Name:     "page",
+						Raw:      "${page:[issues,pulls]}",
+						Options:  []string{"issues", "pulls"},
+						Ellipsis: false,
+					},
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				result := tt.url.Placeholders()
+				assert.Equal(t, tt.expected, result)
+			})
+		}
+	})
+
+	t.Run("Short", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			input    ParameterizedURL
+			expected ParameterizedURL
+		}{
+			{
+				name:     "No placeholders",
+				input:    "https://github.com/julien-sobczak/the-notewriter/",
+				expected: "https://github.com/julien-sobczak/the-notewriter/",
+			},
+			{
+				name:     "Simple placeholder without allowed values",
+				input:    "https://github.com/julien-sobczak/the-notewriter/${page}",
+				expected: "https://github.com/julien-sobczak/the-notewriter/${page}",
+			},
+			{
+				name:     "Placeholder with allowed values",
+				input:    "https://github.com/julien-sobczak/the-notewriter/${page:[issues,pulls,actions]}",
+				expected: "https://github.com/julien-sobczak/the-notewriter/${page}",
+			},
+			{
+				name:     "Placeholder with allowed values and ellipsis",
+				input:    "https://github.com/julien-sobczak/the-notewriter/${page:[issues,pulls,...]}",
+				expected: "https://github.com/julien-sobczak/the-notewriter/${page}",
+			},
+			{
+				name:     "Multiple placeholders with allowed values",
+				input:    "https://github.com/${user}/${repo}/${page:[issues,pulls]}",
+				expected: "https://github.com/${user}/${repo}/${page}",
+			},
+			{
+				name:     "Mixed placeholders with and without allowed values",
+				input:    "https://github.com/${user}/${repo}/${page:[issues,pulls]}/${section}",
+				expected: "https://github.com/${user}/${repo}/${page}/${section}",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				result := tt.input.Short()
+				assert.Equal(t, tt.expected, result)
+			})
+		}
+	})
+
+	t.Run("ToANSI", func(t *testing.T) {
+		url := ParameterizedURL("https://github.com/${user}/${repo}/${page:[issues,pulls,...]}")
+		actual := url.ToANSI()
+		require.Equal(t, "https://github.com/\033[31m${user}\033[0m/\033[31m${repo}\033[0m/\033[31m${page:[issues,pulls,...]}\033[0m", actual)
+	})
+}
+
+func TestPlaceholder(t *testing.T) {
+
+	t.Run("String", func(t *testing.T) {
+		tests := []struct {
+			name        string
+			placeholder Placeholder
+			expected    string
+		}{
+			{
+				name: "Input type",
+				placeholder: Placeholder{
+					Name:     "page",
+					Options:  nil,
+					Ellipsis: false,
+				},
+				expected: "page (enter any value)",
+			},
+			{
+				name: "Select type",
+				placeholder: Placeholder{
+					Name:     "page",
+					Options:  []string{"issues", "pulls"},
+					Ellipsis: false,
+				},
+				expected: "page (choose from: issues, pulls)",
+			},
+			{
+				name: "Autocomplete type",
+				placeholder: Placeholder{
+					Name:     "page",
+					Options:  []string{"issues", "pulls"},
+					Ellipsis: true,
+				},
+				expected: "page (suggestions: issues, pulls, or enter custom value)",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				result := tt.placeholder.String()
+				assert.Equal(t, tt.expected, result)
+			})
+		}
+	})
+
+}
+
 /* Test Helpers */
 
 func MustFindGotoByName(t *testing.T, name string) *Goto {

@@ -22,15 +22,31 @@ var goCmd = &cobra.Command{
 
 		link, err := core.CurrentRepository().FindGotoByName(goName)
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error finding Go link %q: %v", goName, err)
+			os.Exit(1)
+		}
+		if link == nil {
 			fmt.Fprintf(os.Stderr, "No Go link %q found", goName)
 			os.Exit(1)
 		}
 
-		// TODO prompt for replacements if templatized Go link
+		finalURL := link.URL
 
-		err = browser.OpenURL(link.URL)
+		// Check for placeholders in the URL
+		placeholders := link.Placeholders()
+		if len(placeholders) > 0 {
+			values, err := promptForPlaceholders(link)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error getting placeholder values: %v\n", err)
+				os.Exit(1)
+			}
+
+			finalURL = link.Expand(values)
+		}
+
+		err = browser.OpenURL(string(finalURL))
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Unable to browse to %s: %v", link.URL, err)
+			fmt.Fprintf(os.Stderr, "Unable to browse to %s: %v", finalURL, err)
 			os.Exit(1)
 		}
 	},

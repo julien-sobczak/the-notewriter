@@ -2,7 +2,9 @@
 
 ## Note: Useful links
 
-* [Building a Second Brain](https://www.buildingasecondbrain.com), by Tiago Forte: Great book to learn about the power of notes.
+* [GitHub Repository](https://github.com/julien-sobczak/the-notewriter/ "#go/nt/github")
+* [GitHub Section](https://github.com/julien-sobczak/the-notewriter/${section:[issues,pulls,actions,...]} "#go/nt/github-section")
+* [GitHub](https://github.com/${user}/${repo}/${section:[issues,pulls]} "#go/github")
 
 
 ## TODO: Backlog

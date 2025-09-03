@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 	"time"
 
@@ -27,7 +28,7 @@ type Goto struct {
 	Text markdown.Document `yaml:"text" json:"text"`
 
 	// The link destination
-	URL string `yaml:"url" json:"url"`
+	URL ParameterizedURL `yaml:"url" json:"url"`
 
 	// The optional link title
 	Title string `yaml:"title" json:"title"`
@@ -61,7 +62,7 @@ func NewGoto(packFile *PackFile, note *Note, parsedLink *ParsedGoto) *Goto {
 		NoteOID:      note.OID,
 		RelativePath: note.RelativePath,
 		Text:         parsedLink.Text,
-		URL:          parsedLink.URL,
+		URL:          ParameterizedURL(parsedLink.URL),
 		Title:        parsedLink.Title,
 		Name:         parsedLink.Name,
 
@@ -114,6 +115,16 @@ func (l Goto) String() string {
 	return fmt.Sprintf("link %q [%s]", l.URL, l.OID)
 }
 
+// Placeholders extracts all placeholders from the goto URL
+func (l *Goto) Placeholders() []Placeholder {
+	return l.URL.Placeholders()
+}
+
+// Expand replaces placeholders in the goto URL with provided values
+func (l *Goto) Expand(values map[string]string) ParameterizedURL {
+	return l.URL.Expand(values)
+}
+
 /* Format */
 
 func (l *Goto) ToYAML() string {
@@ -147,8 +158,8 @@ func (l *Goto) update(packFile *PackFile, note *Note, parsedLink *ParsedGoto) {
 		l.Text = parsedLink.Text
 		stale = true
 	}
-	if l.URL != parsedLink.URL {
-		l.URL = parsedLink.URL
+	if l.URL != ParameterizedURL(parsedLink.URL) {
+		l.URL = ParameterizedURL(parsedLink.URL)
 		stale = true
 	}
 	if l.Title != parsedLink.Title {
@@ -377,4 +388,102 @@ func QueryGotos(db SQLClient, whereClause string, args ...any) ([]*Goto, error) 
 	}
 
 	return links, err
+}
+
+/* ParameterizedURL */
+
+// ParameterizedURL represents a URL with optional placeholders. Ex:
+// http://${domain}
+// https://www.github.com/${owner}/${repo}/${section:[issues,pulls,...]}
+type ParameterizedURL string
+
+// Short removes optional allowed values from the URL to have a shorter representation
+// Ex: https://www.github.com/${owner}/${repo}/${section:[issues,pulls,...]} => https://www.github.com/${owner}/${repo}/${section}
+func (u ParameterizedURL) Short() ParameterizedURL {
+	result := string(u)
+	// Remove all allowed values from the URL
+	re := regexp.MustCompile(`\$\{([^}:]+):\[[^\]]*\]\}`)
+	result = re.ReplaceAllString(result, "${$1}")
+	return ParameterizedURL(result)
+}
+
+// Expand replaces placeholders in the URL with the corresponding values from the map.
+func (u ParameterizedURL) Expand(values map[string]string) ParameterizedURL {
+	result := string(u)
+	for name, value := range values {
+		// Replace all occurrences of this placeholder
+		re := regexp.MustCompile(`\$\{` + regexp.QuoteMeta(name) + `(?::\[[^\]]*\])?\}`)
+		result = re.ReplaceAllString(result, value)
+	}
+	return ParameterizedURL(result)
+}
+
+// Placeholders extracts all placeholders from the URL.
+func (u ParameterizedURL) Placeholders() []Placeholder {
+	return ExtractPlaceholders(string(u))
+}
+
+// ToANSI highlights placeholders in red using ANSI escape codes.
+// Ex: https://github.com/${user} => https://github.com/\033[31m${user}\033[0m
+func (u ParameterizedURL) ToANSI() string {
+	re := regexp.MustCompile(`(\$\{[^}]+\})`)
+	return re.ReplaceAllStringFunc(string(u), func(m string) string {
+		return fmt.Sprintf("\033[31m%s\033[0m", m)
+	})
+}
+
+// Placeholder represents a URL placeholder variable
+type Placeholder struct {
+	Name     string   // Variable name (e.g., "page")
+	Raw      string   // Full placeholder text (e.g., "${page:[issues,pulls]}")
+	Options  []string // Specific allowed values, empty if no value provided
+	Ellipsis bool     // Additionanl values are allowed
+}
+
+// String returns a human-readable description of the placeholder
+func (p Placeholder) String() string {
+	if len(p.Options) > 0 && !p.Ellipsis {
+		return fmt.Sprintf("%s (choose from: %s)", p.Name, strings.Join(p.Options, ", "))
+	} else if len(p.Options) > 0 && p.Ellipsis {
+		return fmt.Sprintf("%s (suggestions: %s, or enter custom value)", p.Name, strings.Join(p.Options, ", "))
+	}
+	return fmt.Sprintf("%s (enter any value)", p.Name)
+}
+
+// ExtractPlaceholders extracts placeholders from a text string.
+func ExtractPlaceholders(text string) []Placeholder {
+	// Regex to match ${variable} or ${variable:[value1,value2,...]}
+	re := regexp.MustCompile(`\$\{([^}:]+)(?::?\[([^\]]*)\])?\}`)
+	matches := re.FindAllStringSubmatch(text, -1)
+
+	if len(matches) == 0 {
+		return nil
+	}
+
+	var placeholders []Placeholder
+	for _, match := range matches {
+		placeholder := Placeholder{
+			Name: match[1],
+			Raw:  match[0],
+		}
+
+		// Parse allowed values if present
+		if len(match) > 2 && match[2] != "" {
+			values := strings.Split(match[2], ",")
+			for i, value := range values {
+				value = strings.TrimSpace(value)
+				if value == "..." || value == "…"{
+					placeholder.Ellipsis = true
+				} else {
+					values[i] = value
+				}
+			}
+
+			placeholder.Options = values
+		}
+
+		placeholders = append(placeholders, placeholder)
+	}
+
+	return placeholders
 }
