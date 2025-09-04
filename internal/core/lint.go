@@ -546,26 +546,14 @@ func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 					found = true
 
 					line := text.LineNumber(string(file.Markdown.Content), name+":")
-					if _, ok := CastAttribute(fileValue, *attributeDefinition); !ok {
+					stringValue := fmt.Sprintf("%s", fileValue)
+					if validationError := attributeDefinition.Valid(stringValue); validationError != "" {
 						violations = append(violations, &Violation{
 							Name:         "check-attributes",
 							RelativePath: file.RelativePath,
-							Message:      fmt.Sprintf("attribute %q in file %q is not a valid %s or cannot be converted", name, file.Title, attributeDefinition.Type),
+							Message:      fmt.Sprintf("attribute %q in file %q: %s", name, file.Title, validationError),
 							Line:         line,
 						})
-					} else if attributeDefinition.Pattern != "" {
-						// Check pattern
-						regexAttribute := regexp.MustCompile(attributeDefinition.Pattern)
-						// Convert value to string
-						stringValue := fmt.Sprintf("%s", fileValue)
-						if !regexAttribute.MatchString(stringValue) {
-							violations = append(violations, &Violation{
-								Name:         "check-attributes",
-								RelativePath: file.RelativePath,
-								Message:      fmt.Sprintf("attribute %q in file %q does not match pattern %q", name, file.Title, attributeDefinition.Pattern),
-								Line:         line,
-							})
-						}
 					}
 				}
 
@@ -574,26 +562,14 @@ func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 					found = true
 
 					line := text.LineNumber(string(file.Markdown.Content), name+":")
-					if _, ok := CastAttribute(noteValue, *attributeDefinition); !ok {
+					stringValue := fmt.Sprintf("%s", noteValue)
+					if validationError := attributeDefinition.Valid(stringValue); validationError != "" {
 						violations = append(violations, &Violation{
 							Name:         "check-attributes",
 							RelativePath: file.RelativePath,
-							Message:      fmt.Sprintf("attribute %q on note %q in file %q is not a valid %s or cannot be converted", name, note.Title, file.RelativePath, attributeDefinition.Type),
+							Message:      fmt.Sprintf("attribute %q on note %q in file %q: %s", name, note.Title, file.RelativePath, validationError),
 							Line:         line,
 						})
-					} else if attributeDefinition.Pattern != "" {
-						// Check pattern
-						regexAttribute := regexp.MustCompile(attributeDefinition.Pattern)
-						// Convert value to string
-						stringValue := fmt.Sprintf("%s", noteValue)
-						if !regexAttribute.MatchString(stringValue) {
-							violations = append(violations, &Violation{
-								Name:         "check-attributes",
-								RelativePath: file.RelativePath,
-								Message:      fmt.Sprintf("attribute %q on note %q in file %q does not match pattern %q", name, note.Title, file.RelativePath, attributeDefinition.Pattern),
-								Line:         line,
-							})
-						}
 					}
 				}
 				
@@ -602,31 +578,19 @@ func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 				if presentInMerged && !presentOnNote && !presentOnFile {
 					found = true
 					// This is an attribute that comes from defaults or inheritance
-					if _, ok := CastAttribute(mergedValue, *attributeDefinition); !ok {
+					stringValue := fmt.Sprintf("%s", mergedValue)
+					if validationError := attributeDefinition.Valid(stringValue); validationError != "" {
 						violations = append(violations, &Violation{
 							Name:         "check-attributes",
 							RelativePath: file.RelativePath,
-							Message:      fmt.Sprintf("attribute %q on note %q in file %q is not a valid %s or cannot be converted", name, note.Title, file.RelativePath, attributeDefinition.Type),
+							Message:      fmt.Sprintf("attribute %q on note %q in file %q: %s", name, note.Title, file.RelativePath, validationError),
 							Line:         note.Line,
 						})
-					} else if attributeDefinition.Pattern != "" {
-						// Check pattern
-						regexAttribute := regexp.MustCompile(attributeDefinition.Pattern)
-						// Convert value to string
-						stringValue := fmt.Sprintf("%s", mergedValue)
-						if !regexAttribute.MatchString(stringValue) {
-							violations = append(violations, &Violation{
-								Name:         "check-attributes",
-								RelativePath: file.RelativePath,
-								Message:      fmt.Sprintf("attribute %q on note %q in file %q does not match pattern %q", name, note.Title, file.RelativePath, attributeDefinition.Pattern),
-								Line:         note.Line,
-							})
-						}
 					}
 				}
 			}
 
-			// Check required attributes using new structure first, then legacy
+			// Check required attributes using new structure
 			isRequired := false
 			
 			// Check new attribute structure
@@ -637,11 +601,6 @@ func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 				}
 			}
 			
-			// If not found in new structure, check legacy structure for backward compatibility
-			if !isRequired {
-				isRequired = slices.Contains(objectDefinition.RequiredAttributes, attributeDefinition.Name)
-			}
-			
 			if isRequired && !found {
 				violations = append(violations, &Violation{
 					Name:         "check-attributes",
@@ -650,55 +609,10 @@ func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 					Line:         note.Line,
 				})
 			}
-			
-			// Check allowedValues for both file and note attributes
-			if len(attributeDefinition.AllowedValues) > 0 {
-				fileValue, presentOnFile := file.FileAttributes[attributeDefinition.Name]
-				if presentOnFile {
-					stringValue := fmt.Sprintf("%s", fileValue)
-					if !slices.Contains(attributeDefinition.AllowedValues, stringValue) {
-						line := text.LineNumber(string(file.Markdown.Content), attributeDefinition.Name+":")
-						violations = append(violations, &Violation{
-							Name:         "check-attributes",
-							RelativePath: file.RelativePath,
-							Message:      fmt.Sprintf("attribute %q in file %q has value %q which is not in allowedValues %v", attributeDefinition.Name, file.Title, stringValue, attributeDefinition.AllowedValues),
-							Line:         line,
-						})
-					}
-				}
-				
-				noteValue, presentOnNote := note.NoteAttributes[attributeDefinition.Name]
-				if presentOnNote {
-					stringValue := fmt.Sprintf("%s", noteValue)
-					if !slices.Contains(attributeDefinition.AllowedValues, stringValue) {
-						line := text.LineNumber(string(file.Markdown.Content), attributeDefinition.Name+":")
-						violations = append(violations, &Violation{
-							Name:         "check-attributes",
-							RelativePath: file.RelativePath,
-							Message:      fmt.Sprintf("attribute %q on note %q in file %q has value %q which is not in allowedValues %v", attributeDefinition.Name, note.Title, file.RelativePath, stringValue, attributeDefinition.AllowedValues),
-							Line:         line,
-						})
-					}
-				}
-				
-				// Also check merged attributes for allowedValues
-				mergedValue, presentInMerged := note.Attributes[attributeDefinition.Name]
-				if presentInMerged && !presentOnNote && !presentOnFile {
-					stringValue := fmt.Sprintf("%s", mergedValue)
-					if !slices.Contains(attributeDefinition.AllowedValues, stringValue) {
-						violations = append(violations, &Violation{
-							Name:         "check-attributes",
-							RelativePath: file.RelativePath,
-							Message:      fmt.Sprintf("attribute %q on note %q in file %q has value %q which is not in allowedValues %v", attributeDefinition.Name, note.Title, file.RelativePath, stringValue, attributeDefinition.AllowedValues),
-							Line:         note.Line,
-						})
-					}
-				}
-			}
-
-			// Nothing more to check
-			continue
 		}
+
+		// Nothing more to check
+		continue
 	}
 
 	return violations, nil

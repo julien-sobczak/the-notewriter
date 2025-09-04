@@ -175,6 +175,40 @@ type ConfigAttribute struct {
 	DefaultValue      interface{}       `json:"defaultValue,omitempty"`   // For any type
 }
 
+// Valid validates a string value against this attribute's constraints.
+// Returns an empty string if valid, or an error message if invalid.
+func (attr *ConfigAttribute) Valid(value string) string {
+	// First check if the value can be cast to the correct type
+	if _, ok := CastAttribute(value, *attr); !ok {
+		return fmt.Sprintf("value %q is not a valid %s or cannot be converted", value, attr.Type)
+	}
+	
+	// Check pattern constraint (only for string type)
+	if attr.Pattern != "" && attr.Type == "string" {
+		if matched, err := regexp.MatchString(attr.Pattern, value); err != nil {
+			return fmt.Sprintf("pattern %q is invalid: %v", attr.Pattern, err)
+		} else if !matched {
+			return fmt.Sprintf("value %q does not match pattern %q", value, attr.Pattern)
+		}
+	}
+	
+	// Check allowedValues constraint (only for string type)
+	if len(attr.AllowedValues) > 0 && attr.Type == "string" {
+		found := false
+		for _, allowedValue := range attr.AllowedValues {
+			if allowedValue == value {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Sprintf("value %q is not in allowedValues %v", value, attr.AllowedValues)
+		}
+	}
+	
+	return "" // Valid
+}
+
 type ConfigTypeAttribute struct {
 	Name     string `json:"name"`
 	Optional *bool  `json:"optional,omitempty"` // Default: true
@@ -182,14 +216,11 @@ type ConfigTypeAttribute struct {
 }
 
 type ConfigType struct {
-	Name               string                 `json:"name"`
-	Pattern            string                 `json:"pattern,omitempty"`       // Regex to detect Markdown headings matching the type
-	Preprocessors      []string               `json:"preprocessors"`           // Additional logic to run after parsing a note
-	RequiredAttributes []string               `json:"requiredAttributes"`      // List of mandatory attributes (DEPRECATED: use Attributes instead)
-	OptionalAttributes []string               `json:"optionalAttributes"`      // List of optional attributes (DEPRECATED: use Attributes instead)
-	Attributes         []ConfigTypeAttribute  `json:"attributes,omitempty"`    // New structure for attributes
-	Hooks              []string               `json:"hooks"`                   // List of hooks to run on this type of note
-	// IMPROVEMENT refactor to Attributes []ConfigTypeAttribute with an attribute `required` (= more extensible)
+	Name          string                `json:"name"`
+	Pattern       string                `json:"pattern,omitempty"`    // Regex to detect Markdown headings matching the type
+	Preprocessors []string              `json:"preprocessors"`        // Additional logic to run after parsing a note
+	Attributes    []ConfigTypeAttribute `json:"attributes,omitempty"` // Structure for attributes
+	Hooks         []string              `json:"hooks"`                // List of hooks to run on this type of note
 }
 type ConfigLinter struct {
 	Rules []*ConfigLinterRule `json:"rules"` // List of rules to apply to notes

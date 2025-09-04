@@ -1047,15 +1047,4 @@ func ApplyDefaultAttributeValues(noteType *ConfigType, attributes AttributeSet, 
 			}
 		}
 	}
-	
-	// Also check legacy RequiredAttributes for backward compatibility
-	for _, attrName := range noteType.RequiredAttributes {
-		if _, exists := attributes[attrName]; !exists {
-			if configAttr, found := configAttributes.Find(attrName); found {
-				if configAttr.DefaultValue != nil {
-					attributes[attrName] = configAttr.DefaultValue
-				}
-			}
-		}
-	}
 }

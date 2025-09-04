@@ -1027,3 +1027,165 @@ func TestReplaceMedias(t *testing.T) {
 		})
 	}
 }
+
+func TestShorthandExtraction(t *testing.T) {
+	// Create test attributes
+	attributes := core.ConfigAttributes{
+		"status": &core.ConfigAttribute{
+			Name: "status",
+			Type: "string",
+			Shorthands: map[string]string{
+				"📋": "todo",
+				"🕒": "in-progress", 
+				"⛔": "blocked",
+				"✅": "done",
+			},
+			PreserveShorthand: core.BoolPointer(false),
+		},
+		"rating": &core.ConfigAttribute{
+			Name: "rating",
+			Type: "string",
+			Shorthands: map[string]string{
+				"★":   "★",
+				"★★":  "★★",
+				"★★★": "★★★",
+			},
+			PreserveShorthand: core.BoolPointer(true),
+		},
+	}
+
+	// Test extraction
+	tests := []struct {
+		title              string
+		expectedAttributes map[string]interface{}
+		expectedTitle      string
+	}{
+		{
+			title: "Add Zen Mode 🕒",
+			expectedAttributes: map[string]interface{}{
+				"status": "in-progress",
+			},
+			expectedTitle: "Add Zen Mode",
+		},
+		{
+			title: "Thinking Fast & Slow ★★★",
+			expectedAttributes: map[string]interface{}{
+				"rating": "★★★",
+			},
+			expectedTitle: "Thinking Fast & Slow ★★★", // preserved
+		},
+		{
+			title: "Complete Project ✅",
+			expectedAttributes: map[string]interface{}{
+				"status": "done",
+			},
+			expectedTitle: "Complete Project",
+		},
+		{
+			title: "Simple Book",
+			expectedAttributes: map[string]interface{}{},
+			expectedTitle: "Simple Book",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.title, func(t *testing.T) {
+			// Test extraction
+			extracted := core.ExtractShorthandsFromTitle(test.title, attributes)
+			if len(extracted) != len(test.expectedAttributes) {
+				t.Errorf("Expected %d attributes, got %d", len(test.expectedAttributes), len(extracted))
+			}
+			for key, expected := range test.expectedAttributes {
+				if actual, exists := extracted[key]; !exists || actual != expected {
+					t.Errorf("Expected %s=%v, got %v", key, expected, actual)
+				}
+			}
+
+			// Test title modification  
+			modified := core.RemoveShorthandsFromTitle(test.title, attributes)
+			if modified != test.expectedTitle {
+				t.Errorf("Expected title %q, got %q", test.expectedTitle, modified)
+			}
+		})
+	}
+}
+
+func TestTitleModification(t *testing.T) {
+	// Test that when preserveShorthand is false, the emoji gets removed from the title
+	// But when preserveShorthand is true (or unset), the emoji stays
+	
+	// Create test attributes 
+	attributes := core.ConfigAttributes{
+		"status": &core.ConfigAttribute{
+			Name: "status",
+			Type: "string",
+			Shorthands: map[string]string{
+				"📋": "todo",
+				"🕒": "in-progress", 
+				"⛔": "blocked",
+				"✅": "done",
+			},
+			PreserveShorthand: core.BoolPointer(false), // Remove from title
+		},
+		"rating": &core.ConfigAttribute{
+			Name: "rating",
+			Type: "string",
+			Shorthands: map[string]string{
+				"★":   "★",
+				"★★":  "★★",
+				"★★★": "★★★",
+			},
+			PreserveShorthand: core.BoolPointer(true), // Keep in title
+		},
+	}
+
+	tests := []struct {
+		name                 string
+		title                string
+		expectedTitle        string
+		expectedAttributes   map[string]interface{}
+	}{
+		{
+			name:  "Status shorthand removed",
+			title: "Add Zen Mode 🕒",
+			expectedTitle: "Add Zen Mode",
+			expectedAttributes: map[string]interface{}{"status": "in-progress"},
+		},
+		{
+			name:  "Rating shorthand preserved",
+			title: "Great Book ★★★",
+			expectedTitle: "Great Book ★★★",
+			expectedAttributes: map[string]interface{}{"rating": "★★★"},
+		},
+		{
+			name:  "Status shorthand at beginning",
+			title: "🕒 Add Zen Mode",
+			expectedTitle: "Add Zen Mode",
+			expectedAttributes: map[string]interface{}{"status": "in-progress"},
+		},
+		{
+			name:  "Multiple spaces cleaned up",
+			title: "Add    Zen    Mode   🕒   ",
+			expectedTitle: "Add Zen Mode",
+			expectedAttributes: map[string]interface{}{"status": "in-progress"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Test extraction
+			extracted := core.ExtractShorthandsFromTitle(test.title, attributes)
+			for key, expected := range test.expectedAttributes {
+				if actual, exists := extracted[key]; !exists || actual != expected {
+					t.Errorf("Expected %s=%v, got %v", key, expected, actual)
+				}
+			}
+
+			// Test title modification  
+			modified := core.RemoveShorthandsFromTitle(test.title, attributes)
+			if modified != test.expectedTitle {
+				t.Errorf("Expected title %q, got %q", test.expectedTitle, modified)
+			}
+		})
+	}
+}
