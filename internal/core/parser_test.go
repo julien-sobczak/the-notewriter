@@ -208,7 +208,7 @@ func TestParseFileWithTestdata(t *testing.T) {
 
 		{
 			name:   "Shorthands",
-			golden: "Shorthands",
+			golden: "shorthands",
 			test: func(t *testing.T, file *core.ParsedFile) {
 				require.NotNil(t, file)
 
@@ -231,6 +231,37 @@ func TestParseFileWithTestdata(t *testing.T) {
 				assert.Equal(t, core.AttributeSet(map[string]any{
 					"rating": int64(8),
 				}), note2.Attributes)
+			},
+		},
+
+		{
+			name:   "TOC",
+			golden: "toc",
+			test: func(t *testing.T, file *core.ParsedFile) {
+				require.NotNil(t, file)
+
+				// Should have a TOC note plus the actual content notes
+				assert.Len(t, file.Notes, 5) // TOC + Note + Flashcard + Quote1 + Quote2 = 5 notes total
+
+				// First note should be the generated TOC
+				tocNote := file.Notes[0]
+				assert.Equal(t, "Table of Content", tocNote.Title.String())
+				assert.Equal(t, "Table of Content", tocNote.ShortTitle.String())
+				assert.Equal(t, file.Slug+"-toc", tocNote.Slug)
+				assert.Equal(t, 0, tocNote.Line) // Generated note has line number 0
+				
+				// Check TOC content structure
+				expectedTOC := `* [[#Note: Note]]
+  * [[#Flashcard: Note]]
+* Quotes
+  * [[#Quote: Quote 1]]
+  * [[#Quote: Quote 2]]`
+				assert.Equal(t, expectedTOC, tocNote.Body.String())
+				
+				// TOC should have no comment, no attributes, no tags
+				assert.Empty(t, tocNote.Comment.String())
+				assert.Empty(t, tocNote.NoteAttributes)
+				assert.Empty(t, tocNote.NoteTags)
 			},
 		},
 
