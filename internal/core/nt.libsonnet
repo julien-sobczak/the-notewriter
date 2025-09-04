@@ -1,13 +1,94 @@
 {
+    // Declare default attributes with special meaning for The NoteWriter
+    DefaultAttributes: {
+        due: {
+            name: "due",
+            description: "Due date",
+            type: "date",
+        },
+        status: {
+            name: "status",
+            aliases: ["state"],
+            description: "Status of a task",
+            type: "string",
+            options: ["todo", "in-progress", "done", "cancelled", "on-hold"],
+            defaultValue: "todo",
+            shorthands: {
+                "📝": "todo",
+                "❓": "to-refine",
+                "⏱️": "in-progress",
+                "✅": "done",
+                "❌": "cancelled",
+                "⏸️": "on-hold",
+            },
+            preserveShorthand: false,
+        },
+        priority: {
+            name: "priority",
+            description: "Priority of a task",
+            type: "string",
+            options: ["low", "medium", "high", "urgent"],
+            defaultValue: "medium",
+            shorthands: {
+                "🔽": "low",
+                "🔼": "medium",
+                "❗": "high",
+                "🚨": "urgent",
+            },
+            preserveShorthand: false,
+        },
+        rating: {
+            name: "rating",
+            description: "Rating",
+            type: "integer",
+            min: 0,
+            max: 10,
+            shorthands: {
+                "☆": 0,
+                "\u2BE8": 1,
+                "★": 2,
+                "★\u2BE8": 3,
+                "★★": 4,
+                "★★\u2BE8": 5,
+                "★★★": 6,
+                "★★★\u2BE8": 7,
+                "★★★★": 8,
+                "★★★★\u2BE8": 9,
+                "★★★★★": 10,
+            },
+            preserveShorthand: true,
+        },
+    },
+
     // Declare default note types
     DefaultTypes: {
         // Prefedefined objects = types with custom logic in The NoteWriter when processing them
         Note: {
             name: "Note",
         },
+        Task: self.Note + {
+            name: "Task",
+            attributes: [
+                {
+                    name: "status",
+                    required: true,
+                },
+                {
+                    name: "due",
+                },
+                {
+                    name: "priority",
+                },
+            ],
+        },
         Journal: self.Note + {
             name: "Journal",
-            requiredAttributes: ["date"],
+            attributes: [
+                {
+                    name: "date",
+                    required: true,
+                },
+            ],
             preprocessors: ["date-extractor"],
         },
         Quote: self.Note + {
@@ -19,7 +100,14 @@
         },
         Flashcard: self.Note + {
             name: "Flashcard",
-            optionalAttributes: ["srs.algorithm", "srs.boostFactor"],
+            attributes: [
+                {
+                    name: "srs.algorithm",
+                },
+                {
+                    name: "srs.boostFactor",
+                },
+            ],
             preprocessors: ["flashcard-extractor"],
         },
         Todo: self.Note + {
@@ -27,7 +115,14 @@
         },
         Generator: self.Note + {
             name: "Generator",
-            optionalAttributes: ["file", "interpreter"],
+            attributes: [
+                {
+                    name: "file",
+                },
+                {
+                    name: "interpreter",
+                },
+            ],
             preprocessors: ["generator"],
         },
     },

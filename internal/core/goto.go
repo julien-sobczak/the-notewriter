@@ -469,17 +469,18 @@ func ExtractPlaceholders(text string) []Placeholder {
 
 		// Parse allowed values if present
 		if len(match) > 2 && match[2] != "" {
+			var options []string
 			values := strings.Split(match[2], ",")
-			for i, value := range values {
+			for _, value := range values {
 				value = strings.TrimSpace(value)
-				if value == "..." || value == "…"{
+				if value == "..." || value == "…" {
 					placeholder.Ellipsis = true
 				} else {
-					values[i] = value
+					options = append(options, value)
 				}
 			}
 
-			placeholder.Options = values
+			placeholder.Options = options
 		}
 
 		placeholders = append(placeholders, placeholder)

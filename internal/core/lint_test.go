@@ -362,7 +362,7 @@ func TestCheckAttributes(t *testing.T) {
 		},
 		{
 			Name:         "check-attributes",
-			Message:      `attribute "isbn" on note "Note: _Steve Jobs_ by Walter Isaacson" in file "check-attributes.md" does not match pattern "^([0-9-]{10}|[0-9]{3}-[0-9]{10})$"`,
+			Message:      `attribute "isbn" on note "Note: _Steve Jobs_ by Walter Isaacson" in file "check-attributes.md": value "INVALID" does not match pattern "^([0-9-]{10}|[0-9]{3}-[0-9]{10})$"`,
 			RelativePath: "check-attributes.md",
 			Line:         14,
 		},

@@ -2,5 +2,6 @@
 local nt = import 'nt.libsonnet';
 
 {
-    Types: nt.DefaultTypes,
+    attributes: nt.DefaultAttributes,
+    types: nt.DefaultTypes,
 }

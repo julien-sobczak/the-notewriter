@@ -179,7 +179,7 @@ class SillyClass:
 	assert.Equal(t, note.OID, gotoLink.NoteOID)
 	assert.Equal(t, "programming/python.md", gotoLink.RelativePath)
 	assert.Equal(t, markdown.Document("PyCon France"), gotoLink.Text)
-	assert.Equal(t, "https://www.pycon.fr/2025/", gotoLink.URL)
+	assert.Equal(t, "https://www.pycon.fr/2025/", string(gotoLink.URL))
 	assert.Equal(t, "PyCon", gotoLink.Title)
 	assert.Equal(t, "pycon-fr", gotoLink.Name)
 	assert.Equal(t, clock.Now().Truncate(time.Second), gotoLink.CreatedAt.Truncate(time.Second))

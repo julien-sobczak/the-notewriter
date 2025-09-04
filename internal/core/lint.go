@@ -25,7 +25,7 @@ type LintResult struct {
 
 // Append merges new violations into the current result.
 func (r *LintResult) Append(violations ...*Violation) {
-	linter := CurrentConfig().ConfigFile.Linter
+	linter := CurrentConfigFile().Linter
 	for _, violation := range violations {
 		if linter.Severity(violation.Name) == "warning" {
 			r.Warnings = append(r.Warnings, violation)
@@ -526,8 +526,8 @@ func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 
 	for _, note := range file.Notes {
 
-		attributeDefinitions := CurrentConfig().ConfigFile.Attributes
-		objectDefinition := CurrentConfig().ConfigFile.GetType(note.Type)
+		attributeDefinitions := CurrentConfigFile().Attributes
+		objectDefinition := CurrentConfigFile().MustGetType(note.Type)
 
 		for _, attributeDefinition := range attributeDefinitions {
 
@@ -546,26 +546,14 @@ func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 					found = true
 
 					line := text.LineNumber(string(file.Markdown.Content), name+":")
-					if _, ok := CastAttribute(fileValue, *attributeDefinition); !ok {
+					stringValue := fmt.Sprintf("%s", fileValue)
+					if valid, err := attributeDefinition.Valid(stringValue); !valid {
 						violations = append(violations, &Violation{
 							Name:         "check-attributes",
 							RelativePath: file.RelativePath,
-							Message:      fmt.Sprintf("attribute %q in file %q is not a valid %s or cannot be converted", name, file.Title, attributeDefinition.Type),
+							Message:      fmt.Sprintf("attribute %q in file %q: %s", name, file.Title, err),
 							Line:         line,
 						})
-					} else if attributeDefinition.Pattern != "" {
-						// Check pattern
-						regexAttribute := regexp.MustCompile(attributeDefinition.Pattern)
-						// Convert value to string
-						stringValue := fmt.Sprintf("%s", fileValue)
-						if !regexAttribute.MatchString(stringValue) {
-							violations = append(violations, &Violation{
-								Name:         "check-attributes",
-								RelativePath: file.RelativePath,
-								Message:      fmt.Sprintf("attribute %q in file %q does not match pattern %q", name, file.Title, attributeDefinition.Pattern),
-								Line:         line,
-							})
-						}
 					}
 				}
 
@@ -574,32 +562,37 @@ func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 					found = true
 
 					line := text.LineNumber(string(file.Markdown.Content), name+":")
-					if _, ok := CastAttribute(noteValue, *attributeDefinition); !ok {
+					stringValue := fmt.Sprintf("%s", noteValue)
+					if valid, err := attributeDefinition.Valid(stringValue); !valid {
 						violations = append(violations, &Violation{
 							Name:         "check-attributes",
 							RelativePath: file.RelativePath,
-							Message:      fmt.Sprintf("attribute %q on note %q in file %q is not a valid %s or cannot be converted", name, note.Title, file.RelativePath, attributeDefinition.Type),
+							Message:      fmt.Sprintf("attribute %q on note %q in file %q: %s", name, note.Title, file.RelativePath, err),
 							Line:         line,
 						})
-					} else if attributeDefinition.Pattern != "" {
-						// Check pattern
-						regexAttribute := regexp.MustCompile(attributeDefinition.Pattern)
-						// Convert value to string
-						stringValue := fmt.Sprintf("%s", noteValue)
-						if !regexAttribute.MatchString(stringValue) {
-							violations = append(violations, &Violation{
-								Name:         "check-attributes",
-								RelativePath: file.RelativePath,
-								Message:      fmt.Sprintf("attribute %q on note %q in file %q does not match pattern %q", name, note.Title, file.RelativePath, attributeDefinition.Pattern),
-								Line:         line,
-							})
-						}
+					}
+				}
+
+				// Also check the merged attributes (which include defaults and inherited values)
+				mergedValue, presentInMerged := note.Attributes[name]
+				if presentInMerged && !presentOnNote && !presentOnFile {
+					found = true
+					// This is an attribute that comes from defaults or inheritance
+					stringValue := fmt.Sprintf("%s", mergedValue)
+					if valid, err := attributeDefinition.Valid(stringValue); !valid {
+						violations = append(violations, &Violation{
+							Name:         "check-attributes",
+							RelativePath: file.RelativePath,
+							Message:      fmt.Sprintf("attribute %q on note %q in file %q: %s", name, note.Title, file.RelativePath, err),
+							Line:         note.Line,
+						})
 					}
 				}
 			}
 
-			// Check required
-			if slices.Contains(objectDefinition.RequiredAttributes, attributeDefinition.Name) && !found {
+			// Check required attributes
+			required := objectDefinition.RequiredAttribute(attributeDefinition.Name)
+			if required && !found {
 				violations = append(violations, &Violation{
 					Name:         "check-attributes",
 					RelativePath: file.RelativePath,
@@ -607,10 +600,10 @@ func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 					Line:         note.Line,
 				})
 			}
-
-			// Nothing more to check
-			continue
 		}
+
+		// Nothing more to check
+		continue
 	}
 
 	return violations, nil
@@ -621,7 +614,7 @@ func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 func (f *ParsedFile) Lint(ruleNames []string) ([]*Violation, error) {
 	var violations []*Violation
 
-	rules := CurrentConfig().ConfigFile.Linter.Rules
+	rules := CurrentConfigFile().Linter.Rules
 	for _, configRule := range rules {
 		fn := LintRulesFn[configRule.Name]
 

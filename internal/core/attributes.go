@@ -564,6 +564,15 @@ func CastAttribute(value any, declaredType ConfigAttribute) (any, bool) {
 	return nil, false
 }
 
+// MustCastAttribute is like CastAttribute but panics if the value cannot be cast.
+func MustCastAttribute(value any, declaredType ConfigAttribute) any {
+	typedValue, ok := CastAttribute(value, declaredType)
+	if !ok {
+		panic(fmt.Sprintf("invalid value for attribute %v: %v", declaredType, value))
+	}
+	return typedValue
+}
+
 /*
  * Markdown
  */

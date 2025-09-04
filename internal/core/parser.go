@@ -296,7 +296,6 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		noteContent := section.ContentText.MustTransform(StripSubNotesTransformer)
 
 		noteBody := noteContent.ExtractLines(2, -1) // Trim heading
-
 		if noteBody.IsBlank() {
 			// skip sections without text (= category to organize notes, not really free notes)
 			continue
@@ -312,6 +311,24 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		if !supported {
 			// Ex: top-level heading, subsections inside a "Note:" already included in the containing note, ...
 			continue
+		}
+
+		// Process shorthands from shortTitle
+		extractedAttributes := ExtractShorthands(string(shortTitle), CurrentConfigFile().Attributes)
+
+		// Apply extracted shorthand attributes
+		for attrName, attrValue := range extractedAttributes {
+			noteAttributes[attrName] = attrValue
+		}
+
+		// Update titles by removing shorthands only if not-preservable
+		modifiedTitle := RemoveShorthands(string(title), CurrentConfigFile().Attributes)
+		if modifiedTitle != string(title) {
+			title = markdown.Document(modifiedTitle)
+		}
+		modifiedShortTitle := RemoveShorthands(string(shortTitle), CurrentConfigFile().Attributes)
+		if modifiedShortTitle != string(shortTitle) {
+			shortTitle = markdown.Document(modifiedShortTitle)
 		}
 
 		// Ignore ignorabled notes
@@ -384,6 +401,10 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		if noteType.Hooks != nil {
 			attributes.AddHook(noteType.Hooks...)
 		}
+
+		// Apply default values for missing required attributes
+		defaultAttributes := CurrentConfigFile().GetAttributeDefaults(noteType.Name)
+		attributes = defaultAttributes.Merge(attributes)
 
 		// Determine the long title
 		var titles []markdown.Document
@@ -510,7 +531,7 @@ func FilterNonInheritableAttributes(attributeSet AttributeSet) AttributeSet {
 	// (ex: tags are not inheritable)
 	filtered := make(AttributeSet)
 	for key, value := range attributeSet {
-		attributeConfig, ok := CurrentConfig().ConfigFile.GetAttribute(key)
+		attributeConfig, ok := CurrentConfigFile().GetAttribute(key)
 		if !ok || *attributeConfig.Inherit {
 			// Undefined attribute are inherited by default
 			filtered[key] = value
@@ -920,4 +941,91 @@ func (n *ParsedNote) Matches(query *Query) bool {
 	// query.Terms is not supported as parsed notes are still not indexed
 
 	return true
+}
+
+// ExtractShorthands extracts shorthand attributes from a string
+func ExtractShorthands(text string, attributes ConfigAttributes) AttributeSet {
+	extractedAttributes := make(AttributeSet)
+
+	for _, attribute := range attributes {
+		if len(attribute.Shorthands) == 0 {
+			continue
+		}
+
+		// Sort shorthand keys by length (longest first) to match longer patterns first
+		var sortedKeys []string
+		for shorthandKey := range attribute.Shorthands {
+			sortedKeys = append(sortedKeys, shorthandKey)
+		}
+		// Simple sort by length (longest first)
+		for i := 0; i < len(sortedKeys); i++ {
+			for j := i + 1; j < len(sortedKeys); j++ {
+				if len(sortedKeys[i]) < len(sortedKeys[j]) {
+					sortedKeys[i], sortedKeys[j] = sortedKeys[j], sortedKeys[i]
+				}
+			}
+		}
+
+		// Look for each shorthand key in the text (longest first)
+		for _, shorthandKey := range sortedKeys {
+			if strings.Contains(text, shorthandKey) {
+				shorthandValue := attribute.Shorthands[shorthandKey]
+				typedValue := MustCastAttribute(shorthandValue, *attribute)
+				extractedAttributes[attribute.Name] = typedValue
+				break // Only match the first shorthand for this attribute
+			}
+		}
+	}
+
+	return extractedAttributes
+}
+
+// RemoveShorthands removes shorthands from text only if marked as non-preservable.
+func RemoveShorthands(text string, attributes ConfigAttributes) string {
+	modifiedText := text
+
+	for _, attribute := range attributes {
+		if attribute.PreserveShorthand == nil || *attribute.PreserveShorthand {
+			continue
+		}
+
+		if len(attribute.Shorthands) == 0 {
+			continue
+		}
+
+		// Sort shorthand keys by length (longest first) to remove longer patterns first
+		var sortedKeys []string
+		for shorthandKey := range attribute.Shorthands {
+			sortedKeys = append(sortedKeys, shorthandKey)
+		}
+		// Simple sort by length (longest first)
+		for i := 0; i < len(sortedKeys); i++ {
+			for j := i + 1; j < len(sortedKeys); j++ {
+				if len(sortedKeys[i]) < len(sortedKeys[j]) {
+					sortedKeys[i], sortedKeys[j] = sortedKeys[j], sortedKeys[i]
+				}
+			}
+		}
+
+		// Remove shorthand keys from text (longest first)
+		for _, shorthandKey := range sortedKeys {
+			if strings.Contains(modifiedText, shorthandKey) {
+				modifiedText = strings.ReplaceAll(modifiedText, shorthandKey, "")
+				break // Only remove the first match for this attribute
+			}
+		}
+	}
+
+	// Remove U+FE0F used to request the emoji presentation of a character that can be displayed either as text or emoji (see https://unicode.org/faq/emoji_dingbats.html)
+	modifiedText = strings.Map(func(r rune) rune {
+		if r == '\uFE0F' {
+			return -1
+		}
+		return r
+	}, modifiedText)
+
+	// Clean up consecutive spaces and trim
+	modifiedText = strings.TrimSpace(regexp.MustCompile(`\s+`).ReplaceAllString(modifiedText, " "))
+
+	return modifiedText
 }
