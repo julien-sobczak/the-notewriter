@@ -496,26 +496,26 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 // generateTOCNote generates a Table of Contents note based on the parsed notes and sections
 func (p *ParsedFile) generateTOCNote(sections []*markdown.Section, notes []*ParsedNote) (*ParsedNote, error) {
 	if len(notes) == 0 {
-		return nil, nil // No notes to generate TOC for
+		return nil, nil // No notes = no TOC
 	}
 
 	// Create a map of section titles to their corresponding notes
-	sectionToNote := make(map[string]*ParsedNote)
+	sectionToNote := make(map[int]*ParsedNote)
 	for _, note := range notes {
-		sectionToNote[note.Title.String()] = note
+		sectionToNote[note.Line] = note
 	}
 
 	// Build TOC content by processing sections level by level
 	var tocLines []string
-	
+
 	// Only process sections at level 2 and above (skip file title at level 1)
 	for _, section := range sections {
 		if section.HeadingLevel < 2 {
 			continue // Skip top-level file heading
 		}
-		
+
 		// Check if this section corresponds to a parsed note
-		if note, isNote := sectionToNote[section.HeadingText.String()]; isNote {
+		if note, isNote := sectionToNote[section.FileLineStart]; isNote {
 			// This is a typed note - create wikilink with proper indentation
 			indent := strings.Repeat("  ", section.HeadingLevel-2)
 			tocLines = append(tocLines, indent+fmt.Sprintf("* [[#%s]]", note.Title.String()))
@@ -524,13 +524,13 @@ func (p *ParsedFile) generateTOCNote(sections []*markdown.Section, notes []*Pars
 			hasChildNotes := false
 			for _, otherSection := range sections {
 				if otherSection.Parent == section {
-					if _, isChildNote := sectionToNote[otherSection.HeadingText.String()]; isChildNote {
+					if _, isChildNote := sectionToNote[otherSection.FileLineStart]; isChildNote {
 						hasChildNotes = true
 						break
 					}
 				}
 			}
-			
+
 			// Only include untyped sections that have child notes
 			if hasChildNotes {
 				indent := strings.Repeat("  ", section.HeadingLevel-2)
@@ -545,7 +545,7 @@ func (p *ParsedFile) generateTOCNote(sections []*markdown.Section, notes []*Pars
 
 	// Create the TOC note
 	tocContent := strings.Join(tocLines, "\n")
-	
+
 	tocNote := &ParsedNote{
 		Parent:         nil,
 		Level:          1,
@@ -560,7 +560,7 @@ func (p *ParsedFile) generateTOCNote(sections []*markdown.Section, notes []*Pars
 		NoteTags:       TagSet{},
 		NoteAttributes: AttributeSet{},
 		Attributes:     FilterNonInheritableAttributes(p.FileAttributes),
-		Content:        markdown.Document(tocContent),
+		Content:        markdown.Document("# Table of Contents\n\n" + tocContent),
 		Body:           markdown.Document(tocContent),
 		Comment:        markdown.Document(""),
 	}

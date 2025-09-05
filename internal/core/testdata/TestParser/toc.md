@@ -1,34 +1,42 @@
 ---
-tags: toc
+tags: "toc"
 ---
-# File
+# TOC
 
 ## Introduction
 
-This section is not typed and will not be parsed as a note.
-No subnotes are present inside this section. Must not be included in ToC.
+This is a demonstration of the TOC feature. This section should not appear in the TOC because it has no child notes.
 
-## Note: Note
+## Note: Main Concept
 
-This is a note of type `Note`.
+This is a main concept note. It should appear in the TOC with a wikilink.
 
-### Flashcard: Note
+### Note: Sub-concept
 
-(Test) What is a subnote of type Flashcard?
+This is a sub-concept note. It should appear indented under the main concept.
+
+### Flashcard: Definition
+
+What is the main concept?
 
 ---
 
-This is a subnote of type `Flashcard`.
+The main concept is the primary idea being discussed.
 
-## Quotes
+## Resources
 
-A list of curated quotes. This section is not typed but contains parsed notes.
-Must be included in ToC (without a wikilink).
+This untyped section contains resources and should appear in TOC because it has child notes.
 
-### Quote: Quote 1
+### Quote: Famous Quote
 
-A random quote.
+> Knowledge is power.
 
-### Quote: Quote 2
+-- Francis Bacon
 
-A random quote.
+### Note: Resource Note
+
+This is a resource note under the resources section.
+
+## Empty Section
+
+This section has no child notes, so it should not appear in the TOC.

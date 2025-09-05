@@ -241,23 +241,28 @@ func TestParseFileWithTestdata(t *testing.T) {
 				require.NotNil(t, file)
 
 				// Should have a TOC note plus the actual content notes
-				assert.Len(t, file.Notes, 5) // TOC + Note + Flashcard + Quote1 + Quote2 = 5 notes total
+				assert.Len(t, file.Notes, 6) // 1 TOC + 5 notes
 
 				// First note should be the generated TOC
 				tocNote := file.Notes[0]
 				assert.Equal(t, "Table of Content", tocNote.Title.String())
 				assert.Equal(t, "Table of Content", tocNote.ShortTitle.String())
+				assert.Equal(t, "Table of Content", tocNote.LongTitle.String())
 				assert.Equal(t, file.Slug+"-toc", tocNote.Slug)
 				assert.Equal(t, 0, tocNote.Line) // Generated note has line number 0
-				
+
 				// Check TOC content structure
-				expectedTOC := `* [[#Note: Note]]
-  * [[#Flashcard: Note]]
-* Quotes
-  * [[#Quote: Quote 1]]
-  * [[#Quote: Quote 2]]`
-				assert.Equal(t, expectedTOC, tocNote.Body.String())
-				
+				actual := tocNote.Body.String()
+				expected := `
+* [[#Note: Main Concept]]
+  * [[#Note: Sub-concept]]
+  * [[#Flashcard: Definition]]
+* Resources
+  * [[#Quote: Famous Quote]]
+  * [[#Note: Resource Note]]
+`
+				assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
+
 				// TOC should have no comment, no attributes, no tags
 				assert.Empty(t, tocNote.Comment.String())
 				assert.Empty(t, tocNote.NoteAttributes)
