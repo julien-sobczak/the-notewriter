@@ -554,7 +554,7 @@ func currentHome() string {
 	// without installing the binary. Ex:
 	//
 	//   $ env NT_HOME ./examples go run main.go build
-	if path, ok := os.LookupEnv("NT_HOME"); ok {
+	if path, ok := os.LookupEnv("NT_HOME"); ok && path != "" {
 		abspath, err := filepath.Abs(path)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Failed to evaluate $NT_HOME")
