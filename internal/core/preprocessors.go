@@ -419,17 +419,30 @@ func extractAttributes(text string) map[string]interface{} {
 	return attributes
 }
 
-// extractEmojis finds all emojis in the text
+// extractEmojis finds all emojis in the text using a more robust approach
 func extractEmojis(text string) []string {
-	// Simple emoji detection - look for common emoji characters
-	// This is a simplified approach, a full implementation would need comprehensive Unicode support
 	var emojis []string
-	for _, r := range text {
-		// Check if character is in common emoji ranges
+	runes := []rune(text)
+	
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
+		
+		// Check for flag sequences (regional indicators)
+		if r >= 0x1F1E0 && r <= 0x1F1FF && i+1 < len(runes) {
+			next := runes[i+1]
+			if next >= 0x1F1E0 && next <= 0x1F1FF {
+				// This is a country flag emoji (two regional indicators)
+				emojis = append(emojis, string([]rune{r, next}))
+				i++ // Skip the next rune since we processed it
+				continue
+			}
+		}
+		
+		// Check for other emoji ranges
 		if (r >= 0x1F600 && r <= 0x1F64F) || // Emoticons
 			(r >= 0x1F300 && r <= 0x1F5FF) || // Misc Symbols and Pictographs
 			(r >= 0x1F680 && r <= 0x1F6FF) || // Transport and Map
-			(r >= 0x1F1E0 && r <= 0x1F1FF) || // Regional Indicators (flags)
+			(r >= 0x1F900 && r <= 0x1F9FF) || // Supplemental Symbols and Pictographs
 			(r >= 0x2600 && r <= 0x26FF) ||   // Misc symbols
 			(r >= 0x2700 && r <= 0x27BF) {    // Dingbats
 			emojis = append(emojis, string(r))
