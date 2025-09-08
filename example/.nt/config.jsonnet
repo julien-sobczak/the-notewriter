@@ -47,4 +47,32 @@ local nt = import 'nt.libsonnet';
             ],
         },
     },
+
+    # Books configuration for generating ePub/PDF books
+    books: [
+        {
+            title: "Sample NoteWriter Book",
+            author: ["NoteWriter User"],
+            language: "en-US",
+            toc: true,
+            format: ["epub", "pdf"],
+            chapters: [
+                {
+                    title: "Introduction",
+                    text: "This is a sample book generated from NoteWriter notes.\n\nIt demonstrates how to collect and organize notes into a cohesive publication."
+                },
+                {
+                    title: "Thoughts and Reflections", 
+                    sections: [
+                        {
+                            title: "Notes",
+                            query: "type:Note",
+                            pageBreaks: true,
+                            includeComments: false,
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
 }
