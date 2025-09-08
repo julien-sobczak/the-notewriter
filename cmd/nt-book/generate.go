@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	_ "embed"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,6 +14,9 @@ import (
 
 	"github.com/julien-sobczak/the-notewriter/internal/core"
 )
+
+//go:embed book-style.css
+var defaultCSS string
 
 var dryRun bool
 
@@ -100,10 +104,17 @@ func generateBook(config *core.Config, book *core.ConfigBook) error {
 	}
 	defer os.Remove(tempMarkdownFile)
 	
+	// Create temporary CSS file
+	tempCSSFile := filepath.Join(tempDir, "book_"+slugify(book.Title)+".css")
+	if err := os.WriteFile(tempCSSFile, []byte(defaultCSS), 0644); err != nil {
+		return fmt.Errorf("failed to write temporary CSS file: %v", err)
+	}
+	defer os.Remove(tempCSSFile)
+	
 	// Generate book files for each format
 	for _, format := range book.Format {
 		outputPath := getOutputPath(config, book, format)
-		if err := generateBookFile(tempMarkdownFile, outputPath, format, book); err != nil {
+		if err := generateBookFile(tempMarkdownFile, tempCSSFile, outputPath, format, book); err != nil {
 			fmt.Fprintf(os.Stderr, "Error generating %s format: %v\n", format, err)
 		} else {
 			fmt.Printf("✅ Generated %s: %s\n", format, outputPath)
@@ -220,8 +231,8 @@ func generateQueryContent(config *core.Config, section *core.ConfigBookSection) 
 		// Add note title as subheading
 		content.WriteString(fmt.Sprintf("## %s\n\n", string(note.Title)))
 		
-		// Add note content
-		noteContent := string(note.Content)
+		// Add note content (excluding the title part)
+		noteContent := string(note.Body) // Use Body instead of Content to avoid title duplication
 		content.WriteString(noteContent)
 		content.WriteString("\n\n")
 		
@@ -264,8 +275,8 @@ func generateNotesContent(config *core.Config, section *core.ConfigBookSection) 
 		// Add note title as subheading
 		content.WriteString(fmt.Sprintf("## %s\n\n", string(note.Title)))
 		
-		// Add note content
-		noteContent := string(note.Content)
+		// Add note content (excluding the title part)
+		noteContent := string(note.Body) // Use Body instead of Content to avoid title duplication
 		content.WriteString(noteContent)
 		content.WriteString("\n\n")
 		
@@ -329,7 +340,7 @@ func findNoteBySlug(slug string) (*core.Note, error) {
 	return note, nil
 }
 
-func generateBookFile(markdownFile, outputPath, format string, book *core.ConfigBook) error {
+func generateBookFile(markdownFile, cssFile, outputPath, format string, book *core.ConfigBook) error {
 	// Ensure output directory exists
 	outputDir := filepath.Dir(outputPath)
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
@@ -344,6 +355,9 @@ func generateBookFile(markdownFile, outputPath, format string, book *core.Config
 	
 	// Output file
 	args = append(args, "-o", outputPath)
+	
+	// Add CSS styling
+	args = append(args, "--css", cssFile)
 	
 	// Format-specific options
 	switch strings.ToLower(format) {
