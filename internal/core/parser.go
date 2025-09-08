@@ -96,6 +96,9 @@ type ParsedNote struct {
 	Flashcards []*ParsedFlashcard
 	GoLinks    []*ParsedGoto
 	Reminders  []*ParsedReminder
+
+	// List items extracted from Markdown lists  
+	Items ListItems
 }
 
 func (p ParsedNote) String() string {

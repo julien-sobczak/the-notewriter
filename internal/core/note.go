@@ -21,6 +21,21 @@ import (
 // NoteLongTitleSeparator represents the separator when determine the long title of a note.
 const NoteLongTitleSeparator string = " / "
 
+// ListItem represents a single item in a Markdown list
+type ListItem struct {
+	Line       int                    `yaml:"line" json:"line"`
+	Text       string                 `yaml:"text" json:"text"`
+	Tags       []string               `yaml:"tags,omitempty" json:"tags,omitempty"`
+	Attributes map[string]interface{} `yaml:"attributes,omitempty" json:"attributes,omitempty"`
+	Emojis     []string               `yaml:"emojis,omitempty" json:"emojis,omitempty"`
+	Children   []*ListItem            `yaml:"children,omitempty" json:"children,omitempty"`
+}
+
+// ListItems represents the extracted list items from Markdown content
+type ListItems struct {
+	Children []*ListItem `yaml:"children" json:"children"`
+}
+
 type Note struct {
 	// A unique identifier among all files
 	OID oid.OID `yaml:"oid" json:"oid"`
@@ -63,6 +78,9 @@ type Note struct {
 	Body    markdown.Document `yaml:"body" json:"body"`
 	Comment markdown.Document `yaml:"comment,omitempty" json:"comment,omitempty"`
 
+	// List items extracted from Markdown lists
+	Items ListItems `yaml:"items,omitempty" json:"items,omitempty"`
+
 	// Timestamps to track changes
 	CreatedAt time.Time `yaml:"created_at" json:"created_at"`
 	UpdatedAt time.Time `yaml:"updated_at" json:"updated_at"`
@@ -94,6 +112,7 @@ func NewNote(packFile *PackFile, file *File, parsedNote *ParsedNote) (*Note, err
 		Hash:         parsedNote.Content.Hash(),
 		Body:         parsedNote.Body,
 		Comment:      parsedNote.Comment,
+		Items:        parsedNote.Items,
 		Line:         parsedNote.Line,
 		CreatedAt:    packFile.CTime,
 		UpdatedAt:    packFile.CTime,
@@ -264,6 +283,11 @@ func (n *Note) update(packFile *PackFile, f *File, parsedNote *ParsedNote) {
 		stale = true
 	}
 
+	if !reflect.DeepEqual(n.Items, parsedNote.Items) {
+		n.Items = parsedNote.Items
+		stale = true
+	}
+
 	newWikilink := f.Wikilink + "#" + string(parsedNote.Title.TrimSpace())
 	if n.Wikilink != newWikilink {
 		n.Wikilink = newWikilink
@@ -422,10 +446,11 @@ func (n *Note) Save() error {
 			hashsum,
 			body,
 			comment,
+			items,
 			created_at,
 			updated_at,
 			indexed_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(oid) DO UPDATE SET
 			packfile_oid = ?,
 			file_oid = ?,
@@ -443,12 +468,18 @@ func (n *Note) Save() error {
 			hashsum = ?,
 			body = ?,
 			comment = ?,
+			items = ?,
 			updated_at = ?,
 			indexed_at = ?
 		;
 	`
 
 	attributesJSON, err := n.Attributes.ToJSON()
+	if err != nil {
+		return err
+	}
+
+	itemsJSON, err := json.Marshal(n.Items)
 	if err != nil {
 		return err
 	}
@@ -472,6 +503,7 @@ func (n *Note) Save() error {
 		n.Hash,
 		n.Body,
 		n.Comment,
+		string(itemsJSON),
 		timeToSQL(n.CreatedAt),
 		timeToSQL(n.UpdatedAt),
 		timeToSQL(n.IndexedAt),
@@ -492,6 +524,7 @@ func (n *Note) Save() error {
 		n.Hash,
 		n.Body,
 		n.Comment,
+		string(itemsJSON),
 		timeToSQL(n.UpdatedAt),
 		timeToSQL(n.IndexedAt),
 	)
@@ -816,6 +849,7 @@ func QueryNote(db SQLClient, whereClause string, randomClause string, args ...an
 	var tagsRaw string
 	var attributesRaw string
 	var annotationsRaw string
+	var itemsRaw string
 
 	// Build the complete query with optional random clause
 	query := fmt.Sprintf(`
@@ -837,6 +871,7 @@ func QueryNote(db SQLClient, whereClause string, randomClause string, args ...an
 			hashsum,
 			body,
 			comment,
+			items,
 			created_at,
 			updated_at,
 			indexed_at,
@@ -866,6 +901,7 @@ func QueryNote(db SQLClient, whereClause string, randomClause string, args ...an
 			&n.Hash,
 			&n.Body,
 			&n.Comment,
+			&itemsRaw,
 			&createdAt,
 			&updatedAt,
 			&lastIndexedAt,
@@ -884,6 +920,14 @@ func QueryNote(db SQLClient, whereClause string, randomClause string, args ...an
 		return nil, err
 	}
 
+	var items ListItems
+	if itemsRaw != "" {
+		err = json.Unmarshal([]byte(itemsRaw), &items)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	annotations := make([]Annotation, 0)
 	if annotationsRaw != "" {
 		err = yaml.Unmarshal([]byte(annotationsRaw), &annotations)
@@ -894,6 +938,7 @@ func QueryNote(db SQLClient, whereClause string, randomClause string, args ...an
 
 	n.Attributes = attributes.CastOrIgnore(CurrentConfigFile().Attributes)
 	n.Tags = strings.Split(tagsRaw, ",")
+	n.Items = items
 	n.CreatedAt = timeFromSQL(createdAt)
 	n.UpdatedAt = timeFromSQL(updatedAt)
 	n.IndexedAt = timeFromSQL(lastIndexedAt)
@@ -925,6 +970,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			hashsum,
 			body,
 			comment,
+			items,
 			created_at,
 			updated_at,
 			indexed_at,
@@ -946,6 +992,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 		var tagsRaw string
 		var attributesRaw string
 		var annotationsRaw string
+		var itemsRaw string
 
 		err = rows.Scan(
 			&n.OID,
@@ -965,6 +1012,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			&n.Hash,
 			&n.Body,
 			&n.Comment,
+			&itemsRaw,
 			&createdAt,
 			&updatedAt,
 			&lastIndexedAt,
@@ -981,6 +1029,14 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			return nil, err
 		}
 
+		var items ListItems
+		if itemsRaw != "" {
+			err = json.Unmarshal([]byte(itemsRaw), &items)
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		annotations := make([]Annotation, 0)
 		if annotationsRaw != "" {
 			err = yaml.Unmarshal([]byte(annotationsRaw), &annotations)
@@ -991,6 +1047,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 
 		n.Attributes = attributes.CastOrIgnore(CurrentConfigFile().Attributes)
 		n.Tags = strings.Split(tagsRaw, ",")
+		n.Items = items
 		n.CreatedAt = timeFromSQL(createdAt)
 		n.UpdatedAt = timeFromSQL(updatedAt)
 		n.IndexedAt = timeFromSQL(lastIndexedAt)

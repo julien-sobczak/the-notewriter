@@ -82,6 +82,8 @@ CREATE TABLE note (
   body TEXT NOT NULL,
   -- Comment in Markdown format
   comment TEXT NOT NULL,
+  -- List items extracted from Markdown lists
+  items TEXT CHECK(json_valid(items)) DEFAULT '{}',
 
   -- Timestamps to track changes
   created_at TEXT NOT NULL,

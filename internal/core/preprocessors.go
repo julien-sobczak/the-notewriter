@@ -20,6 +20,7 @@ func init() {
 	RegisterPreprocessor("quote-rewriter", QuoteRewriterPreprocessor)
 	RegisterPreprocessor("generator", GeneratorPreprocessor)
 	RegisterPreprocessor("flashcard-extractor", FlashcardExtractorPreprocessor)
+	RegisterPreprocessor("list-items", ListItemsPreprocessor)
 }
 
 /* Preprocessors implementation */
@@ -286,6 +287,179 @@ func flashcardWithClozeDeletionExtractor(_ *ParsedFile, note *ParsedNote) ([]*Pa
 	}
 
 	return []*ParsedNote{note}, nil
+}
+
+// ListItemsPreprocessor extracts list items from Markdown content and populates the Items field.
+// It parses Markdown lists, extracts tags, attributes, and emojis from the text, and creates
+// a nested structure representing the list hierarchy.
+func ListItemsPreprocessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, error) {
+	items := extractListItems(note.Body.String(), note.Line)
+	note.Items = ListItems{Children: items}
+	return []*ParsedNote{note}, nil
+}
+
+// extractListItems parses Markdown content and extracts list items with their metadata
+func extractListItems(content string, baseLineNumber int) []*ListItem {
+	lines := strings.Split(content, "\n")
+	items := []*listItemWithIndent{}
+	
+	for i, line := range lines {
+		lineNumber := baseLineNumber + i
+		
+		// Check if this line is a list item
+		if item := parseListItemWithIndent(line, lineNumber); item != nil {
+			items = append(items, item)
+		}
+	}
+	
+	// Process nested items
+	return processNestedItemsWithIndent(items)
+}
+
+// listItemWithIndent is a temporary struct to track indentation during parsing
+type listItemWithIndent struct {
+	*ListItem
+	IndentLevel int
+}
+
+// parseListItemWithIndent parses a single line and returns a listItemWithIndent if it's a list item, nil otherwise
+func parseListItemWithIndent(line string, lineNumber int) *listItemWithIndent {
+	// Regex to match various list item formats: *, -, +, 1., 2., etc.
+	listPattern := regexp.MustCompile(`^(\s*)([\*\-\+]|\d+\.)\s+(.*)$`)
+	matches := listPattern.FindStringSubmatch(line)
+	
+	if matches == nil {
+		return nil
+	}
+	
+	indentation := len(matches[1])
+	text := matches[3]
+	
+	// Extract tags, attributes, and emojis from the text
+	tags := extractTags(text)
+	attributes := extractAttributes(text)
+	emojis := extractEmojis(text)
+	
+	// Filter tags from text but keep emojis and attributes
+	cleanText := filterTags(text)
+	// Filter attributes only if preservedShorthand is false (for now, always filter)
+	cleanText = filterAttributes(cleanText)
+	
+	return &listItemWithIndent{
+		ListItem: &ListItem{
+			Line:       lineNumber,
+			Text:       strings.TrimSpace(cleanText),
+			Tags:       tags,
+			Attributes: attributes,
+			Emojis:     emojis,
+			Children:   []*ListItem{},
+		},
+		IndentLevel: indentation,
+	}
+}
+
+// processNestedItemsWithIndent processes flat list of items and creates nested structure based on indentation
+func processNestedItemsWithIndent(items []*listItemWithIndent) []*ListItem {
+	if len(items) == 0 {
+		return []*ListItem{}
+	}
+	
+	result := []*ListItem{}
+	stack := []*listItemWithIndent{} // Stack to track parent items at different indent levels
+	
+	for _, item := range items {
+		// Pop stack until we find the right parent level
+		for len(stack) > 0 && stack[len(stack)-1].IndentLevel >= item.IndentLevel {
+			stack = stack[:len(stack)-1]
+		}
+		
+		if len(stack) == 0 {
+			// This is a top-level item
+			result = append(result, item.ListItem)
+		} else {
+			// This is a child of the last item in the stack
+			parent := stack[len(stack)-1]
+			parent.ListItem.Children = append(parent.ListItem.Children, item.ListItem)
+		}
+		
+		// Push current item to stack for potential children
+		stack = append(stack, item)
+	}
+	
+	return result
+}
+
+// extractTags finds and extracts tags in the format `#tag` from text
+func extractTags(text string) []string {
+	tagPattern := regexp.MustCompile("`([^`]+)`") // Matches `#tag` pattern
+	matches := tagPattern.FindAllStringSubmatch(text, -1)
+	
+	var tags []string
+	for _, match := range matches {
+		tag := match[1]
+		if strings.HasPrefix(tag, "#") {
+			tags = append(tags, strings.TrimPrefix(tag, "#"))
+		}
+	}
+	
+	return tags
+}
+
+// extractAttributes extracts attributes from the text and returns them as a map
+func extractAttributes(text string) map[string]interface{} {
+	attributes := make(map[string]interface{})
+	
+	// Extract star rating (★★★★★) and convert to numeric rating
+	starPattern := regexp.MustCompile("★+")
+	if matches := starPattern.FindAllString(text, -1); len(matches) > 0 {
+		rating := len([]rune(matches[0])) * 2 // Each star = 2 points, so 5 stars = 10
+		attributes["rating"] = rating
+	}
+	
+	return attributes
+}
+
+// extractEmojis finds all emojis in the text
+func extractEmojis(text string) []string {
+	// Simple emoji detection - look for common emoji characters
+	// This is a simplified approach, a full implementation would need comprehensive Unicode support
+	var emojis []string
+	for _, r := range text {
+		// Check if character is in common emoji ranges
+		if (r >= 0x1F600 && r <= 0x1F64F) || // Emoticons
+			(r >= 0x1F300 && r <= 0x1F5FF) || // Misc Symbols and Pictographs
+			(r >= 0x1F680 && r <= 0x1F6FF) || // Transport and Map
+			(r >= 0x1F1E0 && r <= 0x1F1FF) || // Regional Indicators (flags)
+			(r >= 0x2600 && r <= 0x26FF) ||   // Misc symbols
+			(r >= 0x2700 && r <= 0x27BF) {    // Dingbats
+			emojis = append(emojis, string(r))
+		}
+	}
+	
+	// Remove duplicates
+	seen := make(map[string]bool)
+	var unique []string
+	for _, emoji := range emojis {
+		if !seen[emoji] {
+			unique = append(unique, emoji)
+			seen[emoji] = true
+		}
+	}
+	
+	return unique
+}
+
+// filterTags removes tags in backticks from the text
+func filterTags(text string) string {
+	tagPattern := regexp.MustCompile("`#[^`]+`")
+	return tagPattern.ReplaceAllString(text, "")
+}
+
+// filterAttributes removes attribute shorthand patterns from the text
+func filterAttributes(text string) string {
+	// Remove star ratings
+	starPattern := regexp.MustCompile(`\s*★+\s*`)
+	return starPattern.ReplaceAllString(text, "")
 }
 
 /* Helpers */
