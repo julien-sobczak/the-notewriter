@@ -294,7 +294,13 @@ func flashcardWithClozeDeletionExtractor(_ *ParsedFile, note *ParsedNote) ([]*Pa
 // a nested structure representing the list hierarchy.
 func ListItemsPreprocessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, error) {
 	items := extractListItems(note.Body.String(), note.Line)
-	note.Items = ListItems{Children: items}
+	listItems := ListItems{Children: items}
+	
+	// Populate aggregated attributes and tags
+	listItems.Attributes = listItems.CollectAllAttributes()
+	listItems.Tags = listItems.CollectAllTags()
+	
+	note.Items = listItems
 	return []*ParsedNote{note}, nil
 }
 
@@ -405,17 +411,52 @@ func extractTags(text string) []string {
 	return tags
 }
 
-// extractAttributes extracts attributes from the text and returns them as a map
+// extractAttributes extracts attributes from the text using config-defined shorthands
 func extractAttributes(text string) map[string]interface{} {
 	attributes := make(map[string]interface{})
-	
-	// Extract star rating (★★★★★) and convert to numeric rating
-	starPattern := regexp.MustCompile("★+")
-	if matches := starPattern.FindAllString(text, -1); len(matches) > 0 {
-		rating := len([]rune(matches[0])) * 2 // Each star = 2 points, so 5 stars = 10
-		attributes["rating"] = rating
+
+	// Try to get the config, but fall back to hardcoded logic if unavailable
+	config := getCurrentConfigFileSafely()
+	if config != nil {
+		// Use config-based attribute extraction
+		for _, attribute := range config.Attributes {
+			if len(attribute.Shorthands) == 0 {
+				continue
+			}
+
+			// Sort shorthand keys by length (longest first) to match longer patterns first
+			var sortedKeys []string
+			for shorthandKey := range attribute.Shorthands {
+				sortedKeys = append(sortedKeys, shorthandKey)
+			}
+			// Simple sort by length (longest first)
+			for i := 0; i < len(sortedKeys); i++ {
+				for j := i + 1; j < len(sortedKeys); j++ {
+					if len(sortedKeys[i]) < len(sortedKeys[j]) {
+						sortedKeys[i], sortedKeys[j] = sortedKeys[j], sortedKeys[i]
+					}
+				}
+			}
+
+			// Look for each shorthand key in the text (longest first)
+			for _, shorthandKey := range sortedKeys {
+				if strings.Contains(text, shorthandKey) {
+					shorthandValue := attribute.Shorthands[shorthandKey]
+					typedValue := MustCastAttribute(shorthandValue, *attribute)
+					attributes[attribute.Name] = typedValue
+					break // Only match the first shorthand for this attribute
+				}
+			}
+		}
+	} else {
+		// Fallback: Extract star rating (★★★★★) and convert to numeric rating
+		starPattern := regexp.MustCompile("★+")
+		if matches := starPattern.FindAllString(text, -1); len(matches) > 0 {
+			rating := len([]rune(matches[0])) * 2 // Each star = 2 points, so 5 stars = 10
+			attributes["rating"] = rating
+		}
 	}
-	
+
 	return attributes
 }
 
@@ -468,14 +509,82 @@ func filterTags(text string) string {
 	return tagPattern.ReplaceAllString(text, "")
 }
 
-// filterAttributes removes attribute shorthand patterns from the text
+// filterAttributes removes attribute shorthand patterns from the text based on config settings
 func filterAttributes(text string) string {
-	// Remove star ratings
-	starPattern := regexp.MustCompile(`\s*★+\s*`)
-	return starPattern.ReplaceAllString(text, "")
+	// Try to get the config, but fall back to simple logic if unavailable
+	config := getCurrentConfigFileSafely()
+	if config == nil {
+		// Fallback: Remove star ratings
+		starPattern := regexp.MustCompile(`\s*★+\s*`)
+		return starPattern.ReplaceAllString(text, "")
+	}
+
+	modifiedText := text
+
+	for _, attribute := range config.Attributes {
+		// Check if we should preserve the shorthand for this attribute
+		if attribute.PreserveShorthand == nil || *attribute.PreserveShorthand {
+			continue // Keep the shorthand in the text
+		}
+
+		// Remove shorthand patterns for this attribute if PreserveShorthand is false
+		if len(attribute.Shorthands) == 0 {
+			continue
+		}
+
+		// Sort shorthand keys by length (longest first) to remove longer patterns first
+		var sortedKeys []string
+		for shorthandKey := range attribute.Shorthands {
+			sortedKeys = append(sortedKeys, shorthandKey)
+		}
+		// Simple sort by length (longest first)
+		for i := 0; i < len(sortedKeys); i++ {
+			for j := i + 1; j < len(sortedKeys); j++ {
+				if len(sortedKeys[i]) < len(sortedKeys[j]) {
+					sortedKeys[i], sortedKeys[j] = sortedKeys[j], sortedKeys[i]
+				}
+			}
+		}
+
+		// Remove shorthand keys from text (longest first)
+		for _, shorthandKey := range sortedKeys {
+			if strings.Contains(modifiedText, shorthandKey) {
+				modifiedText = strings.ReplaceAll(modifiedText, shorthandKey, "")
+				break // Only remove the first match for this attribute
+			}
+		}
+	}
+
+	return modifiedText
 }
 
 /* Helpers */
+
+// getCurrentConfigFileSafely returns the current configuration file, or nil if not available
+// This is a defensive approach to avoid crashes during testing or when not in a repository context
+func getCurrentConfigFileSafely() *ConfigFile {
+	// First check if we already have a config singleton loaded
+	if configSingleton != nil {
+		return configSingleton.ConfigFile
+	}
+	
+	// Try to check if we're in a proper repository context by looking for .nt directory
+	currentDir := currentHome()
+	ntPath := filepath.Join(currentDir, ".nt")
+	if _, err := os.Stat(ntPath); os.IsNotExist(err) {
+		// Not in a repository, return nil for fallback behavior
+		return nil
+	}
+	
+	// We're in a repository context, try to get the config
+	// Use a safer approach that doesn't call os.Exit
+	config, err := ReadConfigFromDirectory(currentDir)
+	if err != nil || config == nil {
+		return nil
+	}
+	
+	return config.ConfigFile
+}
 
 // CommandExists checks if a command exists in the system's PATH.
 func CommandExists(command string) bool {

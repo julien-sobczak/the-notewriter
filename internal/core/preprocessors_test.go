@@ -433,4 +433,31 @@ func TestListItemsPreprocessor(t *testing.T) {
 			assert.Equal(t, 10+i, result[0].Items.Children[i].Line)
 		}
 	})
+
+	t.Run("Aggregated attributes and tags", func(t *testing.T) {
+		file := &core.ParsedFile{
+			RelativePath: "test.md",
+		}
+		note := &core.ParsedNote{
+			Body: `* _Book 1_ ★★★★★ ` + "`#life` `#philosophy`" + `
+  * Great book 🤞
+* _Book 2_ ★★★ ` + "`#fiction`" + `
+  * Another book
+    * Sub item
+* _Book 3_ ★★★★ ` + "`#productivity` `#self-help`",
+			Line: 1,
+		}
+
+		result, err := core.ListItemsPreprocessor(file, note)
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+
+		// Check that aggregated attributes are collected
+		expectedAttributes := []string{"rating"}
+		assert.ElementsMatch(t, expectedAttributes, result[0].Items.Attributes)
+
+		// Check that aggregated tags are collected from all items recursively
+		expectedTags := []string{"life", "philosophy", "fiction", "productivity", "self-help"}
+		assert.ElementsMatch(t, expectedTags, result[0].Items.Tags)
+	})
 }

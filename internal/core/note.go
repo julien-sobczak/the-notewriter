@@ -33,7 +33,67 @@ type ListItem struct {
 
 // ListItems represents the extracted list items from Markdown content
 type ListItems struct {
-	Children []*ListItem `yaml:"children" json:"children"`
+	Children   []*ListItem `yaml:"children" json:"children"`
+	Attributes []string    `yaml:"attributes,omitempty" json:"attributes,omitempty"` // All unique attribute names from all items (recursive)
+	Tags       []string    `yaml:"tags,omitempty" json:"tags,omitempty"`           // All unique tag values from all items (recursive)
+}
+
+// CollectAllAttributes collects all unique attribute names from all list items recursively
+func (li *ListItems) CollectAllAttributes() []string {
+	attributeSet := make(map[string]bool)
+	
+	for _, child := range li.Children {
+		collectAttributesFromItem(child, attributeSet)
+	}
+	
+	var attributes []string
+	for attr := range attributeSet {
+		attributes = append(attributes, attr)
+	}
+	
+	return attributes
+}
+
+// CollectAllTags collects all unique tag values from all list items recursively
+func (li *ListItems) CollectAllTags() []string {
+	tagSet := make(map[string]bool)
+	
+	for _, child := range li.Children {
+		collectTagsFromItem(child, tagSet)
+	}
+	
+	var tags []string
+	for tag := range tagSet {
+		tags = append(tags, tag)
+	}
+	
+	return tags
+}
+
+// collectAttributesFromItem recursively collects attribute names from a list item and its children
+func collectAttributesFromItem(item *ListItem, attributeSet map[string]bool) {
+	// Add attribute names from this item
+	for attrName := range item.Attributes {
+		attributeSet[attrName] = true
+	}
+	
+	// Recursively process children
+	for _, child := range item.Children {
+		collectAttributesFromItem(child, attributeSet)
+	}
+}
+
+// collectTagsFromItem recursively collects tags from a list item and its children
+func collectTagsFromItem(item *ListItem, tagSet map[string]bool) {
+	// Add tags from this item
+	for _, tag := range item.Tags {
+		tagSet[tag] = true
+	}
+	
+	// Recursively process children
+	for _, child := range item.Children {
+		collectTagsFromItem(child, tagSet)
+	}
 }
 
 type Note struct {
