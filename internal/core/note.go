@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"reflect"
 	"regexp"
 	"strings"
@@ -23,77 +24,84 @@ const NoteLongTitleSeparator string = " / "
 
 // ListItem represents a single item in a Markdown list
 type ListItem struct {
-	Line       int                    `yaml:"line" json:"line"`
-	Text       string                 `yaml:"text" json:"text"`
-	Tags       []string               `yaml:"tags,omitempty" json:"tags,omitempty"`
-	Attributes map[string]interface{} `yaml:"attributes,omitempty" json:"attributes,omitempty"`
-	Emojis     []string               `yaml:"emojis,omitempty" json:"emojis,omitempty"`
-	Children   []*ListItem            `yaml:"children,omitempty" json:"children,omitempty"`
+	Line       int               `yaml:"line" json:"line"`
+	Text       markdown.Document `yaml:"text" json:"text"`
+	Tags       TagSet            `yaml:"tags,omitempty" json:"tags,omitempty"`
+	Attributes AttributeSet      `yaml:"attributes,omitempty" json:"attributes,omitempty"`
+	Emojis     EmojiSet          `yaml:"emojis,omitempty" json:"emojis,omitempty"`
+	Children   ListItems         `yaml:"children,omitempty" json:"children,omitempty"`
 }
+
+type ListItems []*ListItem
 
 // ListItems represents the extracted list items from Markdown content
-type ListItems struct {
-	Children   []*ListItem `yaml:"children" json:"children"`
-	Attributes []string    `yaml:"attributes,omitempty" json:"attributes,omitempty"` // All unique attribute names from all items (recursive)
-	Tags       []string    `yaml:"tags,omitempty" json:"tags,omitempty"`           // All unique tag values from all items (recursive)
+type Items struct {
+	Children   ListItems `yaml:"children" json:"children"`
+	Attributes []string  `yaml:"attributes,omitempty" json:"attributes,omitempty"` // All unique attribute names
+	Tags       TagSet    `yaml:"tags,omitempty" json:"tags,omitempty"`             // All unique tag values
+	Emojis     EmojiSet  `yaml:"emojis,omitempty" json:"emojis,omitempty"`         // All unique emojis
 }
 
-// CollectAllAttributes collects all unique attribute names from all list items recursively
-func (li *ListItems) CollectAllAttributes() []string {
-	attributeSet := make(map[string]bool)
-	
-	for _, child := range li.Children {
-		collectAttributesFromItem(child, attributeSet)
+// AttributeNames returns the names of all attributes in the list item
+func (li *ListItem) AttributeNames() []string {
+	var names []string
+	for name := range li.Attributes {
+		names = append(names, name)
 	}
-	
-	var attributes []string
-	for attr := range attributeSet {
-		attributes = append(attributes, attr)
-	}
-	
-	return attributes
+	return names
 }
 
-// CollectAllTags collects all unique tag values from all list items recursively
-func (li *ListItems) CollectAllTags() []string {
-	tagSet := make(map[string]bool)
-	
-	for _, child := range li.Children {
-		collectTagsFromItem(child, tagSet)
-	}
-	
-	var tags []string
-	for tag := range tagSet {
-		tags = append(tags, tag)
-	}
-	
-	return tags
-}
-
-// collectAttributesFromItem recursively collects attribute names from a list item and its children
-func collectAttributesFromItem(item *ListItem, attributeSet map[string]bool) {
-	// Add attribute names from this item
-	for attrName := range item.Attributes {
-		attributeSet[attrName] = true
-	}
-	
-	// Recursively process children
-	for _, child := range item.Children {
-		collectAttributesFromItem(child, attributeSet)
+func NewItems(children ListItems) *Items {
+	return &Items{
+		Children: children,
+		// Collect aggregated attributes/tags/emojis
+		Attributes: children.CollectAttributesNames(),
+		Tags:       children.CollectTags(),
+		Emojis:     children.CollectEmojis(),
 	}
 }
 
-// collectTagsFromItem recursively collects tags from a list item and its children
-func collectTagsFromItem(item *ListItem, tagSet map[string]bool) {
-	// Add tags from this item
-	for _, tag := range item.Tags {
-		tagSet[tag] = true
+// CollectAttributes collects all unique attributes from the list items.
+func (l ListItems) CollectAttributesNames() []string {
+	return CollectStringFromListItems(l, func(li *ListItem) []string {
+		return li.AttributeNames()
+	})
+}
+
+// CollectAttributes collects all unique attributes from the list items.
+func (l ListItems) CollectTags() []string {
+	return CollectStringFromListItems(l, func(li *ListItem) []string {
+		return li.Tags
+	})
+}
+
+// CollectEmojis collects all unique emojis from the list items.
+func (l ListItems) CollectEmojis() []string {
+	return CollectStringFromListItems(l, func(li *ListItem) []string {
+		return li.Emojis
+	})
+}
+
+func CollectFromListItem[T comparable](i *ListItem, collectFunc func(*ListItem) []T) map[T]bool {
+	values := make(map[T]bool)
+	for _, value := range collectFunc(i) {
+		values[value] = true
 	}
-	
-	// Recursively process children
-	for _, child := range item.Children {
-		collectTagsFromItem(child, tagSet)
+	maps.Copy(values, CollectFromListItems(i.Children, collectFunc))
+	return values
+}
+func CollectFromListItems[T comparable](l ListItems, collectFunc func(*ListItem) []T) map[T]bool {
+	values := make(map[T]bool)
+	for _, child := range l {
+		for value := range CollectFromListItem(child, collectFunc) {
+			values[value] = true
+		}
 	}
+	return values
+}
+func CollectStringFromListItems(l ListItems, collectFunc func(*ListItem) []string) []string {
+	values := CollectFromListItems(l, collectFunc)
+	return slices.Sorted(maps.Keys(values))
 }
 
 type Note struct {
@@ -139,7 +147,7 @@ type Note struct {
 	Comment markdown.Document `yaml:"comment,omitempty" json:"comment,omitempty"`
 
 	// List items extracted from Markdown lists
-	Items ListItems `yaml:"items,omitempty" json:"items,omitempty"`
+	Items *Items `yaml:"items,omitempty" json:"items,omitempty"`
 
 	// Timestamps to track changes
 	CreatedAt time.Time `yaml:"created_at" json:"created_at"`
@@ -980,7 +988,7 @@ func QueryNote(db SQLClient, whereClause string, randomClause string, args ...an
 		return nil, err
 	}
 
-	var items ListItems
+	var items Items
 	if itemsRaw != "" {
 		err = json.Unmarshal([]byte(itemsRaw), &items)
 		if err != nil {
@@ -998,7 +1006,7 @@ func QueryNote(db SQLClient, whereClause string, randomClause string, args ...an
 
 	n.Attributes = attributes.CastOrIgnore(CurrentConfigFile().Attributes)
 	n.Tags = strings.Split(tagsRaw, ",")
-	n.Items = items
+	n.Items = &items
 	n.CreatedAt = timeFromSQL(createdAt)
 	n.UpdatedAt = timeFromSQL(updatedAt)
 	n.IndexedAt = timeFromSQL(lastIndexedAt)
@@ -1089,7 +1097,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			return nil, err
 		}
 
-		var items ListItems
+		var items Items
 		if itemsRaw != "" {
 			err = json.Unmarshal([]byte(itemsRaw), &items)
 			if err != nil {
@@ -1107,7 +1115,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 
 		n.Attributes = attributes.CastOrIgnore(CurrentConfigFile().Attributes)
 		n.Tags = strings.Split(tagsRaw, ",")
-		n.Items = items
+		n.Items = &items
 		n.CreatedAt = timeFromSQL(createdAt)
 		n.UpdatedAt = timeFromSQL(updatedAt)
 		n.IndexedAt = timeFromSQL(lastIndexedAt)

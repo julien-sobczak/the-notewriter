@@ -328,3 +328,64 @@ func TestBookTitle(t *testing.T) {
 		})
 	}
 }
+
+func TestSquashConsecutiveSpaces(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "NoSpaces",
+			input:    "HelloWorld",
+			expected: "HelloWorld",
+		},
+		{
+			name:     "SingleSpace",
+			input:    "Hello World",
+			expected: "Hello World",
+		},
+		{
+			name:     "MultipleSpaces",
+			input:    "Hello   World",
+			expected: "Hello World",
+		},
+		{
+			name:     "TabsAndSpaces",
+			input:    "Hello\t\tWorld",
+			expected: "Hello World",
+		},
+		{
+			name:     "NewlinesAndSpaces",
+			input:    "Hello\n\nWorld",
+			expected: "Hello World",
+		},
+		{
+			name:     "MixedWhitespace",
+			input:    "Hello \t\n  World",
+			expected: "Hello World",
+		},
+		{
+			name:     "LeadingAndTrailingSpaces",
+			input:    "   Hello World   ",
+			expected: " Hello World ",
+		},
+		{
+			name:     "OnlySpaces",
+			input:    "     ",
+			expected: " ",
+		},
+		{
+			name:     "EmptyString",
+			input:    "",
+			expected: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := text.SquashConsecutiveSpaces(tt.input)
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}
+

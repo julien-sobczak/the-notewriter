@@ -293,31 +293,28 @@ func flashcardWithClozeDeletionExtractor(_ *ParsedFile, note *ParsedNote) ([]*Pa
 // It parses Markdown lists, extracts tags, attributes, and emojis from the text, and creates
 // a nested structure representing the list hierarchy.
 func ListItemsPreprocessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, error) {
-	items := extractListItems(note.Body.String(), note.Line)
-	listItems := ListItems{Children: items}
-	
-	// Populate aggregated attributes and tags
-	listItems.Attributes = listItems.CollectAllAttributes()
-	listItems.Tags = listItems.CollectAllTags()
-	
-	note.Items = listItems
+	listItems := extractListItems(note.Body, note.Line)
+	note.Items = NewItems(listItems)
 	return []*ParsedNote{note}, nil
 }
 
 // extractListItems parses Markdown content and extracts list items with their metadata
-func extractListItems(content string, baseLineNumber int) []*ListItem {
-	lines := strings.Split(content, "\n")
+func extractListItems(body markdown.Document, baseLineNumber int) []*ListItem {
 	items := []*listItemWithIndent{}
-	
-	for i, line := range lines {
+
+	for i, line := range body.Lines() {
 		lineNumber := baseLineNumber + i
-		
+
 		// Check if this line is a list item
 		if item := parseListItemWithIndent(line, lineNumber); item != nil {
 			items = append(items, item)
 		}
 	}
-	
+
+	if len(items) == 0 {
+		return nil
+	}
+
 	// Process nested items
 	return processNestedItemsWithIndent(items)
 }
@@ -333,32 +330,33 @@ func parseListItemWithIndent(line string, lineNumber int) *listItemWithIndent {
 	// Regex to match various list item formats: *, -, +, 1., 2., etc.
 	listPattern := regexp.MustCompile(`^(\s*)([\*\-\+]|\d+\.)\s+(.*)$`)
 	matches := listPattern.FindStringSubmatch(line)
-	
 	if matches == nil {
+		// Not a list item
 		return nil
 	}
-	
+
 	indentation := len(matches[1])
-	text := matches[3]
-	
-	// Extract tags, attributes, and emojis from the text
-	tags := extractTags(text)
-	attributes := extractAttributes(text)
-	emojis := extractEmojis(text)
-	
-	// Filter tags from text but keep emojis and attributes
-	cleanText := filterTags(text)
-	// Filter attributes only if preservedShorthand is false (for now, always filter)
-	cleanText = filterAttributes(cleanText)
-	
+	doc := markdown.Document(matches[3])
+
+	// Extract tags, attributes, and emojis
+	configAttributes := CurrentConfigFile().Attributes
+	tags, attributes, emojis := ExtractAllTagsAndAttributesAndEmojis(doc, configAttributes)
+	// Filter tags and attributes but keep emojis (and preservable shorthands)
+	trimmedText := doc.MustTransform(StripTagsAndAttributes(configAttributes))
+
+	// Remove optional task checkbox
+	checkboxPattern := regexp.MustCompile(`^\[([ xX])\]\s*`)
+	trimmedText = markdown.Document(checkboxPattern.ReplaceAllString(trimmedText.String(), ""))
+
 	return &listItemWithIndent{
 		ListItem: &ListItem{
 			Line:       lineNumber,
-			Text:       strings.TrimSpace(cleanText),
+			Text:       trimmedText,
 			Tags:       tags,
 			Attributes: attributes,
 			Emojis:     emojis,
-			Children:   []*ListItem{},
+			// For now, we ignore children but keep track of indentation
+			Children: []*ListItem{},
 		},
 		IndentLevel: indentation,
 	}
@@ -369,16 +367,16 @@ func processNestedItemsWithIndent(items []*listItemWithIndent) []*ListItem {
 	if len(items) == 0 {
 		return []*ListItem{}
 	}
-	
+
 	result := []*ListItem{}
 	stack := []*listItemWithIndent{} // Stack to track parent items at different indent levels
-	
+
 	for _, item := range items {
 		// Pop stack until we find the right parent level
 		for len(stack) > 0 && stack[len(stack)-1].IndentLevel >= item.IndentLevel {
 			stack = stack[:len(stack)-1]
 		}
-		
+
 		if len(stack) == 0 {
 			// This is a top-level item
 			result = append(result, item.ListItem)
@@ -387,204 +385,15 @@ func processNestedItemsWithIndent(items []*listItemWithIndent) []*ListItem {
 			parent := stack[len(stack)-1]
 			parent.ListItem.Children = append(parent.ListItem.Children, item.ListItem)
 		}
-		
+
 		// Push current item to stack for potential children
 		stack = append(stack, item)
 	}
-	
+
 	return result
 }
 
-// extractTags finds and extracts tags in the format `#tag` from text
-func extractTags(text string) []string {
-	tagPattern := regexp.MustCompile("`([^`]+)`") // Matches `#tag` pattern
-	matches := tagPattern.FindAllStringSubmatch(text, -1)
-	
-	var tags []string
-	for _, match := range matches {
-		tag := match[1]
-		if strings.HasPrefix(tag, "#") {
-			tags = append(tags, strings.TrimPrefix(tag, "#"))
-		}
-	}
-	
-	return tags
-}
-
-// extractAttributes extracts attributes from the text using config-defined shorthands
-func extractAttributes(text string) map[string]interface{} {
-	attributes := make(map[string]interface{})
-
-	// Try to get the config, but fall back to hardcoded logic if unavailable
-	config := getCurrentConfigFileSafely()
-	if config != nil {
-		// Use config-based attribute extraction
-		for _, attribute := range config.Attributes {
-			if len(attribute.Shorthands) == 0 {
-				continue
-			}
-
-			// Sort shorthand keys by length (longest first) to match longer patterns first
-			var sortedKeys []string
-			for shorthandKey := range attribute.Shorthands {
-				sortedKeys = append(sortedKeys, shorthandKey)
-			}
-			// Simple sort by length (longest first)
-			for i := 0; i < len(sortedKeys); i++ {
-				for j := i + 1; j < len(sortedKeys); j++ {
-					if len(sortedKeys[i]) < len(sortedKeys[j]) {
-						sortedKeys[i], sortedKeys[j] = sortedKeys[j], sortedKeys[i]
-					}
-				}
-			}
-
-			// Look for each shorthand key in the text (longest first)
-			for _, shorthandKey := range sortedKeys {
-				if strings.Contains(text, shorthandKey) {
-					shorthandValue := attribute.Shorthands[shorthandKey]
-					typedValue := MustCastAttribute(shorthandValue, *attribute)
-					attributes[attribute.Name] = typedValue
-					break // Only match the first shorthand for this attribute
-				}
-			}
-		}
-	} else {
-		// Fallback: Extract star rating (★★★★★) and convert to numeric rating
-		starPattern := regexp.MustCompile("★+")
-		if matches := starPattern.FindAllString(text, -1); len(matches) > 0 {
-			rating := len([]rune(matches[0])) * 2 // Each star = 2 points, so 5 stars = 10
-			attributes["rating"] = rating
-		}
-	}
-
-	return attributes
-}
-
-// extractEmojis finds all emojis in the text using a more robust approach
-func extractEmojis(text string) []string {
-	var emojis []string
-	runes := []rune(text)
-	
-	for i := 0; i < len(runes); i++ {
-		r := runes[i]
-		
-		// Check for flag sequences (regional indicators)
-		if r >= 0x1F1E0 && r <= 0x1F1FF && i+1 < len(runes) {
-			next := runes[i+1]
-			if next >= 0x1F1E0 && next <= 0x1F1FF {
-				// This is a country flag emoji (two regional indicators)
-				emojis = append(emojis, string([]rune{r, next}))
-				i++ // Skip the next rune since we processed it
-				continue
-			}
-		}
-		
-		// Check for other emoji ranges
-		if (r >= 0x1F600 && r <= 0x1F64F) || // Emoticons
-			(r >= 0x1F300 && r <= 0x1F5FF) || // Misc Symbols and Pictographs
-			(r >= 0x1F680 && r <= 0x1F6FF) || // Transport and Map
-			(r >= 0x1F900 && r <= 0x1F9FF) || // Supplemental Symbols and Pictographs
-			(r >= 0x2600 && r <= 0x26FF) ||   // Misc symbols
-			(r >= 0x2700 && r <= 0x27BF) {    // Dingbats
-			emojis = append(emojis, string(r))
-		}
-	}
-	
-	// Remove duplicates
-	seen := make(map[string]bool)
-	var unique []string
-	for _, emoji := range emojis {
-		if !seen[emoji] {
-			unique = append(unique, emoji)
-			seen[emoji] = true
-		}
-	}
-	
-	return unique
-}
-
-// filterTags removes tags in backticks from the text
-func filterTags(text string) string {
-	tagPattern := regexp.MustCompile("`#[^`]+`")
-	return tagPattern.ReplaceAllString(text, "")
-}
-
-// filterAttributes removes attribute shorthand patterns from the text based on config settings
-func filterAttributes(text string) string {
-	// Try to get the config, but fall back to simple logic if unavailable
-	config := getCurrentConfigFileSafely()
-	if config == nil {
-		// Fallback: Remove star ratings
-		starPattern := regexp.MustCompile(`\s*★+\s*`)
-		return starPattern.ReplaceAllString(text, "")
-	}
-
-	modifiedText := text
-
-	for _, attribute := range config.Attributes {
-		// Check if we should preserve the shorthand for this attribute
-		if attribute.PreserveShorthand == nil || *attribute.PreserveShorthand {
-			continue // Keep the shorthand in the text
-		}
-
-		// Remove shorthand patterns for this attribute if PreserveShorthand is false
-		if len(attribute.Shorthands) == 0 {
-			continue
-		}
-
-		// Sort shorthand keys by length (longest first) to remove longer patterns first
-		var sortedKeys []string
-		for shorthandKey := range attribute.Shorthands {
-			sortedKeys = append(sortedKeys, shorthandKey)
-		}
-		// Simple sort by length (longest first)
-		for i := 0; i < len(sortedKeys); i++ {
-			for j := i + 1; j < len(sortedKeys); j++ {
-				if len(sortedKeys[i]) < len(sortedKeys[j]) {
-					sortedKeys[i], sortedKeys[j] = sortedKeys[j], sortedKeys[i]
-				}
-			}
-		}
-
-		// Remove shorthand keys from text (longest first)
-		for _, shorthandKey := range sortedKeys {
-			if strings.Contains(modifiedText, shorthandKey) {
-				modifiedText = strings.ReplaceAll(modifiedText, shorthandKey, "")
-				break // Only remove the first match for this attribute
-			}
-		}
-	}
-
-	return modifiedText
-}
-
 /* Helpers */
-
-// getCurrentConfigFileSafely returns the current configuration file, or nil if not available
-// This is a defensive approach to avoid crashes during testing or when not in a repository context
-func getCurrentConfigFileSafely() *ConfigFile {
-	// First check if we already have a config singleton loaded
-	if configSingleton != nil {
-		return configSingleton.ConfigFile
-	}
-	
-	// Try to check if we're in a proper repository context by looking for .nt directory
-	currentDir := currentHome()
-	ntPath := filepath.Join(currentDir, ".nt")
-	if _, err := os.Stat(ntPath); os.IsNotExist(err) {
-		// Not in a repository, return nil for fallback behavior
-		return nil
-	}
-	
-	// We're in a repository context, try to get the config
-	// Use a safer approach that doesn't call os.Exit
-	config, err := ReadConfigFromDirectory(currentDir)
-	if err != nil || config == nil {
-		return nil
-	}
-	
-	return config.ConfigFile
-}
 
 // CommandExists checks if a command exists in the system's PATH.
 func CommandExists(command string) bool {

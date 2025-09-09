@@ -89,7 +89,7 @@
                     required: true,
                 },
             ],
-            preprocessors: ["date-extractor"],
+            preprocessors: ["date-extractor", "list-items"],
         },
         Quote: self.Note + {
             name: "Quote",
@@ -112,6 +112,18 @@
         },
         Todo: self.Note + {
             name: "Todo",
+            attributes: [
+                {
+                    name: "status",
+                },
+                {
+                    name: "due",
+                },
+                {
+                    name: "priority",
+                },
+            ],
+            preprocessors: ["list-items"],
         },
         Generator: self.Note + {
             name: "Generator",
@@ -124,6 +136,18 @@
                 },
             ],
             preprocessors: ["generator"],
+        },
+        ReadingList: self.Note + {
+            name: "ReadingList",
+            attributes: [
+                {
+                    name: "author",
+                },
+                {
+                    name: "rating",
+                },
+            ],
+            preprocessors: ["list-items"],
         },
     },
 

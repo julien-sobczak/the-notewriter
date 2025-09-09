@@ -309,155 +309,105 @@ Back
 }
 
 func TestListItemsPreprocessor(t *testing.T) {
-	t.Run("Empty content", func(t *testing.T) {
-		file := &core.ParsedFile{
-			RelativePath: "test.md",
-		}
-		note := &core.ParsedNote{
-			Body: "",
-			Line: 1,
-		}
-
-		result, err := core.ListItemsPreprocessor(file, note)
-		require.NoError(t, err)
-		require.Len(t, result, 1)
-		assert.Equal(t, core.ListItems{Children: []*core.ListItem{}}, result[0].Items)
-	})
 
 	t.Run("Simple list items", func(t *testing.T) {
-		file := &core.ParsedFile{
-			RelativePath: "test.md",
+		tr := core.NewTestRepository(t)
+
+		// Assert preprocessor is configured
+		require.Contains(t, core.CurrentConfigFile().MustGetType("ReadingList").Preprocessors, "list-items")
+
+		tr.WriteFile("test.md", `# ReadingList: Children's Literature
+
+* L'Enfant, la Taupe, le Renard et le Cheval, by Charlie Mackesy 🇬🇧 🇫🇷 [👀](https://example.com) ★★★★★ ‛#life‛ ‛#philosophy‛
+  * A masterpiece of children literature (see the sequel _Always Remember_ ★★★, 2025, 🇬🇧 🤞 ).
+* Grand Panda et Petit Dragon, by James Norbury 🇬🇧 🇫🇷 [👀](https://example.com) ★★★★★ ‛#mindfulness‛ ‛#life‛
+  * A book filled with wisdom. For small kids and big adults.
+`)
+		file := tr.ParseFile("test.md")
+		require.Len(t, file.Notes, 1)
+		note := file.Notes[0]
+
+		// Compare items
+		actual := note.Items
+		expected := &core.Items{
+			// Summary
+			Attributes: []string{"rating", "tags"},
+			Tags:       []string{"life", "mindfulness", "philosophy"},
+			Emojis:     []string{"★", "🇫🇷", "🇬🇧", "👀", "🤞"},
+			Children: []*core.ListItem{
+				{
+					Line: 1,
+					Text: "L'Enfant, la Taupe, le Renard et le Cheval, by Charlie Mackesy 🇬🇧 🇫🇷 [👀](https://example.com) ★★★★★",
+					Tags: []string{"life", "philosophy"},
+					Attributes: map[string]any{
+						"rating": int64(10),
+						"tags":   []string{"life", "philosophy"},
+					},
+					Emojis: []string{"★", "🇫🇷", "🇬🇧", "👀"},
+					Children: []*core.ListItem{
+						{
+							Line: 2,
+							Text: "A masterpiece of children literature (see the sequel _Always Remember_ ★★★, 2025, 🇬🇧 🤞 ).",
+							Tags: core.NewEmptyTagSet(),
+							Attributes: map[string]any{
+								"rating": int64(6),
+							},
+							Emojis:   []string{"★", "🇬🇧", "🤞"},
+							Children: []*core.ListItem{},
+						},
+					},
+				},
+				{
+					Line: 3,
+					Text: "Grand Panda et Petit Dragon, by James Norbury 🇬🇧 🇫🇷 [👀](https://example.com) ★★★★★",
+					Tags: []string{"mindfulness", "life"},
+					Attributes: map[string]any{
+						"rating": int64(10),
+						"tags":   []string{"mindfulness", "life"},
+					},
+					Emojis: []string{"★", "🇫🇷", "🇬🇧", "👀"},
+					Children: []*core.ListItem{
+						{
+							Line:       4,
+							Text:       "A book filled with wisdom. For small kids and big adults.",
+							Tags:       core.NewEmptyTagSet(),
+							Attributes: core.NewEmptyAttributeSet(),
+							Emojis:     core.NewEmptyEmojiSet(),
+							Children:   []*core.ListItem{},
+						},
+					},
+				},
+			},
 		}
-		note := &core.ParsedNote{
-			Body: "* First item\n* Second item with emoji 🎉\n* Third item with `#tag`",
-			Line: 5,
-		}
-
-		result, err := core.ListItemsPreprocessor(file, note)
-		require.NoError(t, err)
-		require.Len(t, result, 1)
-		require.Len(t, result[0].Items.Children, 3)
-
-		// First item
-		item1 := result[0].Items.Children[0]
-		assert.Equal(t, 5, item1.Line)
-		assert.Equal(t, "First item", item1.Text)
-		assert.Empty(t, item1.Tags)
-		assert.Empty(t, item1.Attributes)
-		assert.Empty(t, item1.Emojis)
-		assert.Empty(t, item1.Children)
-
-		// Second item with emoji
-		item2 := result[0].Items.Children[1]
-		assert.Equal(t, 6, item2.Line)
-		assert.Equal(t, "Second item with emoji 🎉", item2.Text)
-		assert.Empty(t, item2.Tags)
-		assert.Empty(t, item2.Attributes)
-		assert.Contains(t, item2.Emojis, "🎉")
-
-		// Third item with tag
-		item3 := result[0].Items.Children[2]
-		assert.Equal(t, 7, item3.Line)
-		assert.Equal(t, "Third item with", item3.Text)
-		assert.Contains(t, item3.Tags, "tag")
-		assert.Empty(t, item3.Children)
-	})
-
-	t.Run("Nested list items", func(t *testing.T) {
-		file := &core.ParsedFile{
-			RelativePath: "books.md",
-		}
-		note := &core.ParsedNote{
-			Body: "* _L'Enfant, la Taupe, le Renard et le Cheval_, by Charlie Mackesy 🇬🇧 🇫🇷 [👀](https://example.com) ★★★★★ `#life` `#philosophy`\n  * A masterpiece of children literature (see the sequel _Always Remember_ ★★★, 2025, 🇬🇧 🤞 ).\n* _Grand Panda et Petit Dragon_, by James Norbury 🇬🇧 🇫🇷 [👀](https://example.com) ★★★★★ `#mindfulness` `#life`\n  * A book filled with wisdom. For small kids and big adults.",
-			Line: 1,
-		}
-
-		result, err := core.ListItemsPreprocessor(file, note)
-		require.NoError(t, err)
-		require.Len(t, result, 1)
-		require.Len(t, result[0].Items.Children, 2)
-
-		// First top-level item
-		item1 := result[0].Items.Children[0]
-		assert.Equal(t, 1, item1.Line)
-		assert.Contains(t, item1.Text, "_L'Enfant, la Taupe, le Renard et le Cheval_, by Charlie Mackesy")
-		assert.Contains(t, item1.Tags, "life")
-		assert.Contains(t, item1.Tags, "philosophy")
-		assert.Equal(t, 10, item1.Attributes["rating"]) // 5 stars = 10 points
-		assert.Contains(t, item1.Emojis, "🇬🇧")
-		assert.Contains(t, item1.Emojis, "🇫🇷")
-		require.Len(t, item1.Children, 1)
-
-		// Child of first item
-		child1 := item1.Children[0]
-		assert.Equal(t, 2, child1.Line)
-		assert.Contains(t, child1.Text, "A masterpiece of children literature")
-		assert.Contains(t, child1.Emojis, "🇬🇧")
-		assert.Contains(t, child1.Emojis, "🤞")
-
-		// Second top-level item
-		item2 := result[0].Items.Children[1]
-		assert.Equal(t, 3, item2.Line)
-		assert.Contains(t, item2.Text, "_Grand Panda et Petit Dragon_, by James Norbury")
-		assert.Contains(t, item2.Tags, "mindfulness")
-		assert.Contains(t, item2.Tags, "life")
-		assert.Equal(t, 10, item2.Attributes["rating"]) // 5 stars = 10 points
-		require.Len(t, item2.Children, 1)
-
-		// Child of second item
-		child2 := item2.Children[0]
-		assert.Equal(t, 4, child2.Line)
-		assert.Contains(t, child2.Text, "A book filled with wisdom")
-		assert.Empty(t, child2.Tags)
-		assert.Empty(t, child2.Children)
+		require.Equal(t, expected, actual)
 	})
 
 	t.Run("Mixed list markers", func(t *testing.T) {
-		file := &core.ParsedFile{
-			RelativePath: "test.md",
-		}
-		note := &core.ParsedNote{
-			Body: "* Bullet item\n- Dash item\n+ Plus item\n1. Numbered item\n2. Second numbered item",
-			Line: 10,
-		}
+		tr := core.NewTestRepository(t)
 
-		result, err := core.ListItemsPreprocessor(file, note)
-		require.NoError(t, err)
-		require.Len(t, result, 1)
-		require.Len(t, result[0].Items.Children, 5)
+		// Assert preprocessor is configured
+		require.Contains(t, core.CurrentConfigFile().MustGetType("ReadingList").Preprocessors, "list-items")
+
+		tr.WriteFile("test.md", `# ReadingList: Demo
+
+* Bullet item
+- Dash item
++ Plus item
+1. Numbered item
+2. Second numbered item
+`)
 
 		// Check all items are parsed correctly
-		expectedTexts := []string{"Bullet item", "Dash item", "Plus item", "Numbered item", "Second numbered item"}
-		for i, expected := range expectedTexts {
-			assert.Equal(t, expected, result[0].Items.Children[i].Text)
-			assert.Equal(t, 10+i, result[0].Items.Children[i].Line)
-		}
+		file := tr.ParseFile("test.md")
+		require.Len(t, file.Notes, 1)
+		items := file.Notes[0].Items
+
+		// Compare items
+		assert.Equal(t, "Bullet item", items.Children[0].Text.String())
+		assert.Equal(t, "Dash item", items.Children[1].Text.String())
+		assert.Equal(t, "Plus item", items.Children[2].Text.String())
+		assert.Equal(t, "Numbered item", items.Children[3].Text.String())
+		assert.Equal(t, "Second numbered item", items.Children[4].Text.String())
 	})
 
-	t.Run("Aggregated attributes and tags", func(t *testing.T) {
-		file := &core.ParsedFile{
-			RelativePath: "test.md",
-		}
-		note := &core.ParsedNote{
-			Body: `* _Book 1_ ★★★★★ ` + "`#life` `#philosophy`" + `
-  * Great book 🤞
-* _Book 2_ ★★★ ` + "`#fiction`" + `
-  * Another book
-    * Sub item
-* _Book 3_ ★★★★ ` + "`#productivity` `#self-help`",
-			Line: 1,
-		}
-
-		result, err := core.ListItemsPreprocessor(file, note)
-		require.NoError(t, err)
-		require.Len(t, result, 1)
-
-		// Check that aggregated attributes are collected
-		expectedAttributes := []string{"rating"}
-		assert.ElementsMatch(t, expectedAttributes, result[0].Items.Attributes)
-
-		// Check that aggregated tags are collected from all items recursively
-		expectedTags := []string{"life", "philosophy", "fiction", "productivity", "self-help"}
-		assert.ElementsMatch(t, expectedTags, result[0].Items.Tags)
-	})
 }

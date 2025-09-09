@@ -637,6 +637,10 @@ Another note without a code block.
 		testutil.FreezeNow(t)
 
 		tr := core.NewTestRepository(t)
+
+		// Assert date preprocessor is configured
+		require.Contains(t, core.CurrentConfigFile().MustGetType("Journal").Preprocessors, "date-extractor")
+
 		tr.WriteFile("2024-12-05.md", `
 # Journal: 2024-12-05
 
@@ -1093,83 +1097,6 @@ func TestReplaceMedias(t *testing.T) {
 			result, err := doc.Transform(transformer)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, result.String())
-		})
-	}
-}
-
-func TestShorthands(t *testing.T) {
-	attributes := core.ConfigAttributes{
-		"status": &core.ConfigAttribute{
-			Name: "status",
-			Type: "string",
-			Shorthands: map[string]any{
-				"📋": "todo",
-				"🕒": "in-progress",
-				"⛔": "blocked",
-				"✅": "done",
-			},
-			PreserveShorthand: core.BoolPointer(false), // Remove from title
-		},
-		"rating": &core.ConfigAttribute{
-			Name: "rating",
-			Type: "string",
-			Shorthands: map[string]any{
-				"★":   "★",
-				"★★":  "★★",
-				"★★★": "★★★",
-			},
-			PreserveShorthand: core.BoolPointer(true), // Keep in title
-		},
-	}
-
-	tests := []struct {
-		name               string
-		text               string
-		expectedText       string
-		expectedAttributes core.AttributeSet
-	}{
-		{
-			name:         "Status shorthand removed",
-			text:         "Add Zen Mode 🕒",
-			expectedText: "Add Zen Mode",
-			expectedAttributes: map[string]any{
-				"status": "in-progress",
-			},
-		},
-		{
-			name:         "Rating shorthand preserved",
-			text:         "Great Book ★★★",
-			expectedText: "Great Book ★★★",
-			expectedAttributes: map[string]any{
-				"rating": "★★★",
-			},
-		},
-		{
-			name:         "Status shorthand at beginning",
-			text:         "Add 🕒 Zen Mode",
-			expectedText: "Add Zen Mode",
-			expectedAttributes: map[string]any{
-				"status": "in-progress",
-			},
-		},
-		{
-			name:         "Multiple emojis",
-			text:         "Add Zen Mode 🕒 ★★",
-			expectedText: "Add Zen Mode ★★",
-			expectedAttributes: map[string]any{
-				"status": "in-progress",
-				"rating": "★★",
-			},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			// Test extraction
-			actualText := core.RemoveShorthands(test.text, attributes)
-			actualAttributes := core.ExtractShorthands(test.text, attributes)
-			assert.Equal(t, test.expectedText, actualText)
-			assert.Equal(t, test.expectedAttributes, actualAttributes)
 		})
 	}
 }
