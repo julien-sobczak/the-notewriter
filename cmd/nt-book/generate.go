@@ -7,12 +7,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/julien-sobczak/the-notewriter/internal/core"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
 
 //go:embed book-style.css
@@ -98,14 +98,14 @@ func generateBook(config *core.Config, book *core.ConfigBook) error {
 	
 	// Create temporary markdown file
 	tempDir := config.TempDir()
-	tempMarkdownFile := filepath.Join(tempDir, "book_"+slugify(book.Title)+".md")
+	tempMarkdownFile := filepath.Join(tempDir, "book_"+text.Slugify(book.Title)+".md")
 	if err := os.WriteFile(tempMarkdownFile, []byte(markdown), 0644); err != nil {
 		return fmt.Errorf("failed to write temporary markdown file: %v", err)
 	}
 	defer os.Remove(tempMarkdownFile)
 	
 	// Create temporary CSS file
-	tempCSSFile := filepath.Join(tempDir, "book_"+slugify(book.Title)+".css")
+	tempCSSFile := filepath.Join(tempDir, "book_"+text.Slugify(book.Title)+".css")
 	if err := os.WriteFile(tempCSSFile, []byte(defaultCSS), 0644); err != nil {
 		return fmt.Errorf("failed to write temporary CSS file: %v", err)
 	}
@@ -162,6 +162,19 @@ func generateSectionContent(config *core.Config, section *core.ConfigBookSection
 		content.WriteString(fmt.Sprintf("*%s*\n\n", section.Subtitle))
 	}
 	
+	// Add illustration if present
+	if section.Illustration != "" {
+		// Convert to absolute path from repository root
+		illustrationPath := filepath.Join(config.RootDirectory, section.Illustration)
+		if _, err := os.Stat(illustrationPath); err == nil {
+			// Include image in markdown - use relative path for markdown
+			content.WriteString(fmt.Sprintf("![%s](%s)\n\n", section.Title, section.Illustration))
+		} else {
+			// Log warning but continue
+			core.CurrentLogger().Warnf("Illustration file not found: %s", illustrationPath)
+		}
+	}
+	
 	// Handle different content types
 	if section.Text != "" {
 		// Direct text content
@@ -198,32 +211,16 @@ func generateSectionContent(config *core.Config, section *core.ConfigBookSection
 }
 
 func generateQueryContent(config *core.Config, section *core.ConfigBookSection) (string, error) {
-	// Parse the query
-	query, err := core.ParseQuery(section.Query)
-	if err != nil {
-		return "", fmt.Errorf("invalid query: %v", err)
-	}
-	
-	// For now, let's load all notes and filter them manually
-	// TODO: Implement proper query execution in the future
-	db := core.CurrentDB()
-	notes, err := core.QueryNotes(db.Client(), "")
+	// Use the repository's SearchNotes method with the raw query string
+	notes, err := core.CurrentRepository().SearchNotes(section.Query)
 	if err != nil {
 		return "", fmt.Errorf("query execution failed: %v", err)
-	}
-	
-	// Filter notes based on query (simple implementation)
-	var filteredNotes []*core.Note
-	for _, note := range notes {
-		if matchesQuery(note, query) {
-			filteredNotes = append(filteredNotes, note)
-		}
 	}
 	
 	var content bytes.Buffer
 	
 	// Add each note's content
-	for i, note := range filteredNotes {
+	for i, note := range notes {
 		if section.PageBreaks && i > 0 {
 			content.WriteString("\\newpage\n\n")
 		}
@@ -292,51 +289,26 @@ func generateNotesContent(config *core.Config, section *core.ConfigBookSection) 
 }
 
 func findNoteByWikilink(wikilink string) (*core.Note, error) {
-	// Parse wikilink format: "path/to/file#Note: Title" or just "path/to/file"
-	parts := strings.Split(wikilink, "#")
-	
-	var noteTitle string
-	if len(parts) > 1 {
-		noteTitle = parts[1]
-	}
-	
-	// Use the repository method to find notes by wikilink pattern
-	db := core.CurrentDB()
-	notes, err := core.QueryNotes(db.Client(), "WHERE wikilink LIKE ?", "%"+wikilink+"%")
+	// Use the repository method to find notes by wikilink
+	note, err := core.CurrentRepository().FindNoteByWikilink(wikilink)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query notes: %v", err)
+		return nil, fmt.Errorf("failed to find note by wikilink: %v", err)
 	}
-	
-	if len(notes) == 0 {
-		return nil, fmt.Errorf("no notes found for wikilink '%s'", wikilink)
+	if note == nil {
+		return nil, fmt.Errorf("no note found for wikilink '%s'", wikilink)
 	}
-	
-	// If no specific title, return first note
-	if noteTitle == "" {
-		return notes[0], nil
-	}
-	
-	// Find note with matching title
-	for _, note := range notes {
-		if string(note.Title) == noteTitle {
-			return note, nil
-		}
-	}
-	
-	return nil, fmt.Errorf("note with title '%s' not found in wikilink %s", noteTitle, wikilink)
+	return note, nil
 }
 
 func findNoteBySlug(slug string) (*core.Note, error) {
-	// Query note by slug
-	db := core.CurrentDB()
-	note, err := core.QueryNote(db.Client(), "WHERE slug = ?", "", slug)
+	// Use the repository method to find note by slug
+	note, err := core.CurrentRepository().FindNoteBySlug(slug)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query note by slug: %v", err)
+		return nil, fmt.Errorf("failed to find note by slug: %v", err)
 	}
 	if note == nil {
 		return nil, fmt.Errorf("no note found with slug '%s'", slug)
 	}
-	
 	return note, nil
 }
 
@@ -419,7 +391,7 @@ func getOutputPath(config *core.Config, book *core.ConfigBook, format string) st
 	}
 	
 	// Default to slug of title in root directory
-	filename := fmt.Sprintf("%s.%s", slugify(book.Title), format)
+	filename := fmt.Sprintf("%s.%s", text.Slugify(book.Title), format)
 	return filepath.Join(config.RootDirectory, filename)
 }
 
@@ -443,74 +415,3 @@ func resolveCoverPath(coverPath string) (string, error) {
 	return coverPath, nil
 }
 
-func slugify(title string) string {
-	// Convert to lowercase
-	slug := strings.ToLower(title)
-	
-	// Replace spaces and special characters with hyphens
-	reg := regexp.MustCompile(`[^a-z0-9]+`)
-	slug = reg.ReplaceAllString(slug, "-")
-	
-	// Remove leading/trailing hyphens
-	slug = strings.Trim(slug, "-")
-	
-	return slug
-}
-
-// matchesQuery is a simple implementation to check if a note matches a query
-// This is a basic implementation - in a full implementation, this would be more comprehensive
-func matchesQuery(note *core.Note, query *core.Query) bool {
-	// Check slug match
-	if query.Slug != "" && note.Slug != query.Slug {
-		return false
-	}
-	
-	// Check type match
-	if len(query.Types) > 0 {
-		found := false
-		for _, queryType := range query.Types {
-			if note.Type == queryType {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
-	}
-	
-	// Check tags match
-	if len(query.Tags) > 0 {
-		for _, queryTag := range query.Tags {
-			if !note.Tags.Includes(queryTag) {
-				return false
-			}
-		}
-	}
-	
-	// Check path match
-	if query.Path != "" {
-		// Support both exact matches and pattern matches
-		if strings.Contains(note.RelativePath, query.Path) || 
-		   regexp.MustCompile(query.Path).MatchString(note.RelativePath) {
-			// Match found
-		} else {
-			return false
-		}
-	}
-	
-	// Check search terms (simple contains check in content and title)
-	if len(query.Terms) > 0 {
-		contentText := strings.ToLower(string(note.Content))
-		titleText := strings.ToLower(string(note.Title))
-		
-		for _, term := range query.Terms {
-			termLower := strings.ToLower(term)
-			if !strings.Contains(contentText, termLower) && !strings.Contains(titleText, termLower) {
-				return false
-			}
-		}
-	}
-	
-	return true
-}

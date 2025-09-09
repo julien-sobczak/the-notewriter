@@ -276,6 +276,7 @@ type ConfigBook struct {
 type ConfigBookSection struct {
 	Title           string                  `json:"title"`                     // Chapter/section title
 	Subtitle        string                  `json:"subtitle,omitempty"`        // Optional subtitle
+	Illustration    string                  `json:"illustration,omitempty"`    // Optional image path (relative from root)
 	Text            string                  `json:"text,omitempty"`            // Direct text content
 	Query           string                  `json:"query,omitempty"`           // Query to select notes
 	Notes           []*ConfigBookNote       `json:"notes,omitempty"`           // Specific notes to include
