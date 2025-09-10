@@ -55,7 +55,7 @@ local nt = import 'nt.libsonnet';
             author: ["NoteWriter User"],
             language: "en-US",
             toc: true,
-            format: ["epub", "pdf"],
+            format: ["epub", "pdf", "markdown"],
             chapters: [
                 {
                     title: "Introduction",

@@ -25,12 +25,6 @@ If no book title is specified, all books in the configuration will be generated.
 	Run: func(cmd *cobra.Command, args []string) {
 		config := core.CurrentConfig()
 		
-		// Check if pandoc is available
-		if err := checkPandocAvailable(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
-		}
-		
 		var booksToGenerate []*core.ConfigBook
 		if len(args) == 0 {
 			// Generate all books
