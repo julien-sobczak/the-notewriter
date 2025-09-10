@@ -290,6 +290,22 @@ type ConfigBookNote struct {
 	Slug     string `json:"slug,omitempty"`     // Alternative to wikilink
 }
 
+// OutputPath returns the output path for a book in the specified format
+func (b *ConfigBook) OutputPath(config *Config, format string) string {
+	if b.Build != "" {
+		// Use configured build path with extension substitution
+		path := strings.ReplaceAll(b.Build, "${extension}", format)
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(config.RootDirectory, path)
+		}
+		return path
+	}
+	
+	// Default: use book title as filename in repository root
+	filename := text.Slugify(b.Title) + "." + format
+	return filepath.Join(config.RootDirectory, filename)
+}
+
 // SetParallel overrides the value in config file.
 func (c *Config) SetParallel(value int) {
 	c.ConfigFile.Core.Medias.Parallel = value
@@ -1020,8 +1036,8 @@ func (c *Config) Check() error {
 			return fmt.Errorf("book '%s' must specify at least one format", book.Title)
 		}
 		for _, format := range book.Format {
-			if !slices.Contains([]string{"epub", "pdf"}, strings.ToLower(format)) {
-				return fmt.Errorf("unsupported format '%s' for book '%s'. Only 'epub' and 'pdf' are supported", format, book.Title)
+			if !slices.Contains([]string{"epub", "pdf", "markdown"}, strings.ToLower(format)) {
+				return fmt.Errorf("unsupported format '%s' for book '%s'. Only 'epub', 'pdf', and 'markdown' are supported", format, book.Title)
 			}
 		}
 		if len(book.Author) == 0 {

@@ -5,20 +5,16 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/julien-sobczak/the-notewriter/internal/core"
-	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
 
 //go:embed book-style.css
 var defaultCSS string
-
-var dryRun bool
 
 var generateCmd = &cobra.Command{
 	Use:   "generate [book-title]",
@@ -68,56 +64,18 @@ If no book title is specified, all books in the configuration will be generated.
 }
 
 func init() {
-	generateCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Generate and display Markdown content without creating book files")
 	rootCmd.AddCommand(generateCmd)
-}
-
-func checkPandocAvailable() error {
-	_, err := exec.LookPath("pandoc")
-	if err != nil {
-		return fmt.Errorf("pandoc is not installed or not in PATH. Please install pandoc to generate books")
-	}
-	return nil
 }
 
 func generateBook(config *core.Config, book *core.ConfigBook) error {
 	fmt.Printf("📖 Generating book: %s\n", book.Title)
 	
-	// Generate markdown content
-	markdown, err := generateMarkdownContent(config, book)
-	if err != nil {
-		return fmt.Errorf("failed to generate markdown content: %v", err)
-	}
-	
-	if dryRun {
-		fmt.Printf("\n--- Markdown content for '%s' ---\n", book.Title)
-		fmt.Print(markdown)
-		fmt.Printf("\n--- End of '%s' ---\n\n", book.Title)
-		return nil
-	}
-	
-	// Create temporary markdown file
-	tempDir := config.TempDir()
-	tempMarkdownFile := filepath.Join(tempDir, "book_"+text.Slugify(book.Title)+".md")
-	if err := os.WriteFile(tempMarkdownFile, []byte(markdown), 0644); err != nil {
-		return fmt.Errorf("failed to write temporary markdown file: %v", err)
-	}
-	defer os.Remove(tempMarkdownFile)
-	
-	// Create temporary CSS file
-	tempCSSFile := filepath.Join(tempDir, "book_"+text.Slugify(book.Title)+".css")
-	if err := os.WriteFile(tempCSSFile, []byte(defaultCSS), 0644); err != nil {
-		return fmt.Errorf("failed to write temporary CSS file: %v", err)
-	}
-	defer os.Remove(tempCSSFile)
-	
 	// Generate book files for each format
 	for _, format := range book.Format {
-		outputPath := getOutputPath(config, book, format)
-		if err := generateBookFile(tempMarkdownFile, tempCSSFile, outputPath, format, book); err != nil {
+		if err := generateBookFormat(config, book, format); err != nil {
 			fmt.Fprintf(os.Stderr, "Error generating %s format: %v\n", format, err)
 		} else {
-			fmt.Printf("✅ Generated %s: %s\n", format, outputPath)
+			fmt.Printf("✓ Generated %s for '%s'\n", format, book.Title)
 		}
 	}
 	
@@ -253,20 +211,15 @@ func generateNotesContent(config *core.Config, section *core.ConfigBookSection) 
 		}
 		
 		var note *core.Note
-		var err error
 		
 		if noteSpec.Wikilink != "" {
 			// Find note by wikilink
-			note, err = findNoteByWikilink(noteSpec.Wikilink)
+			note = MustFindNoteByWikilink(noteSpec.Wikilink)
 		} else if noteSpec.Slug != "" {
 			// Find note by slug
-			note, err = findNoteBySlug(noteSpec.Slug)
+			note = MustFindNoteBySlug(noteSpec.Slug)
 		} else {
 			return "", fmt.Errorf("note specification must have either wikilink or slug")
-		}
-		
-		if err != nil {
-			return "", fmt.Errorf("failed to find note: %v", err)
 		}
 		
 		// Add note title as subheading
@@ -288,130 +241,31 @@ func generateNotesContent(config *core.Config, section *core.ConfigBookSection) 
 	return content.String(), nil
 }
 
-func findNoteByWikilink(wikilink string) (*core.Note, error) {
+func MustFindNoteByWikilink(wikilink string) *core.Note {
 	// Use the repository method to find notes by wikilink
 	note, err := core.CurrentRepository().FindNoteByWikilink(wikilink)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find note by wikilink: %v", err)
+		fmt.Fprintf(os.Stderr, "Error: Failed to find note by wikilink '%s': %v\n", wikilink, err)
+		os.Exit(1)
 	}
 	if note == nil {
-		return nil, fmt.Errorf("no note found for wikilink '%s'", wikilink)
+		fmt.Fprintf(os.Stderr, "Error: No note found for wikilink '%s'\n", wikilink)
+		os.Exit(1)
 	}
-	return note, nil
+	return note
 }
 
-func findNoteBySlug(slug string) (*core.Note, error) {
+func MustFindNoteBySlug(slug string) *core.Note {
 	// Use the repository method to find note by slug
 	note, err := core.CurrentRepository().FindNoteBySlug(slug)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find note by slug: %v", err)
+		fmt.Fprintf(os.Stderr, "Error: Failed to find note by slug '%s': %v\n", slug, err)
+		os.Exit(1)
 	}
 	if note == nil {
-		return nil, fmt.Errorf("no note found with slug '%s'", slug)
+		fmt.Fprintf(os.Stderr, "Error: No note found with slug '%s'\n", slug)
+		os.Exit(1)
 	}
-	return note, nil
-}
-
-func generateBookFile(markdownFile, cssFile, outputPath, format string, book *core.ConfigBook) error {
-	// Ensure output directory exists
-	outputDir := filepath.Dir(outputPath)
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return fmt.Errorf("failed to create output directory: %v", err)
-	}
-	
-	// Build pandoc command
-	args := []string{}
-	
-	// Input file
-	args = append(args, markdownFile)
-	
-	// Output file
-	args = append(args, "-o", outputPath)
-	
-	// Add CSS styling
-	args = append(args, "--css", cssFile)
-	
-	// Format-specific options
-	switch strings.ToLower(format) {
-	case "epub":
-		// Add metadata for EPUB
-		args = append(args, "--metadata", fmt.Sprintf("title=%s", book.Title))
-		if len(book.Author) > 0 {
-			args = append(args, "--metadata", fmt.Sprintf("author=%s", strings.Join(book.Author, ", ")))
-		}
-		args = append(args, "--metadata", fmt.Sprintf("lang=%s", book.Language))
-		
-		// Add cover if specified
-		if book.Cover != "" {
-			coverPath, err := resolveCoverPath(book.Cover)
-			if err != nil {
-				fmt.Printf("Warning: Failed to resolve cover image: %v\n", err)
-			} else {
-				args = append(args, "--epub-cover-image", coverPath)
-			}
-		}
-		
-	case "pdf":
-		// PDF-specific options
-		args = append(args, "--pdf-engine=weasyprint")
-		
-		// Add metadata for PDF
-		args = append(args, "--metadata", fmt.Sprintf("title=%s", book.Title))
-		if len(book.Author) > 0 {
-			args = append(args, "--metadata", fmt.Sprintf("author=%s", strings.Join(book.Author, ", ")))
-		}
-		
-	default:
-		return fmt.Errorf("unsupported format: %s", format)
-	}
-	
-	// Add table of contents if requested
-	if book.TOC {
-		args = append(args, "--toc")
-	}
-	
-	// Execute pandoc
-	cmd := exec.Command("pandoc", args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("pandoc command failed: %v\nOutput: %s", err, string(output))
-	}
-	
-	return nil
-}
-
-func getOutputPath(config *core.Config, book *core.ConfigBook, format string) string {
-	if book.Build != "" {
-		// Use configured build path with extension substitution
-		path := strings.ReplaceAll(book.Build, "${extension}", format)
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(config.RootDirectory, path)
-		}
-		return path
-	}
-	
-	// Default to slug of title in root directory
-	filename := fmt.Sprintf("%s.%s", text.Slugify(book.Title), format)
-	return filepath.Join(config.RootDirectory, filename)
-}
-
-func resolveCoverPath(coverPath string) (string, error) {
-	// If it's an HTTP URL, return as-is (pandoc can handle URLs)
-	if strings.HasPrefix(coverPath, "http://") || strings.HasPrefix(coverPath, "https://") {
-		return coverPath, nil
-	}
-	
-	// If it's a relative path, make it absolute
-	if !filepath.IsAbs(coverPath) {
-		config := core.CurrentConfig()
-		coverPath = filepath.Join(config.RootDirectory, coverPath)
-	}
-	
-	// Check if file exists
-	if _, err := os.Stat(coverPath); os.IsNotExist(err) {
-		return "", fmt.Errorf("cover image file does not exist: %s", coverPath)
-	}
-	
-	return coverPath, nil
+	return note
 }
 
