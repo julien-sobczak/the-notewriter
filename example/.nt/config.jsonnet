@@ -51,7 +51,7 @@ local nt = import 'nt.libsonnet';
     # Books configuration for generating ePub/PDF books
     books: [
         {
-            title: "Sample NoteWriter Book",
+            title: "Sample Book",
             author: ["NoteWriter User"],
             language: "en-US",
             toc: true,
@@ -59,18 +59,30 @@ local nt = import 'nt.libsonnet';
             chapters: [
                 {
                     title: "Introduction",
-                    text: "This is a sample book generated from NoteWriter notes.\n\nIt demonstrates how to collect and organize notes into a cohesive publication."
+                    illustration: "thoughts/medias/pencil.png",
+                    text: "This is a sample book generated with The NoteWriter.",
                 },
                 {
-                    title: "Thoughts and Reflections", 
+                    title: "Part I",
+                    subtitle: "Thoughts",
                     sections: [
                         {
-                            title: "Notes",
-                            query: "type:Note",
-                            pageBreaks: true,
+                            title: "On Learning",
+                            query: "path:\"thoughts/on-learning.md\"",
+                            pageBreaks: false,
                             includeComments: false,
-                        }
+                        },
+                        {
+                            title: "On Doing",
+                            query: "path:\"thoughts/on-doing.md\"",
+                            pageBreaks: true,
+                            includeComments: true,
+                        },
                     ]
+                },
+                {
+                    title: "Afterword",
+                    text: importstr 'afterword.md',
                 }
             ]
         }

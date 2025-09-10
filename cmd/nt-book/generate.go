@@ -13,7 +13,7 @@ import (
 	"github.com/julien-sobczak/the-notewriter/internal/core"
 )
 
-//go:embed book-style.css
+//go:embed book.css
 var defaultCSS string
 
 var generateCmd = &cobra.Command{
@@ -24,7 +24,7 @@ If no book title is specified, all books in the configuration will be generated.
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		config := core.CurrentConfig()
-		
+
 		var booksToGenerate []*core.ConfigBook
 		if len(args) == 0 {
 			// Generate all books
@@ -43,12 +43,12 @@ If no book title is specified, all books in the configuration will be generated.
 				os.Exit(1)
 			}
 		}
-		
+
 		if len(booksToGenerate) == 0 {
 			fmt.Println("No books configured. Add books to your .nt/config.jsonnet file.")
 			return
 		}
-		
+
 		for _, book := range booksToGenerate {
 			if err := generateBook(config, book); err != nil {
 				fmt.Fprintf(os.Stderr, "Error generating book '%s': %v\n", book.Title, err)
@@ -63,33 +63,39 @@ func init() {
 
 func generateBook(config *core.Config, book *core.ConfigBook) error {
 	fmt.Printf("📖 Generating book: %s\n", book.Title)
-	
+
+	// Generate markdown content
+	markdownContent, err := generateMarkdownContent(config, book)
+	if err != nil {
+		return fmt.Errorf("failed to generate markdown content: %v", err)
+	}
+
 	// Generate book files for each format
 	for _, format := range book.Format {
-		if err := generateBookFormat(config, book, format); err != nil {
+		if err := generateBookFormat(config, book, markdownContent, format); err != nil {
 			fmt.Fprintf(os.Stderr, "Error generating %s format: %v\n", format, err)
 		} else {
 			fmt.Printf("✓ Generated %s for '%s'\n", format, book.Title)
 		}
 	}
-	
+
 	return nil
 }
 
 func generateMarkdownContent(config *core.Config, book *core.ConfigBook) (string, error) {
 	var content bytes.Buffer
-	
+
 	// Add book title
 	content.WriteString(fmt.Sprintf("# %s\n\n", book.Title))
-	
+
 	// Add author information
 	if len(book.Author) > 0 {
 		content.WriteString(fmt.Sprintf("*By %s*\n\n", strings.Join(book.Author, ", ")))
 	}
-	
+
 	// Add page break after title page
 	content.WriteString("\\newpage\n\n")
-	
+
 	// Process chapters
 	for _, chapter := range book.Chapters {
 		chapterContent, err := generateSectionContent(config, chapter, 1)
@@ -98,22 +104,22 @@ func generateMarkdownContent(config *core.Config, book *core.ConfigBook) (string
 		}
 		content.WriteString(chapterContent)
 	}
-	
+
 	return content.String(), nil
 }
 
 func generateSectionContent(config *core.Config, section *core.ConfigBookSection, level int) (string, error) {
 	var content bytes.Buffer
-	
+
 	// Add section heading
 	headingPrefix := strings.Repeat("#", level)
 	content.WriteString(fmt.Sprintf("%s %s\n\n", headingPrefix, section.Title))
-	
+
 	// Add subtitle if present
 	if section.Subtitle != "" {
 		content.WriteString(fmt.Sprintf("*%s*\n\n", section.Subtitle))
 	}
-	
+
 	// Add illustration if present
 	if section.Illustration != "" {
 		// Convert to absolute path from repository root
@@ -126,7 +132,7 @@ func generateSectionContent(config *core.Config, section *core.ConfigBookSection
 			core.CurrentLogger().Warnf("Illustration file not found: %s", illustrationPath)
 		}
 	}
-	
+
 	// Handle different content types
 	if section.Text != "" {
 		// Direct text content
@@ -134,20 +140,20 @@ func generateSectionContent(config *core.Config, section *core.ConfigBookSection
 		content.WriteString("\n\n")
 	} else if section.Query != "" {
 		// Query-based content
-		queryContent, err := generateQueryContent(config, section)
+		queryContent, err := generateQueryContent(section, level+1)
 		if err != nil {
 			return "", fmt.Errorf("failed to execute query '%s': %v", section.Query, err)
 		}
 		content.WriteString(queryContent)
 	} else if len(section.Notes) > 0 {
 		// Specific notes
-		notesContent, err := generateNotesContent(config, section)
+		notesContent, err := generateNotesContent(section, level+1)
 		if err != nil {
 			return "", fmt.Errorf("failed to generate notes content: %v", err)
 		}
 		content.WriteString(notesContent)
 	}
-	
+
 	// Handle nested sections
 	if len(section.Sections) > 0 {
 		for _, subsection := range section.Sections {
@@ -158,33 +164,35 @@ func generateSectionContent(config *core.Config, section *core.ConfigBookSection
 			content.WriteString(subsectionContent)
 		}
 	}
-	
+
 	return content.String(), nil
 }
 
-func generateQueryContent(config *core.Config, section *core.ConfigBookSection) (string, error) {
+func generateQueryContent(section *core.ConfigBookSection, level int) (string, error) {
 	// Use the repository's SearchNotes method with the raw query string
 	notes, err := core.CurrentRepository().SearchNotes(section.Query)
 	if err != nil {
 		return "", fmt.Errorf("query execution failed: %v", err)
 	}
-	
+	core.CurrentLogger().Infof("Found %d notes for query: %s", len(notes), section.Query)
+
 	var content bytes.Buffer
-	
+
 	// Add each note's content
 	for i, note := range notes {
 		if section.PageBreaks && i > 0 {
 			content.WriteString("\\newpage\n\n")
 		}
-		
+
 		// Add note title as subheading
-		content.WriteString(fmt.Sprintf("## %s\n\n", string(note.Title)))
-		
+		headingPrefix := strings.Repeat("#", level)
+		content.WriteString(fmt.Sprintf("%s %s\n\n", headingPrefix, string(note.Title)))
+
 		// Add note content (excluding the title part)
 		noteContent := string(note.Body) // Use Body instead of Content to avoid title duplication
 		content.WriteString(noteContent)
 		content.WriteString("\n\n")
-		
+
 		// Add comments if requested
 		if section.IncludeComments {
 			if comment := string(note.Comment); comment != "" {
@@ -192,20 +200,20 @@ func generateQueryContent(config *core.Config, section *core.ConfigBookSection) 
 			}
 		}
 	}
-	
+
 	return content.String(), nil
 }
 
-func generateNotesContent(config *core.Config, section *core.ConfigBookSection) (string, error) {
+func generateNotesContent(section *core.ConfigBookSection, level int) (string, error) {
 	var content bytes.Buffer
-	
+
 	for i, noteSpec := range section.Notes {
 		if section.PageBreaks && i > 0 {
 			content.WriteString("\\newpage\n\n")
 		}
-		
+
 		var note *core.Note
-		
+
 		if noteSpec.Wikilink != "" {
 			// Find note by wikilink
 			note = MustFindNoteByWikilink(noteSpec.Wikilink)
@@ -215,15 +223,16 @@ func generateNotesContent(config *core.Config, section *core.ConfigBookSection) 
 		} else {
 			return "", fmt.Errorf("note specification must have either wikilink or slug")
 		}
-		
+
 		// Add note title as subheading
-		content.WriteString(fmt.Sprintf("## %s\n\n", string(note.Title)))
-		
+		headingPrefix := strings.Repeat("#", level)
+		content.WriteString(fmt.Sprintf("%s %s\n\n", headingPrefix, string(note.Title)))
+
 		// Add note content (excluding the title part)
 		noteContent := string(note.Body) // Use Body instead of Content to avoid title duplication
 		content.WriteString(noteContent)
 		content.WriteString("\n\n")
-		
+
 		// Add comments if requested
 		if section.IncludeComments {
 			if comment := string(note.Comment); comment != "" {
@@ -231,7 +240,7 @@ func generateNotesContent(config *core.Config, section *core.ConfigBookSection) 
 			}
 		}
 	}
-	
+
 	return content.String(), nil
 }
 
@@ -262,4 +271,3 @@ func MustFindNoteBySlug(slug string) *core.Note {
 	}
 	return note
 }
-

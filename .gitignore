@@ -9,3 +9,8 @@ database.db
 # Docs
 .astro
 .nt/database.db-journal
+
+# Ignore book files
+/example/*.epub
+/example/*.pdf
+/example/*.markdown

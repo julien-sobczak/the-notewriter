@@ -17,6 +17,11 @@ build:
 	go build --tags "fts5" -o build/ntanki cmd/nt-anki/*.go
 	go build --tags "fts5" -o build/ntbook cmd/nt-book/*.go
 
+build-example:
+	@rm -Rf example/.nt/{objects,refs,database.db,index}
+	@cd example; nt add --v . && nt commit; cd ..;
+	@echo "✅ Example repository built in example/.nt"
+
 test:
 	go test --tags "fts5" ./... -count=1 -v
 

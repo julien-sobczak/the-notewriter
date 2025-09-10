@@ -263,26 +263,26 @@ type ConfigReference struct {
 }
 
 type ConfigBook struct {
-	Title    string                 `json:"title"`              // Ex: "Life in Progress"
-	Author   []string               `json:"author"`             // Ex: ["Julien Sobczak"]
-	Cover    string                 `json:"cover,omitempty"`    // Optional URL or path to cover image
-	Language string                 `json:"language"`           // Ex: "en-US"
-	TOC      bool                   `json:"toc"`                // Generate table of contents
-	Format   []string               `json:"format"`             // Ex: ["epub", "pdf"]
-	Build    string                 `json:"build,omitempty"`    // Ex: "build/life-in-progress.${extension}"
-	Chapters []*ConfigBookSection   `json:"chapters"`           // Book chapters
+	Title    string               `json:"title"`           // Ex: "Life in Progress"
+	Author   []string             `json:"author"`          // Ex: ["Julien Sobczak"]
+	Cover    string               `json:"cover,omitempty"` // Optional URL or path to cover image
+	Language string               `json:"language"`        // Ex: "en-US"
+	TOC      bool                 `json:"toc"`             // Generate table of contents
+	Format   []string             `json:"format"`          // Ex: ["epub", "pdf"]
+	Build    string               `json:"build,omitempty"` // Ex: "build/life-in-progress.${extension}"
+	Chapters []*ConfigBookSection `json:"chapters"`        // Book chapters
 }
 
 type ConfigBookSection struct {
-	Title           string                  `json:"title"`                     // Chapter/section title
-	Subtitle        string                  `json:"subtitle,omitempty"`        // Optional subtitle
-	Illustration    string                  `json:"illustration,omitempty"`    // Optional image path (relative from root)
-	Text            string                  `json:"text,omitempty"`            // Direct text content
-	Query           string                  `json:"query,omitempty"`           // Query to select notes
-	Notes           []*ConfigBookNote       `json:"notes,omitempty"`           // Specific notes to include
-	Sections        []*ConfigBookSection    `json:"sections,omitempty"`        // Nested sections
-	PageBreaks      bool                    `json:"pageBreaks,omitempty"`      // Force page breaks between notes
-	IncludeComments bool                    `json:"includeComments,omitempty"` // Include comment fields
+	Title           string               `json:"title"`                     // Chapter/section title
+	Subtitle        string               `json:"subtitle,omitempty"`        // Optional subtitle
+	Illustration    string               `json:"illustration,omitempty"`    // Optional image path (relative from root)
+	Text            string               `json:"text,omitempty"`            // Direct text content
+	Query           string               `json:"query,omitempty"`           // Query to select notes
+	Notes           []*ConfigBookNote    `json:"notes,omitempty"`           // Specific notes to include
+	Sections        []*ConfigBookSection `json:"sections,omitempty"`        // Nested sections
+	PageBreaks      bool                 `json:"pageBreaks,omitempty"`      // Force page breaks between notes
+	IncludeComments bool                 `json:"includeComments,omitempty"` // Include comment fields
 }
 
 type ConfigBookNote struct {
@@ -300,7 +300,7 @@ func (b *ConfigBook) OutputPath(config *Config, format string) string {
 		}
 		return path
 	}
-	
+
 	// Default: use book title as filename in repository root
 	filename := text.Slugify(b.Title) + "." + format
 	return filepath.Join(config.RootDirectory, filename)

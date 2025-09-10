@@ -45,8 +45,6 @@ p {
 /* Author styling */
 em {
     font-style: italic;
-    text-align: center;
-    display: block;
     margin: 1em 0;
     color: #666;
 }
@@ -98,11 +96,11 @@ blockquote {
         font-size: 12pt;
         line-height: 1.5;
     }
-    
+
     h1, h2, h3 {
         page-break-after: avoid;
     }
-    
+
     p, li {
         page-break-inside: avoid;
         orphans: 3;
