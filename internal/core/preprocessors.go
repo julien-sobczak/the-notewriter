@@ -20,6 +20,7 @@ func init() {
 	RegisterPreprocessor("quote-rewriter", QuoteRewriterPreprocessor)
 	RegisterPreprocessor("generator", GeneratorPreprocessor)
 	RegisterPreprocessor("flashcard-extractor", FlashcardExtractorPreprocessor)
+	RegisterPreprocessor("list-items", ListItemsPreprocessor)
 }
 
 /* Preprocessors implementation */
@@ -286,6 +287,110 @@ func flashcardWithClozeDeletionExtractor(_ *ParsedFile, note *ParsedNote) ([]*Pa
 	}
 
 	return []*ParsedNote{note}, nil
+}
+
+// ListItemsPreprocessor extracts list items from Markdown content and populates the Items field.
+// It parses Markdown lists, extracts tags, attributes, and emojis from the text, and creates
+// a nested structure representing the list hierarchy.
+func ListItemsPreprocessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, error) {
+	listItems := extractListItems(note.Body, note.Line)
+	note.Items = NewItems(listItems)
+	return []*ParsedNote{note}, nil
+}
+
+// extractListItems parses Markdown content and extracts list items with their metadata
+func extractListItems(body markdown.Document, baseLineNumber int) []*ListItem {
+	items := []*listItemWithIndent{}
+
+	for i, line := range body.Lines() {
+		lineNumber := baseLineNumber + i
+
+		// Check if this line is a list item
+		if item := parseListItemWithIndent(line, lineNumber); item != nil {
+			items = append(items, item)
+		}
+	}
+
+	if len(items) == 0 {
+		return nil
+	}
+
+	// Process nested items
+	return processNestedItemsWithIndent(items)
+}
+
+// listItemWithIndent is a temporary struct to track indentation during parsing
+type listItemWithIndent struct {
+	*ListItem
+	IndentLevel int
+}
+
+// parseListItemWithIndent parses a single line and returns a listItemWithIndent if it's a list item, nil otherwise
+func parseListItemWithIndent(line string, lineNumber int) *listItemWithIndent {
+	// Regex to match various list item formats: *, -, +, 1., 2., etc.
+	listPattern := regexp.MustCompile(`^(\s*)([\*\-\+]|\d+\.)\s+(.*)$`)
+	matches := listPattern.FindStringSubmatch(line)
+	if matches == nil {
+		// Not a list item
+		return nil
+	}
+
+	indentation := len(matches[1])
+	doc := markdown.Document(matches[3])
+
+	// Extract tags, attributes, and emojis
+	configAttributes := CurrentConfigFile().Attributes
+	tags, attributes, emojis := ExtractAllTagsAndAttributesAndEmojis(doc, configAttributes)
+	// Filter tags and attributes but keep emojis (and preservable shorthands)
+	trimmedText := doc.MustTransform(StripTagsAndAttributes(configAttributes))
+
+	// Remove optional task checkbox
+	checkboxPattern := regexp.MustCompile(`^\[([ xX])\]\s*`)
+	trimmedText = markdown.Document(checkboxPattern.ReplaceAllString(trimmedText.String(), ""))
+
+	return &listItemWithIndent{
+		ListItem: &ListItem{
+			Line:       lineNumber,
+			Text:       trimmedText,
+			Tags:       tags,
+			Attributes: attributes,
+			Emojis:     emojis,
+			// For now, we ignore children but keep track of indentation
+			Children: []*ListItem{},
+		},
+		IndentLevel: indentation,
+	}
+}
+
+// processNestedItemsWithIndent processes flat list of items and creates nested structure based on indentation
+func processNestedItemsWithIndent(items []*listItemWithIndent) []*ListItem {
+	if len(items) == 0 {
+		return []*ListItem{}
+	}
+
+	result := []*ListItem{}
+	stack := []*listItemWithIndent{} // Stack to track parent items at different indent levels
+
+	for _, item := range items {
+		// Pop stack until we find the right parent level
+		for len(stack) > 0 && stack[len(stack)-1].IndentLevel >= item.IndentLevel {
+			stack = stack[:len(stack)-1]
+		}
+
+		if len(stack) == 0 {
+			// This is a top-level item
+			result = append(result, item.ListItem)
+		} else {
+			// This is a child of the last item in the stack
+			parent := stack[len(stack)-1]
+			parent.ListItem.Children = append(parent.ListItem.Children, item.ListItem)
+		}
+
+		// Push current item to stack for potential children
+		stack = append(stack, item)
+	}
+
+	return result
 }
 
 /* Helpers */

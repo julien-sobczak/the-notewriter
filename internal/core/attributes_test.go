@@ -23,7 +23,7 @@ func TestTagSet(t *testing.T) {
 				"empty slices",
 				nil,
 				nil,
-				nil,
+				NewEmptyTagSet(),
 			},
 			{
 				"empty slice",
@@ -283,7 +283,7 @@ tags: favorite
 				name:     "nil maps",
 				inputA:   nil,
 				inputB:   nil,
-				expected: EmptyAttributes,
+				expected: NewEmptyAttributeSet(),
 			},
 			{
 				name: "append in slices",
@@ -625,4 +625,244 @@ func TestAttributeSetSpecialAttributes(t *testing.T) {
 		}
 	})
 
+}
+
+func TestTags(t *testing.T) {
+	tests := []struct {
+		name         string
+		text         markdown.Document
+		expectedText markdown.Document
+		expectedTags TagSet
+	}{
+		{
+			name:         "No tags",
+			text:         "This text has no tags.",
+			expectedText: "This text has no tags.",
+			expectedTags: NewEmptyTagSet(),
+		},
+		{
+			name:         "Single tag",
+			text:         "Great Book `#favorite`",
+			expectedText: "Great Book",
+			expectedTags: NewTagSet([]string{"favorite"}),
+		},
+		{
+			name:         "Multiple consecutive tags",
+			text:         "Great book `#favorite` `#life-changing`",
+			expectedText: "Great book",
+			expectedTags: NewTagSet([]string{"favorite", "life-changing"}),
+		},
+		{
+			name:         "Multiple separated tags",
+			text:         "Great `#favorite` book `#life-changing`",
+			expectedText: "Great book",
+			expectedTags: NewTagSet([]string{"favorite", "life-changing"}),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Test extraction
+			actualText, err := test.text.Transform(StripTags())
+			require.NoError(t, err)
+			actualTags := ExtractTags(test.text)
+			assert.Equal(t, test.expectedText, actualText)
+			assert.Equal(t, test.expectedTags, actualTags)
+		})
+	}
+}
+
+func TestAttributesOnly(t *testing.T) {
+	configAttributes := ConfigAttributes{
+		"rating": &ConfigAttribute{
+			Name: "rating",
+			Type: "integer",
+		},
+	}
+
+	tests := []struct {
+		name               string
+		text               markdown.Document
+		expectedText       markdown.Document
+		expectedAttributes AttributeSet
+	}{
+		{
+			name:               "No attribute",
+			text:               "This text has no attribute.",
+			expectedText:       "This text has no attribute.",
+			expectedAttributes: NewEmptyAttributeSet(),
+		},
+		{
+			name:         "Single attribute",
+			text:         "Great Book `@rating: 6`",
+			expectedText: "Great Book",
+			expectedAttributes: map[string]any{
+				"rating": int64(6),
+			},
+		},
+		{
+			name:         "Multiple consecutive attributes",
+			text:         "Great book `@rating: 6` `@source: _A Book_`",
+			expectedText: "Great book",
+			expectedAttributes: map[string]any{
+				"rating": int64(6),
+				"source": "_A Book_",
+			},
+		},
+		{
+			name:         "Multiple separated attributes",
+			text:         "Great `@rating: 6` book `@source: _A Book_`",
+			expectedText: "Great book",
+			expectedAttributes: map[string]any{
+				"rating": int64(6),
+				"source": "_A Book_",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Test extraction
+			actualText, err := test.text.Transform(StripOnlyAttributes())
+			require.NoError(t, err)
+			actualAttributes := ExtractOnlyAttributes(test.text, configAttributes)
+			assert.Equal(t, test.expectedText, actualText)
+			assert.Equal(t, test.expectedAttributes, actualAttributes)
+		})
+	}
+}
+
+func TestShorthands(t *testing.T) {
+	configAttributes := ConfigAttributes{
+		"status": &ConfigAttribute{
+			Name: "status",
+			Type: "string",
+			Shorthands: map[string]any{
+				"📋": "todo",
+				"🕒": "in-progress",
+				"⛔": "blocked",
+				"✅": "done",
+			},
+			PreserveShorthand: BoolPointer(false), // Remove from title
+		},
+		"rating": &ConfigAttribute{
+			Name: "rating",
+			Type: "string",
+			Shorthands: map[string]any{
+				"★":   "★",
+				"★★":  "★★",
+				"★★★": "★★★",
+			},
+			PreserveShorthand: BoolPointer(true), // Keep in title
+		},
+	}
+
+	tests := []struct {
+		name               string
+		text               markdown.Document
+		expectedText       markdown.Document
+		expectedAttributes AttributeSet
+	}{
+		{
+			name:         "Status shorthand removed",
+			text:         "Add Zen Mode 🕒",
+			expectedText: "Add Zen Mode",
+			expectedAttributes: map[string]any{
+				"status": "in-progress",
+			},
+		},
+		{
+			name:         "Rating shorthand preserved",
+			text:         "Great Book ★★★",
+			expectedText: "Great Book ★★★",
+			expectedAttributes: map[string]any{
+				"rating": "★★★",
+			},
+		},
+		{
+			name:         "Status shorthand at beginning",
+			text:         "Add 🕒 Zen Mode",
+			expectedText: "Add Zen Mode",
+			expectedAttributes: map[string]any{
+				"status": "in-progress",
+			},
+		},
+		{
+			name:         "Multiple emojis",
+			text:         "Add Zen Mode 🕒 ★★",
+			expectedText: "Add Zen Mode ★★",
+			expectedAttributes: map[string]any{
+				"status": "in-progress",
+				"rating": "★★",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Test extraction
+			actualText, err := test.text.Transform(StripShorthands(configAttributes))
+			require.NoError(t, err)
+			actualAttributes := ExtractShorthands(test.text, configAttributes)
+			assert.Equal(t, test.expectedText, actualText)
+			assert.Equal(t, test.expectedAttributes, actualAttributes)
+		})
+	}
+}
+
+func TestExtractAllTagsAndAttributesAndEmojis(t *testing.T) {
+	configAttributes := ConfigAttributes{
+		"status": &ConfigAttribute{
+			Name: "status",
+			Type: "string",
+			Shorthands: map[string]any{
+				"📋": "todo",
+				"🕒": "in-progress",
+				"⛔": "blocked",
+				"✅": "done",
+			},
+			PreserveShorthand: BoolPointer(false), // Remove from title
+		},
+		"rating": &ConfigAttribute{
+			Name: "rating",
+			Type: "string",
+			Shorthands: map[string]any{
+				"★":   "★",
+				"★★":  "★★",
+				"★★★": "★★★",
+			}, PreserveShorthand: BoolPointer(true), // Keep in title
+		},
+	}
+
+	tests := []struct {
+		name               string
+		text               markdown.Document
+		expectedText       markdown.Document
+		expectedTags       TagSet
+		expectedAttributes AttributeSet
+		expectedEmojis     EmojiSet
+	}{
+		{
+			name:         "All elements",
+			text:         "Great Book `#favorite` 🕒 ★★★ `@source: _A Book_` 👍",
+			expectedText: "Great Book ★★★ 👍",
+			expectedTags: []string{"favorite"},
+			expectedAttributes: AttributeSet{
+				"status": "in-progress",
+				"source": "_A Book_",
+				"rating": "★★★",
+				"tags":   []string{"favorite"},
+			},
+			expectedEmojis: []string{"★", "👍"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actualTags, actualAttributes, actualEmojis := ExtractAllTagsAndAttributesAndEmojis(test.text, configAttributes)
+			assert.Equal(t, test.expectedTags, actualTags)
+			assert.Equal(t, test.expectedAttributes, actualAttributes)
+			assert.Equal(t, test.expectedEmojis, actualEmojis)
+		})
+	}
 }

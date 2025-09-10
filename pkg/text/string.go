@@ -31,6 +31,12 @@ func ExtractLines(text string, start, end int) string {
 	return result
 }
 
+// SquashConsecutiveSpaces replaces successive blank characters by a single empty one.
+func SquashConsecutiveSpaces(text string) string {
+	re := regexp.MustCompile(`\s+`)
+	return re.ReplaceAllString(text, " ")
+}
+
 // SquashBlankLines replaces successive blank lines by a single empty one.
 func SquashBlankLines(text string) string {
 	var result bytes.Buffer

@@ -46,5 +46,16 @@ local nt = import 'nt.libsonnet';
                 },
             ],
         },
+        ReadingList: nt.DefaultTypes.Note + {
+            name: "ReadingList",
+            attributes: [
+                {
+                    name: "rating",
+                    optional: false,
+                    inline: false,
+                },
+            ],
+            preprocessors: ["list-items"],
+        },
     },
 }

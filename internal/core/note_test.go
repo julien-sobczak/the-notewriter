@@ -428,6 +428,60 @@ Guido van Rossum
 
 }
 
+func TestListItems(t *testing.T) {
+	items := ListItems{
+		{
+			Line:       1,
+			Text:       "_Atomic Habits_ by James Clear",
+			Tags:       []string{"self-help"},
+			Attributes: map[string]interface{}{"rating": 10},
+			Emojis:     []string{"🇬🇧", "🇫🇷"},
+			Children: []*ListItem{
+				{
+					Line:   2,
+					Text:   "Atomic Habits is a book about building good habits and breaking bad ones.",
+					Tags:   []string{"borrow"},
+					Emojis: []string{"👍"},
+				},
+			},
+		},
+		{
+			Line:       3,
+			Text:       "_The Pragmatic Programmer_ by Andrew Hunt and David Thomas",
+			Tags:       []string{"programming"},
+			Attributes: map[string]interface{}{"rating": 9},
+			Emojis:     []string{"🇬🇧"},
+			Children: []*ListItem{
+				{
+					Line:       4,
+					Text:       "The Pragmatic Programmer is a book about software engineering best practices.",
+					Tags:       []string{"buy"},
+					Attributes: map[string]interface{}{"priority": "high"},
+				},
+			},
+		},
+	}
+
+	t.Run("CollectAttributesNames", func(t *testing.T) {
+		actual := items.CollectAttributesNames()
+		expected := []string{"priority", "rating"} // sorted
+		assert.Equal(t, expected, actual)
+	})
+
+	t.Run("CollectTags", func(t *testing.T) {
+		actual := items.CollectTags()
+		expected := []string{"borrow", "buy", "programming", "self-help"} // sorted
+		assert.Equal(t, expected, actual)
+	})
+
+	t.Run("CollectEmojis", func(t *testing.T) {
+		actual := items.CollectEmojis()
+		expected := []string{"🇫🇷", "🇬🇧", "👍"} // "sorted" according Unicode order
+		assert.Equal(t, expected, actual)
+	})
+
+}
+
 /* Helpers */
 
 func MustFindNoteByTitle(t *testing.T, title string) *Note {

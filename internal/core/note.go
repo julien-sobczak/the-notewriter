@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"reflect"
 	"regexp"
 	"strings"
@@ -20,6 +21,88 @@ import (
 
 // NoteLongTitleSeparator represents the separator when determine the long title of a note.
 const NoteLongTitleSeparator string = " / "
+
+// ListItem represents a single item in a Markdown list
+type ListItem struct {
+	Line       int               `yaml:"line" json:"line"`
+	Text       markdown.Document `yaml:"text" json:"text"`
+	Tags       TagSet            `yaml:"tags,omitempty" json:"tags,omitempty"`
+	Attributes AttributeSet      `yaml:"attributes,omitempty" json:"attributes,omitempty"`
+	Emojis     EmojiSet          `yaml:"emojis,omitempty" json:"emojis,omitempty"`
+	Children   ListItems         `yaml:"children,omitempty" json:"children,omitempty"`
+}
+
+type ListItems []*ListItem
+
+// ListItems represents the extracted list items from Markdown content
+type Items struct {
+	Children   ListItems `yaml:"children" json:"children"`
+	Attributes []string  `yaml:"attributes,omitempty" json:"attributes,omitempty"` // All unique attribute names
+	Tags       TagSet    `yaml:"tags,omitempty" json:"tags,omitempty"`             // All unique tag values
+	Emojis     EmojiSet  `yaml:"emojis,omitempty" json:"emojis,omitempty"`         // All unique emojis
+}
+
+// AttributeNames returns the names of all attributes in the list item
+func (li *ListItem) AttributeNames() []string {
+	var names []string
+	for name := range li.Attributes {
+		names = append(names, name)
+	}
+	return names
+}
+
+func NewItems(children ListItems) *Items {
+	return &Items{
+		Children: children,
+		// Collect aggregated attributes/tags/emojis
+		Attributes: children.CollectAttributesNames(),
+		Tags:       children.CollectTags(),
+		Emojis:     children.CollectEmojis(),
+	}
+}
+
+// CollectAttributes collects all unique attributes from the list items.
+func (l ListItems) CollectAttributesNames() []string {
+	return CollectStringFromListItems(l, func(li *ListItem) []string {
+		return li.AttributeNames()
+	})
+}
+
+// CollectAttributes collects all unique attributes from the list items.
+func (l ListItems) CollectTags() []string {
+	return CollectStringFromListItems(l, func(li *ListItem) []string {
+		return li.Tags
+	})
+}
+
+// CollectEmojis collects all unique emojis from the list items.
+func (l ListItems) CollectEmojis() []string {
+	return CollectStringFromListItems(l, func(li *ListItem) []string {
+		return li.Emojis
+	})
+}
+
+func CollectFromListItem[T comparable](i *ListItem, collectFunc func(*ListItem) []T) map[T]bool {
+	values := make(map[T]bool)
+	for _, value := range collectFunc(i) {
+		values[value] = true
+	}
+	maps.Copy(values, CollectFromListItems(i.Children, collectFunc))
+	return values
+}
+func CollectFromListItems[T comparable](l ListItems, collectFunc func(*ListItem) []T) map[T]bool {
+	values := make(map[T]bool)
+	for _, child := range l {
+		for value := range CollectFromListItem(child, collectFunc) {
+			values[value] = true
+		}
+	}
+	return values
+}
+func CollectStringFromListItems(l ListItems, collectFunc func(*ListItem) []string) []string {
+	values := CollectFromListItems(l, collectFunc)
+	return slices.Sorted(maps.Keys(values))
+}
 
 type Note struct {
 	// A unique identifier among all files
@@ -63,6 +146,9 @@ type Note struct {
 	Body    markdown.Document `yaml:"body" json:"body"`
 	Comment markdown.Document `yaml:"comment,omitempty" json:"comment,omitempty"`
 
+	// List items extracted from Markdown lists
+	Items *Items `yaml:"items,omitempty" json:"items,omitempty"`
+
 	// Timestamps to track changes
 	CreatedAt time.Time `yaml:"created_at" json:"created_at"`
 	UpdatedAt time.Time `yaml:"updated_at" json:"updated_at"`
@@ -94,6 +180,7 @@ func NewNote(packFile *PackFile, file *File, parsedNote *ParsedNote) (*Note, err
 		Hash:         parsedNote.Content.Hash(),
 		Body:         parsedNote.Body,
 		Comment:      parsedNote.Comment,
+		Items:        parsedNote.Items,
 		Line:         parsedNote.Line,
 		CreatedAt:    packFile.CTime,
 		UpdatedAt:    packFile.CTime,
@@ -264,6 +351,11 @@ func (n *Note) update(packFile *PackFile, f *File, parsedNote *ParsedNote) {
 		stale = true
 	}
 
+	if !reflect.DeepEqual(n.Items, parsedNote.Items) {
+		n.Items = parsedNote.Items
+		stale = true
+	}
+
 	newWikilink := f.Wikilink + "#" + string(parsedNote.Title.TrimSpace())
 	if n.Wikilink != newWikilink {
 		n.Wikilink = newWikilink
@@ -422,10 +514,11 @@ func (n *Note) Save() error {
 			hashsum,
 			body,
 			comment,
+			items,
 			created_at,
 			updated_at,
 			indexed_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(oid) DO UPDATE SET
 			packfile_oid = ?,
 			file_oid = ?,
@@ -443,12 +536,18 @@ func (n *Note) Save() error {
 			hashsum = ?,
 			body = ?,
 			comment = ?,
+			items = ?,
 			updated_at = ?,
 			indexed_at = ?
 		;
 	`
 
 	attributesJSON, err := n.Attributes.ToJSON()
+	if err != nil {
+		return err
+	}
+
+	itemsJSON, err := json.Marshal(n.Items)
 	if err != nil {
 		return err
 	}
@@ -472,6 +571,7 @@ func (n *Note) Save() error {
 		n.Hash,
 		n.Body,
 		n.Comment,
+		string(itemsJSON),
 		timeToSQL(n.CreatedAt),
 		timeToSQL(n.UpdatedAt),
 		timeToSQL(n.IndexedAt),
@@ -492,6 +592,7 @@ func (n *Note) Save() error {
 		n.Hash,
 		n.Body,
 		n.Comment,
+		string(itemsJSON),
 		timeToSQL(n.UpdatedAt),
 		timeToSQL(n.IndexedAt),
 	)
@@ -816,6 +917,7 @@ func QueryNote(db SQLClient, whereClause string, randomClause string, args ...an
 	var tagsRaw string
 	var attributesRaw string
 	var annotationsRaw string
+	var itemsRaw string
 
 	// Build the complete query with optional random clause
 	query := fmt.Sprintf(`
@@ -837,6 +939,7 @@ func QueryNote(db SQLClient, whereClause string, randomClause string, args ...an
 			hashsum,
 			body,
 			comment,
+			items,
 			created_at,
 			updated_at,
 			indexed_at,
@@ -866,6 +969,7 @@ func QueryNote(db SQLClient, whereClause string, randomClause string, args ...an
 			&n.Hash,
 			&n.Body,
 			&n.Comment,
+			&itemsRaw,
 			&createdAt,
 			&updatedAt,
 			&lastIndexedAt,
@@ -884,6 +988,14 @@ func QueryNote(db SQLClient, whereClause string, randomClause string, args ...an
 		return nil, err
 	}
 
+	var items Items
+	if itemsRaw != "" {
+		err = json.Unmarshal([]byte(itemsRaw), &items)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	annotations := make([]Annotation, 0)
 	if annotationsRaw != "" {
 		err = yaml.Unmarshal([]byte(annotationsRaw), &annotations)
@@ -894,6 +1006,7 @@ func QueryNote(db SQLClient, whereClause string, randomClause string, args ...an
 
 	n.Attributes = attributes.CastOrIgnore(CurrentConfigFile().Attributes)
 	n.Tags = strings.Split(tagsRaw, ",")
+	n.Items = &items
 	n.CreatedAt = timeFromSQL(createdAt)
 	n.UpdatedAt = timeFromSQL(updatedAt)
 	n.IndexedAt = timeFromSQL(lastIndexedAt)
@@ -925,6 +1038,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			hashsum,
 			body,
 			comment,
+			items,
 			created_at,
 			updated_at,
 			indexed_at,
@@ -946,6 +1060,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 		var tagsRaw string
 		var attributesRaw string
 		var annotationsRaw string
+		var itemsRaw string
 
 		err = rows.Scan(
 			&n.OID,
@@ -965,6 +1080,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			&n.Hash,
 			&n.Body,
 			&n.Comment,
+			&itemsRaw,
 			&createdAt,
 			&updatedAt,
 			&lastIndexedAt,
@@ -981,6 +1097,14 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 			return nil, err
 		}
 
+		var items Items
+		if itemsRaw != "" {
+			err = json.Unmarshal([]byte(itemsRaw), &items)
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		annotations := make([]Annotation, 0)
 		if annotationsRaw != "" {
 			err = yaml.Unmarshal([]byte(annotationsRaw), &annotations)
@@ -991,6 +1115,7 @@ func QueryNotes(db SQLClient, whereClause string, args ...any) ([]*Note, error) 
 
 		n.Attributes = attributes.CastOrIgnore(CurrentConfigFile().Attributes)
 		n.Tags = strings.Split(tagsRaw, ",")
+		n.Items = &items
 		n.CreatedAt = timeFromSQL(createdAt)
 		n.UpdatedAt = timeFromSQL(updatedAt)
 		n.IndexedAt = timeFromSQL(lastIndexedAt)

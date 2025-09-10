@@ -29,15 +29,23 @@ var (
 
 type TagSet []string
 
-var EmptyTags TagSet
+// Const to represent an empty set of tags
+func NewEmptyTagSet() TagSet {
+	return []string{}
+}
 
 // NewTagSet creates a new tag set removing duplicate tags.
 func NewTagSet(tags []string) TagSet {
-	return EmptyTags.Merge(tags)
+	return NewEmptyTagSet().Merge(tags)
+}
+
+// NewTagSetFromText extracts tags from a text.
+func NewTagSetFromText(content string) TagSet {
+	return ExtractTags(markdown.Document(content))
 }
 
 func (t TagSet) Merge(tagSets ...TagSet) TagSet {
-	var result TagSet
+	result := NewEmptyTagSet()
 
 	// Start with initial set
 	result = append(result, t...)
@@ -222,12 +230,36 @@ var CastDateFn CastFn[string] = func(v any) (string, bool) {
 	return "", false
 }
 
+// NewEmptyAttributes creates an empty attribute set.
+func NewEmptyAttributeSet() AttributeSet {
+	return make(AttributeSet)
+}
+
+// NewAttributeSetFromYAML unmarshall attributes.
+func NewAttributeSetFromYAML(rawValue string) (AttributeSet, error) {
+	var attributes map[string]interface{}
+	err := yaml.Unmarshal([]byte(rawValue), &attributes)
+	if err != nil {
+		return nil, err
+	}
+	if attributes == nil {
+		return NewEmptyAttributeSet(), nil
+	}
+	return attributes, nil
+}
+
+// NewAttributeSetFromMarkdown extracts attributes from the front-matter of a markdown file.
 func NewAttributeSetFromMarkdown(md *markdown.File) (AttributeSet, error) {
 	attributesMap, err := md.FrontMatter.AsMap()
 	if err != nil {
 		return nil, err
 	}
 	return AttributeSet(attributesMap).Cast(CurrentConfigFile().Attributes)
+}
+
+// NewAttributeSetFromText extracts attributes from a text.
+func NewAttributeSetFromText(content string, configAttributes ConfigAttributes) AttributeSet {
+	return ExtractAttributes(markdown.Document(content), configAttributes)
 }
 
 // SetIfMissing sets the attribute only if it is not already set.
@@ -258,22 +290,6 @@ func (a AttributeSet) DiffKeys(other AttributeSet) []string {
 	return results
 }
 
-// Const to represent an empty set of attributes
-var EmptyAttributes AttributeSet = make(map[string]any)
-
-// NewAttributeSetFromYAML unmarshall attributes.
-func NewAttributeSetFromYAML(rawValue string) (AttributeSet, error) {
-	var attributes map[string]interface{}
-	err := yaml.Unmarshal([]byte(rawValue), &attributes)
-	if err != nil {
-		return nil, err
-	}
-	if attributes == nil {
-		return EmptyAttributes, nil
-	}
-	return attributes, nil
-}
-
 func (a AttributeSet) Merge(attributes ...AttributeSet) AttributeSet {
 	var result AttributeSet = make(map[string]any)
 	for newKey, newValue := range a {
@@ -286,7 +302,7 @@ func (a AttributeSet) Merge(attributes ...AttributeSet) AttributeSet {
 	}
 
 	if len(result) == 0 {
-		return EmptyAttributes
+		return NewEmptyAttributeSet()
 	}
 
 	return result
@@ -366,6 +382,12 @@ func (a AttributeSet) AddTag(newTag string) {
 	}
 }
 
+func (a AttributeSet) AddTags(tags TagSet) {
+	for _, tag := range tags {
+		a.AddTag(tag)
+	}
+}
+
 func (a AttributeSet) Slug() (string, bool) {
 	v, ok := a["slug"]
 	if !ok {
@@ -439,6 +461,9 @@ func (a AttributeSet) ToJSON() (string, error) {
 }
 
 func (a AttributeSet) ToYAML() (string, error) {
+	if len(a) == 0 {
+		return "", nil
+	}
 	var buf bytes.Buffer
 	bufEncoder := yaml.NewEncoder(&buf)
 	bufEncoder.SetIndent(2)
@@ -513,10 +538,6 @@ func CastArray[T any](arr []any, castFn CastFn[T]) (results []T, ok bool) {
 
 // CastAttribute enforces the type declared in linter schemas.
 func CastAttribute(value any, declaredType ConfigAttribute) (any, bool) {
-	if value == nil {
-		return nil, true
-	}
-
 	typeName := declaredType.Type
 
 	if strings.HasSuffix(typeName, "[]") {
@@ -574,6 +595,84 @@ func MustCastAttribute(value any, declaredType ConfigAttribute) any {
 }
 
 /*
+ * EmojiSet
+ */
+
+type EmojiSet []string
+
+// NewEmptyEmojiSet creates an empty emoji set.
+func NewEmptyEmojiSet() EmojiSet {
+	return []string{}
+}
+
+// NewEmojiSet creates a new emoji set removing duplicate emojis.
+func NewEmojiSet(emojis []string) EmojiSet {
+	result := NewEmptyEmojiSet().Merge(emojis)
+	slices.Sort(result)
+	return result
+}
+
+// NewEmojiSetFromText extracts emojis from a text.
+func NewEmojiSetFromText(content string) EmojiSet {
+	var emojis EmojiSet
+
+	runes := []rune(content)
+
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
+
+		// Check for flag sequences (regional indicators)
+		if r >= 0x1F1E0 && r <= 0x1F1FF && i+1 < len(runes) {
+			next := runes[i+1]
+			if next >= 0x1F1E0 && next <= 0x1F1FF {
+				// This is a country flag emoji (two regional indicators)
+				emojis = append(emojis, string([]rune{r, next}))
+				i++ // Skip the next rune since we processed it
+				continue
+			}
+		}
+
+		// Check for other emoji ranges
+		if (r >= 0x1F600 && r <= 0x1F64F) || // Emoticons
+			(r >= 0x1F300 && r <= 0x1F5FF) || // Misc Symbols and Pictographs
+			(r >= 0x1F680 && r <= 0x1F6FF) || // Transport and Map
+			(r >= 0x1F900 && r <= 0x1F9FF) || // Supplemental Symbols and Pictographs
+			(r >= 0x2600 && r <= 0x26FF) || // Misc symbols
+			(r >= 0x2700 && r <= 0x27BF) { // Dingbats
+			emojis = append(emojis, string(r))
+		}
+	}
+
+	return NewEmojiSet(emojis)
+}
+
+// Merge merges multiple emoji sets into a new one, removing duplicates.
+func (e EmojiSet) Merge(emojiSets ...EmojiSet) EmojiSet {
+	result := NewEmptyEmojiSet()
+
+	// Start with initial set
+	result = append(result, e...)
+
+	// Append new emojis in other sets
+	for _, emojis := range emojiSets {
+		for _, emoji := range emojis {
+			if !slices.Contains(result, emoji) {
+				result = append(result, emoji)
+			}
+		}
+	}
+	return result
+}
+
+func (e EmojiSet) AsList() []string {
+	return e
+}
+
+func (e EmojiSet) Includes(emoji string) bool {
+	return slices.Contains(e, emoji)
+}
+
+/*
  * Markdown
  */
 
@@ -584,7 +683,7 @@ func OnlyTagsAndAttributes(line string) bool {
 
 // ExtractBlockTagsAndAttributes searches for all tags and attributes declared on standalone lines
 // (in comparison with tags/attributes defined, for example, on To-Do list items).
-func ExtractBlockTagsAndAttributes(content markdown.Document) (TagSet, AttributeSet) {
+func ExtractBlockTagsAndAttributes(content markdown.Document, configAttributes ConfigAttributes) (TagSet, AttributeSet) {
 
 	// Collect tags and attributes
 	var tags TagSet
@@ -615,7 +714,7 @@ func ExtractBlockTagsAndAttributes(content markdown.Document) (TagSet, Attribute
 	}
 
 	// Cast (ensure the tags attribute is an array too)
-	attributes = attributes.CastOrIgnore(CurrentConfigFile().Attributes)
+	attributes = attributes.CastOrIgnore(configAttributes)
 
 	tagsInAttributes := attributes.Tags()
 
@@ -628,6 +727,153 @@ func ExtractBlockTagsAndAttributes(content markdown.Document) (TagSet, Attribute
 	tags = append(tags, tagsInAttributes...)
 
 	return tags, attributes
+}
+
+// ExtractTags extracts tags from a text
+func ExtractTags(doc markdown.Document) TagSet {
+	content := string(doc)
+	matches := regexTags.FindAllStringSubmatch(content, -1)
+	var tags TagSet
+	for _, match := range matches {
+		tag := match[1]
+		// Append new tag
+		tags = append(tags, tag)
+	}
+	return NewTagSet(tags)
+}
+
+// ExtractOnlyAttributes extracts attributes from a text (ignoring tags and shorthands)
+func ExtractOnlyAttributes(doc markdown.Document, configAttributes ConfigAttributes) AttributeSet {
+	content := string(doc)
+	matches := regexAttributes.FindAllStringSubmatch(content, -1)
+	attributes := make(AttributeSet)
+	for _, match := range matches {
+		name := match[1]
+		value := match[2]
+		attributes[name] = value
+	}
+	// Cast (ensure the tags attribute is an array too)
+	attributes = attributes.CastOrIgnore(configAttributes)
+	return attributes
+}
+
+// ExtractAttributes extracts all attributes from a text (including tags and shorthands)
+func ExtractAttributes(doc markdown.Document, configAttributes ConfigAttributes) AttributeSet {
+	attributes := ExtractOnlyAttributes(doc, configAttributes)
+	tags := ExtractTags(doc)
+	attributes.AddTags(tags)
+	shorthandAttributes := ExtractShorthands(doc, configAttributes)
+	return attributes.Merge(shorthandAttributes)
+}
+
+// ExtractShorthands extracts shorthand attributes from a string
+func ExtractShorthands(doc markdown.Document, configAttributes ConfigAttributes) AttributeSet {
+	content := string(doc)
+
+	shorthandAttributes := make(AttributeSet)
+
+	for _, attribute := range configAttributes {
+		if len(attribute.Shorthands) == 0 {
+			continue
+		}
+
+		// Sort shorthand keys by length (longest first) to match longer patterns first
+		var sortedKeys []string
+		for shorthandKey := range attribute.Shorthands {
+			sortedKeys = append(sortedKeys, shorthandKey)
+		}
+		// Simple sort by length (longest first)
+		for i := 0; i < len(sortedKeys); i++ {
+			for j := i + 1; j < len(sortedKeys); j++ {
+				if len(sortedKeys[i]) < len(sortedKeys[j]) {
+					sortedKeys[i], sortedKeys[j] = sortedKeys[j], sortedKeys[i]
+				}
+			}
+		}
+
+		// Look for each shorthand key in the text (longest first)
+		for _, shorthandKey := range sortedKeys {
+			if strings.Contains(content, shorthandKey) {
+				shorthandValue := attribute.Shorthands[shorthandKey]
+				typedValue := MustCastAttribute(shorthandValue, *attribute)
+				shorthandAttributes[attribute.Name] = typedValue
+				break // Only match the first shorthand for this attribute
+			}
+		}
+	}
+
+	// Cast (ensure the tags attribute is an array too)
+	shorthandAttributes = shorthandAttributes.CastOrIgnore(configAttributes)
+
+	return shorthandAttributes
+}
+
+// StripShorthands removes shorthands from text only if marked as non-preservable.
+func StripShorthands(attributes ConfigAttributes) markdown.Transformer {
+	return func(document markdown.Document) (markdown.Document, error) {
+		modifiedText := string(document)
+
+		for _, attribute := range attributes {
+			if attribute.PreserveShorthand == nil || *attribute.PreserveShorthand {
+				continue
+			}
+
+			if len(attribute.Shorthands) == 0 {
+				continue
+			}
+
+			// Sort shorthand keys by length (longest first) to remove longer patterns first
+			var sortedKeys []string
+			for shorthandKey := range attribute.Shorthands {
+				sortedKeys = append(sortedKeys, shorthandKey)
+			}
+			// Simple sort by length (longest first)
+			for i := 0; i < len(sortedKeys); i++ {
+				for j := i + 1; j < len(sortedKeys); j++ {
+					if len(sortedKeys[i]) < len(sortedKeys[j]) {
+						sortedKeys[i], sortedKeys[j] = sortedKeys[j], sortedKeys[i]
+					}
+				}
+			}
+
+			// Remove shorthand keys from text (longest first)
+			for _, shorthandKey := range sortedKeys {
+				if strings.Contains(modifiedText, shorthandKey) {
+					modifiedText = strings.ReplaceAll(modifiedText, shorthandKey, "")
+					break // Only remove the first match for this attribute
+				}
+			}
+		}
+
+		// Remove U+FE0F used to request the emoji presentation of a character that can be displayed either as text or emoji (see https://unicode.org/faq/emoji_dingbats.html)
+		modifiedText = strings.Map(func(r rune) rune {
+			if r == '\uFE0F' {
+				return -1
+			}
+			return r
+		}, modifiedText)
+
+		// Clean up consecutive spaces and trim
+		modifiedText = strings.TrimSpace(regexp.MustCompile(`\s+`).ReplaceAllString(modifiedText, " "))
+
+		return markdown.Document(modifiedText), nil
+	}
+}
+
+func ExtractAllTagsAndAttributesAndEmojis(doc markdown.Document, configAttributes ConfigAttributes) (TagSet, AttributeSet, EmojiSet) {
+	content := string(doc)
+
+	tags := NewTagSetFromText(content)
+	attributes := NewAttributeSetFromText(content, configAttributes)
+	attributes.AddTags(tags)
+
+	trimmedText := doc.MustTransform(
+		StripTags(),
+		StripAttributes(configAttributes)).
+		TrimSpace()
+	emojis := NewEmojiSetFromText(string(trimmedText))
+
+	return tags, attributes, emojis
 }
 
 // StripTagsAndAttributes remove all tags and attributes.
@@ -646,6 +892,7 @@ func StripBlockTagsAndAttributes() markdown.Transformer {
 
 // StripAllTagsAndAttributes removes all tags and attributes from a text.
 func StripAllTagsAndAttributes(content markdown.Document) markdown.Document {
+	// TODO remove deprecated
 	var res bytes.Buffer
 	for _, line := range content.Lines() {
 		newLine := regexTags.ReplaceAllLiteralString(line, "")
@@ -655,6 +902,47 @@ func StripAllTagsAndAttributes(content markdown.Document) markdown.Document {
 		}
 	}
 	return markdown.Document(text.SquashBlankLines(res.String())).TrimSpace()
+}
+
+// StripTags removes all tags from a text.
+func StripTags() markdown.Transformer {
+	return func(document markdown.Document) (markdown.Document, error) {
+		var res bytes.Buffer
+		for _, line := range document.Lines() {
+			newLine := regexTags.ReplaceAllLiteralString(line, "")
+			newLine = text.SquashConsecutiveSpaces(newLine)
+			if !text.IsBlank(newLine) {
+				res.WriteString(newLine + "\n")
+			}
+		}
+		return markdown.Document(text.SquashBlankLines(res.String())).TrimSpace(), nil
+	}
+}
+
+// StripOnlyAttributes removes all attributes from a text.
+func StripOnlyAttributes() markdown.Transformer {
+	return func(document markdown.Document) (markdown.Document, error) {
+		var res bytes.Buffer
+		for _, line := range document.Lines() {
+			newLine := regexAttributes.ReplaceAllLiteralString(line, "")
+			newLine = text.SquashConsecutiveSpaces(newLine)
+			if !text.IsBlank(newLine) {
+				res.WriteString(newLine + "\n")
+			}
+		}
+		newContent := markdown.Document(text.SquashBlankLines(res.String())).TrimSpace()
+		return newContent, nil
+	}
+}
+
+// StripAttributes removes all attributes from a text.
+func StripAttributes(attributes ConfigAttributes) markdown.Transformer {
+	return func(document markdown.Document) (markdown.Document, error) {
+		return document.MustTransform(
+			StripOnlyAttributes(),
+			StripShorthands(attributes),
+		).TrimSpace(), nil
+	}
 }
 
 /* Helpers */

@@ -1,7 +1,6 @@
 package core
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"log"
@@ -96,6 +95,9 @@ type ParsedNote struct {
 	Flashcards []*ParsedFlashcard
 	GoLinks    []*ParsedGoto
 	Reminders  []*ParsedReminder
+
+	// List items extracted from Markdown lists
+	Items *Items
 }
 
 func (p ParsedNote) String() string {
@@ -301,8 +303,10 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 			continue
 		}
 
+		configAttributes := CurrentConfigFile().Attributes
+
 		// Determine the attributes
-		noteTags, noteAttributes := ExtractBlockTagsAndAttributes(noteBody)
+		noteTags, noteAttributes := ExtractBlockTagsAndAttributes(noteBody, configAttributes)
 
 		// Determine the titles
 		title := section.HeadingText
@@ -314,7 +318,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		}
 
 		// Process shorthands from shortTitle
-		extractedAttributes := ExtractShorthands(string(shortTitle), CurrentConfigFile().Attributes)
+		extractedAttributes := ExtractShorthands(shortTitle, configAttributes)
 
 		// Apply extracted shorthand attributes
 		for attrName, attrValue := range extractedAttributes {
@@ -322,12 +326,12 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		}
 
 		// Update titles by removing shorthands only if not-preservable
-		modifiedTitle := RemoveShorthands(string(title), CurrentConfigFile().Attributes)
-		if modifiedTitle != string(title) {
+		modifiedTitle := title.MustTransform(StripShorthands(configAttributes))
+		if modifiedTitle != title {
 			title = markdown.Document(modifiedTitle)
 		}
-		modifiedShortTitle := RemoveShorthands(string(shortTitle), CurrentConfigFile().Attributes)
-		if modifiedShortTitle != string(shortTitle) {
+		modifiedShortTitle := shortTitle.MustTransform(StripShorthands(configAttributes))
+		if modifiedShortTitle != shortTitle {
 			shortTitle = markdown.Document(modifiedShortTitle)
 		}
 
@@ -757,7 +761,7 @@ func (p *ParsedNote) extractReminders() ([]*ParsedReminder, error) {
 			if submatch != nil {
 				// Reminder for a list element
 				descriptionText := markdown.Document(submatch[1])
-				descriptionCleaned, err := descriptionText.Transform(StripTagsAndAttributes())
+				descriptionCleaned, err := descriptionText.Transform(StripTagsAndAttributes(CurrentConfigFile().Attributes))
 				if err != nil {
 					return nil, err
 				}
@@ -834,17 +838,12 @@ func (p *ParsedNote) FindReminderByTag(tag string) (*ParsedReminder, bool) {
 }
 
 // StripTagsAndAttributes removes all tags and attributes from a NoteWriter note.
-func StripTagsAndAttributes() markdown.Transformer {
+func StripTagsAndAttributes(attributes ConfigAttributes) markdown.Transformer {
 	return func(doc markdown.Document) (markdown.Document, error) {
-		var res bytes.Buffer
-		for _, line := range doc.Lines() {
-			newLine := regexTags.ReplaceAllLiteralString(line, "")
-			newLine = regexAttributes.ReplaceAllLiteralString(newLine, "")
-			if !text.IsBlank(newLine) {
-				res.WriteString(newLine + "\n")
-			}
-		}
-		return markdown.Document(text.SquashBlankLines(res.String())).TrimSpace(), nil
+		return doc.MustTransform(
+			StripTags(),
+			StripAttributes(attributes)).
+			TrimSpace(), nil
 	}
 }
 
@@ -1028,91 +1027,4 @@ func (n *ParsedNote) Matches(query *Query) bool {
 	// query.Terms is not supported as parsed notes are still not indexed
 
 	return true
-}
-
-// ExtractShorthands extracts shorthand attributes from a string
-func ExtractShorthands(text string, attributes ConfigAttributes) AttributeSet {
-	extractedAttributes := make(AttributeSet)
-
-	for _, attribute := range attributes {
-		if len(attribute.Shorthands) == 0 {
-			continue
-		}
-
-		// Sort shorthand keys by length (longest first) to match longer patterns first
-		var sortedKeys []string
-		for shorthandKey := range attribute.Shorthands {
-			sortedKeys = append(sortedKeys, shorthandKey)
-		}
-		// Simple sort by length (longest first)
-		for i := 0; i < len(sortedKeys); i++ {
-			for j := i + 1; j < len(sortedKeys); j++ {
-				if len(sortedKeys[i]) < len(sortedKeys[j]) {
-					sortedKeys[i], sortedKeys[j] = sortedKeys[j], sortedKeys[i]
-				}
-			}
-		}
-
-		// Look for each shorthand key in the text (longest first)
-		for _, shorthandKey := range sortedKeys {
-			if strings.Contains(text, shorthandKey) {
-				shorthandValue := attribute.Shorthands[shorthandKey]
-				typedValue := MustCastAttribute(shorthandValue, *attribute)
-				extractedAttributes[attribute.Name] = typedValue
-				break // Only match the first shorthand for this attribute
-			}
-		}
-	}
-
-	return extractedAttributes
-}
-
-// RemoveShorthands removes shorthands from text only if marked as non-preservable.
-func RemoveShorthands(text string, attributes ConfigAttributes) string {
-	modifiedText := text
-
-	for _, attribute := range attributes {
-		if attribute.PreserveShorthand == nil || *attribute.PreserveShorthand {
-			continue
-		}
-
-		if len(attribute.Shorthands) == 0 {
-			continue
-		}
-
-		// Sort shorthand keys by length (longest first) to remove longer patterns first
-		var sortedKeys []string
-		for shorthandKey := range attribute.Shorthands {
-			sortedKeys = append(sortedKeys, shorthandKey)
-		}
-		// Simple sort by length (longest first)
-		for i := 0; i < len(sortedKeys); i++ {
-			for j := i + 1; j < len(sortedKeys); j++ {
-				if len(sortedKeys[i]) < len(sortedKeys[j]) {
-					sortedKeys[i], sortedKeys[j] = sortedKeys[j], sortedKeys[i]
-				}
-			}
-		}
-
-		// Remove shorthand keys from text (longest first)
-		for _, shorthandKey := range sortedKeys {
-			if strings.Contains(modifiedText, shorthandKey) {
-				modifiedText = strings.ReplaceAll(modifiedText, shorthandKey, "")
-				break // Only remove the first match for this attribute
-			}
-		}
-	}
-
-	// Remove U+FE0F used to request the emoji presentation of a character that can be displayed either as text or emoji (see https://unicode.org/faq/emoji_dingbats.html)
-	modifiedText = strings.Map(func(r rune) rune {
-		if r == '\uFE0F' {
-			return -1
-		}
-		return r
-	}, modifiedText)
-
-	// Clean up consecutive spaces and trim
-	modifiedText = strings.TrimSpace(regexp.MustCompile(`\s+`).ReplaceAllString(modifiedText, " "))
-
-	return modifiedText
 }

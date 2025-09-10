@@ -307,3 +307,107 @@ Back
 	})
 
 }
+
+func TestListItemsPreprocessor(t *testing.T) {
+
+	t.Run("Simple list items", func(t *testing.T) {
+		tr := core.NewTestRepository(t)
+
+		// Assert preprocessor is configured
+		require.Contains(t, core.CurrentConfigFile().MustGetType("ReadingList").Preprocessors, "list-items")
+
+		tr.WriteFile("test.md", `# ReadingList: Children's Literature
+
+* L'Enfant, la Taupe, le Renard et le Cheval, by Charlie Mackesy 🇬🇧 🇫🇷 [👀](https://example.com) ★★★★★ ‛#life‛ ‛#philosophy‛
+  * A masterpiece of children literature (see the sequel _Always Remember_ ★★★, 2025, 🇬🇧 🤞 ).
+* Grand Panda et Petit Dragon, by James Norbury 🇬🇧 🇫🇷 [👀](https://example.com) ★★★★★ ‛#mindfulness‛ ‛#life‛
+  * A book filled with wisdom. For small kids and big adults.
+`)
+		file := tr.ParseFile("test.md")
+		require.Len(t, file.Notes, 1)
+		note := file.Notes[0]
+
+		// Compare items
+		actual := note.Items
+		expected := &core.Items{
+			// Summary
+			Attributes: []string{"rating", "tags"},
+			Tags:       []string{"life", "mindfulness", "philosophy"},
+			Emojis:     []string{"★", "🇫🇷", "🇬🇧", "👀", "🤞"},
+			Children: []*core.ListItem{
+				{
+					Line: 1,
+					Text: "L'Enfant, la Taupe, le Renard et le Cheval, by Charlie Mackesy 🇬🇧 🇫🇷 [👀](https://example.com) ★★★★★",
+					Tags: []string{"life", "philosophy"},
+					Attributes: map[string]any{
+						"rating": int64(10),
+						"tags":   []string{"life", "philosophy"},
+					},
+					Emojis: []string{"★", "🇫🇷", "🇬🇧", "👀"},
+					Children: []*core.ListItem{
+						{
+							Line: 2,
+							Text: "A masterpiece of children literature (see the sequel _Always Remember_ ★★★, 2025, 🇬🇧 🤞 ).",
+							Tags: core.NewEmptyTagSet(),
+							Attributes: map[string]any{
+								"rating": int64(6),
+							},
+							Emojis:   []string{"★", "🇬🇧", "🤞"},
+							Children: []*core.ListItem{},
+						},
+					},
+				},
+				{
+					Line: 3,
+					Text: "Grand Panda et Petit Dragon, by James Norbury 🇬🇧 🇫🇷 [👀](https://example.com) ★★★★★",
+					Tags: []string{"mindfulness", "life"},
+					Attributes: map[string]any{
+						"rating": int64(10),
+						"tags":   []string{"mindfulness", "life"},
+					},
+					Emojis: []string{"★", "🇫🇷", "🇬🇧", "👀"},
+					Children: []*core.ListItem{
+						{
+							Line:       4,
+							Text:       "A book filled with wisdom. For small kids and big adults.",
+							Tags:       core.NewEmptyTagSet(),
+							Attributes: core.NewEmptyAttributeSet(),
+							Emojis:     core.NewEmptyEmojiSet(),
+							Children:   []*core.ListItem{},
+						},
+					},
+				},
+			},
+		}
+		require.Equal(t, expected, actual)
+	})
+
+	t.Run("Mixed list markers", func(t *testing.T) {
+		tr := core.NewTestRepository(t)
+
+		// Assert preprocessor is configured
+		require.Contains(t, core.CurrentConfigFile().MustGetType("ReadingList").Preprocessors, "list-items")
+
+		tr.WriteFile("test.md", `# ReadingList: Demo
+
+* Bullet item
+- Dash item
++ Plus item
+1. Numbered item
+2. Second numbered item
+`)
+
+		// Check all items are parsed correctly
+		file := tr.ParseFile("test.md")
+		require.Len(t, file.Notes, 1)
+		items := file.Notes[0].Items
+
+		// Compare items
+		assert.Equal(t, "Bullet item", items.Children[0].Text.String())
+		assert.Equal(t, "Dash item", items.Children[1].Text.String())
+		assert.Equal(t, "Plus item", items.Children[2].Text.String())
+		assert.Equal(t, "Numbered item", items.Children[3].Text.String())
+		assert.Equal(t, "Second numbered item", items.Children[4].Text.String())
+	})
+
+}
