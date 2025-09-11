@@ -689,6 +689,15 @@ func NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFile, error) {
 			objects = append(objects, reminder)
 		}
 
+		// Process the Memory(ies)
+		for _, parsedMemory := range parsedNote.Memories {
+			memory, err := NewOrExistingMemory(packFile, note, parsedMemory)
+			if err != nil {
+				return nil, err
+			}
+			objects = append(objects, memory)
+		}
+
 		// Process the Goto(s)
 		for _, parsedGoto := range parsedNote.GoLinks {
 			gotoLink, err := NewOrExistingGoto(packFile, note, parsedGoto)

@@ -988,6 +988,20 @@ func (c *Config) Check() error {
 			}
 		}
 
+		// Check that Memory is only set on date format attributes
+		if attribute.Memory != nil && *attribute.Memory {
+			if attribute.Type != "string" {
+				return fmt.Errorf("memory can only be enabled on string type attributes, but attribute %q has type %q", attribute.Name, attribute.Type)
+			}
+			if attribute.Format == "" {
+				return fmt.Errorf("memory requires a date format to be specified, but attribute %q has no format", attribute.Name)
+			}
+			// Check if format looks like a date format (basic validation)
+			if !isDateFormat(attribute.Format) {
+				return fmt.Errorf("memory requires a date format, but attribute %q has format %q which doesn't appear to be a date format", attribute.Name, attribute.Format)
+			}
+		}
+
 		// Check for invalid shorthand values
 		for shorthandKey, shorthandValue := range attribute.Shorthands {
 			if valid, err := attribute.Valid(shorthandValue); !valid {
@@ -1080,4 +1094,25 @@ func (c *Config) Save() error {
 
 func BoolPointer(b bool) *bool {
 	return &b
+}
+
+// isDateFormat checks if a format string looks like a date format
+func isDateFormat(format string) bool {
+	// Basic check for common date format patterns
+	datePatterns := []string{
+		"yyyy", "mm", "dd", // Common date components
+		"yy", "y",          // Year variations
+		"MM", "M",          // Month variations  
+		"/", "-", ".",      // Common separators
+	}
+	
+	hasDateComponent := false
+	for _, pattern := range datePatterns[:5] { // Check for year/month/day components
+		if strings.Contains(format, pattern) {
+			hasDateComponent = true
+			break
+		}
+	}
+	
+	return hasDateComponent
 }

@@ -109,6 +109,7 @@ type ParsedNote struct {
 	Flashcards []*ParsedFlashcard
 	GoLinks    []*ParsedGoto
 	Reminders  []*ParsedReminder
+	Memories   []*ParsedMemory
 
 	// List items extracted from Markdown lists
 	Items *Items
@@ -162,6 +163,18 @@ type ParsedReminder struct {
 
 func (p ParsedReminder) String() string {
 	return fmt.Sprintf("ParsedReminder `#%s`", p.Tag)
+}
+
+type ParsedMemory struct {
+	// The text content of the memory
+	Text markdown.Document
+
+	// When the memory occurred
+	OccurredAt time.Time
+}
+
+func (p ParsedMemory) String() string {
+	return fmt.Sprintf("ParsedMemory %q occurred at %s", p.Text, p.OccurredAt.Format("2006-01-02"))
 }
 
 type ParsedMedia struct {
@@ -537,6 +550,10 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		if err != nil {
 			return nil, err
 		}
+		note.Memories, err = note.extractMemories()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return notes, nil
@@ -747,6 +764,132 @@ func (p *ParsedNote) extractReminders() ([]*ParsedReminder, error) {
 	}
 
 	return reminders, nil
+}
+
+func (p *ParsedNote) extractMemories() ([]*ParsedMemory, error) {
+	var memories []*ParsedMemory
+
+	// Get configuration to find attributes marked with memory: true
+	config := CurrentConfigFile()
+
+	// Check note-level attributes (block attributes)
+	for attrName, attrValue := range p.Attributes {
+		configAttr, found := config.Attributes.Find(attrName)
+		if !found {
+			continue
+		}
+
+		// Check if this attribute is marked as memory and is date format
+		if configAttr.Memory != nil && *configAttr.Memory {
+			// Parse the date value
+			occurredAt, err := p.parseAttributeDate(configAttr, attrValue)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse date for memory attribute %q: %w", attrName, err)
+			}
+
+			if !occurredAt.IsZero() {
+				memory := &ParsedMemory{
+					Text:       p.ShortTitle,
+					OccurredAt: occurredAt,
+				}
+				memories = append(memories, memory)
+			}
+		}
+	}
+
+	// Check item-level attributes (inline attributes in list items)
+	if p.Items != nil {
+		for _, item := range p.Items.Children {
+			memories = append(memories, p.extractMemoriesFromListItem(item)...)
+		}
+	}
+
+	return memories, nil
+}
+
+func (p *ParsedNote) extractMemoriesFromListItem(item *ListItem) []*ParsedMemory {
+	var memories []*ParsedMemory
+
+	// Get configuration to find attributes marked with memory: true
+	config := CurrentConfigFile()
+
+	for attrName, attrValue := range item.Attributes {
+		configAttr, found := config.Attributes.Find(attrName)
+		if !found {
+			continue
+		}
+
+		// Check if this attribute is marked as memory and is date format
+		if configAttr.Memory != nil && *configAttr.Memory {
+			// Parse the date value
+			occurredAt, err := p.parseAttributeDate(configAttr, attrValue)
+			if err != nil {
+				// Log error but don't fail the entire extraction
+				CurrentLogger().Warnf("Failed to parse date for memory attribute %q in list item: %v", attrName, err)
+				continue
+			}
+
+			if !occurredAt.IsZero() {
+				memory := &ParsedMemory{
+					Text:       item.Text,
+					OccurredAt: occurredAt,
+				}
+				memories = append(memories, memory)
+			}
+		}
+	}
+
+	// Recursively check children
+	for _, child := range item.Children {
+		memories = append(memories, p.extractMemoriesFromListItem(child)...)
+	}
+
+	return memories
+}
+
+func (p *ParsedNote) parseAttributeDate(configAttr *ConfigAttribute, attrValue any) (time.Time, error) {
+	// Convert attribute value to string
+	valueStr, ok := CastStringFn(attrValue)
+	if !ok {
+		return time.Time{}, fmt.Errorf("attribute value is not a string: %v", attrValue)
+	}
+
+	// Parse the date based on the format
+	format := configAttr.Format
+	if format == "" {
+		return time.Time{}, fmt.Errorf("no format specified for date attribute")
+	}
+
+	// Convert custom format to Go time format
+	goFormat := convertDateFormatToGo(format)
+	
+	parsedTime, err := time.Parse(goFormat, valueStr)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to parse date %q with format %q: %w", valueStr, goFormat, err)
+	}
+
+	return parsedTime, nil
+}
+
+func convertDateFormatToGo(format string) string {
+	// Convert common date formats to Go's reference time format
+	// This is a simple conversion; can be extended as needed
+	switch format {
+	case "yyyy-mm-dd":
+		return "2006-01-02"
+	case "mm/dd/yyyy":
+		return "01/02/2006"
+	case "dd/mm/yyyy":
+		return "02/01/2006"
+	case "yyyy/mm/dd":
+		return "2006/01/02"
+	default:
+		// Try to convert format by replacing common patterns
+		goFormat := strings.ReplaceAll(format, "yyyy", "2006")
+		goFormat = strings.ReplaceAll(goFormat, "mm", "01")
+		goFormat = strings.ReplaceAll(goFormat, "dd", "02")
+		return goFormat
+	}
 }
 
 // Hash returns a hash based on the Markdown content.

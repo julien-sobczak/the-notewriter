@@ -264,6 +264,29 @@ CREATE TABLE reminder (
 );
 
 
+CREATE TABLE memory (
+  oid TEXT PRIMARY KEY,
+
+  -- Last known pack file containing this memory
+  packfile_oid TEXT,
+
+  -- Note where the memory comes from
+  note_oid TEXT NOT NULL,
+
+  -- The relative path of the file containing the note (denormalized field)
+  relative_path TEXT NOT NULL,
+
+  "text" TEXT NOT NULL,
+
+  occurred_at TEXT NOT NULL,
+
+  -- Timestamps to track changes
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  indexed_at TEXT
+);
+
+
 CREATE TABLE relation (
 	-- The source note OID that references the target note
   source_oid TEXT NOT NULL,
