@@ -411,3 +411,57 @@ func TestListItemsPreprocessor(t *testing.T) {
 	})
 
 }
+
+func TestTOCFilePreprocessor(t *testing.T) {
+	// Create a test repository 
+	tr := core.NewTestRepository(t)
+
+	// Create test markdown content with toc tag
+	tr.WriteFile("test_toc.md", `---
+tags: "toc"
+---
+# Test File
+
+## Note: First Note
+This is the first note.
+
+### Note: Sub Note
+This is a sub-note.
+
+### Flashcard: Test Card
+
+What is testing?
+
+---
+
+Validation of functionality
+
+## Resources
+This section has child notes.
+
+### Quote: Test Quote
+
+> Testing is important.
+
+## Empty Section
+This section has no child notes.
+`)
+
+	// Parse the file which should trigger the TOC preprocessor
+	parsedFile := tr.ParseFile("test_toc.md")
+	require.NotNil(t, parsedFile)
+
+	// Should have a TOC note plus the actual content notes
+	// Expected: 1 TOC + 4 content notes (First Note, Sub Note, Test Card, Test Quote) = 5 total
+	assert.True(t, len(parsedFile.Notes) >= 5, "Should have at least 5 notes including TOC")
+
+	// First note should be the generated TOC
+	tocNote := parsedFile.Notes[0]
+	assert.Equal(t, "Table of Content", tocNote.Title.String())
+	assert.Equal(t, "Table of Content", tocNote.ShortTitle.String()) 
+	assert.Equal(t, 0, tocNote.Line) // Generated note has line number 0
+
+	// Check that TOC content matches expected format exactly
+	expectedTOC := "* [[#Note: First Note]]\n  * [[#Note: Sub Note]]\n  * [[#Flashcard: Test Card]]\n* Resources\n  * [[#Quote: Test Quote]]"
+	assert.Equal(t, expectedTOC, tocNote.Body.String())
+}

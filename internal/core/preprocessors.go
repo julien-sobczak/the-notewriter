@@ -16,11 +16,14 @@ import (
 )
 
 func init() {
-	RegisterPreprocessor("date-extractor", DateExtractorPreprocessor)
-	RegisterPreprocessor("quote-rewriter", QuoteRewriterPreprocessor)
-	RegisterPreprocessor("generator", GeneratorPreprocessor)
-	RegisterPreprocessor("flashcard-extractor", FlashcardExtractorPreprocessor)
-	RegisterPreprocessor("list-items", ListItemsPreprocessor)
+	RegisterNotePreprocessor("date-extractor", DateExtractorPreprocessor)
+	RegisterNotePreprocessor("quote-rewriter", QuoteRewriterPreprocessor)
+	RegisterNotePreprocessor("generator", GeneratorPreprocessor)
+	RegisterNotePreprocessor("flashcard-extractor", FlashcardExtractorPreprocessor)
+	RegisterNotePreprocessor("list-items", ListItemsPreprocessor)
+	
+	// Register file preprocessors
+	RegisterFilePreprocessor("toc", TOCPreprocessor)
 }
 
 /* Preprocessors implementation */
@@ -399,4 +402,88 @@ func processNestedItemsWithIndent(items []*listItemWithIndent) []*ListItem {
 func CommandExists(command string) bool {
 	_, err := exec.LookPath(command)
 	return err == nil
+}
+
+// TOCPreprocessor generates a Table of Contents note and prepends it to the notes list
+func TOCPreprocessor(file *ParsedFile) (*ParsedFile, error) {
+	if len(file.Notes) == 0 {
+		return file, nil // No notes = no TOC
+	}
+
+	// Get sections from the markdown file
+	sections, err := file.Markdown.GetSections()
+	if err != nil {
+		return file, err
+	}
+
+	// Create a map of section titles to their corresponding notes
+	sectionToNote := make(map[int]*ParsedNote)
+	for _, note := range file.Notes {
+		sectionToNote[note.Line] = note
+	}
+
+	// Build TOC content by processing sections level by level
+	var tocLines []string
+
+	// Only process sections at level 2 and above (skip file title at level 1)
+	for _, section := range sections {
+		if section.HeadingLevel < 2 {
+			continue // Skip top-level file heading
+		}
+
+		// Check if this section corresponds to a parsed note
+		if note, isNote := sectionToNote[section.FileLineStart]; isNote {
+			// This is a typed note - create wikilink with proper indentation
+			indent := strings.Repeat("  ", section.HeadingLevel-2)
+			tocLines = append(tocLines, indent+fmt.Sprintf("* [[#%s]]", note.Title.String()))
+		} else {
+			// This is an untyped section - check if it has child notes
+			hasChildNotes := false
+			for _, otherSection := range sections {
+				if otherSection.Parent == section {
+					if _, isChildNote := sectionToNote[otherSection.FileLineStart]; isChildNote {
+						hasChildNotes = true
+						break
+					}
+				}
+			}
+
+			// Only include untyped sections that have child notes
+			if hasChildNotes {
+				indent := strings.Repeat("  ", section.HeadingLevel-2)
+				tocLines = append(tocLines, indent+fmt.Sprintf("* %s", section.HeadingText.String()))
+			}
+		}
+	}
+
+	if len(tocLines) == 0 {
+		return file, nil // No content for TOC
+	}
+
+	// Create the TOC note
+	tocContent := strings.Join(tocLines, "\n")
+
+	tocNote := &ParsedNote{
+		Parent:         nil,
+		Level:          1,
+		Type:           "Note",
+		AbsolutePath:   file.AbsolutePath,
+		RelativePath:   file.RelativePath,
+		Slug:           file.Slug + "-toc",
+		Title:          markdown.Document("Table of Content"),
+		ShortTitle:     markdown.Document("Table of Content"),
+		LongTitle:      markdown.Document("Table of Content"),
+		Line:           0, // Generated note has line number 0
+		NoteTags:       TagSet{},
+		NoteAttributes: AttributeSet{},
+		Attributes:     FilterNonInheritableAttributes(file.FileAttributes),
+		Content:        markdown.Document("# Table of Contents\n\n" + tocContent),
+		Body:           markdown.Document(tocContent),
+		Comment:        markdown.Document(""),
+	}
+
+	// Prepend TOC note to the list
+	file.Notes = append([]*ParsedNote{tocNote}, file.Notes...)
+	
+	return file, nil
 }
