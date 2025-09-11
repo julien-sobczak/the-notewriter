@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
@@ -23,6 +24,7 @@ func init() {
 	RegisterNotePreprocessor("list-items", ListItemsPreprocessor)
 	
 	// Register file preprocessors
+	RegisterFilePreprocessor("master", MasterPreprocessor)
 	RegisterFilePreprocessor("toc", TOCPreprocessor)
 }
 
@@ -396,13 +398,177 @@ func processNestedItemsWithIndent(items []*listItemWithIndent) []*ListItem {
 	return result
 }
 
-/* Helpers */
-
 // CommandExists checks if a command exists in the system's PATH.
 func CommandExists(command string) bool {
 	_, err := exec.LookPath(command)
 	return err == nil
 }
+
+// MasterPreprocessor processes Master notes by evaluating their Go templates
+func MasterPreprocessor(file *ParsedFile) (*ParsedFile, error) {
+	// Find all Master notes in the file
+	for _, note := range file.Notes {
+		if note.Type != "Master" {
+			continue
+		}
+
+		// Extract gotemplate code block from the note body
+		codeBlocks := note.Body.ExtractCodeBlocks()
+		var templateContent string
+		
+		for _, block := range codeBlocks {
+			if block.Language == "gotemplate" {
+				templateContent = block.Source
+				break
+			}
+		}
+		
+		if templateContent == "" {
+			return file, fmt.Errorf("Master note %q must contain a gotemplate code block", note.ShortTitle)
+		}
+
+		// Create template with custom functions
+		tmpl, err := template.New("master").Funcs(template.FuncMap{
+			"query":           createQueryFunc(file),
+			"RenderTags":      RenderTags,
+			"RenderAttributes": RenderAttributes,
+		}).Parse(templateContent)
+		if err != nil {
+			return file, fmt.Errorf("failed to parse template in Master note %q: %v", note.ShortTitle, err)
+		}
+
+		// Execute template
+		var result bytes.Buffer
+		if err := tmpl.Execute(&result, nil); err != nil {
+			return file, fmt.Errorf("failed to execute template in Master note %q: %v", note.ShortTitle, err)
+		}
+
+		// Replace note body with template result
+		note.Body = markdown.Document(strings.TrimSpace(result.String()))
+	}
+
+	return file, nil
+}
+
+// createQueryFunc creates a query function that can filter notes in the current file
+func createQueryFunc(file *ParsedFile) func(string) []*ParsedNote {
+	return func(queryStr string) []*ParsedNote {
+		query, err := ParseQuery(queryStr)
+		if err != nil {
+			return []*ParsedNote{}
+		}
+
+		var results []*ParsedNote
+		for _, note := range file.Notes {
+			if matchesQuery(note, query) {
+				results = append(results, note)
+			}
+		}
+		return results
+	}
+}
+
+// matchesQuery checks if a note matches the given query
+func matchesQuery(note *ParsedNote, query *Query) bool {
+	// Check type filter
+	if len(query.Types) > 0 {
+		found := false
+		for _, t := range query.Types {
+			if note.Type == t {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	// Check tag filter
+	if len(query.Tags) > 0 {
+		for _, tag := range query.Tags {
+			if !note.NoteTags.Includes(tag) {
+				return false
+			}
+		}
+	}
+
+	// Check attribute filter
+	for attrName, attrValue := range query.Attributes {
+		noteAttrValue, exists := note.Attributes[attrName]
+		if !exists || noteAttrValue != attrValue {
+			return false
+		}
+	}
+
+	// Check slug filter
+	if query.Slug != "" && note.Slug != query.Slug {
+		return false
+	}
+
+	// Check terms (search in title and body)
+	if len(query.Terms) > 0 {
+		searchText := strings.ToLower(note.Title.String() + " " + note.Body.String())
+		for _, term := range query.Terms {
+			if !strings.Contains(searchText, strings.ToLower(term)) {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+// RenderTags renders tags using The NoteWriter notation
+func RenderTags(tags TagSet) string {
+	if len(tags) == 0 {
+		return ""
+	}
+	
+	var rendered []string
+	for _, tag := range tags {
+		rendered = append(rendered, "`#"+tag+"`")
+	}
+	return " " + strings.Join(rendered, " ")
+}
+
+// RenderAttributes renders attributes using The NoteWriter notation with shorthand support
+func RenderAttributes(attributes AttributeSet) string {
+	if len(attributes) == 0 {
+		return ""
+	}
+
+	configAttributes := CurrentConfigFile().Attributes
+	var rendered []string
+	
+	for name, value := range attributes {
+		// Skip common attributes and tags
+		if name == "source" || name == "title" || name == "tags" {
+			continue
+		}
+		
+		// Check if there's a shorthand available
+		if attrDef, exists := configAttributes[name]; exists && attrDef.Shorthands != nil {
+			// Look for a shorthand that matches the value
+			valueStr := fmt.Sprintf("%v", value)
+			for shorthand, shorthandValue := range attrDef.Shorthands {
+				if fmt.Sprintf("%v", shorthandValue) == valueStr {
+					rendered = append(rendered, " "+shorthand)
+					goto nextAttribute
+				}
+			}
+		}
+		
+		// No shorthand found, use full attribute notation
+		rendered = append(rendered, fmt.Sprintf(" `@%s: %v`", name, value))
+		
+		nextAttribute:
+	}
+	
+	return strings.Join(rendered, "")
+}
+
+/* Helpers */
 
 // TOCPreprocessor generates a Table of Contents note and prepends it to the notes list
 func TOCPreprocessor(file *ParsedFile) (*ParsedFile, error) {

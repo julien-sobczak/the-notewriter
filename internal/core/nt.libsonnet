@@ -149,6 +149,9 @@
             ],
             preprocessors: ["list-items"],
         },
+        Master: self.Note + {
+            name: "Master",
+        },
     },
 
     // Declare available Linter rules

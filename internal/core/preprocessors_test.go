@@ -465,3 +465,95 @@ This section has no child notes.
 	expectedTOC := "* [[#Note: First Note]]\n  * [[#Note: Sub Note]]\n  * [[#Flashcard: Test Card]]\n* Resources\n  * [[#Quote: Test Quote]]"
 	assert.Equal(t, expectedTOC, tocNote.Body.String())
 }
+
+func TestMasterPreprocessor(t *testing.T) {
+	t.Run("Master note with query function", func(t *testing.T) {
+		// Create a test repository 
+		tr := core.NewTestRepository(t)
+
+		// Create test markdown content with Master note and Task notes
+		tr.WriteFile("project.md", `# Project A
+
+## Master: Backlog
+
+` + "```gotemplate" + `
+{{- range query "type:Task" }}
+- {{ .ShortTitle }}{{ RenderTags .NoteTags }}{{ RenderAttributes .NoteAttributes }}
+{{- end }}
+` + "```" + `
+
+## Features
+
+### Task: Do Something ❗
+
+` + "`#favorite`" + `
+
+Implement something.
+
+### Task: Do Something Else 🔽
+
+Implement something else.
+`)
+
+		// Parse the file which should trigger the Master preprocessor
+		parsedFile := tr.ParseFile("project.md")
+		require.NotNil(t, parsedFile)
+
+		// Should have 3 notes: Master (Backlog) + 2 Task notes
+		require.Len(t, parsedFile.Notes, 3)
+
+		// Find the Master note
+		var masterNote *core.ParsedNote
+		for _, note := range parsedFile.Notes {
+			if note.Type == "Master" {
+				masterNote = note
+				break
+			}
+		}
+		require.NotNil(t, masterNote, "Should have a Master note")
+
+		// Check that the Master note body was updated by the template
+		expectedBody := "- Do Something `#favorite` ❗\n- Do Something Else 🔽"
+		assert.Equal(t, expectedBody, masterNote.Body.String())
+	})
+
+	t.Run("RenderTags function", func(t *testing.T) {
+		// Create a test repository for context
+		tr := core.NewTestRepository(t)
+		_ = tr // Use the repository to initialize context
+		
+		tags := core.TagSet{"favorite", "must-read"}
+		result := core.RenderTags(tags)
+		expected := " `#favorite` `#must-read`"
+		assert.Equal(t, expected, result)
+	})
+
+	t.Run("RenderTags empty", func(t *testing.T) {
+		// Create a test repository for context
+		tr := core.NewTestRepository(t)
+		_ = tr // Use the repository to initialize context
+		
+		tags := core.TagSet{}
+		result := core.RenderTags(tags)
+		assert.Equal(t, "", result)
+	})
+
+	t.Run("RenderAttributes function with shorthands", func(t *testing.T) {
+		// Create a test repository for context
+		tr := core.NewTestRepository(t)
+		_ = tr // Use the repository to initialize context
+		
+		// Create test attributes
+		attributes := core.AttributeSet{
+			"priority": "high",
+			"rating":   int64(4), // Should render as ★★
+			"source":   "ignored", // Should be filtered out
+		}
+		
+		result := core.RenderAttributes(attributes)
+		// Should contain the priority attribute and rating shorthand
+		assert.Contains(t, result, "❗") // priority: high shorthand
+		assert.Contains(t, result, "★★") // rating: 4 shorthand 
+		assert.NotContains(t, result, "source") // Should be filtered out
+	})
+}

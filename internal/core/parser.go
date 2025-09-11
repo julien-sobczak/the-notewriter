@@ -301,9 +301,28 @@ func ParseFile(md *markdown.File, mdParent *markdown.File) (*ParsedFile, error) 
 	return result, nil
 }
 
-// applyFilePreprocessors applies file preprocessors based on file tags
+// applyFilePreprocessors applies file preprocessors based on file tags and note types
 func applyFilePreprocessors(file *ParsedFile) (*ParsedFile, error) {
 	fileTags := file.FileAttributes.Tags()
+	
+	// Check if file contains Master notes and apply master preprocessor first
+	hasMasterNotes := false
+	for _, note := range file.Notes {
+		if note.Type == "Master" {
+			hasMasterNotes = true
+			break
+		}
+	}
+	
+	if hasMasterNotes {
+		if preprocessor, ok := filePreprocessors["master"]; ok {
+			var err error
+			file, err = preprocessor(file)
+			if err != nil {
+				return nil, fmt.Errorf("failing file preprocessor 'master' on file %q: %v", file.RelativePath, err)
+			}
+		}
+	}
 	
 	// Apply preprocessors based on file tags
 	if fileTags.Includes("toc") {
