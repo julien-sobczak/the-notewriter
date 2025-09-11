@@ -458,9 +458,14 @@ func createQueryFunc(file *ParsedFile) func(string) []*ParsedNote {
 			return []*ParsedNote{}
 		}
 
+		// Fail if a filter path is declared
+		if query.Path != "" {
+			return []*ParsedNote{}
+		}
+
 		var results []*ParsedNote
 		for _, note := range file.Notes {
-			if matchesQuery(note, query) {
+			if query.MatchesParsed(note) {
 				results = append(results, note)
 			}
 		}
@@ -468,104 +473,17 @@ func createQueryFunc(file *ParsedFile) func(string) []*ParsedNote {
 	}
 }
 
-// matchesQuery checks if a note matches the given query
-func matchesQuery(note *ParsedNote, query *Query) bool {
-	// Check type filter
-	if len(query.Types) > 0 {
-		found := false
-		for _, t := range query.Types {
-			if note.Type == t {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
-	}
 
-	// Check tag filter
-	if len(query.Tags) > 0 {
-		for _, tag := range query.Tags {
-			if !note.NoteTags.Includes(tag) {
-				return false
-			}
-		}
-	}
-
-	// Check attribute filter
-	for attrName, attrValue := range query.Attributes {
-		noteAttrValue, exists := note.Attributes[attrName]
-		if !exists || noteAttrValue != attrValue {
-			return false
-		}
-	}
-
-	// Check slug filter
-	if query.Slug != "" && note.Slug != query.Slug {
-		return false
-	}
-
-	// Check terms (search in title and body)
-	if len(query.Terms) > 0 {
-		searchText := strings.ToLower(note.Title.String() + " " + note.Body.String())
-		for _, term := range query.Terms {
-			if !strings.Contains(searchText, strings.ToLower(term)) {
-				return false
-			}
-		}
-	}
-
-	return true
-}
 
 // RenderTags renders tags using The NoteWriter notation
 func RenderTags(tags TagSet) string {
-	if len(tags) == 0 {
-		return ""
-	}
-	
-	var rendered []string
-	for _, tag := range tags {
-		rendered = append(rendered, "`#"+tag+"`")
-	}
-	return " " + strings.Join(rendered, " ")
+	return tags.ToMarkdownNotation()
 }
 
 // RenderAttributes renders attributes using The NoteWriter notation with shorthand support
 func RenderAttributes(attributes AttributeSet) string {
-	if len(attributes) == 0 {
-		return ""
-	}
-
 	configAttributes := CurrentConfigFile().Attributes
-	var rendered []string
-	
-	for name, value := range attributes {
-		// Skip common attributes and tags
-		if name == "source" || name == "title" || name == "tags" {
-			continue
-		}
-		
-		// Check if there's a shorthand available
-		if attrDef, exists := configAttributes[name]; exists && attrDef.Shorthands != nil {
-			// Look for a shorthand that matches the value
-			valueStr := fmt.Sprintf("%v", value)
-			for shorthand, shorthandValue := range attrDef.Shorthands {
-				if fmt.Sprintf("%v", shorthandValue) == valueStr {
-					rendered = append(rendered, " "+shorthand)
-					goto nextAttribute
-				}
-			}
-		}
-		
-		// No shorthand found, use full attribute notation
-		rendered = append(rendered, fmt.Sprintf(" `@%s: %v`", name, value))
-		
-		nextAttribute:
-	}
-	
-	return strings.Join(rendered, "")
+	return attributes.ToMarkdownNotation(configAttributes)
 }
 
 /* Helpers */

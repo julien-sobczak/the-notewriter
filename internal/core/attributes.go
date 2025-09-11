@@ -78,6 +78,19 @@ func (t TagSet) IncludesAll(tags []string) bool {
 	return true
 }
 
+// ToMarkdownNotation renders tags using The NoteWriter notation
+func (t TagSet) ToMarkdownNotation() string {
+	if len(t) == 0 {
+		return ""
+	}
+	
+	var rendered []string
+	for _, tag := range t {
+		rendered = append(rendered, "`#"+tag+"`")
+	}
+	return " " + strings.Join(rendered, " ")
+}
+
 /*
  * AttributeSet
  */
@@ -442,6 +455,44 @@ func (a AttributeSet) Attribution() string {
 		res.WriteString(occupation)
 	}
 	return res.String()
+}
+
+// ToMarkdownNotation renders attributes using The NoteWriter notation with shorthand support
+func (a AttributeSet) ToMarkdownNotation(configAttributes ConfigAttributes) string {
+	if len(a) == 0 {
+		return ""
+	}
+
+	var rendered []string
+	
+	for name, value := range a {
+		// Skip common attributes and tags
+		if name == "source" || name == "title" || name == "tags" {
+			continue
+		}
+		
+		// Check if there's a shorthand available
+		if attrDef, exists := configAttributes[name]; exists && attrDef.Shorthands != nil {
+			// Look for a shorthand that matches the value
+			valueStr := fmt.Sprintf("%v", value)
+			found := false
+			for shorthand, shorthandValue := range attrDef.Shorthands {
+				if fmt.Sprintf("%v", shorthandValue) == valueStr {
+					rendered = append(rendered, " "+shorthand)
+					found = true
+					break
+				}
+			}
+			if found {
+				continue
+			}
+		}
+		
+		// No shorthand found, use full attribute notation
+		rendered = append(rendered, fmt.Sprintf(" `@%s: %v`", name, value))
+	}
+	
+	return strings.Join(rendered, "")
 }
 
 /* Format */
