@@ -769,6 +769,8 @@ func (p *ParsedNote) extractReminders() ([]*ParsedReminder, error) {
 func (p *ParsedNote) extractMemories() ([]*ParsedMemory, error) {
 	var memories []*ParsedMemory
 
+	CurrentLogger().Infof("Extracting memories for note: %s", p.ShortTitle.String())
+
 	// Get configuration to find attributes marked with memory: true
 	config := CurrentConfigFile()
 
@@ -781,6 +783,7 @@ func (p *ParsedNote) extractMemories() ([]*ParsedMemory, error) {
 
 		// Check if this attribute is marked as memory and is date format
 		if configAttr.Memory != nil && *configAttr.Memory {
+			CurrentLogger().Infof("Found memory attribute at note level: %s = %v", attrName, attrValue)
 			// Parse the date value
 			occurredAt, err := p.parseAttributeDate(configAttr, attrValue)
 			if err != nil {
@@ -799,11 +802,13 @@ func (p *ParsedNote) extractMemories() ([]*ParsedMemory, error) {
 
 	// Check item-level attributes (inline attributes in list items)
 	if p.Items != nil {
+		CurrentLogger().Infof("Checking %d list items for memory attributes", len(p.Items.Children))
 		for _, item := range p.Items.Children {
 			memories = append(memories, p.extractMemoriesFromListItem(item)...)
 		}
 	}
 
+	CurrentLogger().Infof("Extracted %d memories for note: %s", len(memories), p.ShortTitle.String())
 	return memories, nil
 }
 
@@ -821,6 +826,7 @@ func (p *ParsedNote) extractMemoriesFromListItem(item *ListItem) []*ParsedMemory
 
 		// Check if this attribute is marked as memory and is date format
 		if configAttr.Memory != nil && *configAttr.Memory {
+			CurrentLogger().Infof("Found memory attribute in list item: %s = %v", attrName, attrValue)
 			// Parse the date value
 			occurredAt, err := p.parseAttributeDate(configAttr, attrValue)
 			if err != nil {
@@ -835,6 +841,7 @@ func (p *ParsedNote) extractMemoriesFromListItem(item *ListItem) []*ParsedMemory
 					OccurredAt: occurredAt,
 				}
 				memories = append(memories, memory)
+				CurrentLogger().Infof("Created memory from list item: %s on %s", memory.Text.String(), memory.OccurredAt.Format("2006-01-02"))
 			}
 		}
 	}
