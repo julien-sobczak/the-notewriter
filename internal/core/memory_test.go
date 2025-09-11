@@ -1,94 +1,113 @@
 package core_test
 
 import (
-	"fmt"
 	"path/filepath"
 	"testing"
 
 	"github.com/julien-sobczak/the-notewriter/internal/core"
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/internal/testutil"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestMemoryExtraction(t *testing.T) {
 	testutil.FreezeNow(t)
-	
-	tr := core.NewTestRepository(t)
 
-	// Create custom config with memory attribute
-	tr.WriteFile(".nt/config.jsonnet", `
-local nt = import 'nt.libsonnet';
+	t.Run("Memory from list item attributes", func(t *testing.T) {
+		// Create test repository with custom config that includes memory attribute
+		tr := core.NewTestRepository(t, core.WithConfigFileOverride(func(c *core.ConfigFile) {
+			// Add read_date attribute with memory: true
+			c.Attributes["read_date"] = &core.ConfigAttribute{
+				Name:     "read_date",
+				Type:     "date",
+				Format:   "yyyy-mm-dd",
+				Inherit:  core.BoolPointer(true),
+				Memory:   core.BoolPointer(true),
+			}
+		}))
 
-{
-    core: {
-        medias: {
-            command: "ffmpeg",
-            parallel: 1,
-            preset: "ultrafast",
-        },
-    },
+		// Create test note with memory attributes in list items
+		tr.WriteFile("books.md", `# My Reading List
 
-    attributes: nt.DefaultAttributes + {
-        read_date: {
-            name: "read_date",
-            type: "date",
-            format: "yyyy-mm-dd",
-            inherit: true,
-            memory: true,
-        },
-    },
-    types: nt.DefaultTypes,
-}`)
+## ReadingList: Books I've Read
 
-	// Create test note
-	tr.WriteFile("test_note.md", `# Books I've Read
-
-## ReadingList: My Reading Journey
-
-* _The Alchemist_ by Paulo Coelho 👍 ★★★★★ `+"`@read_date: 2025-03-21`"+`
-* _Educated_ by Tara Westover 👍 ★★★★★ `+"`@read_date: 2025-03-29`"+`
+* _The Alchemist_ by Paulo Coelho ★★★★★ `+"`@read_date: 2025-03-21`"+`
+* _Educated_ by Tara Westover ★★★★★ `+"`@read_date: 2025-03-29`"+`
 * _Siddhartha_ by Hermann Hesse ★★★★☆ `+"`@read_date: 2025-04-01`"+`
 
-These are some great books I've read this year.`)
+These are some books I've enjoyed reading.`)
 
-	// Parse the file
-	md, err := markdown.ParseFile(filepath.Join(tr.Root, "test_note.md"))
-	require.NoError(t, err)
+		// Parse the file
+		md, err := markdown.ParseFile(filepath.Join(tr.Root, "books.md"))
+		require.NoError(t, err)
 
-	file, err := core.ParseFile(md, nil)
-	require.NoError(t, err)
+		file, err := core.ParseFile(md, nil)
+		require.NoError(t, err)
 
-	fmt.Printf("Parsed file: %s\n", file.RelativePath)
-	fmt.Printf("Number of notes: %d\n", len(file.Notes))
+		// Verify we parsed the file correctly
+		require.Len(t, file.Notes, 1)
+		note := file.Notes[0]
+		assert.Equal(t, "Books I've Read", note.ShortTitle.String())
 
-	for i, note := range file.Notes {
-		fmt.Printf("\nNote %d: %s\n", i+1, note.ShortTitle.String())
-		fmt.Printf("  Attributes: %+v\n", note.Attributes)
-		fmt.Printf("  Number of memories: %d\n", len(note.Memories))
-		
-		for j, memory := range note.Memories {
-			fmt.Printf("    Memory %d: %s (occurred: %s)\n", j+1, memory.Text.String(), memory.OccurredAt.Format("2006-01-02"))
+		// Check that memories were extracted
+		assert.Len(t, note.Memories, 3, "Should have extracted 3 memories from the read_date attributes")
+
+		// Verify memory contents
+		expectedMemories := []struct {
+			text string
+			date string
+		}{
+			{"_The Alchemist_ by Paulo Coelho ★★★★★", "2025-03-21"},
+			{"_Educated_ by Tara Westover ★★★★★", "2025-03-29"},
+			{"_Siddhartha_ by Hermann Hesse ★★★★☆", "2025-04-01"},
 		}
 
-		// Check list items
-		if note.Items != nil {
-			fmt.Printf("  Number of list items: %d\n", len(note.Items.Children))
-			for j, item := range note.Items.Children {
-				fmt.Printf("    Item %d: %s\n", j+1, item.Text.String())
-				fmt.Printf("      Attributes: %+v\n", item.Attributes)
+		for i, expected := range expectedMemories {
+			assert.Equal(t, expected.text, note.Memories[i].Text.String())
+			assert.Equal(t, expected.date, note.Memories[i].OccurredAt.Format("2006-01-02"))
+		}
+	})
+
+	t.Run("Memory from note-level attributes", func(t *testing.T) {
+		// Create test repository with custom config that includes memory attribute
+		tr := core.NewTestRepository(t, core.WithConfigFileOverride(func(c *core.ConfigFile) {
+			// Add published_date attribute with memory: true
+			c.Attributes["published_date"] = &core.ConfigAttribute{
+				Name:     "published_date",
+				Type:     "date",
+				Format:   "yyyy-mm-dd",
+				Inherit:  core.BoolPointer(true),
+				Memory:   core.BoolPointer(true),
 			}
-		}
-	}
+		}))
 
-	// Check that we have at least one note with memories
-	require.Greater(t, len(file.Notes), 0, "Should have at least one note")
-	
-	// Find the note with items and check for memories
-	var foundMemories int
-	for _, note := range file.Notes {
-		foundMemories += len(note.Memories)
-	}
-	
-	require.Greater(t, foundMemories, 0, "Should have extracted memories from read_date attributes")
+		// Create test note with memory attribute at note level
+		tr.WriteFile("article.md", `# My Articles
+
+## Note: First Blog Post `+"`@published_date: 2025-01-15`"+`
+
+This was my first blog post about testing.`)
+
+		// Parse the file
+		md, err := markdown.ParseFile(filepath.Join(tr.Root, "article.md"))
+		require.NoError(t, err)
+
+		file, err := core.ParseFile(md, nil)
+		require.NoError(t, err)
+
+		// Verify we parsed the file correctly
+		require.Len(t, file.Notes, 1)
+		note := file.Notes[0]
+
+		// Check that memory was extracted
+		assert.Len(t, note.Memories, 1, "Should have extracted 1 memory from the published_date attribute")
+
+		// Verify memory content only if memory was extracted
+		if len(note.Memories) > 0 {
+			memory := note.Memories[0]
+			assert.Equal(t, "First Blog Post", memory.Text.String())
+			assert.Equal(t, "2025-01-15", memory.OccurredAt.Format("2006-01-02"))
+		}
+	})
 }
