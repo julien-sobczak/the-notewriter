@@ -483,7 +483,9 @@ func RenderTags(tags TagSet) string {
 // RenderAttributes renders attributes using The NoteWriter notation with shorthand support
 func RenderAttributes(attributes AttributeSet) string {
 	configAttributes := CurrentConfigFile().Attributes
-	return attributes.ToMarkdownNotation(configAttributes)
+	commonAttributes := []string{"title", "source", "tags"}
+	renderedAttributes := NewAttributeSet(attributes).Remove(commonAttributes)
+	return renderedAttributes.ToMarkdownNotation(configAttributes)
 }
 
 /* Helpers */

@@ -248,6 +248,15 @@ func NewEmptyAttributeSet() AttributeSet {
 	return make(AttributeSet)
 }
 
+// NewAttributeSet creates an attribute set from an existing map.
+func NewAttributeSet(attributes map[string]any) AttributeSet {
+	result := make(AttributeSet)
+	for k, v := range attributes {
+		result[k] = v
+	}
+	return result
+}
+
 // NewAttributeSetFromYAML unmarshall attributes.
 func NewAttributeSetFromYAML(rawValue string) (AttributeSet, error) {
 	var attributes map[string]interface{}
@@ -318,6 +327,24 @@ func (a AttributeSet) Merge(attributes ...AttributeSet) AttributeSet {
 		return NewEmptyAttributeSet()
 	}
 
+	return result
+}
+
+// Remove creates a new AttributeSet without the specified keys
+func (a AttributeSet) Remove(keys []string) AttributeSet {
+	result := make(AttributeSet)
+	for k, v := range a {
+		shouldRemove := false
+		for _, removeKey := range keys {
+			if k == removeKey {
+				shouldRemove = true
+				break
+			}
+		}
+		if !shouldRemove {
+			result[k] = v
+		}
+	}
 	return result
 }
 
@@ -466,11 +493,6 @@ func (a AttributeSet) ToMarkdownNotation(configAttributes ConfigAttributes) stri
 	var rendered []string
 	
 	for name, value := range a {
-		// Skip common attributes and tags
-		if name == "source" || name == "title" || name == "tags" {
-			continue
-		}
-		
 		// Check if there's a shorthand available
 		if attrDef, exists := configAttributes[name]; exists && attrDef.Shorthands != nil {
 			// Look for a shorthand that matches the value

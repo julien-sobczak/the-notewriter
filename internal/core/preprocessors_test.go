@@ -5,6 +5,7 @@ import (
 
 	"github.com/julien-sobczak/the-notewriter/internal/core"
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -472,28 +473,28 @@ func TestMasterPreprocessor(t *testing.T) {
 		tr := core.NewTestRepository(t)
 
 		// Create test markdown content with Master note and Task notes
-		tr.WriteFile("project.md", `# Project A
+		tr.WriteFile("project.md", text.UnescapeTestContent(`# Project A
 
 ## Master: Backlog
 
-` + "```gotemplate" + `
+‛‛‛gotemplate
 {{- range query "type:Task" }}
 - {{ .ShortTitle }}{{ RenderTags .NoteTags }}{{ RenderAttributes .NoteAttributes }}
 {{- end }}
-` + "```" + `
+‛‛‛
 
 ## Features
 
 ### Task: Do Something ❗
 
-` + "`#favorite`" + `
+‛#favorite‛
 
 Implement something.
 
 ### Task: Do Something Else 🔽
 
 Implement something else.
-`)
+`))
 
 		// Parse the file which should trigger the Master preprocessor
 		parsedFile := tr.ParseFile("project.md")
