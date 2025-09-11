@@ -83,4 +83,33 @@ func TestParseQuery(t *testing.T) {
 		require.ErrorContains(t, err, "unexpected EOF")
 	})
 
+	t.Run("PathWithoutQuotes", func(t *testing.T) {
+		q := `path:thoughts/on-learning.md`
+		query, err := ParseQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, "thoughts/on-learning.md", query.Path)
+	})
+
+	t.Run("PathWithQuotesAndSpaces", func(t *testing.T) {
+		q := `path:"thoughts with spaces/on-learning.md"`
+		query, err := ParseQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, "thoughts with spaces/on-learning.md", query.Path)
+	})
+
+	t.Run("NestedTagsWithSlash", func(t *testing.T) {
+		q := `#todo/read #project/personal/goals`
+		query, err := ParseQuery(q)
+		require.NoError(t, err)
+		assert.EqualValues(t, []string{"todo/read", "project/personal/goals"}, query.Tags)
+	})
+
+	t.Run("MixedPathsAndTags", func(t *testing.T) {
+		q := `#todo/read path:projects/learning.md #done/completed path:"with spaces/file.md"`
+		query, err := ParseQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, "with spaces/file.md", query.Path) // Last path wins
+		assert.EqualValues(t, []string{"todo/read", "done/completed"}, query.Tags)
+	})
+
 }
