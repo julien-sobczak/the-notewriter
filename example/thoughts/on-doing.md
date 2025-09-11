@@ -1,10 +1,16 @@
-# On Note-taking
+---
+tags: doing
+---
+
+# On Doing
 
 ## Quote: On Every Single Day
 
 `@source: https://jamesclear.com/3-2-1/september-8-2022`
 
 Each day is a small lifetime. Live a good life today.
+
+> Focus on
 
 
 ## Quote: On Idea Resilience

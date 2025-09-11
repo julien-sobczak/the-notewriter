@@ -15,6 +15,12 @@ build:
 	go build --tags "fts5" -o build/ntreference cmd/nt-reference/*.go
 	go build --tags "fts5" -o build/ntjournal cmd/nt-journal/*.go
 	go build --tags "fts5" -o build/ntanki cmd/nt-anki/*.go
+	go build --tags "fts5" -o build/ntbook cmd/nt-book/*.go
+
+build-example:
+	@rm -Rf example/.nt/{objects,refs,database.db,index}
+	@cd example; nt add --v . && nt commit; cd ..;
+	@echo "✅ Example repository built in example/.nt"
 
 test:
 	go test --tags "fts5" ./... -count=1 -v
@@ -46,4 +52,5 @@ install: build
 	cp build/ntreference /Users/julien/go/bin/nt-reference
 	cp build/ntjournal /Users/julien/go/bin/nt-journal
 	cp build/ntanki /Users/julien/go/bin/nt-anki
+	cp build/ntbook /Users/julien/go/bin/nt-book
 # go install --tags "fts5" cmd/nt/*.go => FIXME build an invalid main executable instead of a nt file

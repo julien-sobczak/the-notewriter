@@ -883,7 +883,7 @@ func (r *Repository) SearchNotes(q string) ([]*Note, error) {
 	}
 
 	querySQL.WriteString("ORDER BY rank LIMIT 10;")
-	CurrentLogger().Debug(querySQL.String())
+	CurrentLogger().Trace(querySQL.String())
 	queryFTS, err := CurrentDB().Client().Prepare(querySQL.String())
 	if err != nil {
 		return nil, err

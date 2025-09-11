@@ -58,4 +58,44 @@ local nt = import 'nt.libsonnet';
             preprocessors: ["list-items"],
         },
     },
+
+    # Books configuration for generating ePub/PDF books
+    books: [
+        {
+            title: "Sample Book",
+            author: ["NoteWriter User"],
+            language: "en-US",
+            toc: true,
+            format: ["epub", "pdf", "markdown"],
+            chapters: [
+                {
+                    title: "Introduction",
+                    illustration: "thoughts/medias/pencil.png",
+                    text: "This is a sample book generated with The NoteWriter.",
+                },
+                {
+                    title: "Part I",
+                    subtitle: "Thoughts",
+                    sections: [
+                        {
+                            title: "On Learning",
+                            query: "path:\"thoughts/on-learning.md\"",
+                            pageBreaks: false,
+                            includeComments: false,
+                        },
+                        {
+                            title: "On Doing",
+                            query: "path:\"thoughts/on-doing.md\"",
+                            pageBreaks: true,
+                            includeComments: true,
+                        },
+                    ]
+                },
+                {
+                    title: "Afterword",
+                    text: importstr 'afterword.md',
+                }
+            ]
+        }
+    ],
 }

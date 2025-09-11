@@ -125,6 +125,9 @@ type ConfigFile struct {
 
 	// Decks definition when declaring notes of type "Flashcard"
 	Decks []*ConfigDeck `json:"decks"`
+
+	// Books definition for generating ePub/PDF books from notes
+	Books []*ConfigBook `json:"books"`
 }
 
 // GetType returns the definition of a type of note
@@ -257,6 +260,50 @@ type ConfigReference struct {
 	Manager  string `json:"manager"`  // Ex: "zotero"
 	Path     string `json:"path"`     // Ex: "references/books"
 	Template string `json:"template"` // Ex: "# {{.Title}}\n"
+}
+
+type ConfigBook struct {
+	Title    string               `json:"title"`           // Ex: "Life in Progress"
+	Author   []string             `json:"author"`          // Ex: ["Julien Sobczak"]
+	Cover    string               `json:"cover,omitempty"` // Optional URL or path to cover image
+	Language string               `json:"language"`        // Ex: "en-US"
+	TOC      bool                 `json:"toc"`             // Generate table of contents
+	Format   []string             `json:"format"`          // Ex: ["epub", "pdf"]
+	Build    string               `json:"build,omitempty"` // Ex: "build/life-in-progress.${extension}"
+	Chapters []*ConfigBookSection `json:"chapters"`        // Book chapters
+}
+
+type ConfigBookSection struct {
+	Title           string               `json:"title"`                     // Chapter/section title
+	Subtitle        string               `json:"subtitle,omitempty"`        // Optional subtitle
+	Illustration    string               `json:"illustration,omitempty"`    // Optional image path (relative from root)
+	Text            string               `json:"text,omitempty"`            // Direct text content
+	Query           string               `json:"query,omitempty"`           // Query to select notes
+	Notes           []*ConfigBookNote    `json:"notes,omitempty"`           // Specific notes to include
+	Sections        []*ConfigBookSection `json:"sections,omitempty"`        // Nested sections
+	PageBreaks      bool                 `json:"pageBreaks,omitempty"`      // Force page breaks between notes
+	IncludeComments bool                 `json:"includeComments,omitempty"` // Include comment fields
+}
+
+type ConfigBookNote struct {
+	Wikilink string `json:"wikilink,omitempty"` // Ex: "projects/life-in-progress#Note: Afterword"
+	Slug     string `json:"slug,omitempty"`     // Alternative to wikilink
+}
+
+// OutputPath returns the output path for a book in the specified format
+func (b *ConfigBook) OutputPath(config *Config, format string) string {
+	if b.Build != "" {
+		// Use configured build path with extension substitution
+		path := strings.ReplaceAll(b.Build, "${extension}", format)
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(config.RootDirectory, path)
+		}
+		return path
+	}
+
+	// Default: use book title as filename in repository root
+	filename := text.Slugify(b.Title) + "." + format
+	return filepath.Join(config.RootDirectory, filename)
 }
 
 // SetParallel overrides the value in config file.
@@ -977,6 +1024,27 @@ func (c *Config) Check() error {
 		_, err = reference.ParseTemplate(referenceConfig.Template)
 		if err != nil {
 			return fmt.Errorf("invalid template for reference %q: %w", key, err)
+		}
+	}
+
+	// Check for invalid book configurations
+	for _, book := range c.ConfigFile.Books {
+		if book.Title == "" {
+			return fmt.Errorf("book title cannot be empty")
+		}
+		if len(book.Format) == 0 {
+			return fmt.Errorf("book '%s' must specify at least one format", book.Title)
+		}
+		for _, format := range book.Format {
+			if !slices.Contains([]string{"epub", "pdf", "markdown"}, strings.ToLower(format)) {
+				return fmt.Errorf("unsupported format '%s' for book '%s'. Only 'epub', 'pdf', and 'markdown' are supported", format, book.Title)
+			}
+		}
+		if len(book.Author) == 0 {
+			return fmt.Errorf("book '%s' must specify at least one author", book.Title)
+		}
+		if book.Language == "" {
+			return fmt.Errorf("book '%s' must specify a language", book.Title)
 		}
 	}
 
