@@ -348,6 +348,7 @@ func parseListItemWithIndent(line string, lineNumber int) *listItemWithIndent {
 	// Extract tags, attributes, and emojis
 	configAttributes := CurrentConfigFile().Attributes
 	tags, attributes, emojis := ExtractAllTagsAndAttributesAndEmojis(doc, configAttributes)
+	
 	// Filter tags and attributes but keep emojis (and preservable shorthands)
 	trimmedText := doc.MustTransform(StripTagsAndAttributes(configAttributes))
 

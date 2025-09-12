@@ -28,15 +28,13 @@ func TestMemoryExtraction(t *testing.T) {
 		}))
 
 		// Create test note with memory attributes in list items
-		tr.WriteFile("books.md", `# My Reading List
-
-## ReadingList: Books I've Read
-
-* _The Alchemist_ by Paulo Coelho ★★★★★ `+"`@read_date: 2025-03-21`"+`
-* _Educated_ by Tara Westover ★★★★★ `+"`@read_date: 2025-03-29`"+`
-* _Siddhartha_ by Hermann Hesse ★★★★☆ `+"`@read_date: 2025-04-01`"+`
-
-These are some books I've enjoyed reading.`)
+		rdq := string(rune(0x201D)) // RIGHT DOUBLE QUOTATION MARK
+		content := "# My Reading List\n\n## ReadingList: Books I've Read\n\n" +
+			"* _The Alchemist_ by Paulo Coelho ★★★★★ " + rdq + "@read_date: 2025-03-21" + rdq + "\n" +
+			"* _Educated_ by Tara Westover ★★★★★ " + rdq + "@read_date: 2025-03-29" + rdq + "\n" +
+			"* _Siddhartha_ by Hermann Hesse ★★★★☆ " + rdq + "@read_date: 2025-04-01" + rdq + "\n\n" +
+			"These are some books I've enjoyed reading."
+		tr.WriteFile("books.md", content)
 
 		// Parse the file
 		md, err := markdown.ParseFile(filepath.Join(tr.Root, "books.md"))
@@ -83,11 +81,9 @@ These are some books I've enjoyed reading.`)
 		}))
 
 		// Create test note with memory attribute at note level
-		tr.WriteFile("article.md", `# My Articles
-
-## Note: First Blog Post `+"`@published_date: 2025-01-15`"+`
-
-This was my first blog post about testing.`)
+		rdq := string(rune(0x201D)) // RIGHT DOUBLE QUOTATION MARK
+		content := "# My Articles\n\n## Note: First Blog Post\n" + rdq + "@published_date: 2025-01-15" + rdq + "\n\nThis was my first blog post about testing."
+		tr.WriteFile("article.md", content)
 
 		// Parse the file
 		md, err := markdown.ParseFile(filepath.Join(tr.Root, "article.md"))

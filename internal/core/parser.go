@@ -788,8 +788,9 @@ func (p *ParsedNote) extractMemories() ([]*ParsedMemory, error) {
 			}
 
 			if !occurredAt.IsZero() {
+				cleanedText := p.ShortTitle.MustTransform(StripTagsAndAttributes(CurrentConfigFile().Attributes))
 				memory := &ParsedMemory{
-					Text:       p.ShortTitle,
+					Text:       cleanedText,
 					OccurredAt: occurredAt,
 				}
 				memories = append(memories, memory)
@@ -830,8 +831,9 @@ func (p *ParsedNote) extractMemoriesFromListItem(item *ListItem) []*ParsedMemory
 			}
 
 			if !occurredAt.IsZero() {
+				cleanedText := item.Text.MustTransform(StripTagsAndAttributes(CurrentConfigFile().Attributes))
 				memory := &ParsedMemory{
-					Text:       item.Text,
+					Text:       cleanedText,
 					OccurredAt: occurredAt,
 				}
 				memories = append(memories, memory)
