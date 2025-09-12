@@ -22,7 +22,7 @@ func init() {
 	RegisterNotePreprocessor("generator", GeneratorPreprocessor)
 	RegisterNotePreprocessor("flashcard-extractor", FlashcardExtractorPreprocessor)
 	RegisterNotePreprocessor("list-items", ListItemsPreprocessor)
-	
+
 	// Register file preprocessors
 	RegisterFilePreprocessor("master", MasterPreprocessor)
 	RegisterFilePreprocessor("toc", TOCPreprocessor)
@@ -87,6 +87,7 @@ func QuoteRewriterPreprocessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNot
 				// The quote is complete. Add the attribution
 				attribution := note.Attributes.Attribution()
 				if attribution != "" {
+					rewrittenLines = append(rewrittenLines, ">") // Force a newline to put the attribution on a new line
 					rewrittenLines = append(rewrittenLines, "> "+attribution)
 				}
 			}
@@ -97,6 +98,7 @@ func QuoteRewriterPreprocessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNot
 	if insideQuote {
 		attribution := note.Attributes.Attribution()
 		if attribution != "" {
+			rewrittenLines = append(rewrittenLines, ">") // Force a newline to put the attribution on a new line
 			rewrittenLines = append(rewrittenLines, "> "+attribution)
 		}
 	}
@@ -415,22 +417,22 @@ func MasterPreprocessor(file *ParsedFile) (*ParsedFile, error) {
 		// Extract gotemplate code block from the note body
 		codeBlocks := note.Body.ExtractCodeBlocks()
 		var templateContent string
-		
+
 		for _, block := range codeBlocks {
 			if block.Language == "gotemplate" {
 				templateContent = block.Source
 				break
 			}
 		}
-		
+
 		if templateContent == "" {
 			return file, fmt.Errorf("Master note %q must contain a gotemplate code block", note.ShortTitle)
 		}
 
 		// Create template with custom functions
 		tmpl, err := template.New("master").Funcs(template.FuncMap{
-			"query":           createQueryFunc(file),
-			"RenderTags":      RenderTags,
+			"query":            createQueryFunc(file),
+			"RenderTags":       RenderTags,
 			"RenderAttributes": RenderAttributes,
 		}).Parse(templateContent)
 		if err != nil {
@@ -472,8 +474,6 @@ func createQueryFunc(file *ParsedFile) func(string) []*ParsedNote {
 		return results
 	}
 }
-
-
 
 // RenderTags renders tags using The NoteWriter notation
 func RenderTags(tags TagSet) string {
@@ -570,6 +570,6 @@ func TOCPreprocessor(file *ParsedFile) (*ParsedFile, error) {
 
 	// Prepend TOC note to the list
 	file.Notes = append([]*ParsedNote{tocNote}, file.Notes...)
-	
+
 	return file, nil
 }
