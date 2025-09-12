@@ -5,6 +5,7 @@ import (
 
 	"github.com/julien-sobczak/the-notewriter/internal/core"
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -464,4 +465,50 @@ This section has no child notes.
 	// Check that TOC content matches expected format exactly
 	expectedTOC := "* [[#Note: First Note]]\n  * [[#Note: Sub Note]]\n  * [[#Flashcard: Test Card]]\n* Resources\n  * [[#Quote: Test Quote]]"
 	assert.Equal(t, expectedTOC, tocNote.Body.String())
+}
+
+func TestMasterPreprocessor(t *testing.T) {
+	t.Run("Master note with query function", func(t *testing.T) {
+		// Create a test repository 
+		tr := core.NewTestRepository(t)
+
+		// Create test markdown content with Master note and Task notes
+		tr.WriteFile("project.md", text.UnescapeTestContent(`# Project A
+
+## Master: Backlog
+
+‛‛‛gotemplate
+{{- range query "type:Task" }}
+- {{ .ShortTitle }}{{ RenderTags .NoteTags }}{{ RenderAttributes .NoteAttributes }}
+{{- end }}
+‛‛‛
+
+## Features
+
+### Task: Do Something ❗
+
+‛#favorite‛
+
+Implement something.
+
+### Task: Do Something Else 🔽
+
+Implement something else.
+`))
+
+		// Parse the file which should trigger the Master preprocessor
+		parsedFile := tr.ParseFile("project.md")
+		require.NotNil(t, parsedFile)
+
+		// Should have 3 notes: Master (Backlog) + 2 Task notes
+		require.Len(t, parsedFile.Notes, 3)
+
+		// Get the Master note (first note as order is preserved during parsing)
+		masterNote := parsedFile.Notes[0]
+		require.Equal(t, "Master", masterNote.Type, "First note should be a Master note")
+
+		// Check that the Master note body was updated by the template
+		expectedBody := "- Do Something `#favorite` ❗\n- Do Something Else 🔽"
+		assert.Equal(t, expectedBody, masterNote.Body.String())
+	})
 }

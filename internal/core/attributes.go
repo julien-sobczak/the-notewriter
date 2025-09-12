@@ -78,6 +78,19 @@ func (t TagSet) IncludesAll(tags []string) bool {
 	return true
 }
 
+// ToMarkdownNotation renders tags using The NoteWriter notation
+func (t TagSet) ToMarkdownNotation() string {
+	if len(t) == 0 {
+		return ""
+	}
+	
+	var rendered []string
+	for _, tag := range t {
+		rendered = append(rendered, "`#"+tag+"`")
+	}
+	return " " + strings.Join(rendered, " ")
+}
+
 /*
  * AttributeSet
  */
@@ -235,6 +248,15 @@ func NewEmptyAttributeSet() AttributeSet {
 	return make(AttributeSet)
 }
 
+// NewAttributeSet creates an attribute set from an existing map.
+func NewAttributeSet(attributes map[string]any) AttributeSet {
+	result := make(AttributeSet)
+	for k, v := range attributes {
+		result[k] = v
+	}
+	return result
+}
+
 // NewAttributeSetFromYAML unmarshall attributes.
 func NewAttributeSetFromYAML(rawValue string) (AttributeSet, error) {
 	var attributes map[string]interface{}
@@ -305,6 +327,24 @@ func (a AttributeSet) Merge(attributes ...AttributeSet) AttributeSet {
 		return NewEmptyAttributeSet()
 	}
 
+	return result
+}
+
+// Remove creates a new AttributeSet without the specified keys
+func (a AttributeSet) Remove(keys []string) AttributeSet {
+	result := make(AttributeSet)
+	for k, v := range a {
+		shouldRemove := false
+		for _, removeKey := range keys {
+			if k == removeKey {
+				shouldRemove = true
+				break
+			}
+		}
+		if !shouldRemove {
+			result[k] = v
+		}
+	}
 	return result
 }
 
@@ -442,6 +482,39 @@ func (a AttributeSet) Attribution() string {
 		res.WriteString(occupation)
 	}
 	return res.String()
+}
+
+// ToMarkdownNotation renders attributes using The NoteWriter notation with shorthand support
+func (a AttributeSet) ToMarkdownNotation(configAttributes ConfigAttributes) string {
+	if len(a) == 0 {
+		return ""
+	}
+
+	var rendered []string
+	
+	for name, value := range a {
+		// Check if there's a shorthand available
+		if attrDef, exists := configAttributes[name]; exists && attrDef.Shorthands != nil {
+			// Look for a shorthand that matches the value
+			valueStr := fmt.Sprintf("%v", value)
+			found := false
+			for shorthand, shorthandValue := range attrDef.Shorthands {
+				if fmt.Sprintf("%v", shorthandValue) == valueStr {
+					rendered = append(rendered, " "+shorthand)
+					found = true
+					break
+				}
+			}
+			if found {
+				continue
+			}
+		}
+		
+		// No shorthand found, use full attribute notation
+		rendered = append(rendered, fmt.Sprintf(" `@%s: %v`", name, value))
+	}
+	
+	return strings.Join(rendered, "")
 }
 
 /* Format */

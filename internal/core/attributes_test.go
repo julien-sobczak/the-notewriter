@@ -58,6 +58,27 @@ func TestTagSet(t *testing.T) {
 		}
 	})
 
+	t.Run("ToMarkdownNotation", func(t *testing.T) {
+		// Create a test repository for context
+		tr := NewTestRepository(t)
+		_ = tr // Use the repository to initialize context
+		
+		tags := TagSet{"favorite", "must-read"}
+		result := tags.ToMarkdownNotation()
+		expected := " `#favorite` `#must-read`"
+		assert.Equal(t, expected, result)
+	})
+
+	t.Run("ToMarkdownNotation empty", func(t *testing.T) {
+		// Create a test repository for context
+		tr := NewTestRepository(t)
+		_ = tr // Use the repository to initialize context
+		
+		tags := TagSet{}
+		result := tags.ToMarkdownNotation()
+		assert.Equal(t, "", result)
+	})
+
 }
 
 func TestCastFn(t *testing.T) {
@@ -473,6 +494,27 @@ key3:
 		// Avoid duplicates
 		set.SetAttribute("tags", []string{"living"})
 		assert.Equal(t, []string{"favorite", "life-changing", "living"}, set["tags"])
+	})
+
+	t.Run("ToMarkdownNotation", func(t *testing.T) {
+		// Create a test repository for context
+		tr := NewTestRepository(t)
+		_ = tr // Use the repository to initialize context
+		
+		configAttributes := CurrentConfigFile().Attributes
+		
+		// Create test attributes
+		attributes := AttributeSet{
+			"priority": "high",
+			"rating":   int64(4), // Should render as ★★
+			"source":   "ignored", // Should be filtered out
+		}
+		
+		result := attributes.ToMarkdownNotation(configAttributes)
+		// Should contain the priority attribute and rating shorthand
+		assert.Contains(t, result, "❗") // priority: high shorthand
+		assert.Contains(t, result, "★★") // rating: 4 shorthand 
+		assert.NotContains(t, result, "source") // Should be filtered out
 	})
 }
 

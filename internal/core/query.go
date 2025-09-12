@@ -135,3 +135,54 @@ func ParseQuery(q string) (*Query, error) {
 		}
 	}
 }
+
+// MatchesParsed checks if a note matches the given query
+func (q *Query) MatchesParsed(note *ParsedNote) bool {
+	// Check type filter
+	if len(q.Types) > 0 {
+		found := false
+		for _, t := range q.Types {
+			if note.Type == t {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	// Check tag filter
+	if len(q.Tags) > 0 {
+		for _, tag := range q.Tags {
+			if !note.NoteTags.Includes(tag) {
+				return false
+			}
+		}
+	}
+
+	// Check attribute filter
+	for attrName, attrValue := range q.Attributes {
+		noteAttrValue, exists := note.Attributes[attrName]
+		if !exists || noteAttrValue != attrValue {
+			return false
+		}
+	}
+
+	// Check slug filter
+	if q.Slug != "" && note.Slug != q.Slug {
+		return false
+	}
+
+	// Check terms (search in title and body)
+	if len(q.Terms) > 0 {
+		searchText := strings.ToLower(note.Title.String() + " " + note.Body.String())
+		for _, term := range q.Terms {
+			if !strings.Contains(searchText, strings.ToLower(term)) {
+				return false
+			}
+		}
+	}
+
+	return true
+}

@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
@@ -23,6 +24,7 @@ func init() {
 	RegisterNotePreprocessor("list-items", ListItemsPreprocessor)
 	
 	// Register file preprocessors
+	RegisterFilePreprocessor("master", MasterPreprocessor)
 	RegisterFilePreprocessor("toc", TOCPreprocessor)
 }
 
@@ -396,13 +398,97 @@ func processNestedItemsWithIndent(items []*listItemWithIndent) []*ListItem {
 	return result
 }
 
-/* Helpers */
-
 // CommandExists checks if a command exists in the system's PATH.
 func CommandExists(command string) bool {
 	_, err := exec.LookPath(command)
 	return err == nil
 }
+
+// MasterPreprocessor processes Master notes by evaluating their Go templates
+func MasterPreprocessor(file *ParsedFile) (*ParsedFile, error) {
+	// Find all Master notes in the file
+	for _, note := range file.Notes {
+		if note.Type != "Master" {
+			continue
+		}
+
+		// Extract gotemplate code block from the note body
+		codeBlocks := note.Body.ExtractCodeBlocks()
+		var templateContent string
+		
+		for _, block := range codeBlocks {
+			if block.Language == "gotemplate" {
+				templateContent = block.Source
+				break
+			}
+		}
+		
+		if templateContent == "" {
+			return file, fmt.Errorf("Master note %q must contain a gotemplate code block", note.ShortTitle)
+		}
+
+		// Create template with custom functions
+		tmpl, err := template.New("master").Funcs(template.FuncMap{
+			"query":           createQueryFunc(file),
+			"RenderTags":      RenderTags,
+			"RenderAttributes": RenderAttributes,
+		}).Parse(templateContent)
+		if err != nil {
+			return file, fmt.Errorf("failed to parse template in Master note %q: %v", note.ShortTitle, err)
+		}
+
+		// Execute template
+		var result bytes.Buffer
+		if err := tmpl.Execute(&result, nil); err != nil {
+			return file, fmt.Errorf("failed to execute template in Master note %q: %v", note.ShortTitle, err)
+		}
+
+		// Replace note body with template result
+		note.Body = markdown.Document(strings.TrimSpace(result.String()))
+	}
+
+	return file, nil
+}
+
+// createQueryFunc creates a query function that can filter notes in the current file
+func createQueryFunc(file *ParsedFile) func(string) []*ParsedNote {
+	return func(queryStr string) []*ParsedNote {
+		query, err := ParseQuery(queryStr)
+		if err != nil {
+			return []*ParsedNote{}
+		}
+
+		// Fail if a filter path is declared
+		if query.Path != "" {
+			return []*ParsedNote{}
+		}
+
+		var results []*ParsedNote
+		for _, note := range file.Notes {
+			if query.MatchesParsed(note) {
+				results = append(results, note)
+			}
+		}
+		return results
+	}
+}
+
+
+
+// RenderTags renders tags using The NoteWriter notation
+func RenderTags(tags TagSet) string {
+	return tags.ToMarkdownNotation()
+}
+
+// RenderAttributes renders attributes using The NoteWriter notation with shorthand support
+func RenderAttributes(attributes AttributeSet) string {
+	configAttributes := CurrentConfigFile().Attributes
+	commonAttributes := []string{"title", "source", "tags"}
+	renderedAttributes := NewAttributeSet(attributes).Remove(commonAttributes)
+	return renderedAttributes.ToMarkdownNotation(configAttributes)
+}
+
+/* Helpers */
 
 // TOCPreprocessor generates a Table of Contents note and prepends it to the notes list
 func TOCPreprocessor(file *ParsedFile) (*ParsedFile, error) {
