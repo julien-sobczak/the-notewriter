@@ -266,6 +266,34 @@ func ParseFile(md *markdown.File, mdParent *markdown.File) (*ParsedFile, error) 
 	}
 	_, shortTitle, _ := CurrentConfigFile().IsSupportedType(string(title))
 
+	// Extract tags and attributes from shortTitle
+	titleTags := ExtractTags(shortTitle)
+	titleAttributes := ExtractOnlyAttributes(shortTitle, CurrentConfigFile().Attributes)
+	
+	// Add title tags to fileAttributes
+	for _, tag := range titleTags {
+		fileAttributes.AddTag(tag)
+	}
+	
+	// Merge title attributes into fileAttributes
+	for attrName, attrValue := range titleAttributes {
+		fileAttributes[attrName] = attrValue
+	}
+
+	// Strip tags and attributes from titles
+	strippedTitle, err := title.Transform(StripTags(), StripOnlyAttributes())
+	if err != nil {
+		return nil, err
+	}
+	strippedShortTitle, err := shortTitle.Transform(StripTags(), StripOnlyAttributes())
+	if err != nil {
+		return nil, err
+	}
+	
+	// Update titles with stripped versions
+	title = strippedTitle
+	shortTitle = strippedShortTitle
+
 	// Extract/Generate slug
 	relativePath := CurrentRepository().GetFileRelativePath(md.AbsolutePath)
 	slug := DetermineFileSlug(relativePath)
@@ -390,17 +418,39 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		// Process shorthands from shortTitle
 		extractedAttributes := ExtractShorthands(shortTitle, configAttributes)
 
+		// Extract tags and attributes from shortTitle
+		titleTags := ExtractTags(shortTitle)
+		titleAttributes := ExtractOnlyAttributes(shortTitle, configAttributes)
+
 		// Apply extracted shorthand attributes
 		for attrName, attrValue := range extractedAttributes {
 			noteAttributes[attrName] = attrValue
 		}
 
-		// Update titles by removing shorthands only if not-preservable
-		modifiedTitle := title.MustTransform(StripShorthands(configAttributes))
+		// Add title tags to noteAttributes
+		for _, tag := range titleTags {
+			noteTags = append(noteTags, tag)
+		}
+
+		// Merge title attributes into noteAttributes
+		for attrName, attrValue := range titleAttributes {
+			noteAttributes[attrName] = attrValue
+		}
+
+		// Update titles by removing shorthands, tags, and attributes
+		modifiedTitle := title.MustTransform(
+			StripShorthands(configAttributes),
+			StripTags(),
+			StripOnlyAttributes(),
+		)
 		if modifiedTitle != title {
 			title = markdown.Document(modifiedTitle)
 		}
-		modifiedShortTitle := shortTitle.MustTransform(StripShorthands(configAttributes))
+		modifiedShortTitle := shortTitle.MustTransform(
+			StripShorthands(configAttributes), 
+			StripTags(),
+			StripOnlyAttributes(),
+		)
 		if modifiedShortTitle != shortTitle {
 			shortTitle = markdown.Document(modifiedShortTitle)
 		}

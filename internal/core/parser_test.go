@@ -1100,3 +1100,70 @@ func TestReplaceMedias(t *testing.T) {
 		})
 	}
 }
+
+func TestTitleTagsAndAttributes(t *testing.T) {
+	// Test the new functionality for extracting tags and attributes from titles
+	tr := core.NewTestRepository(t)
+	tr.WriteFile("test.md", `# Learning `+"`#favorite` `@source: Book`")
+
+	// Parse the file
+	md := markdown.MustParseFile(filepath.Join(tr.Root, "test.md"))
+	parsedFile, err := core.ParseFile(md, nil)
+	require.NoError(t, err)
+	require.NotNil(t, parsedFile)
+
+	// Check that tags and attributes were extracted from the title
+	expectedTags := core.TagSet([]string{"favorite"})
+	assert.Equal(t, expectedTags, parsedFile.FileAttributes.Tags())
+
+	sourceAttr, exists := parsedFile.FileAttributes["source"]
+	assert.True(t, exists)
+	assert.Equal(t, "Book", sourceAttr)
+
+	// Check that tags and attributes were stripped from titles
+	assert.Equal(t, "Learning", parsedFile.Title.String())
+	assert.Equal(t, "Learning", parsedFile.ShortTitle.String())
+}
+
+func TestNoteTitleTagsAndAttributes(t *testing.T) {
+	// Test the new functionality for extracting tags and attributes from note titles
+	tr := core.NewTestRepository(t)
+	tr.WriteFile("notes.md", `# My Notes
+
+## Note: Important Topic `+"`#critical` `@priority: high`"+`
+
+This is a critical note with high priority.
+
+## Quote: Famous Quote `+"`#inspirational`"+`
+
+> This is an inspirational quote.
+`)
+
+	// Parse the file
+	md := markdown.MustParseFile(filepath.Join(tr.Root, "notes.md"))
+	parsedFile, err := core.ParseFile(md, nil)
+	require.NoError(t, err)
+	require.NotNil(t, parsedFile)
+	require.Len(t, parsedFile.Notes, 2)
+
+	// Check first note (Important Topic)
+	note1 := parsedFile.Notes[0]
+	assert.Equal(t, "Note: Important Topic", note1.Title.String())
+	assert.Equal(t, "Important Topic", note1.ShortTitle.String())
+	
+	// Check tags include the one from title
+	assert.Contains(t, note1.NoteTags, "critical")
+	
+	// Check attributes include the one from title
+	priority, exists := note1.NoteAttributes["priority"]
+	assert.True(t, exists)
+	assert.Equal(t, "high", priority)
+
+	// Check second note (Famous Quote)
+	note2 := parsedFile.Notes[1]
+	assert.Equal(t, "Quote: Famous Quote", note2.Title.String())
+	assert.Equal(t, "Famous Quote", note2.ShortTitle.String())
+	
+	// Check tags include the one from title
+	assert.Contains(t, note2.NoteTags, "inspirational")
+}
