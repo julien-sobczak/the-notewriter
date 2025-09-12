@@ -84,7 +84,7 @@ func TestQuoteRewriterPreprocessor(t *testing.T) {
 				"nationality": "French",
 			},
 			inputBody:    "This is a regular line\nAnother regular line",
-			expectedBody: "> This is a regular line\n> Another regular line\n> ― Jean Doe, French writer",
+			expectedBody: "> This is a regular line\n> Another regular line\n>\n> ― Jean Doe, French writer",
 		},
 		{
 			name:         "Empty lines are included if present in the middle of a quote",
@@ -414,7 +414,7 @@ func TestListItemsPreprocessor(t *testing.T) {
 }
 
 func TestTOCFilePreprocessor(t *testing.T) {
-	// Create a test repository 
+	// Create a test repository
 	tr := core.NewTestRepository(t)
 
 	// Create test markdown content with toc tag
@@ -459,7 +459,7 @@ This section has no child notes.
 	// First note should be the generated TOC
 	tocNote := parsedFile.Notes[0]
 	assert.Equal(t, "Table of Content", tocNote.Title.String())
-	assert.Equal(t, "Table of Content", tocNote.ShortTitle.String()) 
+	assert.Equal(t, "Table of Content", tocNote.ShortTitle.String())
 	assert.Equal(t, 0, tocNote.Line) // Generated note has line number 0
 
 	// Check that TOC content matches expected format exactly
@@ -468,8 +468,9 @@ This section has no child notes.
 }
 
 func TestMasterPreprocessor(t *testing.T) {
+
 	t.Run("Master note with query function", func(t *testing.T) {
-		// Create a test repository 
+		// Create a test repository
 		tr := core.NewTestRepository(t)
 
 		// Create test markdown content with Master note and Task notes

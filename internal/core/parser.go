@@ -317,7 +317,7 @@ func ParseFile(md *markdown.File, mdParent *markdown.File) (*ParsedFile, error) 
 // applyFilePreprocessors applies file preprocessors based on file tags and note types
 func applyFilePreprocessors(file *ParsedFile) (*ParsedFile, error) {
 	fileTags := file.FileAttributes.Tags()
-	
+
 	// Check if file contains Master notes and apply master preprocessor first
 	hasMasterNotes := false
 	for _, note := range file.Notes {
@@ -326,7 +326,7 @@ func applyFilePreprocessors(file *ParsedFile) (*ParsedFile, error) {
 			break
 		}
 	}
-	
+
 	if hasMasterNotes {
 		if preprocessor, ok := filePreprocessors["master"]; ok {
 			var err error
@@ -336,7 +336,7 @@ func applyFilePreprocessors(file *ParsedFile) (*ParsedFile, error) {
 			}
 		}
 	}
-	
+
 	// Apply preprocessors based on file tags
 	if fileTags.Includes("toc") {
 		if preprocessor, ok := filePreprocessors["toc"]; ok {
@@ -347,7 +347,7 @@ func applyFilePreprocessors(file *ParsedFile) (*ParsedFile, error) {
 			}
 		}
 	}
-	
+
 	return file, nil
 }
 
@@ -864,7 +864,7 @@ func (p *ParsedNote) parseAttributeDate(configAttr *ConfigAttribute, attrValue a
 
 	// Convert custom format to Go time format
 	goFormat := convertDateFormatToGo(format)
-	
+
 	parsedTime, err := time.Parse(goFormat, valueStr)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("failed to parse date %q with format %q: %w", valueStr, goFormat, err)
@@ -947,6 +947,16 @@ func (p *ParsedNote) FindReminderByTag(tag string) (*ParsedReminder, bool) {
 	for _, reminder := range p.Reminders {
 		if reminder.Tag == tag {
 			return reminder, true
+		}
+	}
+	return nil, false
+}
+
+// FindMemoryByText searches for a memory from its text.
+func (p *ParsedNote) FindMemoryByText(text markdown.Document) (*ParsedMemory, bool) {
+	for _, memory := range p.Memories {
+		if memory.Text == text {
+			return memory, true
 		}
 	}
 	return nil, false
@@ -1142,4 +1152,14 @@ func (n *ParsedNote) Matches(query *Query) bool {
 	// query.Terms is not supported as parsed notes are still not indexed
 
 	return true
+}
+
+// SimplifyMarkdown simplifies a Markdown document by removing all tags, attributes and emphasis.
+func SimplifyMarkdown(configAttributes ConfigAttributes) markdown.Transformer {
+	return func(doc markdown.Document) (markdown.Document, error) {
+		return doc.MustTransform(
+			StripTagsAndAttributes(configAttributes),
+			markdown.StripEmphasis(),
+		), nil
+	}
 }

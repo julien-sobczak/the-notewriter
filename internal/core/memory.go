@@ -38,7 +38,7 @@ type Memory struct {
 
 func NewOrExistingMemory(packFile *PackFile, note *Note, parsedMemory *ParsedMemory) (*Memory, error) {
 	// Try to find an existing object (instead of recreating it from scratch after every change)
-	existingMemory, err := CurrentRepository().FindMatchingMemory(parsedMemory, note.OID, CurrentConfigFile().Attributes)
+	existingMemory, err := CurrentRepository().FindMatchingMemory(parsedMemory, note.OID)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func NewOrExistingMemory(packFile *PackFile, note *Note, parsedMemory *ParsedMem
 }
 
 func (m Memory) String() string {
-	return fmt.Sprintf("Memory %q occurred at %s", m.Text, m.OccurredAt.Format("2006-01-02"))
+	return fmt.Sprintf("memory %q occurred at %s", m.Text, m.OccurredAt.Format("2006-01-02"))
 }
 
 /* Object interface */
@@ -201,76 +201,109 @@ func (m *Memory) Delete() error {
 
 /* Repository methods */
 
-func (r *Repository) LoadMemoryByOID(memoryOID oid.OID) (*Memory, error) {
-	db := CurrentDB().Client()
-
-	row := db.QueryRow(`
-		SELECT oid, packfile_oid, note_oid, relative_path, text, occurred_at, created_at, updated_at, indexed_at
-		FROM memory 
-		WHERE oid = ?
-	`, string(memoryOID))
-
-	memory := &Memory{}
-	var occurredAtStr, createdAtStr, updatedAtStr string
-	var indexedAtStr sql.NullString
-
-	err := row.Scan(
-		&memory.OID,
-		&memory.PackFileOID,
-		&memory.NoteOID,
-		&memory.RelativePath,
-		&memory.Text,
-		&occurredAtStr,
-		&createdAtStr,
-		&updatedAtStr,
-		&indexedAtStr,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// Parse timestamps
-	if memory.OccurredAt, err = time.Parse(time.RFC3339, occurredAtStr); err != nil {
-		return nil, err
-	}
-	if memory.CreatedAt, err = time.Parse(time.RFC3339, createdAtStr); err != nil {
-		return nil, err
-	}
-	if memory.UpdatedAt, err = time.Parse(time.RFC3339, updatedAtStr); err != nil {
-		return nil, err
-	}
-	if indexedAtStr.Valid {
-		if memory.IndexedAt, err = time.Parse(time.RFC3339, indexedAtStr.String); err != nil {
-			return nil, err
-		}
-	}
-
-	return memory, nil
+func (r *Repository) FindMatchingMemory(parsedMemory *ParsedMemory, noteOID oid.OID) (*Memory, error) {
+	return QueryMemory(CurrentDB().Client(), `WHERE note_oid = ? AND occurred_at = ? AND text = ?`, noteOID, timeToSQL(parsedMemory.OccurredAt), parsedMemory.Text)
 }
 
-func (r *Repository) FindMatchingMemory(parsedMemory *ParsedMemory, noteOID oid.OID, configAttributes ConfigAttributes) (*Memory, error) {
-	db := CurrentDB().Client()
+/* SQL Queries */
 
-	// Clean the parsed memory text for comparison
-	cleanedText := parsedMemory.Text.MustTransform(StripTagsAndAttributes(configAttributes)).MustTransform(markdown.StripEmphasis()).String()
+// CountMemories returns the total number of memories.
+func (r *Repository) CountMemories() (int, error) {
+	var count int
+	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM memory`).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
 
-	// First get all memories for the note with matching occurred_at
-	rows, err := db.Query(`
-		SELECT oid, packfile_oid, note_oid, relative_path, text, occurred_at, created_at, updated_at, indexed_at
-		FROM memory 
-		WHERE note_oid = ? AND occurred_at = ?
-	`, string(noteOID), timeToSQL(parsedMemory.OccurredAt))
+func (r *Repository) FindMemories() ([]*Memory, error) {
+	return QueryMemories(CurrentDB().Client(), "")
+}
 
+func (r *Repository) LoadMemoryByOID(oid oid.OID) (*Memory, error) {
+	return QueryMemory(CurrentDB().Client(), `WHERE oid = ?`, oid)
+}
+
+func (r *Repository) LoadMemories() ([]*Memory, error) {
+	return QueryMemories(CurrentDB().Client(), ``)
+}
+
+/* SQL Helpers */
+
+func QueryMemory(db SQLClient, whereClause string, args ...any) (*Memory, error) {
+	var m Memory
+
+	var occurredAt string
+	var createdAt string
+	var updatedAt string
+	var indexedAt sql.NullString
+
+	if err := db.QueryRow(fmt.Sprintf(`
+		SELECT
+			oid,
+			packfile_oid,
+			note_oid,
+			relative_path,
+			text,
+			occurred_at,
+			created_at,
+			updated_at,
+			indexed_at
+		FROM memory
+		%s;`, whereClause), args...).
+		Scan(
+			&m.OID,
+			&m.PackFileOID,
+			&m.NoteOID,
+			&m.RelativePath,
+			&m.Text,
+			&m.OccurredAt,
+			&m.CreatedAt,
+			&m.UpdatedAt,
+			&m.IndexedAt,
+		); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	m.OccurredAt = timeFromSQL(occurredAt)
+	m.CreatedAt = timeFromSQL(createdAt)
+	m.UpdatedAt = timeFromSQL(updatedAt)
+	m.IndexedAt = timeFromNullableSQL(indexedAt)
+
+	return &m, nil
+}
+
+func QueryMemories(db SQLClient, whereClause string, args ...any) ([]*Memory, error) {
+	rows, err := db.Query(fmt.Sprintf(`
+		SELECT
+			oid,
+			packfile_oid,
+			note_oid,
+			relative_path,
+			text,
+			occurred_at,
+			created_at,
+			updated_at,
+			indexed_at
+		FROM memory
+		%s
+		ORDER BY occurred_at DESC;`, whereClause), args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	// Iterate through matching memories and check text
+	var memories []*Memory
 	for rows.Next() {
-		memory := &Memory{}
-		var occurredAtStr, createdAtStr, updatedAtStr string
-		var indexedAtStr sql.NullString
+		var memory Memory
+
+		var occurredAt string
+		var createdAt string
+		var updatedAt string
+		var indexedAt sql.NullString
 
 		err := rows.Scan(
 			&memory.OID,
@@ -278,29 +311,23 @@ func (r *Repository) FindMatchingMemory(parsedMemory *ParsedMemory, noteOID oid.
 			&memory.NoteOID,
 			&memory.RelativePath,
 			&memory.Text,
-			&occurredAtStr,
-			&createdAtStr,
-			&updatedAtStr,
-			&indexedAtStr,
+			&occurredAt,
+			&createdAt,
+			&updatedAt,
+			&indexedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
 
 		// Parse timestamps
-		memory.OccurredAt = timeFromSQL(occurredAtStr)
-		memory.CreatedAt = timeFromSQL(createdAtStr)
-		memory.UpdatedAt = timeFromSQL(updatedAtStr)
-		memory.IndexedAt = timeFromNullableSQL(indexedAtStr)
+		memory.OccurredAt = timeFromSQL(occurredAt)
+		memory.CreatedAt = timeFromSQL(createdAt)
+		memory.UpdatedAt = timeFromSQL(updatedAt)
+		memory.IndexedAt = timeFromNullableSQL(indexedAt)
 
-		// Clean the existing memory text for comparison
-		existingCleanedText := memory.Text.MustTransform(StripTagsAndAttributes(configAttributes)).MustTransform(markdown.StripEmphasis()).String()
-
-		// Check if texts match
-		if cleanedText == existingCleanedText {
-			return memory, nil
-		}
+		memories = append(memories, &memory)
 	}
 
-	return nil, nil // No matching memory found
+	return memories, nil
 }

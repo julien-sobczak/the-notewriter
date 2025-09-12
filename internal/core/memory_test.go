@@ -1,17 +1,15 @@
 package core_test
 
 import (
-	"path/filepath"
 	"testing"
 
 	"github.com/julien-sobczak/the-notewriter/internal/core"
-	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestMemoryExtraction(t *testing.T) {
+func TestMemory(t *testing.T) {
 	testutil.FreezeNow(t)
 
 	t.Run("Memory from list item attributes", func(t *testing.T) {
@@ -19,29 +17,28 @@ func TestMemoryExtraction(t *testing.T) {
 		tr := core.NewTestRepository(t, core.WithConfigFileOverride(func(c *core.ConfigFile) {
 			// Add read_date attribute with memory: true
 			c.Attributes["read_date"] = &core.ConfigAttribute{
-				Name:     "read_date",
-				Type:     "date",
-				Format:   "yyyy-mm-dd",
-				Inherit:  core.BoolPointer(true),
-				Memory:   core.BoolPointer(true),
+				Name:    "read_date",
+				Type:    "date",
+				Format:  "yyyy-mm-dd",
+				Inherit: core.BoolPointer(true),
+				Memory:  core.BoolPointer(true),
 			}
 		}))
 
 		// Create test note with memory attributes in list items
-		rdq := string(rune(0x201D)) // RIGHT DOUBLE QUOTATION MARK
-		content := "# My Reading List\n\n## ReadingList: Books I've Read\n\n" +
-			"* _The Alchemist_ by Paulo Coelho ★★★★★ " + rdq + "@read_date: 2025-03-21" + rdq + "\n" +
-			"* _Educated_ by Tara Westover ★★★★★ " + rdq + "@read_date: 2025-03-29" + rdq + "\n" +
-			"* _Siddhartha_ by Hermann Hesse ★★★★☆ " + rdq + "@read_date: 2025-04-01" + rdq + "\n\n" +
-			"These are some books I've enjoyed reading."
-		tr.WriteFile("books.md", content)
+		tr.WriteFile("books.md", `# My Reading List
+
+## ReadingList: Books I've Read
+
+* _The Alchemist_ by Paulo Coelho ★★★★★ ‛@read_date: 2025-03-21‛
+* _Educated_ by Tara Westover ★★★★★ ‛@read_date: 2025-03-29‛
+* _Siddhartha_ by Hermann Hesse ★★★★☆ ‛@read_date: 2025-04-01‛
+
+These are some books I've enjoyed reading.
+`)
 
 		// Parse the file
-		md, err := markdown.ParseFile(filepath.Join(tr.Root, "books.md"))
-		require.NoError(t, err)
-
-		file, err := core.ParseFile(md, nil)
-		require.NoError(t, err)
+		file := tr.ParseFile("books.md")
 
 		// Verify we parsed the file correctly
 		require.Len(t, file.Notes, 1)
@@ -72,25 +69,25 @@ func TestMemoryExtraction(t *testing.T) {
 		tr := core.NewTestRepository(t, core.WithConfigFileOverride(func(c *core.ConfigFile) {
 			// Add published_date attribute with memory: true
 			c.Attributes["published_date"] = &core.ConfigAttribute{
-				Name:     "published_date",
-				Type:     "date",
-				Format:   "yyyy-mm-dd",
-				Inherit:  core.BoolPointer(true),
-				Memory:   core.BoolPointer(true),
+				Name:    "published_date",
+				Type:    "date",
+				Format:  "yyyy-mm-dd",
+				Inherit: core.BoolPointer(true),
+				Memory:  core.BoolPointer(true),
 			}
 		}))
 
 		// Create test note with memory attribute at note level
-		rdq := string(rune(0x201D)) // RIGHT DOUBLE QUOTATION MARK
-		content := "# My Articles\n\n## Note: First Blog Post\n" + rdq + "@published_date: 2025-01-15" + rdq + "\n\nThis was my first blog post about testing."
-		tr.WriteFile("article.md", content)
+		tr.WriteFile("article.md", `# My Articles
+
+## Note: First Blog Post
+‛@published_date: 2025-01-15‛
+
+This was my first blog post about testing.
+`)
 
 		// Parse the file
-		md, err := markdown.ParseFile(filepath.Join(tr.Root, "article.md"))
-		require.NoError(t, err)
-
-		file, err := core.ParseFile(md, nil)
-		require.NoError(t, err)
+		file := tr.ParseFile("article.md")
 
 		// Verify we parsed the file correctly
 		require.Len(t, file.Notes, 1)

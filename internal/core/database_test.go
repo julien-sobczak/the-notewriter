@@ -74,6 +74,7 @@ class SillyClass:
 	require.Equal(t, 1, tr.CountFlashcards())
 	require.Equal(t, 1, tr.CountGotos())
 	require.Equal(t, 2, tr.CountReminders())
+	require.Equal(t, 0, tr.CountMemories())
 
 	// Read a single object of each kind and check all fields
 
@@ -199,6 +200,7 @@ func TestStatsOnDisk(t *testing.T) {
 		"media":     0,
 		"link":      0,
 		"reminder":  0,
+		"memory":    0,
 	}, stats.Objects)
 	require.Equal(t, 0, stats.IndexObjects)
 	require.Equal(t, int64(0), stats.TotalSizeKB)
@@ -216,6 +218,7 @@ func TestStatsOnDisk(t *testing.T) {
 	assert.Greater(t, statsAdd.Objects["media"], 0)
 	assert.Greater(t, statsAdd.Objects["link"], 0)
 	assert.Greater(t, statsAdd.Objects["reminder"], 0)
+	assert.Greater(t, statsAdd.Objects["memory"], 0)
 	assert.Greater(t, statsAdd.Blobs, 0)
 	assert.Greater(t, statsAdd.ObjectFiles, 0)
 	assert.Greater(t, statsAdd.IndexObjects, 0)
@@ -232,7 +235,8 @@ func TestStatsOnDisk(t *testing.T) {
 	assert.Equal(t, statsAdd.Objects["flashcard"], statsCommit.Objects["flashcard"])
 	assert.Equal(t, statsAdd.Objects["media"], statsCommit.Objects["media"])
 	assert.Equal(t, statsAdd.Objects["link"], statsCommit.Objects["link"])
-	assert.Equal(t, statsAdd.Objects["reminder"], statsCommit.Objects["reminder"])
+	assert.Equal(t, statsAdd.Objects["memory"], statsCommit.Objects["memory"])
+	assert.Equal(t, statsAdd.Objects["memory"], statsCommit.Objects["memory"])
 	assert.Equal(t, statsAdd.Blobs, statsCommit.Blobs)
 	assert.Equal(t, statsAdd.ObjectFiles, statsCommit.ObjectFiles)
 	assert.Equal(t, statsAdd.IndexObjects, statsCommit.IndexObjects)

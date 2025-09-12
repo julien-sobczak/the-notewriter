@@ -297,6 +297,12 @@ func (tr *TestRepository) CountReminders() int {
 	return count
 }
 
+func (tr *TestRepository) CountMemories() int {
+	count, err := CurrentRepository().CountMemories()
+	require.NoError(tr.t, err)
+	return count
+}
+
 /* Test Assertions */
 
 func (tr *TestRepository) AssertNoFiles() {
