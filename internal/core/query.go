@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"text/scanner"
+	"unicode"
 )
 
 type Query struct {
@@ -86,7 +87,34 @@ func ParseQuery(q string) (*Query, error) {
 			if pathToken == scanner.EOF {
 				return nil, errors.New("unexpected EOF when a path was expected")
 			}
-			result.Path = strings.TrimRight(strings.TrimLeft(s.TokenText(), `"`), `"`)
+			
+			pathValue := s.TokenText()
+			
+			// If the path starts with quotes, it's a quoted path - just remove the quotes
+			if strings.HasPrefix(pathValue, `"`) {
+				result.Path = strings.TrimRight(strings.TrimLeft(pathValue, `"`), `"`)
+			} else {
+				// For unquoted paths, continue reading tokens to build the full path
+				// This handles cases like: path:thoughts/on-learning.md
+				var pathBuilder strings.Builder
+				pathBuilder.WriteString(pathValue)
+				
+				for {
+					nextRune := s.Peek()
+					if nextRune == scanner.EOF {
+						break
+					}
+					// Continue if it's a path separator, dot, hyphen, or alphanumeric
+					if nextRune == '/' || nextRune == '-' || nextRune == '.' || 
+						unicode.IsLetter(rune(nextRune)) || unicode.IsDigit(rune(nextRune)) {
+						s.Scan() // consume the token
+						pathBuilder.WriteString(s.TokenText())
+					} else {
+						break
+					}
+				}
+				result.Path = pathBuilder.String()
+			}
 
 		case "#":
 			// Tag
@@ -95,17 +123,22 @@ func ParseQuery(q string) (*Query, error) {
 				return nil, errors.New("unexpected EOF when a tag name was expected")
 			}
 			tag := s.TokenText()
+			
+			// Continue reading to build the full tag including slashes and hyphens
+			// This handles cases like: #todo/read, #project/personal/goals
 			for {
-				v := s.Peek()
-				if v == scanner.EOF || v != '-' {
+				nextRune := s.Peek()
+				if nextRune == scanner.EOF {
 					break
 				}
-				s.Scan() // advance -
-				tagNameToken := s.Scan()
-				if tagNameToken == scanner.EOF {
-					return nil, errors.New("unexpected EOF in the middle of a tag name")
+				// Continue if it's a separator we want to include in tags or alphanumeric
+				if nextRune == '/' || nextRune == '-' || 
+					unicode.IsLetter(rune(nextRune)) || unicode.IsDigit(rune(nextRune)) {
+					s.Scan() // consume the token
+					tag += s.TokenText()
+				} else {
+					break
 				}
-				tag += "-" + s.TokenText()
 			}
 			result.Tags = append(result.Tags, tag)
 
