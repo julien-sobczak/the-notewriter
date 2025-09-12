@@ -167,6 +167,8 @@ func (db *DB) ReadObject(oid oid.OID, kind string) (Object, error) {
 		return CurrentRepository().LoadMediaByOID(oid)
 	case "reminder":
 		return CurrentRepository().LoadReminderByOID(oid)
+	case "memory":
+		return CurrentRepository().LoadMemoryByOID(oid)
 	default:
 		return nil, fmt.Errorf("unknown object kind %q", kind)
 	}
@@ -506,6 +508,7 @@ func NewStatsOnDiskEmpty() *StatsOnDisk {
 			"media":     0,
 			"link":      0,
 			"reminder":  0,
+			"memory":    0,
 		},
 		IndexObjects: 0,
 		TotalSizeKB:  0,

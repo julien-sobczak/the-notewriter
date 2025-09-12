@@ -27,5 +27,5 @@ A **gopher**.
 
 ## TODO: Conferences
 
-* [Gophercon Europe](https://gophercon.eu/) `#reminder-2023-06-26`
+* [Gophercon Europe](https://gophercon.eu/) `#reminder-2023-06-26` `@attended_date: 2022-06-24`
 

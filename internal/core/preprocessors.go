@@ -348,6 +348,7 @@ func parseListItemWithIndent(line string, lineNumber int) *listItemWithIndent {
 	// Extract tags, attributes, and emojis
 	configAttributes := CurrentConfigFile().Attributes
 	tags, attributes, emojis := ExtractAllTagsAndAttributesAndEmojis(doc, configAttributes)
+
 	// Filter tags and attributes but keep emojis (and preservable shorthands)
 	trimmedText := doc.MustTransform(StripTagsAndAttributes(configAttributes))
 
@@ -426,7 +427,7 @@ func MasterPreprocessor(file *ParsedFile) (*ParsedFile, error) {
 		}
 
 		if templateContent == "" {
-			return file, fmt.Errorf("Master note %q must contain a gotemplate code block", note.ShortTitle)
+			return file, fmt.Errorf("master note %q must contain a gotemplate code block", note.ShortTitle)
 		}
 
 		// Create template with custom functions

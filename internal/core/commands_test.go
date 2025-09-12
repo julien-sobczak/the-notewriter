@@ -157,7 +157,7 @@ func TestCommandAdd(t *testing.T) {
 
 		idx := MustReadIndex()
 		require.Len(t, idx.Entries, 2) // markdown + 1 referenced media
-		require.Len(t, idx.Objects, 8)
+		require.Len(t, idx.Objects, 9)
 		require.Len(t, idx.Blobs, 4)
 
 		// Check 1: Try to add the same file edited several times
@@ -187,7 +187,7 @@ func TestCommandAdd(t *testing.T) {
 		// Check the file is still listed only once
 		idx = MustReadIndex()
 		assert.Len(t, idx.Entries, 2)
-		assert.Len(t, idx.Objects, 8)
+		assert.Len(t, idx.Objects, 9)
 		assert.Len(t, idx.Blobs, 4)
 	})
 
@@ -404,7 +404,7 @@ Guido van Rossum
 			{
 				RelativePath: "go.md",
 				Status:       "added",
-				ObjectsAdded: 7,
+				ObjectsAdded: 8,
 			},
 			{
 				RelativePath: "medias/go.svg",
@@ -481,7 +481,7 @@ Guido van Rossum
 			{
 				RelativePath: "go.md",
 				Status:       "added",
-				ObjectsAdded: 7,
+				ObjectsAdded: 8,
 			},
 			{
 				RelativePath: "medias/go.svg",

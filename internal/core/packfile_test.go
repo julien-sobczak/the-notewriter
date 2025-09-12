@@ -270,7 +270,7 @@ func TestPackFile(t *testing.T) {
 		// Use regex for all data fields
 		reBase64 := regexp.MustCompile(`^[A-Za-z0-9+/=\s]+$`)
 		testutil.AssertYAMLMatches(t, map[string]any{
-			"oid":                "4c578e5279f7b0eadf52c1ff5e8492bdb9a426fe",
+			"oid":                "9283847654d7344af692fc7efb4ec53a2dbfbfc5",
 			"file_relative_path": "go.md",
 			"file_mtime":         "2023-01-01T12:30:00Z",
 			"file_size":          1,
@@ -325,6 +325,13 @@ func TestPackFile(t *testing.T) {
 					"desc":  `reminder #reminder-2023-06-26 [8000000000000000000000000000000000000000]`,
 					"data":  reBase64,
 				},
+				map[string]any{
+					"oid":   "9000000000000000000000000000000000000000",
+					"kind":  "memory",
+					"ctime": "2023-01-01T12:30:00Z",
+					"desc":  `memory "[Gophercon Europe](https://gophercon.eu/)" occurred at 2022-06-24`,
+					"data":  reBase64,
+				},
 			},
 			"blobs": []any{
 				map[string]any{
@@ -340,8 +347,8 @@ func TestPackFile(t *testing.T) {
 		packFileDest := new(PackFile)
 		err = packFileDest.Read(bytes.NewReader(yamlBytes))
 		require.NoError(t, err)
-		require.Equal(t, oid.MustParse("4c578e5279f7b0eadf52c1ff5e8492bdb9a426fe"), packFileDest.OID)
-		require.Len(t, packFileDest.PackObjects, 7)
+		require.Equal(t, oid.MustParse("9283847654d7344af692fc7efb4ec53a2dbfbfc5"), packFileDest.OID)
+		require.Len(t, packFileDest.PackObjects, 8)
 
 		// Unmarshall the note
 		noteDest := new(Note)

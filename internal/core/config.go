@@ -988,6 +988,17 @@ func (c *Config) Check() error {
 			}
 		}
 
+		// Check that Memory is only set on date format attributes
+		if attribute.Memory != nil && *attribute.Memory {
+			if attribute.Type != "string" && attribute.Type != "date" {
+				return fmt.Errorf("memory can only be enabled on string or date type attributes, but attribute %q has type %q", attribute.Name, attribute.Type)
+			}
+			if attribute.Format == "" {
+				return fmt.Errorf("memory requires a date format to be specified, but attribute %q has no format", attribute.Name)
+			}
+
+		}
+
 		// Check for invalid shorthand values
 		for shorthandKey, shorthandValue := range attribute.Shorthands {
 			if valid, err := attribute.Valid(shorthandValue); !valid {
@@ -1081,3 +1092,5 @@ func (c *Config) Save() error {
 func BoolPointer(b bool) *bool {
 	return &b
 }
+
+

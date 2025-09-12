@@ -58,6 +58,20 @@
             },
             preserveShorthand: true,
         },
+        read_date: {
+            name: "read_date",
+            type: "string", # Avoid type "date" to not dump a full date as timestamp
+            format: "yyyy-mm-dd",
+            inherit: true, // Often declared in Front Matter
+            memory: true, // Used to mark this note as memory
+        },
+        attended_date: {
+            name: "attended_date",
+            type: "string", # Avoid type "date" to not dump a full date as timestamp
+            format: "yyyy-mm-dd",
+            inherit: true, // Often declared in Front Matter
+            memory: true, // Used to mark this note as memory
+        },
     },
 
     // Declare default note types
@@ -148,6 +162,9 @@
                 },
             ],
             preprocessors: ["list-items"],
+        },
+        Master: self.Note + {
+            name: "Master",
         },
     },
 
