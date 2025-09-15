@@ -126,7 +126,9 @@ func GeneratorPreprocessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, e
 		}
 
 		cmdArgs = append(cmdArgs, interpreter)
-	} else if filename != "" { // External
+	}
+
+	if filename != "" { // External
 		scriptPath := filepath.Join(filepath.Dir(file.Markdown.AbsolutePath), filename)
 
 		// Check file exists
@@ -142,7 +144,6 @@ func GeneratorPreprocessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, e
 
 		cmdArgs = append(cmdArgs, scriptPath)
 	} else { // Internal
-
 		// Search for the first code block in note
 		codeBlocks := note.Body.ExtractCodeBlocks()
 		if len(codeBlocks) == 0 {
@@ -159,17 +160,22 @@ func GeneratorPreprocessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, e
 		}
 
 		// Expect the Markdown language
-		cmdArgs = append(cmdArgs, scriptLanguage)
+		if interpreter == "" {
+			// Ex: "python" but doesn't overridde if interpreter is set (ex: "python3")
+			cmdArgs = append(cmdArgs, scriptLanguage)
+		}
 
 		scriptPath, err := os.CreateTemp("", "ntscript")
 		if err != nil {
 			return nil, fmt.Errorf("unable to create temporary script for generator %q: %w", note.ShortTitle, err)
 		}
-		defer os.Remove(scriptPath.Name())
+		//defer os.Remove(scriptPath.Name())
 		os.WriteFile(scriptPath.Name(), []byte(scriptContent), 0755)
 
 		cmdArgs = append(cmdArgs, scriptPath.Name())
 	}
+
+	CurrentLogger().Infof("Running generator command: %s", strings.Join(cmdArgs, " "))
 
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
 	var stdout, stderr bytes.Buffer
@@ -180,6 +186,9 @@ func GeneratorPreprocessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, e
 		fmt.Fprintf(os.Stderr, "%s\n", stderr.Bytes())
 		return nil, fmt.Errorf("failed to run generator command %q: %w", strings.Join(cmdArgs, " "), err)
 	}
+
+	CurrentLogger().Tracef("Generator %q stdout:\n%s", note.ShortTitle, stdout.Bytes())
+	CurrentLogger().Tracef("Generator %q stderr:\n%s", note.ShortTitle, stderr.Bytes())
 
 	mdPath, err := os.CreateTemp("", "ntmd")
 	if err != nil {

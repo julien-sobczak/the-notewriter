@@ -157,7 +157,7 @@
                     name: "interpreter",
                 },
             ],
-            preprocessors: ["generator"],
+            preprocessors: ["generator", "list-items"],
         },
         ReadingList: self.Note + {
             name: "ReadingList",

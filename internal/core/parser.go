@@ -268,7 +268,7 @@ func ParseFile(md *markdown.File, mdParent *markdown.File) (*ParsedFile, error) 
 
 	// Extract tags and attributes from shortTitle
 	titleAttributes := ExtractAttributes(shortTitle, CurrentConfigFile().Attributes)
-	
+
 	// Merge title attributes into fileAttributes
 	fileAttributes = fileAttributes.Merge(titleAttributes)
 
@@ -549,7 +549,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 			parsedNotes = newParsedNotes
 		}
 
-		notes = append(notes, parsedNote)
+		notes = append(notes, parsedNotes...)
 		noteSections = append(noteSections, section)
 	}
 
