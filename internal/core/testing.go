@@ -420,6 +420,7 @@ func (tr *TestRepository) ParseFile(relativePath string) *ParsedFile {
 
 	parsedFile, err := ParseOrphanFile(markdownFile)
 	require.NoError(tr.t, err)
+	require.NotNil(tr.t, parsedFile)
 
 	return parsedFile
 }

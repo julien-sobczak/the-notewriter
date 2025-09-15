@@ -266,6 +266,16 @@ func ParseFile(md *markdown.File, mdParent *markdown.File) (*ParsedFile, error) 
 	}
 	_, shortTitle, _ := CurrentConfigFile().IsSupportedType(string(title))
 
+	// Extract tags and attributes from shortTitle
+	titleAttributes := ExtractAttributes(shortTitle, CurrentConfigFile().Attributes)
+	
+	// Merge title attributes into fileAttributes
+	fileAttributes = fileAttributes.Merge(titleAttributes)
+
+	// Strip tags and attributes from titles
+	title = title.MustTransform(StripTagsAndAttributes(CurrentConfigFile().Attributes))
+	shortTitle = shortTitle.MustTransform(StripTagsAndAttributes(CurrentConfigFile().Attributes))
+
 	// Extract/Generate slug
 	relativePath := CurrentRepository().GetFileRelativePath(md.AbsolutePath)
 	slug := DetermineFileSlug(relativePath)
@@ -390,20 +400,23 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		// Process shorthands from shortTitle
 		extractedAttributes := ExtractShorthands(shortTitle, configAttributes)
 
+		// Extract tags and attributes from shortTitle
+		titleAttributes := ExtractAttributes(shortTitle, configAttributes)
+
 		// Apply extracted shorthand attributes
 		for attrName, attrValue := range extractedAttributes {
 			noteAttributes[attrName] = attrValue
 		}
 
-		// Update titles by removing shorthands only if not-preservable
-		modifiedTitle := title.MustTransform(StripShorthands(configAttributes))
-		if modifiedTitle != title {
-			title = markdown.Document(modifiedTitle)
-		}
-		modifiedShortTitle := shortTitle.MustTransform(StripShorthands(configAttributes))
-		if modifiedShortTitle != shortTitle {
-			shortTitle = markdown.Document(modifiedShortTitle)
-		}
+		// Add title tags to noteTags
+		noteTags = noteTags.Merge(titleAttributes.Tags())
+
+		// Merge title attributes into noteAttributes
+		noteAttributes = noteAttributes.Merge(titleAttributes)
+
+		// Update titles by removing shorthands, tags, and attributes
+		title = title.MustTransform(StripTagsAndAttributes(configAttributes))
+		shortTitle = shortTitle.MustTransform(StripTagsAndAttributes(configAttributes))
 
 		// Ignore ignorabled notes
 		if noteTags.Includes("ignore") {

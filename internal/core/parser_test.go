@@ -715,6 +715,54 @@ Another note without a code block.
 		// Only the body is post-processed. Therefore, medias are replaced by <media> tags only inside it.
 	})
 
+	t.Run("Title Attributes", func(t *testing.T) {
+		// Test the new functionality for extracting tags and attributes from titles
+		tr := core.NewTestRepository(t)
+		tr.WriteFile("test.md", `
+# My Notes ‛@project: topsecret‛ ‛#low-motivation‛ ❗️
+
+## Note: Important Topic ‛#critical‛ ‛@priority: high‛ ★★★
+
+This is a critical note with high priority.
+
+## Quote: Famous Quote ‛#inspirational‛
+
+‛#life-changing‛ ‛@name: Someone Famous‛
+
+> This is an inspirational quote.
+`)
+
+		// Parse the file
+		parsedFile := tr.ParseFile("test.md")
+
+		// Check tags/attributes were extracted from the file title
+		require.True(t, parsedFile.FileAttributes.Includes("project"))
+		assert.Equal(t, core.AttributeSet(map[string]any{
+			"priority": "high",
+			"project":  "topsecret",
+			"tags":     []string{"low-motivation"},
+		}), parsedFile.FileAttributes)
+		assert.True(t, parsedFile.FileAttributes.Tags().Includes("low-motivation"))
+
+		// Check tags/attributes were stripped from file titles
+		assert.Equal(t, "My Notes", parsedFile.Title.String())
+		assert.Equal(t, "My Notes", parsedFile.ShortTitle.String())
+
+		require.Len(t, parsedFile.Notes, 2)
+		parsedNote1 := parsedFile.Notes[0]
+		parsedNote2 := parsedFile.Notes[1]
+
+		// Check tags/attributes were extracted from the first note title
+		assert.ElementsMatch(t, []string{"priority", "project", "rating", "tags"}, parsedNote1.Attributes.Keys())
+		assert.ElementsMatch(t, []string{"name", "priority", "project", "tags"}, parsedNote2.Attributes.Keys())
+
+		// Check tags/attributes were stripped from note titles
+		assert.Equal(t, "Note: Important Topic ★★★", parsedNote1.Title.String())
+		assert.Equal(t, "Important Topic ★★★", parsedNote1.ShortTitle.String())
+		assert.Equal(t, "Quote: Famous Quote", parsedNote2.Title.String())
+		assert.Equal(t, "Famous Quote", parsedNote2.ShortTitle.String())
+	})
+
 }
 
 func TestDetermineFileSlug(t *testing.T) {
