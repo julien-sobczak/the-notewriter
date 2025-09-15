@@ -266,6 +266,7 @@ func TestStatsInDB(t *testing.T) {
 	assert.Equal(t, 0, stats.Objects["media"])
 	assert.Equal(t, 0, stats.Objects["link"])
 	assert.Equal(t, 0, stats.Objects["reminder"])
+	assert.Equal(t, 0, stats.Objects["memory"])
 
 	_, err = CurrentRepository().Add(AnyPath)
 	require.NoError(t, err)
@@ -278,6 +279,7 @@ func TestStatsInDB(t *testing.T) {
 	assert.Greater(t, stats.Objects["media"], 0)
 	assert.Greater(t, stats.Objects["link"], 0)
 	assert.Greater(t, stats.Objects["reminder"], 0)
+	assert.Greater(t, stats.Objects["memory"], 0)
 
 	assert.Equal(t, map[string]int{
 		"go":      3,

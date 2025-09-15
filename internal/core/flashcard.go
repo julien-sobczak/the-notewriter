@@ -196,11 +196,7 @@ func (f *Flashcard) ModificationTime() time.Time {
 }
 
 func (f *Flashcard) Read(r io.Reader) error {
-	err := yaml.NewDecoder(r).Decode(f)
-	if err != nil {
-		return err
-	}
-	return nil
+	return yaml.NewDecoder(r).Decode(f)
 }
 
 func (f *Flashcard) Write(w io.Writer) error {
@@ -655,11 +651,7 @@ func (s *Study) ModificationTime() time.Time {
 }
 
 func (s *Study) Read(r io.Reader) error {
-	err := yaml.NewDecoder(r).Decode(s)
-	if err != nil {
-		return err
-	}
-	return nil
+	return yaml.NewDecoder(r).Decode(s)
 }
 
 func (s *Study) Write(w io.Writer) error {

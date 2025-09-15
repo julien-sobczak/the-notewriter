@@ -17,6 +17,10 @@ build:
 	go build --tags "fts5" -o build/ntanki cmd/nt-anki/*.go
 	go build --tags "fts5" -o build/ntbook cmd/nt-book/*.go
 
+fix:
+	go build --tags "fts5" -o build/nt cmd/nt/*.go
+	cp build/nt /Users/julien/go/bin/nt
+
 build-example:
 	@rm -Rf example/.nt/{objects,refs,database.db,index}
 	@cd example; nt add --v . && nt commit; cd ..;

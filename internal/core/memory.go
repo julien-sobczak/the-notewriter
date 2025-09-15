@@ -96,8 +96,7 @@ func (m *Memory) PackFileRef() PackFileRef {
 }
 
 func (m *Memory) Read(r io.Reader) error {
-	err := yaml.NewDecoder(r).Decode(m)
-	return err
+	return yaml.NewDecoder(r).Decode(m)
 }
 
 func (m *Memory) Write(w io.Writer) error {
@@ -257,10 +256,10 @@ func QueryMemory(db SQLClient, whereClause string, args ...any) (*Memory, error)
 			&m.NoteOID,
 			&m.RelativePath,
 			&m.Text,
-			&m.OccurredAt,
-			&m.CreatedAt,
-			&m.UpdatedAt,
-			&m.IndexedAt,
+			&occurredAt,
+			&createdAt,
+			&updatedAt,
+			&indexedAt,
 		); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil

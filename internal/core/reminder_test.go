@@ -12,6 +12,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+
+func TestReminderInterfaces(t *testing.T) {
+	var reminder Reminder
+	assert.Implements(t, (*StatefulObject)(nil), &reminder)
+	assert.Implements(t, (*Packable)(nil), &reminder)
+}
+
 func TestReminder(t *testing.T) {
 	tr := NewTestRepository(t, WithFreezeNow())
 

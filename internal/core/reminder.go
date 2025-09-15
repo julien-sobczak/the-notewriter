@@ -105,11 +105,7 @@ func (r *Reminder) ModificationTime() time.Time {
 }
 
 func (n *Reminder) Read(r io.Reader) error {
-	err := yaml.NewDecoder(r).Decode(n)
-	if err != nil {
-		return err
-	}
-	return nil
+	return yaml.NewDecoder(r).Decode(n)
 }
 
 func (r *Reminder) Write(w io.Writer) error {
@@ -223,6 +219,10 @@ func EvaluateTimeExpression(expr string) (time.Time, error) {
 // EvaluateTimeExpressionAfter determine the next matching reminder date after the given timestamp.
 func EvaluateTimeExpressionAfter(timestamp time.Time, expr string) (time.Time, error) {
 	originalExpr := expr
+
+	if timestamp.IsZero() {
+		timestamp = clock.Now()
+	}
 
 	// Static dates are easier to address first
 	var reStaticDate = regexp.MustCompile(`(\d{4})(?:-(\d{2})(?:-(\d{2})))`)
@@ -648,11 +648,37 @@ func (r *Reminder) Save() error {
 		return err
 	}
 
+	if r.LastPerformedAt.IsZero() {
+		// Special case.
+		// If the reminder was never performed, we need to ensure that the next date is still valid,
+		// otherwise the reminder will never be triggered.
+		_ = r.Next()
+		CurrentLogger().Debugf("Reminder %s is still pending (not yet performed)", r.Description)
+		return r.SaveMetadata()
+	}
+
 	return nil
 }
 
 func (r *Reminder) SaveMetadata() error {
-	// No operation-related fields for now
+	CurrentLogger().Debugf("Saving reminder metadata %s...", r)
+	query := `
+		UPDATE reminder
+		SET
+			last_performed_at = ?,
+			next_performed_at = ?
+		WHERE oid = ?
+		;
+	`
+	_, err := CurrentDB().Client().Exec(query,
+		timeToSQL(r.LastPerformedAt),
+		timeToSQL(r.NextPerformedAt),
+		r.OID,
+	)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

@@ -91,11 +91,7 @@ func (l *Goto) ModificationTime() time.Time {
 }
 
 func (l *Goto) Read(r io.Reader) error {
-	err := yaml.NewDecoder(r).Decode(l)
-	if err != nil {
-		return err
-	}
-	return nil
+	return yaml.NewDecoder(r).Decode(l)
 }
 
 func (l *Goto) Write(w io.Writer) error {

@@ -117,6 +117,10 @@ func (od ObjectData) Unmarshal(target interface{}) error {
 		r.Read(dest)
 		return nil
 	}
+	if r, ok := target.(*Memory); ok {
+		r.Read(dest)
+		return nil
+	}
 	if r, ok := target.(*Operation); ok {
 		r.Read(dest)
 		return nil
@@ -194,6 +198,10 @@ func (p *PackObject) Read() Packable {
 		reminder := new(Reminder)
 		p.Data.Unmarshal(reminder)
 		return reminder
+	case "memory":
+		memory := new(Memory)
+		p.Data.Unmarshal(memory)
+		return memory
 	case "operation":
 		operation := new(Operation)
 		p.Data.Unmarshal(operation)
@@ -304,11 +312,7 @@ func (p *PackFile) UniqueOID() oid.OID {
 
 // Read populates a pack file from an object file.
 func (p *PackFile) Read(r io.Reader) error {
-	err := yaml.NewDecoder(r).Decode(&p)
-	if err != nil {
-		return err
-	}
-	return nil
+	return yaml.NewDecoder(r).Decode(&p)
 }
 
 // Write dumps a pack file to an object file.
@@ -689,7 +693,7 @@ func NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFile, error) {
 			objects = append(objects, reminder)
 		}
 
-		// Process the Memory(ies)
+		// Process the Memories
 		for _, parsedMemory := range parsedNote.Memories {
 			memory, err := NewOrExistingMemory(packFile, note, parsedMemory)
 			if err != nil {

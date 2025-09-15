@@ -16,6 +16,13 @@ var smallestGIF = []byte{
 	71, 73, 70, 56, 57, 97, 1, 0, 1, 0, 0, 0, 0, 33, 249, 4, 1, 10, 0, 1, 0, 44, 0, 0, 0, 0, 1, 0, 1, 0, 0, 2, 2, 76, 1, 0, 59,
 }
 
+func TestMediaInterfaces(t *testing.T) {
+	var media Media
+	assert.Implements(t, (*StatefulObject)(nil), &media)
+	assert.Implements(t, (*Packable)(nil), &media)
+	assert.Implements(t, (*FileObject)(nil), &media)
+}
+
 func TestMedia(t *testing.T) {
 
 	t.Run("Basic", func(t *testing.T) {

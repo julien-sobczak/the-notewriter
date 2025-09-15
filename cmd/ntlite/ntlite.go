@@ -191,11 +191,7 @@ func (f *File) UniqueOID() oid.OID {
 /* Index Management */
 
 func (f *File) Read(r io.Reader) error {
-	err := yaml.NewDecoder(r).Decode(f)
-	if err != nil {
-		return err
-	}
-	return nil
+	return yaml.NewDecoder(r).Decode(f)
 }
 
 func (f *File) Write(w io.Writer) error {
@@ -354,11 +350,7 @@ func (n *Note) UniqueOID() oid.OID {
 /* Index Management */
 
 func (n *Note) Read(r io.Reader) error {
-	err := yaml.NewDecoder(r).Decode(n)
-	if err != nil {
-		return err
-	}
-	return nil
+	return yaml.NewDecoder(r).Decode(n)
 }
 
 func (n *Note) Write(w io.Writer) error {
@@ -561,11 +553,7 @@ func LoadPackFileFromPath(path string) (*PackFile, error) {
 
 // Read populates a pack file from an object file.
 func (p *PackFile) Read(r io.Reader) error {
-	err := yaml.NewDecoder(r).Decode(&p)
-	if err != nil {
-		return err
-	}
-	return nil
+	return yaml.NewDecoder(r).Decode(&p)
 }
 
 // Write dumps a pack file to an object file.
@@ -725,11 +713,7 @@ func (i *Index) Save() error {
 
 // Read reads an index from the file.
 func (i *Index) Read(r io.Reader) error {
-	err := yaml.NewDecoder(r).Decode(&i)
-	if err != nil {
-		return err
-	}
-	return nil
+	return yaml.NewDecoder(r).Decode(&i)
 }
 
 // Write dumps the index to a file.

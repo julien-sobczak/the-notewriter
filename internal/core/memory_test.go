@@ -12,6 +12,12 @@ import (
 func TestMemory(t *testing.T) {
 	testutil.FreezeNow(t)
 
+	t.Run("Interfaces", func(t *testing.T) {
+		var memory core.Memory
+		assert.Implements(t, (*core.StatefulObject)(nil), &memory)
+		assert.Implements(t, (*core.Packable)(nil), &memory)
+	})
+
 	t.Run("Memory from list item attributes", func(t *testing.T) {
 		// Create test repository with custom config that includes memory attribute
 		tr := core.NewTestRepository(t, core.WithConfigFileOverride(func(c *core.ConfigFile) {

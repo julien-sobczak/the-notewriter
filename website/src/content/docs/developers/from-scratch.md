@@ -243,11 +243,7 @@ func (f *File) ModificationTime() time.Time {
 }
 
 func (f *File) Read(r io.Reader) error {
-	err := yaml.NewDecoder(r).Decode(f)
-	if err != nil {
-		return err
-	}
-	return nil
+	return yaml.NewDecoder(r).Decode(f)
 }
 
 func (f *File) Write(w io.Writer) error {

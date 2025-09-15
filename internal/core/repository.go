@@ -933,6 +933,10 @@ func (r *Repository) CountObjectsByType() (map[string]int, error) {
 	if err != nil {
 		return nil, err
 	}
+	countMemories, err := r.CountMemories()
+	if err != nil {
+		return nil, err
+	}
 
 	return map[string]int{
 		"file":      countFiles,
@@ -941,6 +945,7 @@ func (r *Repository) CountObjectsByType() (map[string]int, error) {
 		"media":     countMedias,
 		"link":      countLinks,
 		"reminder":  countReminders,
+		"memory":    countMemories,
 	}, nil
 }
 
@@ -1101,6 +1106,7 @@ func NewStatsInDBEmpty() *StatsInDB {
 			"media":     0,
 			"link":      0,
 			"reminder":  0,
+			"memory":    0,
 		},
 		Types:      map[string]int{},
 		Tags:       map[string]int{},

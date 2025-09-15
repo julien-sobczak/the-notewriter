@@ -111,11 +111,7 @@ func (o *Operation) UniqueOID() oid.OID {
 	return o.OID
 }
 func (o *Operation) Read(r io.Reader) error {
-	err := yaml.NewDecoder(r).Decode(o)
-	if err != nil {
-		return err
-	}
-	return nil
+	return yaml.NewDecoder(r).Decode(o)
 }
 func (o *Operation) Write(w io.Writer) error {
 	data, err := yaml.Marshal(o)

@@ -276,11 +276,7 @@ func (i *Index) Reload() error {
 
 // Read read an index from the file.
 func (i *Index) Read(r io.Reader) error {
-	err := yaml.NewDecoder(r).Decode(&i)
-	if err != nil {
-		return err
-	}
-	return nil
+	return yaml.NewDecoder(r).Decode(&i)
 }
 
 // Write dumps the index to a file.

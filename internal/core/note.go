@@ -225,11 +225,7 @@ func (n *Note) ModificationTime() time.Time {
 }
 
 func (n *Note) Read(r io.Reader) error {
-	err := yaml.NewDecoder(r).Decode(n)
-	if err != nil {
-		return err
-	}
-	return nil
+	return yaml.NewDecoder(r).Decode(n)
 }
 
 func (n *Note) Write(w io.Writer) error {

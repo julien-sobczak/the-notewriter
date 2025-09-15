@@ -12,6 +12,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestFlashcardInterfaces(t *testing.T) {
+	var flashcard Flashcard
+	assert.Implements(t, (*StatefulObject)(nil), &flashcard)
+	assert.Implements(t, (*Packable)(nil), &flashcard)
+}
+
 func TestFlashcard(t *testing.T) {
 	tr := NewTestRepository(t, WithFreezeNow())
 

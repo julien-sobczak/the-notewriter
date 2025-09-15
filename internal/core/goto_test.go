@@ -13,6 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestGotoInterfaces(t *testing.T) {
+	var gotoObj Goto
+	assert.Implements(t, (*StatefulObject)(nil), &gotoObj)
+	assert.Implements(t, (*Packable)(nil), &gotoObj)
+}
+
 func TestGoto(t *testing.T) {
 	tr := NewTestRepository(t, WithFreezeNow())
 

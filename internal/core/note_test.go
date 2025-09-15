@@ -13,6 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestNoteInterfaces(t *testing.T) {
+	var note Note
+	assert.Implements(t, (*StatefulObject)(nil), &note)
+	assert.Implements(t, (*Packable)(nil), &note)
+}
+
 func TestNote(t *testing.T) {
 	tr := NewTestRepository(t, WithFreezeNow())
 

@@ -317,11 +317,7 @@ func (m *Media) ModificationTime() time.Time {
 }
 
 func (m *Media) Read(r io.Reader) error {
-	err := yaml.NewDecoder(r).Decode(m)
-	if err != nil {
-		return err
-	}
-	return nil
+	return yaml.NewDecoder(r).Decode(m)
 }
 
 func (m *Media) Write(w io.Writer) error {

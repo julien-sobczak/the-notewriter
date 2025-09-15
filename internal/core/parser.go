@@ -374,6 +374,15 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 
 	for _, section := range sections {
 
+		// Determine the titles
+		title := section.HeadingText
+		noteType, shortTitle, supported := CurrentConfigFile().IsSupportedType(string(title))
+
+		if !supported {
+			// Ex: top-level heading, subsections inside a "Note:" already included in the containing note, ...
+			continue
+		}
+
 		// Trim content to remove sub-notes (= typed notes)
 		noteContent := section.ContentText.MustTransform(StripSubNotesTransformer)
 
@@ -387,15 +396,6 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 
 		// Determine the attributes
 		noteTags, noteAttributes := ExtractBlockTagsAndAttributes(noteBody, configAttributes)
-
-		// Determine the titles
-		title := section.HeadingText
-		noteType, shortTitle, supported := CurrentConfigFile().IsSupportedType(string(title))
-
-		if !supported {
-			// Ex: top-level heading, subsections inside a "Note:" already included in the containing note, ...
-			continue
-		}
 
 		// Process shorthands from shortTitle
 		extractedAttributes := ExtractShorthands(shortTitle, configAttributes)

@@ -13,6 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestFileInterfaces(t *testing.T) {
+	var file File
+	assert.Implements(t, (*StatefulObject)(nil), &file)
+	assert.Implements(t, (*Packable)(nil), &file)
+	assert.Implements(t, (*FileObject)(nil), &file)
+}
+
 func TestFile(t *testing.T) {
 	tr := NewTestRepository(t, WithFreezeNow())
 

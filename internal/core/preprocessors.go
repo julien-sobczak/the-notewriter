@@ -36,7 +36,7 @@ func DateExtractorPreprocessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNot
 		note.Attributes.SetIfMissing("date", date)
 		note.NoteAttributes.SetIfMissing("date", date)
 	}
-	return nil, nil
+	return []*ParsedNote{note}, nil
 }
 
 // ExtractDateFromTitle extracts a date from the title of a note.
