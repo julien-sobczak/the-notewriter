@@ -718,25 +718,49 @@ Another note without a code block.
 	t.Run("Title Attributes", func(t *testing.T) {
 		// Test the new functionality for extracting tags and attributes from titles
 		tr := core.NewTestRepository(t)
-		tr.WriteFile("test.md", "# My Notes ‛@project: topsecret‛ ‛#low-motivation‛")
+		tr.WriteFile("test.md", `
+# My Notes ‛@project: topsecret‛ ‛#low-motivation‛ ❗️
+
+## Note: Important Topic ‛#critical‛ ‛@priority: high‛ ★★★
+
+This is a critical note with high priority.
+
+## Quote: Famous Quote ‛#inspirational‛
+
+‛#life-changing‛ ‛@name: Someone Famous‛
+
+> This is an inspirational quote.
+`)
 
 		// Parse the file
-		md := markdown.MustParseFile(filepath.Join(tr.Root, "test.md"))
-		parsedFile, err := core.ParseFile(md, nil)
-		require.NoError(t, err)
-		require.NotNil(t, parsedFile)
+		parsedFile := tr.ParseFile("test.md")
 
-		// Check that tags and attributes were extracted from the title
-		expectedTags := core.TagSet([]string{"low-motivation"})
-		assert.Equal(t, expectedTags, parsedFile.FileAttributes.Tags())
+		// Check tags/attributes were extracted from the file title
+		require.True(t, parsedFile.FileAttributes.Includes("project"))
+		assert.Equal(t, core.AttributeSet(map[string]any{
+			"priority": "high",
+			"project":  "topsecret",
+			"tags":     []string{"low-motivation"},
+		}), parsedFile.FileAttributes)
+		assert.True(t, parsedFile.FileAttributes.Tags().Includes("low-motivation"))
 
-		projectAttr, exists := parsedFile.FileAttributes["project"]
-		assert.True(t, exists)
-		assert.Equal(t, "topsecret", projectAttr)
-
-		// Check that tags and attributes were stripped from titles
+		// Check tags/attributes were stripped from file titles
 		assert.Equal(t, "My Notes", parsedFile.Title.String())
 		assert.Equal(t, "My Notes", parsedFile.ShortTitle.String())
+
+		require.Len(t, parsedFile.Notes, 2)
+		parsedNote1 := parsedFile.Notes[0]
+		parsedNote2 := parsedFile.Notes[1]
+
+		// Check tags/attributes were extracted from the first note title
+		assert.ElementsMatch(t, []string{"priority", "project", "rating", "tags"}, parsedNote1.Attributes.Keys())
+		assert.ElementsMatch(t, []string{"name", "priority", "project", "tags"}, parsedNote2.Attributes.Keys())
+
+		// Check tags/attributes were stripped from note titles
+		assert.Equal(t, "Note: Important Topic ★★★", parsedNote1.Title.String())
+		assert.Equal(t, "Important Topic ★★★", parsedNote1.ShortTitle.String())
+		assert.Equal(t, "Quote: Famous Quote", parsedNote2.Title.String())
+		assert.Equal(t, "Famous Quote", parsedNote2.ShortTitle.String())
 	})
 
 }
@@ -1123,38 +1147,4 @@ func TestReplaceMedias(t *testing.T) {
 			assert.Equal(t, tt.expected, result.String())
 		})
 	}
-}
-
-func TestNoteTitleTagsAndAttributes(t *testing.T) {
-	// Test the new functionality for extracting tags and attributes from note titles
-	tr := core.NewTestRepository(t)
-	tr.WriteFile("notes.md", "# My Notes\n\n## Note: Important Topic ‛#critical‛ ‛@priority: high‛\n\nThis is a critical note with high priority.\n\n## Quote: Famous Quote ‛#inspirational‛\n\n> This is an inspirational quote.\n")
-
-	// Parse the file
-	md := markdown.MustParseFile(filepath.Join(tr.Root, "notes.md"))
-	parsedFile, err := core.ParseFile(md, nil)
-	require.NoError(t, err)
-	require.NotNil(t, parsedFile)
-	require.Len(t, parsedFile.Notes, 2)
-
-	// Check first note (Important Topic)
-	note1 := parsedFile.Notes[0]
-	assert.Equal(t, "Note: Important Topic", note1.Title.String())
-	assert.Equal(t, "Important Topic", note1.ShortTitle.String())
-	
-	// Check tags include the one from title
-	assert.Contains(t, note1.NoteTags, "critical")
-	
-	// Check attributes include the one from title
-	priority, exists := note1.NoteAttributes["priority"]
-	assert.True(t, exists)
-	assert.Equal(t, "high", priority)
-
-	// Check second note (Famous Quote)
-	note2 := parsedFile.Notes[1]
-	assert.Equal(t, "Quote: Famous Quote", note2.Title.String())
-	assert.Equal(t, "Famous Quote", note2.ShortTitle.String())
-	
-	// Check tags include the one from title
-	assert.Contains(t, note2.NoteTags, "inspirational")
 }

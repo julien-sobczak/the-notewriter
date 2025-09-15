@@ -285,7 +285,9 @@ func TestStatsInDB(t *testing.T) {
 	}, stats.Tags)
 
 	assert.Equal(t, map[string]int{
-		"source": 1,
-		"tags":   3,
+		"source":   1,
+		"priority": 1,
+		"status":   1,
+		"tags":     3,
 	}, stats.Attributes)
 }

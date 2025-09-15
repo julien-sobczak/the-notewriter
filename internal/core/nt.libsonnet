@@ -11,15 +11,18 @@
             aliases: ["state"],
             description: "Status of a task",
             type: "string",
-            options: ["todo", "in-progress", "done", "cancelled", "on-hold"],
+            options: ["todo", "planned", "in-progress", "done", "cancelled", "on-hold", "blocked", "archived"],
             defaultValue: "todo",
             shorthands: {
                 "📝": "todo",
+                "📅": "planned",
                 "❓": "to-refine",
                 "⏱️": "in-progress",
                 "✅": "done",
                 "❌": "cancelled",
                 "⏸️": "on-hold",
+                "🚧": "blocked",
+                "🗄️": "archived",
             },
             preserveShorthand: false,
         },
@@ -129,12 +132,17 @@
             attributes: [
                 {
                     name: "status",
+                    inline: true,
+                    required: true,
                 },
                 {
                     name: "due",
+                    inline: true,
                 },
                 {
                     name: "priority",
+                    inline: true,
+                    required: true,
                 },
             ],
             preprocessors: ["list-items"],

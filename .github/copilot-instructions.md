@@ -20,13 +20,9 @@ Always reference these instructions first and fallback to search or bash command
 ### Testing
 - Run unit tests: `make test` -- takes 12-15 seconds. Set timeout to 2+ minutes.
 - Run integration tests: `make test-all` -- takes 14 seconds. Set timeout to 2+ minutes.
-- IMPORTANT: Some tests in `internal/core` fail but this does not prevent normal operation
-- E2E tests pass and core functionality works correctly despite test failures
-- Always run tests to check for regressions but expect some existing failures
 
 ### Testing Best Practices
-- When writing tests that use `tr.WriteFile()`, use "‛" (double apostrophe U+201F) instead of "`" (backtick) for string delimiters to avoid concatenation issues
-- The `WriteFile` method automatically rewrites backticks, so using double apostrophe ensures proper string handling
+- When writing tests that use `tr.WriteFile()`, use "‛" (double apostrophe U+201F) instead of "`" (backtick) for string delimiters to avoid concatenation issues. This method automatically rewrites backticks.
 
 ### Documentation Website
 - Install dependencies: `cd website && npm install` -- takes 1 minute. Set timeout to 5+ minutes.
@@ -55,7 +51,7 @@ Always test complete workflows after making changes:
    ```bash
    # Note: ntlite has known sqlite3 driver issues but other tools work
    ../build/ntreference --help
-   ../build/ntjournal --help  
+   ../build/ntjournal --help
    ../build/ntanki --help
    ```
 
@@ -87,7 +83,7 @@ Always test complete workflows after making changes:
 ├── cmd/              # CLI tool implementations
 │   ├── nt/           # Main note management tool
 │   ├── nt-anki/      # Anki flashcard integration
-│   ├── nt-journal/   # Journaling prompts and affirmations  
+│   ├── nt-journal/   # Journaling prompts and affirmations
 │   ├── nt-reference/ # Reference generation from external sources
 │   └── ntlite/       # Lightweight version (has sqlite3 issues)
 ├── e2e/              # End-to-end tests
@@ -169,7 +165,7 @@ Supported note types: Note, Quote, TODO, Flashcard, Artwork
 ## Critical Build and Test Timing
 - NEVER CANCEL any build or test command before specified timeouts
 - `go mod download`: 4-5 minutes (timeout: 10+ minutes)
-- `make build`: 1 minute (timeout: 3+ minutes)  
+- `make build`: 1 minute (timeout: 3+ minutes)
 - `make test`: 12-15 seconds (timeout: 2+ minutes)
 - `nt add .`: 2+ minutes for example repo (timeout: 5+ minutes)
 - `npm install`: 1 minute (timeout: 5+ minutes)

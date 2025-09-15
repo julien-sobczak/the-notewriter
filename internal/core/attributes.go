@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -83,7 +84,7 @@ func (t TagSet) ToMarkdownNotation() string {
 	if len(t) == 0 {
 		return ""
 	}
-	
+
 	var rendered []string
 	for _, tag := range t {
 		rendered = append(rendered, "`#"+tag+"`")
@@ -348,6 +349,18 @@ func (a AttributeSet) Remove(keys []string) AttributeSet {
 	return result
 }
 
+// Includes checks if the attribute set includes the specified attribute name.
+func (a AttributeSet) Includes(name string) bool {
+	_, ok := a[name]
+	return ok
+}
+
+// Keys returns the list of attribute names.
+func (a AttributeSet) Keys() []string {
+	keys := maps.Keys(a)
+	return slices.Sorted(keys)
+}
+
 func (a AttributeSet) AsMap() map[string]any {
 	return a
 }
@@ -491,7 +504,7 @@ func (a AttributeSet) ToMarkdownNotation(configAttributes ConfigAttributes) stri
 	}
 
 	var rendered []string
-	
+
 	for name, value := range a {
 		// Check if there's a shorthand available
 		if attrDef, exists := configAttributes[name]; exists && attrDef.Shorthands != nil {
@@ -509,11 +522,11 @@ func (a AttributeSet) ToMarkdownNotation(configAttributes ConfigAttributes) stri
 				continue
 			}
 		}
-		
+
 		// No shorthand found, use full attribute notation
 		rendered = append(rendered, fmt.Sprintf(" `@%s: %v`", name, value))
 	}
-	
+
 	return strings.Join(rendered, "")
 }
 
