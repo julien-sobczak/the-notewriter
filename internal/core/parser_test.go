@@ -715,6 +715,30 @@ Another note without a code block.
 		// Only the body is post-processed. Therefore, medias are replaced by <media> tags only inside it.
 	})
 
+	t.Run("Title Attributes", func(t *testing.T) {
+		// Test the new functionality for extracting tags and attributes from titles
+		tr := core.NewTestRepository(t)
+		tr.WriteFile("test.md", "# My Notes ‛@project: topsecret‛ ‛#low-motivation‛")
+
+		// Parse the file
+		md := markdown.MustParseFile(filepath.Join(tr.Root, "test.md"))
+		parsedFile, err := core.ParseFile(md, nil)
+		require.NoError(t, err)
+		require.NotNil(t, parsedFile)
+
+		// Check that tags and attributes were extracted from the title
+		expectedTags := core.TagSet([]string{"low-motivation"})
+		assert.Equal(t, expectedTags, parsedFile.FileAttributes.Tags())
+
+		projectAttr, exists := parsedFile.FileAttributes["project"]
+		assert.True(t, exists)
+		assert.Equal(t, "topsecret", projectAttr)
+
+		// Check that tags and attributes were stripped from titles
+		assert.Equal(t, "My Notes", parsedFile.Title.String())
+		assert.Equal(t, "My Notes", parsedFile.ShortTitle.String())
+	})
+
 }
 
 func TestDetermineFileSlug(t *testing.T) {
@@ -1101,43 +1125,10 @@ func TestReplaceMedias(t *testing.T) {
 	}
 }
 
-func TestTitleTagsAndAttributes(t *testing.T) {
-	// Test the new functionality for extracting tags and attributes from titles
-	tr := core.NewTestRepository(t)
-	tr.WriteFile("test.md", `# Learning `+"`#favorite` `@source: Book`")
-
-	// Parse the file
-	md := markdown.MustParseFile(filepath.Join(tr.Root, "test.md"))
-	parsedFile, err := core.ParseFile(md, nil)
-	require.NoError(t, err)
-	require.NotNil(t, parsedFile)
-
-	// Check that tags and attributes were extracted from the title
-	expectedTags := core.TagSet([]string{"favorite"})
-	assert.Equal(t, expectedTags, parsedFile.FileAttributes.Tags())
-
-	sourceAttr, exists := parsedFile.FileAttributes["source"]
-	assert.True(t, exists)
-	assert.Equal(t, "Book", sourceAttr)
-
-	// Check that tags and attributes were stripped from titles
-	assert.Equal(t, "Learning", parsedFile.Title.String())
-	assert.Equal(t, "Learning", parsedFile.ShortTitle.String())
-}
-
 func TestNoteTitleTagsAndAttributes(t *testing.T) {
 	// Test the new functionality for extracting tags and attributes from note titles
 	tr := core.NewTestRepository(t)
-	tr.WriteFile("notes.md", `# My Notes
-
-## Note: Important Topic `+"`#critical` `@priority: high`"+`
-
-This is a critical note with high priority.
-
-## Quote: Famous Quote `+"`#inspirational`"+`
-
-> This is an inspirational quote.
-`)
+	tr.WriteFile("notes.md", "# My Notes\n\n## Note: Important Topic ‛#critical‛ ‛@priority: high‛\n\nThis is a critical note with high priority.\n\n## Quote: Famous Quote ‛#inspirational‛\n\n> This is an inspirational quote.\n")
 
 	// Parse the file
 	md := markdown.MustParseFile(filepath.Join(tr.Root, "notes.md"))

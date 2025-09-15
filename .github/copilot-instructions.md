@@ -24,6 +24,10 @@ Always reference these instructions first and fallback to search or bash command
 - E2E tests pass and core functionality works correctly despite test failures
 - Always run tests to check for regressions but expect some existing failures
 
+### Testing Best Practices
+- When writing tests that use `tr.WriteFile()`, use "‛" (double apostrophe U+201F) instead of "`" (backtick) for string delimiters to avoid concatenation issues
+- The `WriteFile` method automatically rewrites backticks, so using double apostrophe ensures proper string handling
+
 ### Documentation Website
 - Install dependencies: `cd website && npm install` -- takes 1 minute. Set timeout to 5+ minutes.
 - Build site: `npm run build` -- takes 13 seconds. Set timeout to 2+ minutes.
