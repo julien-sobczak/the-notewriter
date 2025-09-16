@@ -329,7 +329,7 @@ func TestPackFile(t *testing.T) {
 					"oid":   "9000000000000000000000000000000000000000",
 					"kind":  "memory",
 					"ctime": "2023-01-01T12:30:00Z",
-					"desc":  `memory "[Gophercon Europe](https://gophercon.eu/)" occurred at 2022-06-24`,
+					"desc":  `memory "Conferences / [Gophercon Europe](https://gophercon.eu/)" occurred at 2022-06-24`,
 					"data":  reBase64,
 				},
 			},

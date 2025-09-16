@@ -88,6 +88,7 @@ func TestParseFileWithTestdata(t *testing.T) {
 				assert.Equal(t, core.AttributeSet{
 					"rating": int64(5),
 					"tags":   []string{"thinking"},
+					"title":  "A Note",
 				}, noteNote.Attributes)
 				// No subobjects
 				assert.Len(t, noteNote.Flashcards, 0)
@@ -104,6 +105,7 @@ func TestParseFileWithTestdata(t *testing.T) {
 					"author": "Tim Ferris",
 					"rating": int64(5),
 					"tags":   []string{"thinking"},
+					"title":  "Tim Ferris on Note-Taking",
 				}), noteTimFerris.Attributes)
 
 				// Check "Flashcard: Commonplace Book"
@@ -127,6 +129,7 @@ func TestParseFileWithTestdata(t *testing.T) {
 					"rating": int64(5),
 					"tags":   []string{"thinking"},
 					"year":   "~1510",
+					"title":  "Leonardo da Vinci's Notebooks",
 				}), noteDaVinci.Attributes)
 			},
 		},
@@ -223,6 +226,7 @@ func TestParseFileWithTestdata(t *testing.T) {
 				assert.Equal(t, core.AttributeSet(map[string]any{
 					"status":   "in-progress",
 					"priority": "high",
+					"title":    "Support emojis in title as attributes",
 				}), note1.Attributes)
 
 				assert.Equal(t, "Shorthands Demo / Review _Building a Second Brain_ ★★★★", note2.LongTitle.String())
@@ -230,6 +234,7 @@ func TestParseFileWithTestdata(t *testing.T) {
 				assert.Equal(t, "Review _Building a Second Brain_ ★★★★", note2.ShortTitle.String())
 				assert.Equal(t, core.AttributeSet(map[string]any{
 					"rating": int64(8),
+					"title":  "Review _Building a Second Brain_ ★★★★",
 				}), note2.Attributes)
 			},
 		},
@@ -413,6 +418,7 @@ Appreciation is a wonderful thing: It makes what is excellent in others belong t
 			"occupation":  "writer, philosopher",
 			"source":      "Unknown",
 			"tags":        []string{"philosophy", "being"},
+			"title":       "On Appreciation",
 		}), note.Attributes)
 		assert.Equal(t, core.AttributeSet(map[string]any{
 			"source": "Unknown",
@@ -753,8 +759,8 @@ This is a critical note with high priority.
 		parsedNote2 := parsedFile.Notes[1]
 
 		// Check tags/attributes were extracted from the first note title
-		assert.ElementsMatch(t, []string{"priority", "project", "rating", "tags"}, parsedNote1.Attributes.Keys())
-		assert.ElementsMatch(t, []string{"name", "priority", "project", "tags"}, parsedNote2.Attributes.Keys())
+		assert.ElementsMatch(t, []string{"priority", "project", "rating", "tags", "title"}, parsedNote1.Attributes.Keys())
+		assert.ElementsMatch(t, []string{"name", "priority", "project", "tags", "title"}, parsedNote2.Attributes.Keys())
 
 		// Check tags/attributes were stripped from note titles
 		assert.Equal(t, "Note: Important Topic ★★★", parsedNote1.Title.String())
@@ -1048,6 +1054,7 @@ Reread the book in 10 years to see how my perspective has changed.
 			"review_stars":  int64(5),
 			"read_date":     "2025-04-01",
 			"draft":         false,
+			"title":         "The Midnight Library",
 		}), note.Attributes)
 
 		note, ok = file.FindNoteByTitle("💡 Read again")

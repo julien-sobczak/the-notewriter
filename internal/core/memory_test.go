@@ -59,9 +59,9 @@ These are some books I've enjoyed reading.
 			text string
 			date string
 		}{
-			{"_The Alchemist_ by Paulo Coelho ★★★★★", "2025-03-21"},
-			{"_Educated_ by Tara Westover ★★★★★", "2025-03-29"},
-			{"_Siddhartha_ by Hermann Hesse ★★★★☆", "2025-04-01"},
+			{"Books I've Read / _The Alchemist_ by Paulo Coelho ★★★★★", "2025-03-21"},
+			{"Books I've Read / _Educated_ by Tara Westover ★★★★★", "2025-03-29"},
+			{"Books I've Read / _Siddhartha_ by Hermann Hesse ★★★★☆", "2025-04-01"},
 		}
 
 		for i, expected := range expectedMemories {

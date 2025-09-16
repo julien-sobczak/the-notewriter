@@ -493,6 +493,11 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		defaultAttributes := CurrentConfigFile().GetAttributeDefaults(noteType.Name)
 		attributes = defaultAttributes.Merge(attributes)
 
+		// Enrich with title attribute if not already defined
+		if _, ok := attributes["title"]; !ok && !title.IsBlank() {
+			attributes["title"] = shortTitle.String()
+		}
+
 		// Determine the long title
 		var titles []markdown.Document
 		if parentTitles != nil {
@@ -760,12 +765,10 @@ func (p *ParsedNote) extractReminders() ([]*ParsedReminder, error) {
 			submatch := reList.FindStringSubmatch(line)
 			if submatch != nil {
 				// Reminder for a list element
-				descriptionText := markdown.Document(submatch[1])
-				descriptionCleaned, err := descriptionText.Transform(StripTagsAndAttributes(CurrentConfigFile().Attributes))
-				if err != nil {
-					return nil, err
-				}
-				description = descriptionCleaned
+				textTitle := p.ShortTitle.MustTransform(StripTagsAndAttributes(CurrentConfigFile().Attributes))
+				textItem := markdown.Document(submatch[1])
+				textItem = textItem.MustTransform(StripTagsAndAttributes(CurrentConfigFile().Attributes))
+				description = textTitle + " / " + textItem
 			}
 
 			reminder := &ParsedReminder{
@@ -844,9 +847,11 @@ func (p *ParsedNote) extractMemoriesFromListItem(item *ListItem) []*ParsedMemory
 			}
 
 			if !occurredAt.IsZero() {
-				cleanedText := item.Text.MustTransform(StripTagsAndAttributes(CurrentConfigFile().Attributes))
+				textTitle := p.ShortTitle.MustTransform(StripTagsAndAttributes(CurrentConfigFile().Attributes))
+				textItem := item.Text.MustTransform(StripTagsAndAttributes(CurrentConfigFile().Attributes))
+				text := textTitle + " / " + textItem
 				memory := &ParsedMemory{
-					Text:       cleanedText,
+					Text:       text,
 					OccurredAt: occurredAt,
 				}
 				memories = append(memories, memory)

@@ -130,7 +130,8 @@ class SillyClass:
 	assert.Equal(t, "programming/python.md", note.RelativePath)
 	assert.Equal(t, "programming/python#Note: Special Methods", note.Wikilink)
 	assert.Equal(t, AttributeSet(map[string]any{
-		"tags": []string{"programming", "python"},
+		"tags":  []string{"programming", "python"},
+		"title": "Special Methods",
 	}), note.Attributes)
 	assert.Equal(t, TagSet([]string{"programming", "python"}), note.Tags)
 	assert.Greater(t, note.Line, 0)
@@ -161,13 +162,13 @@ class SillyClass:
 
 	// Reminder
 	note = MustFindNoteByTitle(t, "Note: Conferences")
-	reminder := MustFindReminderByDescription(t, `[PyCon France](https://www.pycon.fr/2025/ "PyCon #go/pycon-fr")`)
+	reminder := MustFindReminderByDescription(t, `Conferences / [PyCon France](https://www.pycon.fr/2025/ "PyCon #go/pycon-fr")`)
 	assert.NotEmpty(t, reminder.OID)
 	assert.Equal(t, file.PackFileOID, reminder.PackFileOID)
 	assert.Equal(t, file.OID, reminder.FileOID)
 	assert.Equal(t, note.OID, reminder.NoteOID)
 	assert.Equal(t, "programming/python.md", reminder.RelativePath)
-	assert.Equal(t, markdown.Document(`[PyCon France](https://www.pycon.fr/2025/ "PyCon #go/pycon-fr")`), reminder.Description)
+	assert.Equal(t, markdown.Document(`Conferences / [PyCon France](https://www.pycon.fr/2025/ "PyCon #go/pycon-fr")`), reminder.Description)
 	assert.Equal(t, "#reminder-2025-10-30", reminder.Tag)
 	assert.Equal(t, clock.Now().Truncate(time.Second), reminder.CreatedAt.Truncate(time.Second))
 	assert.Equal(t, clock.Now().Truncate(time.Second), reminder.UpdatedAt.Truncate(time.Second))

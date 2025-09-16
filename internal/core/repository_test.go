@@ -291,5 +291,6 @@ func TestStatsInDB(t *testing.T) {
 		"priority": 1,
 		"status":   1,
 		"tags":     3,
+		"title":    3,
 	}, stats.Attributes)
 }
