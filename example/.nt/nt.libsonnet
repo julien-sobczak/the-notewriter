@@ -83,6 +83,10 @@
         Note: {
             name: "Note",
         },
+        List: {
+            name: "List",
+            preprocessors: ["list-items"],
+        },
         Task: self.Note + {
             name: "Task",
             attributes: [
