@@ -487,6 +487,30 @@ func TestParseConfigFile(t *testing.T) {
 		assert.Contains(t, noteType.Pattern, "^Note:")
 	})
 
+	t.Run("Config with file types", func(t *testing.T) {
+		configPath := MustWriteTempFile(t, "config.jsonnet", `
+{
+	fileTypes: {
+		Reading: {
+			name: "Reading",
+			processors: ["toc"],
+		},
+	},
+}`)
+
+		cfg, err := ParseConfigFile(configPath)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		// Custom file type should be present
+		fileType, ok := cfg.FileTypes["Reading"]
+		require.True(t, ok)
+		assert.Equal(t, "Reading", fileType.Name)
+		assert.Equal(t, []string{"toc"}, fileType.Processors)
+		// File type pattern should be set by default
+		assert.Contains(t, fileType.Pattern, "^Reading:")
+	})
+
 	t.Run("Config with invalid jsonnet", func(t *testing.T) {
 		configPath := MustWriteTempFile(t, "config.jsonnet", `{ invalid: [ }`)
 
@@ -582,6 +606,47 @@ func TestConfigFile(t *testing.T) {
 			"attr1": "value1",
 			"attr3": int64(42),
 		}), defaultsNote2)
+	})
+
+	t.Run("GetFileType", func(t *testing.T) {
+		cfg := &ConfigFile{
+			FileTypes: ConfigFileTypes{
+				"Reading": &ConfigFileType{Name: "Reading"},
+			},
+		}
+
+		fileType, ok := cfg.GetFileType("Reading")
+		assert.True(t, ok)
+		require.NotNil(t, fileType)
+		assert.Equal(t, "Reading", fileType.Name)
+
+		unknownType, ok := cfg.GetFileType("Unknown")
+		assert.False(t, ok)
+		assert.Nil(t, unknownType)
+	})
+
+	t.Run("MatchFileType", func(t *testing.T) {
+		cfg := &ConfigFile{
+			FileTypes: ConfigFileTypes{
+				"Reading": &ConfigFileType{
+					Name:    "Reading",
+					Pattern: "(?i)^Reading:\\s*(.*)$",
+				},
+			},
+		}
+
+		fileType, ok := cfg.MatchFileType("Reading: My Book Title")
+		assert.True(t, ok)
+		require.NotNil(t, fileType)
+		assert.Equal(t, "Reading", fileType.Name)
+
+		fileType, ok = cfg.MatchFileType("reading: lowercase title")
+		assert.True(t, ok)
+		require.NotNil(t, fileType)
+
+		fileType, ok = cfg.MatchFileType("Not a Reading")
+		assert.False(t, ok)
+		assert.Nil(t, fileType)
 	})
 
 }
