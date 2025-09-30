@@ -75,16 +75,22 @@ var (
 )
 
 type ConfigAttributes map[string]*ConfigAttribute
-type ConfigTypes map[string]*ConfigType
+type ConfigNoteTypes map[string]*ConfigNoteType
+type ConfigFileTypes map[string]*ConfigFileType
 
-// IsSupportedType checks if the given text matches any of the supported types.
-func (f *ConfigFile) IsSupportedType(text string) (*ConfigType, markdown.Document, bool) {
-	for _, noteType := range f.Types {
+// IsSupportedNoteType checks if the given text matches any of the supported note types.
+func (f *ConfigFile) IsSupportedNoteType(text string) (*ConfigNoteType, markdown.Document, bool) {
+	for _, noteType := range f.NoteTypes {
 		if title, ok := noteType.MatchHeading(text); ok {
 			return noteType, markdown.Document(title), true
 		}
 	}
 	return nil, markdown.Document(text), false
+}
+
+// IsSupportedType is deprecated, use IsSupportedNoteType instead.
+func (f *ConfigFile) IsSupportedType(text string) (*ConfigNoteType, markdown.Document, bool) {
+	return f.IsSupportedNoteType(text)
 }
 
 // Find returns the attribute with the given name or nil if not found.
@@ -107,7 +113,11 @@ type ConfigFile struct {
 	Core ConfigCore `json:"core"`
 
 	Attributes ConfigAttributes `json:"attributes"`
-	Types      ConfigTypes      `json:"types"`
+	NoteTypes  ConfigNoteTypes  `json:"noteTypes"`
+	FileTypes  ConfigFileTypes  `json:"fileTypes"`
+
+	// Deprecated: use NoteTypes instead
+	Types ConfigNoteTypes `json:"types"`
 
 	// Remotes
 	Remotes []ConfigRemote `json:"remote"` // IMPROVEMENT Support multiple remotes
@@ -130,20 +140,53 @@ type ConfigFile struct {
 	Books []*ConfigBook `json:"books"`
 }
 
-// GetType returns the definition of a type of note
-func (c *ConfigFile) GetType(noteType string) (*ConfigType, bool) {
+// GetNoteType returns the definition of a note type
+func (c *ConfigFile) GetNoteType(noteType string) (*ConfigNoteType, bool) {
+	// First check NoteTypes
+	if obj, ok := c.NoteTypes[noteType]; ok {
+		return obj, true
+	}
+	// Fallback to deprecated Types field for backward compatibility
 	if obj, ok := c.Types[noteType]; ok {
 		return obj, true
 	}
 	return nil, false
 }
 
-// MustGetType returns the definition of a type of note or panics if not found
-func (c *ConfigFile) MustGetType(noteType string) *ConfigType {
-	if obj, ok := c.GetType(noteType); ok {
+// MustGetNoteType returns the definition of a note type or panics if not found
+func (c *ConfigFile) MustGetNoteType(noteType string) *ConfigNoteType {
+	if obj, ok := c.GetNoteType(noteType); ok {
 		return obj
 	}
-	panic(fmt.Sprintf("Unknown type %q", noteType))
+	panic(fmt.Sprintf("Unknown note type %q", noteType))
+}
+
+// GetType is deprecated, use GetNoteType instead
+func (c *ConfigFile) GetType(noteType string) (*ConfigNoteType, bool) {
+	return c.GetNoteType(noteType)
+}
+
+// MustGetType is deprecated, use MustGetNoteType instead
+func (c *ConfigFile) MustGetType(noteType string) *ConfigNoteType {
+	return c.MustGetNoteType(noteType)
+}
+
+// GetFileType returns the definition of a file type
+func (c *ConfigFile) GetFileType(fileType string) (*ConfigFileType, bool) {
+	if obj, ok := c.FileTypes[fileType]; ok {
+		return obj, true
+	}
+	return nil, false
+}
+
+// MatchFileType checks if the given file title matches any of the supported file types.
+func (c *ConfigFile) MatchFileType(title string) (*ConfigFileType, bool) {
+	for _, fileType := range c.FileTypes {
+		if fileType.MatchTitle(title) {
+			return fileType, true
+		}
+	}
+	return nil, false
 }
 
 // GetAttribute returns the definition of an attribute
@@ -157,7 +200,7 @@ func (c *ConfigFile) GetAttribute(name string) (*ConfigAttribute, bool) {
 // GetAttributeDefaults returns the default values for required attributes of the given type of note.
 func (c ConfigFile) GetAttributeDefaults(noteType string) AttributeSet {
 	result := make(AttributeSet)
-	typeDefinition := c.MustGetType(noteType)
+	typeDefinition := c.MustGetNoteType(noteType)
 	for _, attribute := range typeDefinition.RequiredAttributes() {
 		if attributeDefinition, ok := c.GetAttribute(attribute.Name); ok {
 			if attributeDefinition.DefaultValue != nil {
@@ -206,12 +249,18 @@ type ConfigTypeAttribute struct {
 	Inline   *bool  `json:"inline,omitempty"`   // Default: false
 }
 
-type ConfigType struct {
-	Name          string                `json:"name"`
-	Pattern       string                `json:"pattern,omitempty"`    // Regex to detect Markdown headings matching the type
-	Preprocessors []string              `json:"preprocessors"`        // Additional logic to run after parsing a note
-	Attributes    []ConfigTypeAttribute `json:"attributes,omitempty"` // Structure for attributes
-	Hooks         []string              `json:"hooks"`                // List of hooks to run on this type of note
+type ConfigNoteType struct {
+	Name       string                `json:"name"`
+	Pattern    string                `json:"pattern,omitempty"`    // Regex to detect Markdown headings matching the type
+	Processors []string              `json:"processors"`           // Additional logic to run after parsing a note
+	Attributes []ConfigTypeAttribute `json:"attributes,omitempty"` // Structure for attributes
+	Hooks      []string              `json:"hooks"`                // List of hooks to run on this type of note
+}
+type ConfigFileType struct {
+	Name       string   `json:"name"`
+	Pattern    string   `json:"pattern,omitempty"` // Regex to match file titles
+	Processors []string `json:"processors"`        // Additional logic to run after parsing a file
+	Schema     any      `json:"schema,omitempty"`  // Markdown schema definition (not yet implemented)
 }
 type ConfigLinter struct {
 	Rules []*ConfigLinterRule `json:"rules"` // List of rules to apply to notes
@@ -311,8 +360,8 @@ func (c *Config) SetParallel(value int) {
 	c.ConfigFile.Core.Medias.Parallel = value
 }
 
-// MatchHeading checks if the given heading matches the type.
-func (c *ConfigType) MatchHeading(heading string) (string, bool) {
+// MatchHeading checks if the given heading matches the note type.
+func (c *ConfigNoteType) MatchHeading(heading string) (string, bool) {
 	rePattern := regexp.MustCompile(c.Pattern)
 	if m := rePattern.FindStringSubmatch(heading); m != nil {
 		return m[1], true
@@ -320,8 +369,8 @@ func (c *ConfigType) MatchHeading(heading string) (string, bool) {
 	return "", false
 }
 
-// RequiredAttribute checks if the given attribute is required for this type of note.
-func (c *ConfigType) RequiredAttribute(name string) bool {
+// RequiredAttribute checks if the given attribute is required for this note type.
+func (c *ConfigNoteType) RequiredAttribute(name string) bool {
 	for _, attr := range c.Attributes {
 		if attr.Name == name && attr.Required != nil && *attr.Required {
 			return true
@@ -330,8 +379,8 @@ func (c *ConfigType) RequiredAttribute(name string) bool {
 	return false
 }
 
-// RequiredAttributes returns the list of required attributes for this type of note.
-func (c *ConfigType) RequiredAttributes() []*ConfigTypeAttribute {
+// RequiredAttributes returns the list of required attributes for this note type.
+func (c *ConfigNoteType) RequiredAttributes() []*ConfigTypeAttribute {
 	var requiredAttrs []*ConfigTypeAttribute
 	for _, attr := range c.Attributes {
 		if attr.Required != nil && *attr.Required {
@@ -339,6 +388,15 @@ func (c *ConfigType) RequiredAttributes() []*ConfigTypeAttribute {
 		}
 	}
 	return requiredAttrs
+}
+
+// MatchTitle checks if the given file title matches the file type pattern.
+func (c *ConfigFileType) MatchTitle(title string) bool {
+	if c.Pattern == "" {
+		return false
+	}
+	rePattern := regexp.MustCompile(c.Pattern)
+	return rePattern.MatchString(title)
 }
 
 // SupportExtension checks if the given file extension must be considered.
@@ -795,8 +853,18 @@ func ParseConfigFile(jsonnetPath string) (*ConfigFile, error) {
 	for _, attribute := range ReservedAttributes {
 		result.Attributes[attribute.Name] = &attribute
 	}
-	// ... to types
-	for _, noteType := range result.Types {
+	
+	// Handle backward compatibility: copy Types to NoteTypes if NoteTypes is empty
+	if len(result.NoteTypes) == 0 && len(result.Types) > 0 {
+		result.NoteTypes = result.Types
+	}
+	// Also keep Types in sync for backward compatibility
+	if len(result.Types) == 0 && len(result.NoteTypes) > 0 {
+		result.Types = result.NoteTypes
+	}
+	
+	// ... to note types
+	for _, noteType := range result.NoteTypes {
 		if noteType.Pattern == "" {
 			noteType.Pattern = fmt.Sprintf("(?i)^%s:\\s*(.*)$", noteType.Name) // Ex: "Note: A basic note" or "note: A basic note"
 		}
@@ -808,6 +876,27 @@ func ParseConfigFile(jsonnetPath string) (*ConfigFile, error) {
 			if noteType.Attributes[i].Inline == nil {
 				noteType.Attributes[i].Inline = BoolPointer(false)
 			}
+		}
+	}
+	// Also process deprecated Types field
+	for _, noteType := range result.Types {
+		if noteType.Pattern == "" {
+			noteType.Pattern = fmt.Sprintf("(?i)^%s:\\s*(.*)$", noteType.Name)
+		}
+		for i := range noteType.Attributes {
+			if noteType.Attributes[i].Required == nil {
+				noteType.Attributes[i].Required = BoolPointer(false)
+			}
+			if noteType.Attributes[i].Inline == nil {
+				noteType.Attributes[i].Inline = BoolPointer(false)
+			}
+		}
+	}
+	
+	// ... to file types
+	for _, fileType := range result.FileTypes {
+		if fileType.Pattern == "" {
+			fileType.Pattern = fmt.Sprintf("(?i)^%s:\\s*(.*)$", fileType.Name) // Ex: "Reading: My Book Title" or "reading: My book title"
 		}
 	}
 	// ... to decks

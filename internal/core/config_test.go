@@ -501,8 +501,8 @@ func TestConfigFile(t *testing.T) {
 
 	t.Run("GetType", func(t *testing.T) {
 		cfg := &ConfigFile{
-			Types: ConfigTypes{
-				"Note": &ConfigType{Name: "Note"},
+			NoteTypes: ConfigNoteTypes{
+				"Note": &ConfigNoteType{Name: "Note"},
 			},
 		}
 
@@ -552,8 +552,8 @@ func TestConfigFile(t *testing.T) {
 					DefaultValue: 42,
 				},
 			},
-			Types: ConfigTypes{
-				"Note1": &ConfigType{
+			Types: ConfigNoteTypes{
+				"Note1": &ConfigNoteType{
 					Name: "Note1",
 					Attributes: []ConfigTypeAttribute{
 						{Name: "attr1", Required: BoolPointer(true)},
@@ -561,7 +561,7 @@ func TestConfigFile(t *testing.T) {
 						{Name: "attr3", Required: BoolPointer(false)}, // not required, default doesn't apply
 					},
 				},
-				"Note2": &ConfigType{
+				"Note2": &ConfigNoteType{
 					Name: "Note2",
 					Attributes: []ConfigTypeAttribute{
 						{Name: "attr1", Required: BoolPointer(true)},

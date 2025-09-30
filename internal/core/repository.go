@@ -215,8 +215,18 @@ func (r *Repository) Lint(paths PathSpecs, ruleNames []string) (*LintResult, err
 
 		violationsFoundInFile := false
 
+		// Check schema (if file matches a file type)
+		violations, err := CheckSchema(file)
+		if err != nil {
+			return err
+		}
+		if len(violations) > 0 {
+			violationsFoundInFile = true
+			result.Append(violations...)
+		}
+
 		// Check attributes
-		violations, err := CheckAttributes(file)
+		violations, err = CheckAttributes(file)
 		if err != nil {
 			return err
 		}

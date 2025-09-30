@@ -645,7 +645,7 @@ Another note without a code block.
 		tr := core.NewTestRepository(t)
 
 		// Assert date preprocessor is configured
-		require.Contains(t, core.CurrentConfigFile().MustGetType("Journal").Preprocessors, "date-extractor")
+		require.Contains(t, core.CurrentConfigFile().MustGetType("Journal").Processors, "date-extractor")
 
 		tr.WriteFile("2024-12-05.md", `
 # Journal: 2024-12-05

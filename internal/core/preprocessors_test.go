@@ -315,7 +315,7 @@ func TestListItemsPreprocessor(t *testing.T) {
 		tr := core.NewTestRepository(t)
 
 		// Assert preprocessor is configured
-		require.Contains(t, core.CurrentConfigFile().MustGetType("ReadingList").Preprocessors, "list-items")
+		require.Contains(t, core.CurrentConfigFile().MustGetType("ReadingList").Processors, "list-items")
 
 		tr.WriteFile("test.md", `# ReadingList: Children's Literature
 
@@ -387,7 +387,7 @@ func TestListItemsPreprocessor(t *testing.T) {
 		tr := core.NewTestRepository(t)
 
 		// Assert preprocessor is configured
-		require.Contains(t, core.CurrentConfigFile().MustGetType("ReadingList").Preprocessors, "list-items")
+		require.Contains(t, core.CurrentConfigFile().MustGetType("ReadingList").Processors, "list-items")
 
 		tr.WriteFile("test.md", `# ReadingList: Demo
 

@@ -520,6 +520,28 @@ func RequireTag(file *ParsedFile, query *Query, args []any) ([]*Violation, error
 	return violations, nil
 }
 
+// CheckSchema validates a file against its declared schema if it matches a file type.
+func CheckSchema(file *ParsedFile) ([]*Violation, error) {
+	var violations []*Violation
+
+	// Check if file matches a file type with a schema
+	fileType, ok := CurrentConfigFile().MatchFileType(file.Title.String())
+	if !ok || fileType.Schema == nil {
+		// No file type match or no schema defined
+		return violations, nil
+	}
+
+	// TODO: Implement schema validation logic
+	// For now, this is a placeholder that can be expanded based on the schema structure
+	// The schema validation would need to:
+	// 1. Parse the schema definition (frontMatter, body structure)
+	// 2. Validate file attributes against frontMatter schema
+	// 3. Validate heading structure against body.heading schema
+	// 4. Check required/optional headings, allowMultiple constraints, etc.
+
+	return violations, nil
+}
+
 // CheckAttributes ensures attributes are valid and match the expected type.
 func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 	var violations []*Violation
