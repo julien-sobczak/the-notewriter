@@ -264,7 +264,7 @@ func ParseFile(md *markdown.File, mdParent *markdown.File) (*ParsedFile, error) 
 	if topSection != nil {
 		title = topSection.HeadingText
 	}
-	_, shortTitle, _ := CurrentConfigFile().IsSupportedType(string(title))
+	_, shortTitle, _ := CurrentConfigFile().IsSupportedNoteType(string(title))
 
 	// Extract tags and attributes from shortTitle
 	titleAttributes := ExtractAttributes(shortTitle, CurrentConfigFile().Attributes)
@@ -391,7 +391,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 
 		// Determine the titles
 		title := section.HeadingText
-		noteType, shortTitle, supported := CurrentConfigFile().IsSupportedType(string(title))
+		noteType, shortTitle, supported := CurrentConfigFile().IsSupportedNoteType(string(title))
 
 		if !supported {
 			// Ex: top-level heading, subsections inside a "Note:" already included in the containing note, ...
@@ -480,7 +480,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		for _, otherSection := range sections {
 			if otherSection.Includes(*section) {
 				sectionTitle := otherSection.HeadingText.String()
-				if _, shortTitle, supported := CurrentConfigFile().IsSupportedType(sectionTitle); supported {
+				if _, shortTitle, supported := CurrentConfigFile().IsSupportedNoteType(sectionTitle); supported {
 					// Ex: "## Note: Parent Note"
 					parentTitles = append(parentTitles, shortTitle)
 				} else {
@@ -1072,7 +1072,7 @@ func StripSubNotesTransformer(document markdown.Document) (markdown.Document, er
 
 		ok, headingText, _ := markdown.IsHeading(line.Text)
 		if ok {
-			_, _, supported := CurrentConfigFile().IsSupportedType(headingText)
+			_, _, supported := CurrentConfigFile().IsSupportedNoteType(headingText)
 			if supported {
 				// Found the first sub-note
 				return document.ExtractLines(0, line.Number-1).TrimSpace(), nil

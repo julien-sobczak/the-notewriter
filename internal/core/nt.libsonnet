@@ -180,9 +180,6 @@
         },
     },
 
-    // Backward compatibility: DefaultTypes is an alias for DefaultNoteTypes
-    DefaultTypes: self.DefaultNoteTypes,
-
     // Declare default file types (empty by default, users can extend this)
     DefaultFileTypes: {
     },

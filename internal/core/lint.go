@@ -531,15 +531,85 @@ func CheckSchema(file *ParsedFile) ([]*Violation, error) {
 		return violations, nil
 	}
 
-	// TODO: Implement schema validation logic
-	// For now, this is a placeholder that can be expanded based on the schema structure
-	// The schema validation would need to:
-	// 1. Parse the schema definition (frontMatter, body structure)
-	// 2. Validate file attributes against frontMatter schema
-	// 3. Validate heading structure against body.heading schema
-	// 4. Check required/optional headings, allowMultiple constraints, etc.
+	schema := fileType.Schema
+
+	// Validate front matter attributes
+	if schema.FrontMatter != nil {
+		for _, attrSchema := range schema.FrontMatter.Attributes {
+			_, found := file.FileAttributes[attrSchema.Name]
+			if !found && !attrSchema.Optional {
+				violations = append(violations, &Violation{
+					Name:         "check-schema",
+					RelativePath: file.RelativePath,
+					Message:      fmt.Sprintf("required attribute %q missing in front matter", attrSchema.Name),
+					Line:         1,
+				})
+			}
+		}
+	}
+
+	// Validate body structure
+	if schema.Body != nil && schema.Body.Heading != nil {
+		// Validate heading structure against schema
+		violations = append(violations, validateHeadingSchema(file, schema.Body.Heading, file.Notes)...)
+	}
 
 	return violations, nil
+}
+
+// validateHeadingSchema validates notes against a heading schema
+func validateHeadingSchema(file *ParsedFile, schema *ConfigHeadingSchema, notes []*ParsedNote) []*Violation {
+	var violations []*Violation
+	
+	// Count occurrences by kind/match
+	var matchedNotes []*ParsedNote
+	for _, note := range notes {
+		if schema.Kind != "" && note.Type == schema.Kind {
+			matchedNotes = append(matchedNotes, note)
+		} else if schema.Match != "" {
+			matched, _ := regexp.MatchString(schema.Match, note.Title.String())
+			if matched {
+				matchedNotes = append(matchedNotes, note)
+			}
+		}
+	}
+	
+	// Check required constraint
+	if schema.Required && len(matchedNotes) == 0 {
+		kind := schema.Kind
+		if kind == "" {
+			kind = schema.Match
+		}
+		violations = append(violations, &Violation{
+			Name:         "check-schema",
+			RelativePath: file.RelativePath,
+			Message:      fmt.Sprintf("required heading %q not found", kind),
+			Line:         1,
+		})
+	}
+	
+	// Check allowMultiple constraint
+	if !schema.AllowMultiple && len(matchedNotes) > 1 {
+		kind := schema.Kind
+		if kind == "" {
+			kind = schema.Match
+		}
+		violations = append(violations, &Violation{
+			Name:         "check-schema",
+			RelativePath: file.RelativePath,
+			Message:      fmt.Sprintf("heading %q appears multiple times but allowMultiple is false", kind),
+			Line:         matchedNotes[1].Line,
+		})
+	}
+	
+	// Recursively validate children
+	if len(schema.Children) > 0 {
+		for _, childSchema := range schema.Children {
+			violations = append(violations, validateHeadingSchema(file, childSchema, notes)...)
+		}
+	}
+	
+	return violations
 }
 
 // CheckAttributes ensures attributes are valid and match the expected type.
@@ -549,7 +619,7 @@ func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 	for _, note := range file.Notes {
 
 		attributeDefinitions := CurrentConfigFile().Attributes
-		objectDefinition := CurrentConfigFile().MustGetType(note.Type)
+		objectDefinition := CurrentConfigFile().MustGetNoteType(note.Type)
 
 		for _, attributeDefinition := range attributeDefinitions {
 

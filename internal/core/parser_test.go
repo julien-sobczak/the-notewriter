@@ -645,7 +645,7 @@ Another note without a code block.
 		tr := core.NewTestRepository(t)
 
 		// Assert date preprocessor is configured
-		require.Contains(t, core.CurrentConfigFile().MustGetType("Journal").Processors, "date-extractor")
+		require.Contains(t, core.CurrentConfigFile().MustGetNoteType("Journal").Processors, "date-extractor")
 
 		tr.WriteFile("2024-12-05.md", `
 # Journal: 2024-12-05
@@ -1154,4 +1154,67 @@ func TestReplaceMedias(t *testing.T) {
 			assert.Equal(t, tt.expected, result.String())
 		})
 	}
+}
+
+func TestFileTypeWithProcessors(t *testing.T) {
+tr := core.NewTestRepository(t)
+
+// Configure a custom file type with a processor
+tr.WriteFile(".nt/config.jsonnet", `
+local nt = import 'nt.libsonnet';
+{
+attributes: nt.DefaultAttributes,
+noteTypes: nt.DefaultNoteTypes,
+fileTypes: {
+ReadingNotes: {
+name: "ReadingNotes",
+pattern: "(?i)^Reading:\\s*(.*)$",
+processors: ["toc"],
+},
+},
+}
+`)
+core.CurrentConfig().Reload()
+
+// Create a file matching the file type
+tr.WriteFile("reading-book.md", `
+---
+title: "Reading: My Book"
+tags: []
+---
+
+# Reading: My Book
+
+## Note: Chapter 1
+
+Content for chapter 1.
+
+## Note: Chapter 2
+
+Content for chapter 2.
+`)
+
+file := tr.ParseFile("reading-book.md")
+require.NotNil(t, file)
+
+// Verify that the file matches the file type
+fileType, ok := core.CurrentConfigFile().MatchFileType(file.Title.String())
+assert.True(t, ok)
+require.NotNil(t, fileType)
+assert.Equal(t, "ReadingNotes", fileType.Name)
+assert.Equal(t, []string{"toc"}, fileType.Processors)
+
+// Verify notes were parsed (toc processor adds a "Table of Content" note)
+assert.GreaterOrEqual(t, len(file.Notes), 2)
+
+// Find the chapter notes (excluding the TOC note)
+var chapterNotes []*core.ParsedNote
+for _, note := range file.Notes {
+if note.ShortTitle.String() != "Table of Content" {
+chapterNotes = append(chapterNotes, note)
+}
+}
+assert.Len(t, chapterNotes, 2)
+assert.Equal(t, "Chapter 1", chapterNotes[0].ShortTitle.String())
+assert.Equal(t, "Chapter 2", chapterNotes[1].ShortTitle.String())
 }

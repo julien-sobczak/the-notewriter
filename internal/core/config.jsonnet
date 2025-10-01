@@ -4,7 +4,4 @@ local nt = import 'nt.libsonnet';
 {
     attributes: nt.DefaultAttributes,
     noteTypes: nt.DefaultNoteTypes,
-    
-    # Backward compatibility: also support "types" field
-    types: nt.DefaultNoteTypes,
 }

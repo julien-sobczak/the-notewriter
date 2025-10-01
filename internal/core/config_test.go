@@ -450,7 +450,7 @@ func TestParseConfigFile(t *testing.T) {
 		assert.Equal(t, "ultrafast", cfg.Core.Medias.Preset)
 	})
 
-	t.Run("Config with attributes and types", func(t *testing.T) {
+	t.Run("Config with attributes and noteTypes", func(t *testing.T) {
 		configPath := MustWriteTempFile(t, "config.jsonnet", `
 {
 	Attributes: {
@@ -459,7 +459,7 @@ func TestParseConfigFile(t *testing.T) {
 			type: "string",
 		},
 	},
-	Types: {
+	noteTypes: {
 		Note: {
 			name: "Note",
 		},
@@ -480,7 +480,7 @@ func TestParseConfigFile(t *testing.T) {
 		assert.True(t, *attr.Inherit)
 
 		// Custom type should be present
-		noteType, ok := cfg.Types["Note"]
+		noteType, ok := cfg.NoteTypes["Note"]
 		require.True(t, ok)
 		assert.Equal(t, "Note", noteType.Name)
 		// Type pattern should be set by default
@@ -523,19 +523,19 @@ func TestParseConfigFile(t *testing.T) {
 
 func TestConfigFile(t *testing.T) {
 
-	t.Run("GetType", func(t *testing.T) {
+	t.Run("GetNoteType", func(t *testing.T) {
 		cfg := &ConfigFile{
 			NoteTypes: ConfigNoteTypes{
 				"Note": &ConfigNoteType{Name: "Note"},
 			},
 		}
 
-		noteType, ok := cfg.GetType("Note")
+		noteType, ok := cfg.GetNoteType("Note")
 		assert.True(t, ok)
 		require.NotNil(t, noteType)
 		assert.Equal(t, "Note", noteType.Name)
 
-		unknownType, ok := cfg.GetType("Unknown")
+		unknownType, ok := cfg.GetNoteType("Unknown")
 		assert.False(t, ok)
 		assert.Nil(t, unknownType)
 	})
@@ -576,7 +576,7 @@ func TestConfigFile(t *testing.T) {
 					DefaultValue: 42,
 				},
 			},
-			Types: ConfigNoteTypes{
+			NoteTypes: ConfigNoteTypes{
 				"Note1": &ConfigNoteType{
 					Name: "Note1",
 					Attributes: []ConfigTypeAttribute{
