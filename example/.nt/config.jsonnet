@@ -26,8 +26,8 @@ local nt = import 'nt.libsonnet';
     },
 
     # TODO add links to the documentation
-    types: nt.DefaultTypes + {
-        Todo: nt.DefaultTypes.Todo + {
+    noteTypes: nt.DefaultNoteTypes + {
+        Todo: nt.DefaultNoteTypes.Todo + {
             attributes: [
                 {
                     name: "status",
@@ -36,7 +36,7 @@ local nt = import 'nt.libsonnet';
                 },
             ],
         },
-        BookReview: nt.DefaultTypes.Note + {
+        BookReview: nt.DefaultNoteTypes.Note + {
             name: "BookReview",
             attributes: [
                 {
@@ -46,7 +46,7 @@ local nt = import 'nt.libsonnet';
                 },
             ],
         },
-        ReadingList: nt.DefaultTypes.Note + {
+        ReadingList: nt.DefaultNoteTypes.Note + {
             name: "ReadingList",
             attributes: [
                 {

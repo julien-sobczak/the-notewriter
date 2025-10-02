@@ -31,8 +31,8 @@ local nt = import 'nt.libsonnet';
         },
     },
 
-    types: nt.DefaultTypes + {
-        Quote: nt.DefaultTypes.Quote + {
+    noteTypes: nt.DefaultNoteTypes + {
+        Quote: nt.DefaultNoteTypes.Quote + {
             attributes: [
                 {
                     name: "name",

@@ -21,7 +21,7 @@ func TestCommandLint(t *testing.T) {
 			WithFile(".nt/config.jsonnet", `
 {
     core: { extensions: ["md"] },
-	types: {
+	noteTypes: {
 		"Note": {
 			name: "Note"
 		}

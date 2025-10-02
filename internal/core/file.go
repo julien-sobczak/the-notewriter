@@ -30,6 +30,9 @@ type File struct {
 	// Pack file where this object belongs
 	PackFileOID oid.OID `yaml:"packfile_oid" json:"packfile_oid"`
 
+	// Type of note
+	Type string `yaml:"type,omitempty" json:"type,omitempty"`
+
 	// A relative path to the repository directory
 	RelativePath string `yaml:"relative_path" json:"relative_path"`
 	// The full wikilink to this file (without the extension)
@@ -98,6 +101,7 @@ func NewFile(packFile *PackFile, parsedFile *ParsedFile) (*File, error) {
 	file := &File{
 		OID:          oid.New(),
 		PackFileOID:  packFile.OID,
+		Type:         parsedFile.Type,
 		Slug:         parsedFile.Slug,
 		RelativePath: parsedFile.RelativePath,
 		Wikilink:     text.TrimExtension(parsedFile.RelativePath),
@@ -165,6 +169,12 @@ func (f *File) update(packFile *PackFile, parsedFile *ParsedFile) error {
 	if !reflect.DeepEqual(newAttributes, f.Attributes) {
 		stale = true
 		f.Attributes = newAttributes
+	}
+
+	// Check if file type has changed
+	if f.Type != parsedFile.Type {
+		stale = true
+		f.Type = parsedFile.Type
 	}
 
 	md := parsedFile.Markdown
@@ -257,6 +267,7 @@ func (f *File) Save() error {
 		INSERT INTO file(
 			oid,
 			packfile_oid,
+			file_type,
 			slug,
 			relative_path,
 			wikilink,
@@ -273,9 +284,10 @@ func (f *File) Save() error {
 			size,
 			hashsum
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(oid) DO UPDATE SET
 			packfile_oid = ?,
+			file_type = ?,
 			slug = ?,
 			relative_path = ?,
 			wikilink = ?,
@@ -304,6 +316,7 @@ func (f *File) Save() error {
 		// Insert
 		f.OID,
 		f.PackFileOID,
+		f.Type,
 		f.Slug,
 		f.RelativePath,
 		f.Wikilink,
@@ -321,6 +334,7 @@ func (f *File) Save() error {
 		f.Hash,
 		// Update
 		f.PackFileOID,
+		f.Type,
 		f.Slug,
 		f.RelativePath,
 		f.Wikilink,
@@ -418,6 +432,7 @@ func QueryFile(db SQLClient, whereClause string, args ...any) (*File, error) {
 		SELECT
 			oid,
 			packfile_oid,
+			file_type,
 			slug,
 			relative_path,
 			wikilink,
@@ -438,6 +453,7 @@ func QueryFile(db SQLClient, whereClause string, args ...any) (*File, error) {
 		Scan(
 			&f.OID,
 			&f.PackFileOID,
+			&f.Type,
 			&f.Slug,
 			&f.RelativePath,
 			&f.Wikilink,
@@ -481,6 +497,7 @@ func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) 
 		SELECT
 			oid,
 			packfile_oid,
+			file_type,
 			slug,
 			relative_path,
 			wikilink,
@@ -513,6 +530,7 @@ func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) 
 		err = rows.Scan(
 			&f.OID,
 			&f.PackFileOID,
+			&f.Type,
 			&f.Slug,
 			&f.RelativePath,
 			&f.Wikilink,

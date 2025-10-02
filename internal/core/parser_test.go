@@ -961,7 +961,7 @@ func TestCustomNoteTypes(t *testing.T) {
 		tr.WriteFile(".nt/config.jsonnet", `
 local nt = import 'nt.libsonnet';
 {
-    Attributes: {
+    attributes: {
 		// New attributes for the BookReview type
 		draft: {
             name: "draft",
@@ -995,10 +995,10 @@ local nt = import 'nt.libsonnet';
             memory: true,
         },
 	},
-	Types: nt.DefaultTypes + {
+	noteTypes: nt.DefaultNoteTypes + {
 
 		// A new type similar to existing ones
-		BookReview: nt.DefaultTypes.Note + {
+		BookReview: nt.DefaultNoteTypes.Note + {
 			name: "BookReview",
 			attributes: [
 				{
@@ -1009,7 +1009,7 @@ local nt = import 'nt.libsonnet';
 		},
 
 		// A new type with a custom pattern
-		Idea: nt.DefaultTypes.Note + {
+		Idea: nt.DefaultNoteTypes.Note + {
 			name: "Idea",
 			pattern: "^💡 (.*)$",
 		},
@@ -1157,10 +1157,10 @@ func TestReplaceMedias(t *testing.T) {
 }
 
 func TestFileTypeWithProcessors(t *testing.T) {
-tr := core.NewTestRepository(t)
+	tr := core.NewTestRepository(t)
 
-// Configure a custom file type with a processor
-tr.WriteFile(".nt/config.jsonnet", `
+	// Configure a custom file type with a processor
+	tr.WriteFile(".nt/config.jsonnet", `
 local nt = import 'nt.libsonnet';
 {
 attributes: nt.DefaultAttributes,
@@ -1174,10 +1174,10 @@ processors: ["toc"],
 },
 }
 `)
-core.CurrentConfig().Reload()
+	core.CurrentConfig().Reload()
 
-// Create a file matching the file type
-tr.WriteFile("reading-book.md", `
+	// Create a file matching the file type
+	tr.WriteFile("reading-book.md", `
 ---
 title: "Reading: My Book"
 tags: []
@@ -1194,27 +1194,28 @@ Content for chapter 1.
 Content for chapter 2.
 `)
 
-file := tr.ParseFile("reading-book.md")
-require.NotNil(t, file)
+	file := tr.ParseFile("reading-book.md")
+	require.NotNil(t, file)
 
-// Verify that the file matches the file type
-fileType, ok := core.CurrentConfigFile().MatchFileType(file.Title.String())
-assert.True(t, ok)
-require.NotNil(t, fileType)
-assert.Equal(t, "ReadingNotes", fileType.Name)
-assert.Equal(t, []string{"toc"}, fileType.Processors)
+	// Verify that the file matches the file type
+	fileType, fileShortTitle, ok := core.CurrentConfigFile().MatchFileType(file.Title.String())
+	assert.True(t, ok)
+	require.NotNil(t, fileType)
+	assert.Equal(t, "ReadingNotes", fileType.Name)
+	assert.Equal(t, "My Book", fileShortTitle.String())
+	assert.Equal(t, []string{"toc"}, fileType.Processors)
 
-// Verify notes were parsed (toc processor adds a "Table of Content" note)
-assert.GreaterOrEqual(t, len(file.Notes), 2)
+	// Verify notes were parsed (toc processor adds a "Table of Content" note)
+	assert.GreaterOrEqual(t, len(file.Notes), 2)
 
-// Find the chapter notes (excluding the TOC note)
-var chapterNotes []*core.ParsedNote
-for _, note := range file.Notes {
-if note.ShortTitle.String() != "Table of Content" {
-chapterNotes = append(chapterNotes, note)
-}
-}
-assert.Len(t, chapterNotes, 2)
-assert.Equal(t, "Chapter 1", chapterNotes[0].ShortTitle.String())
-assert.Equal(t, "Chapter 2", chapterNotes[1].ShortTitle.String())
+	// Find the chapter notes (excluding the TOC note)
+	var chapterNotes []*core.ParsedNote
+	for _, note := range file.Notes {
+		if note.ShortTitle.String() != "Table of Content" {
+			chapterNotes = append(chapterNotes, note)
+		}
+	}
+	assert.Len(t, chapterNotes, 2)
+	assert.Equal(t, "Chapter 1", chapterNotes[0].ShortTitle.String())
+	assert.Equal(t, "Chapter 2", chapterNotes[1].ShortTitle.String())
 }

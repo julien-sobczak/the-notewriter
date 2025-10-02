@@ -525,34 +525,18 @@ func CheckSchema(file *ParsedFile) ([]*Violation, error) {
 	var violations []*Violation
 
 	// Check if file matches a file type with a schema
-	fileType, ok := CurrentConfigFile().MatchFileType(file.Title.String())
-	if !ok || fileType.Schema == nil {
+	if file.Type == "" {
+		return nil, nil
+	}
+
+	fileType := CurrentConfigFile().MustGetFileType(file.Type)
+	if fileType.Schema == nil || fileType.Schema.Body == nil {
 		// No file type match or no schema defined
-		return violations, nil
+		return nil, nil
 	}
 
-	schema := fileType.Schema
-
-	// Validate front matter attributes
-	if schema.FrontMatter != nil {
-		for _, attrSchema := range schema.FrontMatter.Attributes {
-			_, found := file.FileAttributes[attrSchema.Name]
-			if !found && !attrSchema.Optional {
-				violations = append(violations, &Violation{
-					Name:         "check-schema",
-					RelativePath: file.RelativePath,
-					Message:      fmt.Sprintf("required attribute %q missing in front matter", attrSchema.Name),
-					Line:         1,
-				})
-			}
-		}
-	}
-
-	// Validate body structure
-	if schema.Body != nil && schema.Body.Heading != nil {
-		// Validate heading structure against schema
-		violations = append(violations, validateHeadingSchema(file, schema.Body.Heading, file.Notes)...)
-	}
+	// Validate heading structure against schema
+	violations = append(violations, validateHeadingSchema(file, fileType.Schema.Body, file.Notes)...)
 
 	return violations, nil
 }
@@ -560,7 +544,7 @@ func CheckSchema(file *ParsedFile) ([]*Violation, error) {
 // validateHeadingSchema validates notes against a heading schema
 func validateHeadingSchema(file *ParsedFile, schema *ConfigHeadingSchema, notes []*ParsedNote) []*Violation {
 	var violations []*Violation
-	
+
 	// Count occurrences by kind/match
 	var matchedNotes []*ParsedNote
 	for _, note := range notes {
@@ -573,7 +557,7 @@ func validateHeadingSchema(file *ParsedFile, schema *ConfigHeadingSchema, notes 
 			}
 		}
 	}
-	
+
 	// Check required constraint
 	if schema.Required && len(matchedNotes) == 0 {
 		kind := schema.Kind
@@ -587,7 +571,7 @@ func validateHeadingSchema(file *ParsedFile, schema *ConfigHeadingSchema, notes 
 			Line:         1,
 		})
 	}
-	
+
 	// Check allowMultiple constraint
 	if !schema.AllowMultiple && len(matchedNotes) > 1 {
 		kind := schema.Kind
@@ -601,14 +585,14 @@ func validateHeadingSchema(file *ParsedFile, schema *ConfigHeadingSchema, notes 
 			Line:         matchedNotes[1].Line,
 		})
 	}
-	
+
 	// Recursively validate children
 	if len(schema.Children) > 0 {
 		for _, childSchema := range schema.Children {
 			violations = append(violations, validateHeadingSchema(file, childSchema, notes)...)
 		}
 	}
-	
+
 	return violations
 }
 
@@ -619,14 +603,21 @@ func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 	for _, note := range file.Notes {
 
 		attributeDefinitions := CurrentConfigFile().Attributes
-		objectDefinition := CurrentConfigFile().MustGetNoteType(note.Type)
+
+		var fileDefinition *ConfigFileType
+		var noteDefinition *ConfigNoteType
+		if file.Type != "" {
+			fileDefinition = CurrentConfigFile().MustGetFileType(file.Type)
+		}
+		noteDefinition = CurrentConfigFile().MustGetNoteType(note.Type)
 
 		for _, attributeDefinition := range attributeDefinitions {
 
 			allowedNames := []string{attributeDefinition.Name}
 			allowedNames = append(allowedNames, attributeDefinition.Aliases...)
 
-			found := false
+			foundInFile := false // Found in file front matter
+			found := false       // Just found (inherited, in file, or in note)
 
 			for _, name := range allowedNames {
 
@@ -635,6 +626,7 @@ func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 
 				fileValue, presentOnFile := file.FileAttributes[name]
 				if presentOnFile {
+					foundInFile = true
 					found = true
 
 					line := text.LineNumber(string(file.Markdown.Content), name+":")
@@ -683,7 +675,7 @@ func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 			}
 
 			// Check required attributes
-			required := objectDefinition.RequiredAttribute(attributeDefinition.Name)
+			required := noteDefinition.RequiredAttribute(attributeDefinition.Name)
 			if required && !found {
 				violations = append(violations, &Violation{
 					Name:         "check-attributes",
@@ -691,6 +683,17 @@ func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 					Message:      fmt.Sprintf("attribute %q missing on note %q in file %q", attributeDefinition.Name, note.Title, file.RelativePath),
 					Line:         note.Line,
 				})
+			}
+			if fileDefinition != nil {
+				required = fileDefinition.RequiredAttribute(attributeDefinition.Name)
+				if required && !foundInFile {
+					violations = append(violations, &Violation{
+						Name:         "check-attributes",
+						RelativePath: file.RelativePath,
+						Message:      fmt.Sprintf("attribute %q missing on file %q", attributeDefinition.Name, file.Title),
+						Line:         note.Line,
+					})
+				}
 			}
 		}
 

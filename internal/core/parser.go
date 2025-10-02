@@ -61,6 +61,9 @@ type ParsedFile struct {
 	// The relative path inside the repository
 	RelativePath string
 
+	// Optional type (unlike notes, the file type is optional)
+	Type string
+
 	// Main Heading
 	Slug       string
 	Title      markdown.Document
@@ -264,7 +267,13 @@ func ParseFile(md *markdown.File, mdParent *markdown.File) (*ParsedFile, error) 
 	if topSection != nil {
 		title = topSection.HeadingText
 	}
-	_, shortTitle, _ := CurrentConfigFile().IsSupportedNoteType(string(title))
+
+	// A file title must represent a untyped heading (ex: "# Golang"), a typed note (ex: "# Journal: 2025-10-09"), or a typed file (ex: "# Reading: K&R")
+	fileType, shortTitle, isFile := CurrentConfigFile().MatchFileType(string(title))
+	if !isFile {
+		// Try matching a note type
+		_, shortTitle, _ = CurrentConfigFile().MatchNoteType(string(title))
+	}
 
 	// Extract tags and attributes from shortTitle
 	titleAttributes := ExtractAttributes(shortTitle, CurrentConfigFile().Attributes)
@@ -286,6 +295,12 @@ func ParseFile(md *markdown.File, mdParent *markdown.File) (*ParsedFile, error) 
 		}
 	}
 
+	// File type is optional
+	fileTypeName := ""
+	if fileType != nil {
+		fileTypeName = fileType.Name
+	}
+
 	result := &ParsedFile{
 		Markdown: md,
 
@@ -294,6 +309,7 @@ func ParseFile(md *markdown.File, mdParent *markdown.File) (*ParsedFile, error) 
 		RelativePath:   relativePath,
 
 		// Main Heading
+		Type:       fileTypeName,
 		Slug:       slug,
 		Title:      title,
 		ShortTitle: shortTitle,
@@ -328,8 +344,8 @@ func ParseFile(md *markdown.File, mdParent *markdown.File) (*ParsedFile, error) 
 func applyFilePreprocessors(file *ParsedFile) (*ParsedFile, error) {
 	fileTags := file.FileAttributes.Tags()
 
-	// Check if file matches a file type and apply its processors
-	if fileType, ok := CurrentConfigFile().MatchFileType(file.Title.String()); ok {
+	if file.Type != "" {
+		fileType := CurrentConfigFile().MustGetFileType(file.Type)
 		for _, processorName := range fileType.Processors {
 			preprocessor, ok := filePreprocessors[processorName]
 			if !ok {
@@ -363,6 +379,7 @@ func applyFilePreprocessors(file *ParsedFile) (*ParsedFile, error) {
 	}
 
 	// Apply preprocessors based on file tags
+	// IMPROVEMENT remove and force using file types instead?
 	if fileTags.Includes("toc") {
 		if preprocessor, ok := filePreprocessors["toc"]; ok {
 			var err error
@@ -391,7 +408,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 
 		// Determine the titles
 		title := section.HeadingText
-		noteType, shortTitle, supported := CurrentConfigFile().IsSupportedNoteType(string(title))
+		noteType, shortTitle, supported := CurrentConfigFile().MatchNoteType(string(title))
 
 		if !supported {
 			// Ex: top-level heading, subsections inside a "Note:" already included in the containing note, ...
@@ -480,7 +497,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		for _, otherSection := range sections {
 			if otherSection.Includes(*section) {
 				sectionTitle := otherSection.HeadingText.String()
-				if _, shortTitle, supported := CurrentConfigFile().IsSupportedNoteType(sectionTitle); supported {
+				if _, shortTitle, supported := CurrentConfigFile().MatchNoteType(sectionTitle); supported {
 					// Ex: "## Note: Parent Note"
 					parentTitles = append(parentTitles, shortTitle)
 				} else {
@@ -1072,7 +1089,7 @@ func StripSubNotesTransformer(document markdown.Document) (markdown.Document, er
 
 		ok, headingText, _ := markdown.IsHeading(line.Text)
 		if ok {
-			_, _, supported := CurrentConfigFile().IsSupportedNoteType(headingText)
+			_, _, supported := CurrentConfigFile().MatchNoteType(headingText)
 			if supported {
 				// Found the first sub-note
 				return document.ExtractLines(0, line.Number-1).TrimSpace(), nil

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/go-jsonnet"
+	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -635,18 +636,21 @@ func TestConfigFile(t *testing.T) {
 			},
 		}
 
-		fileType, ok := cfg.MatchFileType("Reading: My Book Title")
+		fileType, title, ok := cfg.MatchFileType("Reading: My Book Title")
 		assert.True(t, ok)
 		require.NotNil(t, fileType)
 		assert.Equal(t, "Reading", fileType.Name)
+		assert.Equal(t, markdown.Document("My Book Title"), title)
 
-		fileType, ok = cfg.MatchFileType("reading: lowercase title")
+		fileType, title, ok = cfg.MatchFileType("reading: lowercase title")
 		assert.True(t, ok)
 		require.NotNil(t, fileType)
+		assert.Equal(t, markdown.Document("lowercase title"), title)
 
-		fileType, ok = cfg.MatchFileType("Not a Reading")
+		fileType, title, ok = cfg.MatchFileType("Not a Reading")
 		assert.False(t, ok)
 		assert.Nil(t, fileType)
+		assert.Equal(t, markdown.Document("Not a Reading"), title)
 	})
 
 }
