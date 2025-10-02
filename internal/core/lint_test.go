@@ -380,3 +380,48 @@ func TestCheckAttributes(t *testing.T) {
 		},
 	}, violations)
 }
+
+func TestCheckSchema(t *testing.T) {
+	tr := NewTestRepository(t, FromGoldenDirNamed("TestLint"))
+
+	file := tr.ParseFile("check-schema/reading-valid.md")
+	violations, err := CheckSchema(file)
+	require.NoError(t, err)
+	require.Empty(t, violations)
+
+	file = tr.ParseFile("check-schema/reading-valid-no-review.md")
+	violations, err = CheckSchema(file)
+	require.NoError(t, err)
+	require.Empty(t, violations)
+
+	file = tr.ParseFile("check-schema/reading-valid-no-notes.md")
+	violations, err = CheckSchema(file)
+	require.NoError(t, err)
+	require.Empty(t, violations)
+
+	file = tr.ParseFile("check-schema/reading-invalid-unexpected-type.md")
+	violations, err = CheckSchema(file)
+	require.NoError(t, err)
+	require.Len(t, violations, 1)
+	require.ElementsMatch(t, []*Violation{
+		{
+			Name:         "check-schema",
+			Message:      `section "Todo: Backlog" does not match the schema`,
+			RelativePath: "check-schema/reading-invalid-unexpected-type.md",
+			Line:         17,
+		},
+	}, violations)
+
+	file = tr.ParseFile("check-schema/reading-invalid-multiple-reviews.md")
+	violations, err = CheckSchema(file)
+	require.NoError(t, err)
+	require.Len(t, violations, 1)
+	require.ElementsMatch(t, []*Violation{
+		{
+			Name:         "check-schema",
+			Message:      `multiple headings matching allowed schema heading(@type=~^Review$)`,
+			RelativePath: "check-schema/reading-invalid-multiple-reviews.md",
+			Line:         0,
+		},
+	}, violations)
+}

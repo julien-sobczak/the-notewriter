@@ -1,4 +1,15 @@
 {
+    Schema: {
+        makeHeading(matchType="", match="", required=false, allowMultiple=false, enforceOrder=false, children=[]) : {
+            match: match,                 // regex to validate the raw heading text
+            matchType: matchType,                   // regex to validate the heading note type
+            required: required,           // min: 0 or 1
+            allowMultiple: allowMultiple, // max: 1 or N
+            enforceOrder: enforceOrder,   // whether the order of children matters
+            children: children,           // list of nested heading specs allowed under this heading
+        },
+    },
+
     // Declare default attributes with special meaning for The NoteWriter
     DefaultAttributes: {
         due: {

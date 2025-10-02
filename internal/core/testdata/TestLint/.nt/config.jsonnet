@@ -1,5 +1,7 @@
 local nt = import 'nt.libsonnet';
 
+local makeHeading = nt.Schema.makeHeading;
+
 {
     core: {
         medias: {
@@ -40,6 +42,45 @@ local nt = import 'nt.libsonnet';
                 },
             ],
         },
+        Review: nt.DefaultNoteTypes.Note + {
+            name: "Review",
+            attributes: [
+                {
+                    name: "rating",
+                },
+            ],
+        }
+    },
+
+    fileTypes: nt.DefaultFileTypes + {
+        "Reading": {
+            name: "Reading",
+            attributes: [
+                {
+                    name: "read_date",
+                    required: true,
+                },
+                {
+                    name: "title",
+                    required: true,
+                },
+                {
+                    name: "short_title",
+                },
+                {
+                    name: "isbn",
+                    required: true,
+                },
+            ],
+            schema: {
+                body: makeHeading(children=[
+                    makeHeading(match="^Notes$", allowMultiple=false, children=[
+                        makeHeading(matchType="^(Note|Quote|Flashcard)$", required=true, allowMultiple=true),
+                    ]),
+                    makeHeading(matchType="^Review$", required=false, allowMultiple=false),
+                ]),
+            },
+        }
     },
 
     linter: {

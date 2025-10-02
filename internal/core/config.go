@@ -249,12 +249,12 @@ type ConfigFileSchema struct {
 
 // ConfigHeadingSchema defines the structure and validation for a heading in the document
 type ConfigHeadingSchema struct {
-	Kind          string                 `json:"kind,omitempty"`     // Type of heading (e.g., "Note", "Quote")
-	Match         string                 `json:"match,omitempty"`    // Regex to validate the raw heading text
-	Required      bool                   `json:"required"`           // Whether this heading is required
-	AllowMultiple bool                   `json:"allowMultiple"`      // Whether multiple instances are allowed
-	EnforceOrder  bool                   `json:"enforceOrder"`       // Whether child headings must appear in order
-	Children      []*ConfigHeadingSchema `json:"children,omitempty"` // Nested heading schemas
+	MatchType     string                 `json:"matchType,omitempty"` // Regex to validate the note type of heading (e.g., "Note", "Quote")
+	Match         string                 `json:"match,omitempty"`     // Regex to validate the raw heading text
+	Required      bool                   `json:"required"`            // Whether this heading is required
+	AllowMultiple bool                   `json:"allowMultiple"`       // Whether multiple instances are allowed
+	EnforceOrder  bool                   `json:"enforceOrder"`        // Whether child headings must appear in order
+	Children      []*ConfigHeadingSchema `json:"children,omitempty"`  // Nested heading schemas
 }
 
 type ConfigFileType struct {
@@ -480,6 +480,24 @@ func (c ConfigAttribute) String() string {
 		typeStr = fmt.Sprintf("%s/%s", c.Type, c.Pattern)
 	}
 	return fmt.Sprintf("%s (%s)", c.Name, typeStr)
+}
+
+func (c ConfigHeadingSchema) String() string {
+	var sb strings.Builder
+	sb.WriteString("heading(")
+
+	attrs := []string{}
+	if c.Match != "" {
+		attrs = append(attrs, "@title=~"+c.Match)
+	}
+	if c.MatchType != "" {
+		attrs = append(attrs, "@type=~"+c.MatchType)
+	}
+
+	sb.WriteString(strings.Join(attrs, ", "))
+	sb.WriteString(")")
+
+	return sb.String()
 }
 
 /*
@@ -1072,6 +1090,13 @@ func (c *Config) Check() error {
 				return fmt.Errorf("invalid pattern %q for file type %q: %v", fileType.Pattern, fileType.Name, err)
 			}
 		}
+		// Check for invalid regexes in schema
+		if fileType.Schema != nil {
+			err := c.checkHeadingSchema(fileType.Schema.Body)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	// Check for default attribute values
@@ -1164,6 +1189,25 @@ func (c *Config) Check() error {
 		}
 	}
 
+	return nil
+}
+
+func (c *Config) checkHeadingSchema(schema *ConfigHeadingSchema) error {
+	if schema.Match != "" {
+		if _, err := regexp.Compile(schema.Match); err != nil {
+			return fmt.Errorf("invalid match pattern %q in heading schema: %v", schema.Match, err)
+		}
+	}
+	if schema.MatchType != "" {
+		if _, err := regexp.Compile(schema.MatchType); err != nil {
+			return fmt.Errorf("invalid match type pattern %q in heading schema: %v", schema.MatchType, err)
+		}
+	}
+	for _, child := range schema.Children {
+		if err := c.checkHeadingSchema(child); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

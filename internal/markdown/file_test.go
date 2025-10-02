@@ -58,7 +58,7 @@ func TestParseMarkdown(t *testing.T) {
 					FileLineEnd:   23,
 					BodyLineStart: 1,
 					BodyLineEnd:   23,
-				}, sectionTitle)
+				}, trimSubSections(sectionTitle))
 
 				sectionSubtitle := sections[1]
 				assert.Equal(t, &markdown.Section{
@@ -70,7 +70,7 @@ func TestParseMarkdown(t *testing.T) {
 					FileLineEnd:   23,
 					BodyLineStart: 3,
 					BodyLineEnd:   23,
-				}, sectionSubtitle)
+				}, trimSubSections(sectionSubtitle))
 
 				sectionA := sections[2]
 				assert.Equal(t, &markdown.Section{
@@ -82,7 +82,7 @@ func TestParseMarkdown(t *testing.T) {
 					FileLineEnd:   11,
 					BodyLineStart: 5,
 					BodyLineEnd:   11,
-				}, sectionA)
+				}, trimSubSections(sectionA))
 
 				sectionA1 := sections[3]
 				assert.Equal(t, &markdown.Section{
@@ -94,7 +94,7 @@ func TestParseMarkdown(t *testing.T) {
 					FileLineEnd:   11,
 					BodyLineStart: 9,
 					BodyLineEnd:   11,
-				}, sectionA1)
+				}, trimSubSections(sectionA1))
 
 				sectionB := sections[4]
 				assert.Equal(t, &markdown.Section{
@@ -106,7 +106,7 @@ func TestParseMarkdown(t *testing.T) {
 					FileLineEnd:   23,
 					BodyLineStart: 13,
 					BodyLineEnd:   23,
-				}, sectionB)
+				}, trimSubSections(sectionB))
 
 				sectionB1 := sections[5]
 				assert.Equal(t, &markdown.Section{
@@ -118,7 +118,7 @@ func TestParseMarkdown(t *testing.T) {
 					FileLineEnd:   19,
 					BodyLineStart: 17,
 					BodyLineEnd:   19,
-				}, sectionB1)
+				}, trimSubSections(sectionB1))
 
 				sectionB2 := sections[6]
 				assert.Equal(t, &markdown.Section{
@@ -130,7 +130,7 @@ func TestParseMarkdown(t *testing.T) {
 					FileLineEnd:   23,
 					BodyLineStart: 21,
 					BodyLineEnd:   23,
-				}, sectionB2)
+				}, trimSubSections(sectionB2))
 
 				// Now check walking the sections
 				err = md.WalkSections(func(parent *markdown.Section, current *markdown.Section, children []*markdown.Section) error {
@@ -317,7 +317,7 @@ func TestParseMarkdown(t *testing.T) {
 					FileLineEnd:   9,
 					BodyLineStart: 3,
 					BodyLineEnd:   9,
-				}, sectionFenced)
+				}, trimSubSections(sectionFenced))
 
 				sectionIndent := sections[2]
 				assert.Equal(t, &markdown.Section{
@@ -329,7 +329,7 @@ func TestParseMarkdown(t *testing.T) {
 					FileLineEnd:   15,
 					BodyLineStart: 11,
 					BodyLineEnd:   15,
-				}, sectionIndent)
+				}, trimSubSections(sectionIndent))
 			},
 		},
 
@@ -344,4 +344,83 @@ func TestParseMarkdown(t *testing.T) {
 			testcase.test(t, md)
 		})
 	}
+}
+
+func TestFile(t *testing.T) {
+
+	t.Run("GetSections with valid hierarchy", func(t *testing.T) {
+		tr := core.NewTestRepository(t)
+
+		tr.WriteFile("valid-hierarchy.md", `
+# Title
+
+## Section 1
+
+Text from section 1
+
+### Section 1.1
+
+Text from section 1.1
+
+## Section 2
+
+Text from section 2
+`)
+		md, err := markdown.ParseFile(filepath.Join(tr.Root, "valid-hierarchy.md"))
+		require.NoError(t, err)
+		sections, err := md.GetSections()
+		require.NoError(t, err)
+		require.Len(t, sections, 4)
+
+		// Check sections
+		assert.Equal(t, "Title", sections[0].HeadingText.String())
+		assert.Equal(t, "Section 1", sections[1].HeadingText.String())
+		assert.Equal(t, "Section 1.1", sections[2].HeadingText.String())
+		assert.Equal(t, "Section 2", sections[3].HeadingText.String())
+
+		title := sections[0]
+		section1 := sections[1]
+		section1_1 := sections[2]
+		section2 := sections[3]
+
+		assert.Nil(t, title.Parent)
+		assert.Equal(t, title, section1.Parent)
+		assert.Equal(t, section1, section1_1.Parent)
+		assert.Equal(t, title, section2.Parent)
+
+		assert.Equal(t, []*markdown.Section{section1, section2}, title.Subsections)
+		assert.Equal(t, []*markdown.Section{section1_1}, section1.Subsections)
+		assert.Empty(t, section1_1.Subsections)
+		assert.Empty(t, section2.Subsections)
+	})
+
+	t.Run("GetSections with invalid hierarchy", func(t *testing.T) {
+		tr := core.NewTestRepository(t)
+
+		tr.WriteFile("invalid-hierarchy.md", `
+# Title
+
+### Section A
+
+Text from section A
+`)
+		md, err := markdown.ParseFile(filepath.Join(tr.Root, "invalid-hierarchy.md"))
+		require.NoError(t, err)
+		_, err = md.GetSections()
+		require.Error(t, err)
+		assert.Equal(t, "invalid Markdown hierarchy at line 3: missing parent heading for level 3", err.Error())
+	})
+}
+
+/* Test Helpers */
+
+// trimSubSections returns a copy of the section with its children removed (for easier comparison in tests)
+func trimSubSections(section *markdown.Section) *markdown.Section {
+	if section == nil {
+		return nil
+	}
+	// Duplicate the struct but remove children
+	trimmed := *section
+	trimmed.Subsections = nil
+	return &trimmed
 }

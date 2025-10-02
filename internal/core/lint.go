@@ -535,65 +535,104 @@ func CheckSchema(file *ParsedFile) ([]*Violation, error) {
 		return nil, nil
 	}
 
-	// Validate heading structure against schema
-	violations = append(violations, validateHeadingSchema(file, fileType.Schema.Body, file.Notes)...)
+	// Validate Markdown document against schema
+	md := file.Markdown
+
+	root, err := md.GetTopSection()
+	if err != nil {
+		return nil, err
+	}
+	sectionViolations := checkMarkdownSection([]*markdown.Section{root}, []*ConfigHeadingSchema{fileType.Schema.Body}, false)
+	// Append the file path to each violation
+	for _, v := range sectionViolations {
+		v.RelativePath = file.RelativePath
+	}
+	violations = append(violations, sectionViolations...)
 
 	return violations, nil
 }
 
-// validateHeadingSchema validates notes against a heading schema
-func validateHeadingSchema(file *ParsedFile, schema *ConfigHeadingSchema, notes []*ParsedNote) []*Violation {
-	var violations []*Violation
+func checkMarkdownSection(sections []*markdown.Section, schemas []*ConfigHeadingSchema, enforceOrder bool) []*Violation {
+	// Collect all found violations (don't fail at the first one to improve user experience)
+	violations := []*Violation{}
 
-	// Count occurrences by kind/match
-	var matchedNotes []*ParsedNote
-	for _, note := range notes {
-		if schema.Kind != "" && note.Type == schema.Kind {
-			matchedNotes = append(matchedNotes, note)
-		} else if schema.Match != "" {
-			matched, _ := regexp.MatchString(schema.Match, note.Title.String())
-			if matched {
-				matchedNotes = append(matchedNotes, note)
+	// Current schema index to enforce order if required
+	// If a schema has match, all following sections can only match this schema or the next ones
+	currentSchemaIndex := 0
+
+	// Keep track of how many sections matched each schema to enforce required and allow-multiple constraints
+	matchingSectionsPerSchema := make(map[int]int)
+
+	for _, section := range sections {
+		foundMatch := false
+		for i, schema := range schemas[currentSchemaIndex:] {
+			if schema.MatchSection(section) {
+				foundMatch = true
+				matchingSectionsPerSchema[i]++
+				if enforceOrder {
+					// Prevent using previous schemas for following sections
+					currentSchemaIndex = i
+				}
+
+				violations = append(violations, checkMarkdownSection(section.Subsections, schema.Children, schema.EnforceOrder)...)
+				break
 			}
 		}
-	}
-
-	// Check required constraint
-	if schema.Required && len(matchedNotes) == 0 {
-		kind := schema.Kind
-		if kind == "" {
-			kind = schema.Match
+		if !foundMatch {
+			violations = append(violations, &Violation{
+				Name:    "check-schema",
+				Message: fmt.Sprintf("section %q does not match the schema", section.HeadingText),
+				Line:    section.FileLineStart,
+			})
 		}
-		violations = append(violations, &Violation{
-			Name:         "check-schema",
-			RelativePath: file.RelativePath,
-			Message:      fmt.Sprintf("required heading %q not found", kind),
-			Line:         1,
-		})
 	}
 
-	// Check allowMultiple constraint
-	if !schema.AllowMultiple && len(matchedNotes) > 1 {
-		kind := schema.Kind
-		if kind == "" {
-			kind = schema.Match
+	for i, schema := range schemas {
+		if schema.Required && matchingSectionsPerSchema[i] == 0 {
+			violations = append(violations, &Violation{
+				Name:    "check-schema",
+				Message: fmt.Sprintf("no required %s matching the schema", schema),
+				Line:    0, // No known line
+			})
 		}
-		violations = append(violations, &Violation{
-			Name:         "check-schema",
-			RelativePath: file.RelativePath,
-			Message:      fmt.Sprintf("heading %q appears multiple times but allowMultiple is false", kind),
-			Line:         matchedNotes[1].Line,
-		})
-	}
-
-	// Recursively validate children
-	if len(schema.Children) > 0 {
-		for _, childSchema := range schema.Children {
-			violations = append(violations, validateHeadingSchema(file, childSchema, notes)...)
+		if !schema.AllowMultiple && matchingSectionsPerSchema[i] > 1 {
+			violations = append(violations, &Violation{
+				Name:    "check-schema",
+				Message: fmt.Sprintf("multiple headings matching allowed schema %s", schema),
+				Line:    0, // No known line
+			})
 		}
 	}
 
 	return violations
+}
+
+func (c *ConfigHeadingSchema) MatchSection(section *markdown.Section) bool {
+	if c.Match != "" {
+		match, err := regexp.MatchString(c.Match, section.HeadingText.String())
+		if err != nil {
+			return false
+		}
+		if !match {
+			return false
+		}
+	}
+
+	if c.MatchType != "" {
+		noteType, _, ok := CurrentConfigFile().MatchNoteType(section.HeadingText.String())
+		if !ok {
+			return false
+		}
+		match, err := regexp.MatchString(c.MatchType, noteType.Name)
+		if err != nil {
+			return false
+		}
+		if !match {
+			return false
+		}
+	}
+
+	return true
 }
 
 // CheckAttributes ensures attributes are valid and match the expected type.
