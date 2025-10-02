@@ -112,6 +112,9 @@
             ],
             preprocessors: ["date-extractor", "list-items"],
         },
+        Routine: self.Note + {
+            name: "Routine",
+        },
         Quote: self.Note + {
             name: "Quote",
             preprocessors: ["quote-rewriter"],
