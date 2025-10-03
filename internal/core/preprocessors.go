@@ -17,21 +17,21 @@ import (
 )
 
 func init() {
-	RegisterNotePreprocessor("date-extractor", DateExtractorPreprocessor)
-	RegisterNotePreprocessor("quote-rewriter", QuoteRewriterPreprocessor)
-	RegisterNotePreprocessor("generator", GeneratorPreprocessor)
-	RegisterNotePreprocessor("flashcard-extractor", FlashcardExtractorPreprocessor)
-	RegisterNotePreprocessor("list-items", ListItemsPreprocessor)
+	RegisterNoteProcessor("date-extractor", DateExtractorProcessor)
+	RegisterNoteProcessor("quote-rewriter", QuoteRewriterProcessor)
+	RegisterNoteProcessor("generator", GeneratorProcessor)
+	RegisterNoteProcessor("flashcard-extractor", FlashcardExtractorProcessor)
+	RegisterNoteProcessor("list-items", ListItemsProcessor)
 
-	// Register file preprocessors
-	RegisterFilePreprocessor("master", MasterPreprocessor)
-	RegisterFilePreprocessor("toc", TOCPreprocessor)
+	// Register file processors
+	RegisterFileProcessor("master", MasterProcessor)
+	RegisterFileProcessor("toc", TOCProcessor)
 }
 
-/* Preprocessors implementation */
+/* Processors implementation */
 
-// DateExtractorPreprocessor extracts the date from the note title and sets it as an attribute.
-func DateExtractorPreprocessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, error) {
+// DateExtractorProcessor extracts the date from the note title and sets it as an attribute.
+func DateExtractorProcessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, error) {
 	if date, ok := ExtractDateFromTitle(note.Title); ok {
 		note.Attributes.SetIfMissing("date", date)
 		note.NoteAttributes.SetIfMissing("date", date)
@@ -70,8 +70,8 @@ func ExtractDateFromTitle(input markdown.Document) (string, bool) {
 	return "", false
 }
 
-// QuoteRewriterPreprocessor rewrites the quotes in the note body to use the Markdown syntax (sugar syntax).
-func QuoteRewriterPreprocessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, error) {
+// QuoteRewriterProcessor rewrites the quotes in the note body to use the Markdown syntax (sugar syntax).
+func QuoteRewriterProcessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, error) {
 	lines := strings.Split(note.Body.String(), "\n")
 	var rewrittenLines []string
 
@@ -107,9 +107,9 @@ func QuoteRewriterPreprocessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNot
 	return []*ParsedNote{note}, nil
 }
 
-// GeneratorPreprocessor executes a script to generate new notes.
+// GeneratorProcessor executes a script to generate new notes.
 // This generator is useful for automation when creating many similar notes.
-func GeneratorPreprocessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, error) {
+func GeneratorProcessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, error) {
 	// Generator notes are not saved in database.
 	// They are parsed, evaluated and the results is injected as if the generated notes had been edited manually.
 
@@ -216,8 +216,8 @@ func GeneratorPreprocessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, e
 	return generatedFile.Notes, nil
 }
 
-// FlashcardExtractorPreprocessor extracts the flashcard to enrich a note. This preprocessor returns the same input note.
-func FlashcardExtractorPreprocessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, error) {
+// FlashcardExtractorProcessor extracts the flashcard to enrich a note. This processor returns the same input note.
+func FlashcardExtractorProcessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, error) {
 	parts := note.Body.SplitByHorizontalRules()
 
 	if len(parts) == 1 {
@@ -305,10 +305,10 @@ func flashcardWithClozeDeletionExtractor(_ *ParsedFile, note *ParsedNote) ([]*Pa
 	return []*ParsedNote{note}, nil
 }
 
-// ListItemsPreprocessor extracts list items from Markdown content and populates the Items field.
+// ListItemsProcessor extracts list items from Markdown content and populates the Items field.
 // It parses Markdown lists, extracts tags, attributes, and emojis from the text, and creates
 // a nested structure representing the list hierarchy.
-func ListItemsPreprocessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, error) {
+func ListItemsProcessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, error) {
 	listItems := extractListItems(note.Body, note.Line)
 	note.Items = NewItems(listItems)
 	return []*ParsedNote{note}, nil
@@ -416,8 +416,8 @@ func CommandExists(command string) bool {
 	return err == nil
 }
 
-// MasterPreprocessor processes Master notes by evaluating their Go templates
-func MasterPreprocessor(file *ParsedFile) (*ParsedFile, error) {
+// MasterProcessor processes Master notes by evaluating their Go templates
+func MasterProcessor(file *ParsedFile) (*ParsedFile, error) {
 	// Find all Master notes in the file
 	for _, note := range file.Notes {
 		if note.Type != "Master" {
@@ -500,8 +500,8 @@ func RenderAttributes(attributes AttributeSet) string {
 
 /* Helpers */
 
-// TOCPreprocessor generates a Table of Contents note and prepends it to the notes list
-func TOCPreprocessor(file *ParsedFile) (*ParsedFile, error) {
+// TOCProcessor generates a Table of Contents note and prepends it to the notes list
+func TOCProcessor(file *ParsedFile) (*ParsedFile, error) {
 	if len(file.Notes) == 0 {
 		return file, nil // No notes = no TOC
 	}

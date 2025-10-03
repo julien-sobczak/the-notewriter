@@ -64,7 +64,7 @@ func TestExtractDateFromTitle(t *testing.T) {
 	}
 }
 
-func TestQuoteRewriterPreprocessor(t *testing.T) {
+func TestQuoteRewriterProcessor(t *testing.T) {
 	tests := []struct {
 		name            string
 		inputBody       string
@@ -114,7 +114,7 @@ func TestQuoteRewriterPreprocessor(t *testing.T) {
 			file := &core.ParsedFile{}
 
 			// Call the function
-			resultNotes, err := core.QuoteRewriterPreprocessor(file, note)
+			resultNotes, err := core.QuoteRewriterProcessor(file, note)
 
 			// Check results
 			assert.NoError(t, err)
@@ -124,7 +124,7 @@ func TestQuoteRewriterPreprocessor(t *testing.T) {
 	}
 }
 
-func TestFlashcardExtractorPreprocessor(t *testing.T) {
+func TestFlashcardExtractorProcessor(t *testing.T) {
 
 	t.Run("Basic syntax", func(t *testing.T) {
 		file := &core.ParsedFile{}
@@ -140,7 +140,7 @@ Front
 Back
 `),
 		}
-		notes, err := core.FlashcardExtractorPreprocessor(file, note)
+		notes, err := core.FlashcardExtractorProcessor(file, note)
 		require.NoError(t, err)
 
 		// We still have the original note
@@ -171,7 +171,7 @@ Front
 Back
 `),
 		}
-		notes, err := core.FlashcardExtractorPreprocessor(file, note)
+		notes, err := core.FlashcardExtractorProcessor(file, note)
 		require.NoError(t, err)
 
 		// We still have the original note
@@ -204,7 +204,7 @@ Back
 			Slug:       "flashcard-cloze-deletion",
 			Body:       markdown.Document(`Canberra was founded in **[{c1::1913}]**.`),
 		}
-		notes, err := core.FlashcardExtractorPreprocessor(file, note)
+		notes, err := core.FlashcardExtractorProcessor(file, note)
 		require.NoError(t, err)
 
 		// We still have the original note
@@ -230,7 +230,7 @@ Back
 			Slug:       "flashcard-cloze-deletion",
 			Body:       markdown.Document(`Canberra was founded in [{c1::1913::year}].`),
 		}
-		notes, err := core.FlashcardExtractorPreprocessor(file, note)
+		notes, err := core.FlashcardExtractorProcessor(file, note)
 		require.NoError(t, err)
 
 		// We still have the original note
@@ -256,7 +256,7 @@ Back
 			Slug:       "flashcard-cloze-deletion",
 			Body:       markdown.Document(`[{c1::Canberra::city}] was founded in [{c1::1913}].`),
 		}
-		notes, err := core.FlashcardExtractorPreprocessor(file, note)
+		notes, err := core.FlashcardExtractorProcessor(file, note)
 		require.NoError(t, err)
 
 		// We still have the original note
@@ -282,7 +282,7 @@ Back
 			Slug:       "flashcard-cloze-deletion",
 			Body:       markdown.Document(`[{c1::Canberra::city}] was founded in [{c2::1913}].`),
 		}
-		notes, err := core.FlashcardExtractorPreprocessor(file, note)
+		notes, err := core.FlashcardExtractorProcessor(file, note)
 		require.NoError(t, err)
 
 		// We still have the original note
@@ -309,12 +309,12 @@ Back
 
 }
 
-func TestListItemsPreprocessor(t *testing.T) {
+func TestListItemsProcessor(t *testing.T) {
 
 	t.Run("Simple list items", func(t *testing.T) {
 		tr := core.NewTestRepository(t)
 
-		// Assert preprocessor is configured
+		// Assert processor is configured
 		require.Contains(t, core.CurrentConfigFile().MustGetNoteType("ReadingList").Processors, "list-items")
 
 		tr.WriteFile("test.md", `# ReadingList: Children's Literature
@@ -386,7 +386,7 @@ func TestListItemsPreprocessor(t *testing.T) {
 	t.Run("Mixed list markers", func(t *testing.T) {
 		tr := core.NewTestRepository(t)
 
-		// Assert preprocessor is configured
+		// Assert processor is configured
 		require.Contains(t, core.CurrentConfigFile().MustGetNoteType("ReadingList").Processors, "list-items")
 
 		tr.WriteFile("test.md", `# ReadingList: Demo
@@ -413,7 +413,7 @@ func TestListItemsPreprocessor(t *testing.T) {
 
 }
 
-func TestTOCFilePreprocessor(t *testing.T) {
+func TestTOCFileProcessor(t *testing.T) {
 	// Create a test repository
 	tr := core.NewTestRepository(t)
 
@@ -448,7 +448,7 @@ This section has child notes.
 This section has no child notes.
 `)
 
-	// Parse the file which should trigger the TOC preprocessor
+	// Parse the file which should trigger the TOC processor
 	parsedFile := tr.ParseFile("test_toc.md")
 	require.NotNil(t, parsedFile)
 
@@ -467,7 +467,7 @@ This section has no child notes.
 	assert.Equal(t, expectedTOC, tocNote.Body.String())
 }
 
-func TestMasterPreprocessor(t *testing.T) {
+func TestMasterProcessor(t *testing.T) {
 
 	t.Run("Master note with query function", func(t *testing.T) {
 		// Create a test repository
@@ -497,7 +497,7 @@ Implement something.
 Implement something else.
 `))
 
-		// Parse the file which should trigger the Master preprocessor
+		// Parse the file which should trigger the Master processor
 		parsedFile := tr.ParseFile("project.md")
 		require.NotNil(t, parsedFile)
 

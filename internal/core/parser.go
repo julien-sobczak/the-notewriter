@@ -23,32 +23,32 @@ type Slug string // TODO see if useful in practice (mainly to build, validate or
 
 type Tag string // TODO see if useful in practice (mainly when working with reminder tags)
 
-// NotePreprocessor processes a parsed note and returns a new list of parsed notes.
-type NotePreprocessor func(*ParsedFile, *ParsedNote) ([]*ParsedNote, error)
+// NoteProcessor processes a parsed note and returns a new list of parsed notes.
+type NoteProcessor func(*ParsedFile, *ParsedNote) ([]*ParsedNote, error)
 
-// notePreprocessors is a map of note preprocessor functions.
-var notePreprocessors = make(map[string]NotePreprocessor)
+// noteProcessors is a map of note processor functions.
+var noteProcessors = make(map[string]NoteProcessor)
 
-// RegisterNotePreprocessor registers the note preprocessor matching a given name.
-func RegisterNotePreprocessor(name string, preprocessor NotePreprocessor) {
-	if _, ok := notePreprocessors[name]; ok {
-		panic(fmt.Sprintf("NotePreprocessor %q already registered", name))
+// RegisterNoteProcessor registers the note processor matching a given name.
+func RegisterNoteProcessor(name string, processor NoteProcessor) {
+	if _, ok := noteProcessors[name]; ok {
+		panic(fmt.Sprintf("NoteProcessor %q already registered", name))
 	}
-	notePreprocessors[name] = preprocessor
+	noteProcessors[name] = processor
 }
 
-// FilePreprocessor processes a parsed file and returns a modified file.
-type FilePreprocessor func(*ParsedFile) (*ParsedFile, error)
+// FileProcessor processes a parsed file and returns a modified file.
+type FileProcessor func(*ParsedFile) (*ParsedFile, error)
 
-// filePreprocessors is a map of file preprocessor functions.
-var filePreprocessors = make(map[string]FilePreprocessor)
+// fileProcessors is a map of file processor functions.
+var fileProcessors = make(map[string]FileProcessor)
 
-// RegisterFilePreprocessor registers the file preprocessor matching a given name.
-func RegisterFilePreprocessor(name string, preprocessor FilePreprocessor) {
-	if _, ok := filePreprocessors[name]; ok {
-		panic(fmt.Sprintf("FilePreprocessor %q already registered", name))
+// RegisterFileProcessor registers the file processor matching a given name.
+func RegisterFileProcessor(name string, processor FileProcessor) {
+	if _, ok := fileProcessors[name]; ok {
+		panic(fmt.Sprintf("FileProcessor %q already registered", name))
 	}
-	filePreprocessors[name] = preprocessor
+	fileProcessors[name] = processor
 }
 
 type ParsedFile struct {
@@ -331,8 +331,8 @@ func ParseFile(md *markdown.File, mdParent *markdown.File) (*ParsedFile, error) 
 	result.Notes = notes
 	result.Wikilinks = result.extractWikilinks()
 
-	// Apply file preprocessors based on file tags
-	result, err = applyFilePreprocessors(result)
+	// Apply file processors based on file tags
+	result, err = applyFileProcessors(result)
 	if err != nil {
 		return nil, err
 	}
@@ -340,26 +340,26 @@ func ParseFile(md *markdown.File, mdParent *markdown.File) (*ParsedFile, error) 
 	return result, nil
 }
 
-// applyFilePreprocessors applies file preprocessors based on file tags, file types, and note types
-func applyFilePreprocessors(file *ParsedFile) (*ParsedFile, error) {
+// applyFileProcessors applies file processors based on file tags, file types, and note types
+func applyFileProcessors(file *ParsedFile) (*ParsedFile, error) {
 	fileTags := file.FileAttributes.Tags()
 
 	if file.Type != "" {
 		fileType := CurrentConfigFile().MustGetFileType(file.Type)
 		for _, processorName := range fileType.Processors {
-			preprocessor, ok := filePreprocessors[processorName]
+			processor, ok := fileProcessors[processorName]
 			if !ok {
 				return nil, fmt.Errorf("unknown file processor %q for file type %q", processorName, fileType.Name)
 			}
 			var err error
-			file, err = preprocessor(file)
+			file, err = processor(file)
 			if err != nil {
 				return nil, fmt.Errorf("failing file processor %q on file %q: %v", processorName, file.RelativePath, err)
 			}
 		}
 	}
 
-	// Check if file contains Master notes and apply master preprocessor first
+	// Check if file contains Master notes and apply master processor first
 	hasMasterNotes := false
 	for _, note := range file.Notes {
 		if note.Type == "Master" {
@@ -369,23 +369,23 @@ func applyFilePreprocessors(file *ParsedFile) (*ParsedFile, error) {
 	}
 
 	if hasMasterNotes {
-		if preprocessor, ok := filePreprocessors["master"]; ok {
+		if processor, ok := fileProcessors["master"]; ok {
 			var err error
-			file, err = preprocessor(file)
+			file, err = processor(file)
 			if err != nil {
-				return nil, fmt.Errorf("failing file preprocessor 'master' on file %q: %v", file.RelativePath, err)
+				return nil, fmt.Errorf("failing file processor 'master' on file %q: %v", file.RelativePath, err)
 			}
 		}
 	}
 
-	// Apply preprocessors based on file tags
+	// Apply processors based on file tags
 	// IMPROVEMENT remove and force using file types instead?
 	if fileTags.Includes("toc") {
-		if preprocessor, ok := filePreprocessors["toc"]; ok {
+		if processor, ok := fileProcessors["toc"]; ok {
 			var err error
-			file, err = preprocessor(file)
+			file, err = processor(file)
 			if err != nil {
-				return nil, fmt.Errorf("failing file preprocessor 'toc' on file %q: %v", file.RelativePath, err)
+				return nil, fmt.Errorf("failing file processor 'toc' on file %q: %v", file.RelativePath, err)
 			}
 		}
 	}
@@ -565,7 +565,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		// As a processor can generate several notes, we need to loop
 		// until all processors have been applied.
 		for _, processorName := range noteType.Processors {
-			preprocessor, ok := notePreprocessors[processorName]
+			processor, ok := noteProcessors[processorName]
 			if !ok {
 				return nil, fmt.Errorf("unknown note processor %q", processorName)
 			}
@@ -574,7 +574,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 			newParsedNotes := []*ParsedNote{}
 
 			for _, parsedNote := range parsedNotes {
-				generatedNotes, err := preprocessor(p, parsedNote)
+				generatedNotes, err := processor(p, parsedNote)
 				if err != nil {
 					return nil, fmt.Errorf("failing processor %q on note %q (%s:%d): %v", processorName, parsedNote.ShortTitle, parsedNote.RelativePath, parsedNote.Line, err)
 				}

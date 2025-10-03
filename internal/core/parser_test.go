@@ -644,7 +644,7 @@ Another note without a code block.
 
 		tr := core.NewTestRepository(t)
 
-		// Assert date preprocessor is configured
+		// Assert date processor is configured
 		require.Contains(t, core.CurrentConfigFile().MustGetNoteType("Journal").Processors, "date-extractor")
 
 		tr.WriteFile("2024-12-05.md", `

@@ -55,7 +55,7 @@ local nt = import 'nt.libsonnet';
                     inline: false,
                 },
             ],
-            preprocessors: ["list-items"],
+            processors: ["list-items"],
         },
     },
 

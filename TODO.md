@@ -7,7 +7,7 @@
 * [ ] Push/Pull operations too
 * [ ] Create remote for [Filen](https://filen.io/pricing) => Go SDK is not mature... wait&see 🤞
 * [ ] Rework documentation `linter.md` and introduce a new `config.md`
-* [ ] Add tests for `GeneratorPreprocessor`
+* [ ] Add tests for `GeneratorProcessor`
 
 ## TODO: Bug Fixes
 
