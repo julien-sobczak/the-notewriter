@@ -180,11 +180,6 @@ func (m *File) GetSections() ([]*Section, error) {
 		}
 
 		if ok, headingText, headingLevel := IsHeading(line); ok {
-			// Validate heading hierarchy
-			if headingLevel > 1 && lastSectionAtLevel[headingLevel-1] == nil {
-				return nil, fmt.Errorf("invalid Markdown hierarchy at line %d: missing parent heading for level %d", lineNumber, headingLevel)
-			}
-
 			// Previous section to close?
 			lastLevel := -1
 			var lastSection *Section
@@ -214,7 +209,7 @@ func (m *File) GetSections() ([]*Section, error) {
 			lastSectionAtLevel[headingLevel] = newSection
 
 			// Top-section?
-			if lastSectionAtLevel[headingLevel-1] != nil {
+			if headingLevel > 0 && lastSectionAtLevel[headingLevel-1] != nil {
 				// Parent found
 				newSection.Parent = lastSectionAtLevel[headingLevel-1]
 				// Add new section to parent's Subsections

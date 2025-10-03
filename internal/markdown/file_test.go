@@ -348,7 +348,7 @@ func TestParseMarkdown(t *testing.T) {
 
 func TestFile(t *testing.T) {
 
-	t.Run("GetSections with valid hierarchy", func(t *testing.T) {
+	t.Run("GetSections", func(t *testing.T) {
 		tr := core.NewTestRepository(t)
 
 		tr.WriteFile("valid-hierarchy.md", `
@@ -392,23 +392,6 @@ Text from section 2
 		assert.Equal(t, []*markdown.Section{section1_1}, section1.Subsections)
 		assert.Empty(t, section1_1.Subsections)
 		assert.Empty(t, section2.Subsections)
-	})
-
-	t.Run("GetSections with invalid hierarchy", func(t *testing.T) {
-		tr := core.NewTestRepository(t)
-
-		tr.WriteFile("invalid-hierarchy.md", `
-# Title
-
-### Section A
-
-Text from section A
-`)
-		md, err := markdown.ParseFile(filepath.Join(tr.Root, "invalid-hierarchy.md"))
-		require.NoError(t, err)
-		_, err = md.GetSections()
-		require.Error(t, err)
-		assert.Equal(t, "invalid Markdown hierarchy at line 3: missing parent heading for level 3", err.Error())
 	})
 }
 

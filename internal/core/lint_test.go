@@ -424,4 +424,9 @@ func TestCheckSchema(t *testing.T) {
 			Line:         0,
 		},
 	}, violations)
+
+	file = tr.ParseFile("check-schema/generator-notes.md")
+	violations, err = CheckSchema(file)
+	require.NoError(t, err)
+	require.Empty(t, violations)
 }
