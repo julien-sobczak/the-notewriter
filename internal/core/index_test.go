@@ -147,7 +147,7 @@ func TestIndex(t *testing.T) {
 
 		idx := NewIndex()
 
-		tr.WriteFile("programming.md", "## Note: Go\n\nGo is a statically typed, compiled high-level general purpose programming language.")
+		tr.WriteFile("programming.md", "# Note: Go\n\nGo is a statically typed, compiled high-level general purpose programming language.")
 
 		parsedFile1 := tr.ParseFile("programming.md")
 		packFile1, err := NewPackFileFromParsedFile(parsedFile1)
@@ -160,7 +160,7 @@ func TestIndex(t *testing.T) {
 		assert.Len(t, idx.Objects, 2) // 1 file + 1 note
 
 		// Edit file to add a new note
-		tr.WriteFile("programming.md", "## Note: Go\n\nGo is a statically typed, compiled high-level general purpose programming language.\n\n## Note: Python\n\nPython is a high-level, general-purpose programming language.")
+		tr.WriteFile("programming.md", "# Note: Go\n\nGo is a statically typed, compiled high-level general purpose programming language.\n\n## Note: Python\n\nPython is a high-level, general-purpose programming language.")
 
 		parsedFile2 := tr.ParseFile("programming.md")
 		packFile2, err := NewPackFileFromParsedFile(parsedFile2)
@@ -190,13 +190,13 @@ func TestIndex(t *testing.T) {
 		idx := NewIndex()
 
 		// Create and commit a first pack file
-		tr.WriteFile("go.md", "## Note: Go\n\nGo is a statically typed, compiled high-level general purpose programming language.")
+		tr.WriteFile("go.md", "# Note: Go\n\nGo is a statically typed, compiled high-level general purpose programming language.")
 		packFile1 := tr.NewPackFile("go.md")
 		require.NoError(t, idx.Stage(packFile1))
 		require.NoError(t, idx.Commit())
 
 		// Create but only stage a second pack file
-		tr.WriteFile("python.md", "## Note: Python\n\nPython is a high-level, general-purpose programming language.")
+		tr.WriteFile("python.md", "# Note: Python\n\nPython is a high-level, general-purpose programming language.")
 		packFile2 := tr.NewPackFile("python.md")
 		require.NoError(t, idx.Stage(packFile2))
 
@@ -257,7 +257,7 @@ func TestIndex(t *testing.T) {
 		assert.False(t, entry2.Staged)
 
 		// Recreate a new pack file for python.md
-		tr.WriteFile("python.md", "## Note: Python Lang\n\nPython is a high-level, general-purpose programming language.")
+		tr.WriteFile("python.md", "# Note: Python Lang\n\nPython is a high-level, general-purpose programming language.")
 		newPackFile2 := tr.NewPackFile("python.md")
 		require.NoError(t, idx.Stage(newPackFile2))
 
@@ -326,8 +326,8 @@ func TestIndex(t *testing.T) {
 		tr := NewTestRepository(t,
 			WithSequenceOIDs(),
 			WithFreezeOn("2023-01-01 12:30"),
-			WithFile("go.md", "## Note: Go\n\nGo is a statically typed, compiled high-level general purpose programming language."),
-			WithFile("python.md", "## Note: Python\n\nPython is a high-level, general-purpose programming language."),
+			WithFile("go.md", "# Note: Go\n\nGo is a statically typed, compiled high-level general purpose programming language."),
+			WithFile("python.md", "# Note: Python\n\nPython is a high-level, general-purpose programming language."),
 		)
 
 		idx := NewIndex()
@@ -419,7 +419,7 @@ func TestIndex(t *testing.T) {
 		idx := NewIndex()
 
 		// Create and stage a pack file
-		tr.WriteFile("go.md", "## Note: Go\n\nGo is a statically typed, compiled high-level general purpose programming language.")
+		tr.WriteFile("go.md", "# Note: Go\n\nGo is a statically typed, compiled high-level general purpose programming language.")
 		packFile := tr.NewPackFile("go.md")
 		require.NoError(t, idx.Stage(packFile))
 		require.NoError(t, idx.Commit())
