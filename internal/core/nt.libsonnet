@@ -1,4 +1,15 @@
 {
+    Schema: {
+        makeHeading(matchType="", match="", required=false, allowMultiple=false, enforceOrder=false, children=[]) : {
+            match: match,                 // regex to validate the raw heading text
+            matchType: matchType,                   // regex to validate the heading note type
+            required: required,           // min: 0 or 1
+            allowMultiple: allowMultiple, // max: 1 or N
+            enforceOrder: enforceOrder,   // whether the order of children matters
+            children: children,           // list of nested heading specs allowed under this heading
+        },
+    },
+
     // Declare default attributes with special meaning for The NoteWriter
     DefaultAttributes: {
         due: {
@@ -78,14 +89,14 @@
     },
 
     // Declare default note types
-    DefaultTypes: {
+    DefaultNoteTypes: {
         // Prefedefined objects = types with custom logic in The NoteWriter when processing them
         Note: {
             name: "Note",
         },
         List: {
             name: "List",
-            preprocessors: ["list-items"],
+            processors: ["list-items"],
         },
         Task: self.Note + {
             name: "Task",
@@ -110,14 +121,14 @@
                     required: true,
                 },
             ],
-            preprocessors: ["date-extractor", "list-items"],
+            processors: ["date-extractor", "list-items"],
         },
         Routine: self.Note + {
             name: "Routine",
         },
         Quote: self.Note + {
             name: "Quote",
-            preprocessors: ["quote-rewriter"],
+            processors: ["quote-rewriter"],
         },
         Artwork: self.Note + {
             name: "Artwork",
@@ -132,7 +143,7 @@
                     name: "srs.boostFactor",
                 },
             ],
-            preprocessors: ["flashcard-extractor"],
+            processors: ["flashcard-extractor"],
         },
         Todo: self.Note + {
             name: "Todo",
@@ -152,7 +163,7 @@
                     required: true,
                 },
             ],
-            preprocessors: ["list-items"],
+            processors: ["list-items"],
         },
         Generator: self.Note + {
             name: "Generator",
@@ -164,7 +175,7 @@
                     name: "interpreter",
                 },
             ],
-            preprocessors: ["generator", "list-items"],
+            processors: ["generator", "list-items"],
         },
         ReadingList: self.Note + {
             name: "ReadingList",
@@ -176,11 +187,15 @@
                     name: "rating",
                 },
             ],
-            preprocessors: ["list-items"],
+            processors: ["list-items"],
         },
         Master: self.Note + {
             name: "Master",
         },
+    },
+
+    // Declare default file types (empty by default, users can extend this)
+    DefaultFileTypes: {
     },
 
     // Declare available Linter rules

@@ -7,6 +7,9 @@ CREATE TABLE file (
   -- Slug
   slug TEXT,
 
+  -- Optional type of file: note, reference, quote, ...
+  file_type TEXT,
+
   -- Relative file path to the file
   relative_path TEXT NOT NULL,
   -- The full wikilink to this note

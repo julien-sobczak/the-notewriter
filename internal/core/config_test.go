@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/go-jsonnet"
+	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -450,7 +451,7 @@ func TestParseConfigFile(t *testing.T) {
 		assert.Equal(t, "ultrafast", cfg.Core.Medias.Preset)
 	})
 
-	t.Run("Config with attributes and types", func(t *testing.T) {
+	t.Run("Config with attributes and noteTypes", func(t *testing.T) {
 		configPath := MustWriteTempFile(t, "config.jsonnet", `
 {
 	Attributes: {
@@ -459,7 +460,7 @@ func TestParseConfigFile(t *testing.T) {
 			type: "string",
 		},
 	},
-	Types: {
+	noteTypes: {
 		Note: {
 			name: "Note",
 		},
@@ -480,11 +481,35 @@ func TestParseConfigFile(t *testing.T) {
 		assert.True(t, *attr.Inherit)
 
 		// Custom type should be present
-		noteType, ok := cfg.Types["Note"]
+		noteType, ok := cfg.NoteTypes["Note"]
 		require.True(t, ok)
 		assert.Equal(t, "Note", noteType.Name)
 		// Type pattern should be set by default
 		assert.Contains(t, noteType.Pattern, "^Note:")
+	})
+
+	t.Run("Config with file types", func(t *testing.T) {
+		configPath := MustWriteTempFile(t, "config.jsonnet", `
+{
+	fileTypes: {
+		Reading: {
+			name: "Reading",
+			processors: ["toc"],
+		},
+	},
+}`)
+
+		cfg, err := ParseConfigFile(configPath)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		// Custom file type should be present
+		fileType, ok := cfg.FileTypes["Reading"]
+		require.True(t, ok)
+		assert.Equal(t, "Reading", fileType.Name)
+		assert.Equal(t, []string{"toc"}, fileType.Processors)
+		// File type pattern should be set by default
+		assert.Contains(t, fileType.Pattern, "^Reading:")
 	})
 
 	t.Run("Config with invalid jsonnet", func(t *testing.T) {
@@ -499,19 +524,19 @@ func TestParseConfigFile(t *testing.T) {
 
 func TestConfigFile(t *testing.T) {
 
-	t.Run("GetType", func(t *testing.T) {
+	t.Run("GetNoteType", func(t *testing.T) {
 		cfg := &ConfigFile{
-			Types: ConfigTypes{
-				"Note": &ConfigType{Name: "Note"},
+			NoteTypes: ConfigNoteTypes{
+				"Note": &ConfigNoteType{Name: "Note"},
 			},
 		}
 
-		noteType, ok := cfg.GetType("Note")
+		noteType, ok := cfg.GetNoteType("Note")
 		assert.True(t, ok)
 		require.NotNil(t, noteType)
 		assert.Equal(t, "Note", noteType.Name)
 
-		unknownType, ok := cfg.GetType("Unknown")
+		unknownType, ok := cfg.GetNoteType("Unknown")
 		assert.False(t, ok)
 		assert.Nil(t, unknownType)
 	})
@@ -552,8 +577,8 @@ func TestConfigFile(t *testing.T) {
 					DefaultValue: 42,
 				},
 			},
-			Types: ConfigTypes{
-				"Note1": &ConfigType{
+			NoteTypes: ConfigNoteTypes{
+				"Note1": &ConfigNoteType{
 					Name: "Note1",
 					Attributes: []ConfigTypeAttribute{
 						{Name: "attr1", Required: BoolPointer(true)},
@@ -561,7 +586,7 @@ func TestConfigFile(t *testing.T) {
 						{Name: "attr3", Required: BoolPointer(false)}, // not required, default doesn't apply
 					},
 				},
-				"Note2": &ConfigType{
+				"Note2": &ConfigNoteType{
 					Name: "Note2",
 					Attributes: []ConfigTypeAttribute{
 						{Name: "attr1", Required: BoolPointer(true)},
@@ -582,6 +607,50 @@ func TestConfigFile(t *testing.T) {
 			"attr1": "value1",
 			"attr3": int64(42),
 		}), defaultsNote2)
+	})
+
+	t.Run("GetFileType", func(t *testing.T) {
+		cfg := &ConfigFile{
+			FileTypes: ConfigFileTypes{
+				"Reading": &ConfigFileType{Name: "Reading"},
+			},
+		}
+
+		fileType, ok := cfg.GetFileType("Reading")
+		assert.True(t, ok)
+		require.NotNil(t, fileType)
+		assert.Equal(t, "Reading", fileType.Name)
+
+		unknownType, ok := cfg.GetFileType("Unknown")
+		assert.False(t, ok)
+		assert.Nil(t, unknownType)
+	})
+
+	t.Run("MatchFileType", func(t *testing.T) {
+		cfg := &ConfigFile{
+			FileTypes: ConfigFileTypes{
+				"Reading": &ConfigFileType{
+					Name:    "Reading",
+					Pattern: "(?i)^Reading:\\s*(.*)$",
+				},
+			},
+		}
+
+		fileType, title, ok := cfg.MatchFileType("Reading: My Book Title")
+		assert.True(t, ok)
+		require.NotNil(t, fileType)
+		assert.Equal(t, "Reading", fileType.Name)
+		assert.Equal(t, markdown.Document("My Book Title"), title)
+
+		fileType, title, ok = cfg.MatchFileType("reading: lowercase title")
+		assert.True(t, ok)
+		require.NotNil(t, fileType)
+		assert.Equal(t, markdown.Document("lowercase title"), title)
+
+		fileType, title, ok = cfg.MatchFileType("Not a Reading")
+		assert.False(t, ok)
+		assert.Nil(t, fileType)
+		assert.Equal(t, markdown.Document("Not a Reading"), title)
 	})
 
 }

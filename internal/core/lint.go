@@ -520,6 +520,121 @@ func RequireTag(file *ParsedFile, query *Query, args []any) ([]*Violation, error
 	return violations, nil
 }
 
+// CheckSchema validates a file against its declared schema if it matches a file type.
+func CheckSchema(file *ParsedFile) ([]*Violation, error) {
+	var violations []*Violation
+
+	// Check if file matches a file type with a schema
+	if file.Type == "" {
+		return nil, nil
+	}
+
+	fileType := CurrentConfigFile().MustGetFileType(file.Type)
+	if fileType.Schema == nil || fileType.Schema.Body == nil {
+		// No file type match or no schema defined
+		return nil, nil
+	}
+
+	// Validate Markdown document against schema
+	md := file.Markdown
+
+	root, err := md.GetTopSection()
+	if err != nil {
+		return nil, err
+	}
+	sectionViolations := checkMarkdownSection([]*markdown.Section{root}, []*ConfigHeadingSchema{fileType.Schema.Body}, false)
+	// Append the file path to each violation
+	for _, v := range sectionViolations {
+		v.RelativePath = file.RelativePath
+	}
+	violations = append(violations, sectionViolations...)
+
+	return violations, nil
+}
+
+func checkMarkdownSection(sections []*markdown.Section, schemas []*ConfigHeadingSchema, enforceOrder bool) []*Violation {
+	// Collect all found violations (don't fail at the first one to improve user experience)
+	violations := []*Violation{}
+
+	// Current schema index to enforce order if required
+	// If a schema has match, all following sections can only match this schema or the next ones
+	currentSchemaIndex := 0
+
+	// Keep track of how many sections matched each schema to enforce required and allow-multiple constraints
+	matchingSectionsPerSchema := make(map[int]int)
+
+	for _, section := range sections {
+		foundMatch := false
+		for i, schema := range schemas[currentSchemaIndex:] {
+			if schema.MatchSection(section) {
+				foundMatch = true
+				matchingSectionsPerSchema[i]++
+				if enforceOrder {
+					// Prevent using previous schemas for following sections
+					currentSchemaIndex = i
+				}
+
+				violations = append(violations, checkMarkdownSection(section.Subsections, schema.Children, schema.EnforceOrder)...)
+				break
+			}
+		}
+		if !foundMatch {
+			violations = append(violations, &Violation{
+				Name:    "check-schema",
+				Message: fmt.Sprintf("section %q does not match the schema", section.HeadingText),
+				Line:    section.FileLineStart,
+			})
+		}
+	}
+
+	for i, schema := range schemas {
+		if schema.Required && matchingSectionsPerSchema[i] == 0 {
+			violations = append(violations, &Violation{
+				Name:    "check-schema",
+				Message: fmt.Sprintf("no required %s matching the schema", schema),
+				Line:    0, // No known line
+			})
+		}
+		if !schema.AllowMultiple && matchingSectionsPerSchema[i] > 1 {
+			violations = append(violations, &Violation{
+				Name:    "check-schema",
+				Message: fmt.Sprintf("multiple headings matching allowed schema %s", schema),
+				Line:    0, // No known line
+			})
+		}
+	}
+
+	return violations
+}
+
+func (c *ConfigHeadingSchema) MatchSection(section *markdown.Section) bool {
+	if c.Match != "" {
+		match, err := regexp.MatchString(c.Match, section.HeadingText.String())
+		if err != nil {
+			return false
+		}
+		if !match {
+			return false
+		}
+	}
+
+	if c.MatchType != "" {
+		noteType, _, ok := CurrentConfigFile().MatchNoteType(section.HeadingText.String())
+		if !ok {
+			return false
+		}
+		match, err := regexp.MatchString(c.MatchType, noteType.Name)
+		if err != nil {
+			return false
+		}
+		if !match {
+			return false
+		}
+	}
+
+	return true
+}
+
 // CheckAttributes ensures attributes are valid and match the expected type.
 func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 	var violations []*Violation
@@ -527,14 +642,21 @@ func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 	for _, note := range file.Notes {
 
 		attributeDefinitions := CurrentConfigFile().Attributes
-		objectDefinition := CurrentConfigFile().MustGetType(note.Type)
+
+		var fileDefinition *ConfigFileType
+		var noteDefinition *ConfigNoteType
+		if file.Type != "" {
+			fileDefinition = CurrentConfigFile().MustGetFileType(file.Type)
+		}
+		noteDefinition = CurrentConfigFile().MustGetNoteType(note.Type)
 
 		for _, attributeDefinition := range attributeDefinitions {
 
 			allowedNames := []string{attributeDefinition.Name}
 			allowedNames = append(allowedNames, attributeDefinition.Aliases...)
 
-			found := false
+			foundInFile := false // Found in file front matter
+			found := false       // Just found (inherited, in file, or in note)
 
 			for _, name := range allowedNames {
 
@@ -543,6 +665,7 @@ func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 
 				fileValue, presentOnFile := file.FileAttributes[name]
 				if presentOnFile {
+					foundInFile = true
 					found = true
 
 					line := text.LineNumber(string(file.Markdown.Content), name+":")
@@ -591,7 +714,7 @@ func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 			}
 
 			// Check required attributes
-			required := objectDefinition.RequiredAttribute(attributeDefinition.Name)
+			required := noteDefinition.RequiredAttribute(attributeDefinition.Name)
 			if required && !found {
 				violations = append(violations, &Violation{
 					Name:         "check-attributes",
@@ -599,6 +722,17 @@ func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 					Message:      fmt.Sprintf("attribute %q missing on note %q in file %q", attributeDefinition.Name, note.Title, file.RelativePath),
 					Line:         note.Line,
 				})
+			}
+			if fileDefinition != nil {
+				required = fileDefinition.RequiredAttribute(attributeDefinition.Name)
+				if required && !foundInFile {
+					violations = append(violations, &Violation{
+						Name:         "check-attributes",
+						RelativePath: file.RelativePath,
+						Message:      fmt.Sprintf("attribute %q missing on file %q", attributeDefinition.Name, file.Title),
+						Line:         note.Line,
+					})
+				}
 			}
 		}
 

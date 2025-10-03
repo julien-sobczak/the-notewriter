@@ -46,11 +46,13 @@ type Section struct {
 	FileLineEnd   int
 	BodyLineStart int // 1-based index based on body (ignored the Front Matter)
 	BodyLineEnd   int
+	Subsections   []*Section
 }
 
 // Includes returns if a section is present inside another one.
 func (m Section) Includes(other Section) bool {
-	if m == other {
+	if m.FileLineStart == other.FileLineStart && m.FileLineEnd == other.FileLineEnd {
+		// Same section
 		return false
 	}
 	return m.BodyLineStart <= other.BodyLineStart && m.BodyLineEnd >= other.BodyLineEnd && m.HeadingLevel < other.HeadingLevel
@@ -178,6 +180,11 @@ func (m *File) GetSections() ([]*Section, error) {
 		}
 
 		if ok, headingText, headingLevel := IsHeading(line); ok {
+			// Validate heading hierarchy
+			if headingLevel > 1 && lastSectionAtLevel[headingLevel-1] == nil {
+				return nil, fmt.Errorf("invalid Markdown hierarchy at line %d: missing parent heading for level %d", lineNumber, headingLevel)
+			}
+
 			// Previous section to close?
 			lastLevel := -1
 			var lastSection *Section
@@ -202,6 +209,7 @@ func (m *File) GetSections() ([]*Section, error) {
 				HeadingLevel:  headingLevel,
 				FileLineStart: m.BodyLine - 1 + lineNumber,
 				BodyLineStart: lineNumber,
+				Subsections:   []*Section{}, // Initialize Subsections
 			}
 			lastSectionAtLevel[headingLevel] = newSection
 
@@ -209,6 +217,8 @@ func (m *File) GetSections() ([]*Section, error) {
 			if lastSectionAtLevel[headingLevel-1] != nil {
 				// Parent found
 				newSection.Parent = lastSectionAtLevel[headingLevel-1]
+				// Add new section to parent's Subsections
+				lastSectionAtLevel[headingLevel-1].Subsections = append(lastSectionAtLevel[headingLevel-1].Subsections, newSection)
 			}
 
 			sections = append(sections, newSection)
