@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/julien-sobczak/the-notewriter/internal/vault"
 	"github.com/spf13/cobra"
 )
 
@@ -13,12 +14,12 @@ func init() {
 }
 
 var createCmd = &cobra.Command{
-	Use:   "create -- <path/to/file.md>",
+	Use:   "create <path/to/file.md>",
 	Short: "Create a new encrypted file",
 	Long:  `Opens an editor to create a new file that will be encrypted when the editor is closed.`,
 	Args:  cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		// Get the file path (after --)
+		// Get the file path
 		filePath := args[len(args)-1]
 
 		// Check if file already exists
@@ -28,7 +29,7 @@ var createCmd = &cobra.Command{
 		}
 
 		// Load encryption key
-		key, err := LoadKey()
+		key, err := vault.LoadKey()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error loading key: %v\n", err)
 			os.Exit(1)
@@ -68,7 +69,7 @@ var createCmd = &cobra.Command{
 		}
 
 		// Encrypt the content
-		encrypted, err := EncryptFile(content, key)
+		encrypted, err := vault.EncryptFile(content, key)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error encrypting file: %v\n", err)
 			os.Exit(1)

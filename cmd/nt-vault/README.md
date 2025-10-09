@@ -23,8 +23,9 @@ The binary will be available at `build/ntvault`.
 Generate a 32-byte random key for AES-256 encryption:
 
 ```bash
-head -c 32 /dev/urandom > ~/.nt-vault-key
-chmod 0600 ~/.nt-vault-key
+mkdir -p ~/.nt
+head -c 32 /dev/urandom > ~/.nt/vault.key
+chmod 0600 ~/.nt/vault.key
 ```
 
 **Important:** The key file must have restricted permissions (0600 or 0400) for security. The tool will refuse to work with keys that have overly permissive file permissions.
@@ -34,7 +35,7 @@ chmod 0600 ~/.nt-vault-key
 Set the `NT_VAULT_AES_KEY_FILE` environment variable to point to your key file:
 
 ```bash
-export NT_VAULT_AES_KEY_FILE=~/.nt-vault-key
+export NT_VAULT_AES_KEY_FILE=~/.nt/vault.key
 ```
 
 You may want to add this to your shell profile (e.g., `~/.bashrc` or `~/.zshrc`).
@@ -46,7 +47,7 @@ You may want to add this to your shell profile (e.g., `~/.bashrc` or `~/.zshrc`)
 Opens your editor (from `$EDITOR`) to create a new file that will be encrypted when saved:
 
 ```bash
-nt-vault create -- path/to/secret-note.md
+nt-vault create path/to/secret-note.md
 ```
 
 ### Encrypt an Existing File
@@ -54,7 +55,7 @@ nt-vault create -- path/to/secret-note.md
 Encrypts a plaintext markdown file in-place:
 
 ```bash
-nt-vault encrypt -- path/to/note.md
+nt-vault encrypt path/to/note.md
 ```
 
 ### Decrypt a File
@@ -62,13 +63,13 @@ nt-vault encrypt -- path/to/note.md
 Decrypt to stdout:
 
 ```bash
-nt-vault decrypt -- path/to/encrypted-note.md
+nt-vault decrypt path/to/encrypted-note.md
 ```
 
 Decrypt to a file:
 
 ```bash
-nt-vault decrypt --output decrypted.md -- path/to/encrypted-note.md
+nt-vault decrypt --output decrypted.md path/to/encrypted-note.md
 ```
 
 ### Edit an Encrypted File
@@ -76,7 +77,7 @@ nt-vault decrypt --output decrypted.md -- path/to/encrypted-note.md
 Opens the encrypted file in your editor, decrypted. When you close the editor, the file is re-encrypted:
 
 ```bash
-nt-vault edit -- path/to/encrypted-note.md
+nt-vault edit path/to/encrypted-note.md
 ```
 
 ### View an Encrypted File
@@ -84,7 +85,7 @@ nt-vault edit -- path/to/encrypted-note.md
 Opens the decrypted content in a pager (from `$PAGER`, defaults to `less`):
 
 ```bash
-nt-vault view -- path/to/encrypted-note.md
+nt-vault view path/to/encrypted-note.md
 ```
 
 ## Encrypted File Format
@@ -131,24 +132,25 @@ The file contains:
 
 ```bash
 # 1. Generate a key
-head -c 32 /dev/urandom > ~/.nt-vault-key
-chmod 0600 ~/.nt-vault-key
-export NT_VAULT_AES_KEY_FILE=~/.nt-vault-key
+mkdir -p ~/.nt
+head -c 32 /dev/urandom > ~/.nt/vault.key
+chmod 0600 ~/.nt/vault.key
+export NT_VAULT_AES_KEY_FILE=~/.nt/vault.key
 
 # 2. Create a new encrypted note
-nt-vault create -- personal/diary.md
+nt-vault create personal/diary.md
 
 # 3. Edit it later
-nt-vault edit -- personal/diary.md
+nt-vault edit personal/diary.md
 
 # 4. View it without editing
-nt-vault view -- personal/diary.md
+nt-vault view personal/diary.md
 
 # 5. Encrypt an existing note
-nt-vault encrypt -- old-note.md
+nt-vault encrypt old-note.md
 
 # 6. Decrypt when needed
-nt-vault decrypt -- old-note.md > plaintext.md
+nt-vault decrypt old-note.md > plaintext.md
 ```
 
 ### Using with Git
@@ -157,7 +159,7 @@ Encrypted files can be safely committed to Git:
 
 ```bash
 # Encrypt sensitive files
-nt-vault encrypt -- secrets/passwords.md
+nt-vault encrypt secrets/passwords.md
 
 # Add to git
 git add secrets/passwords.md
@@ -167,27 +169,9 @@ git commit -m "Add encrypted password notes"
 git push
 ```
 
-## Error Handling
-
-The tool will exit with an error if:
-- The `NT_VAULT_AES_KEY_FILE` environment variable is not set
-- The key file doesn't exist or can't be read
-- The key file has incorrect permissions (not 0600 or 0400)
-- The key is not exactly 32 bytes
-- A file to decrypt is not actually encrypted
-- The HMAC verification fails (wrong key or tampered file)
-- Attempting to encrypt an already encrypted file
-
 ## Best Practices
 
 1. **Never commit the key file**: Add your key file to `.gitignore`
 2. **Backup your key securely**: If you lose the key, encrypted files cannot be recovered
 3. **Use different keys for different repositories**: Don't reuse keys across projects
 4. **Set restrictive permissions**: Always use `chmod 0600` on key files
-5. **Rotate keys periodically**: For sensitive data, consider rotating encryption keys
-
-## Limitations
-
-- The tool requires the `NT_VAULT_AES_KEY_FILE` environment variable to be set for all operations
-- Interactive commands (create, edit, view) require a terminal and won't work in non-interactive environments
-- The entire file is encrypted as one block; partial decryption is not supported

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/julien-sobczak/the-notewriter/internal/vault"
 	"github.com/julien-sobczak/the-notewriter/pkg/filesystem"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
@@ -71,6 +72,27 @@ func MustParseFile(path string) *File {
 	return file
 }
 
+// decryptIfNeeded checks if the content is encrypted and decrypts it if necessary
+func decryptIfNeeded(content []byte) ([]byte, error) {
+	// Check if the file is encrypted
+	if !vault.IsEncrypted(content) {
+		return content, nil
+	}
+
+	// Load key and decrypt
+	key, err := vault.LoadKey()
+	if err != nil {
+		return nil, fmt.Errorf("cannot load decryption key: %w", err)
+	}
+
+	decrypted, err := vault.DecryptFile(content, key)
+	if err != nil {
+		return nil, fmt.Errorf("cannot decrypt file: %w", err)
+	}
+
+	return decrypted, nil
+}
+
 // ParseFile parses a Markdown file.
 func ParseFile(path string) (*File, error) {
 	lstat, err := filesystem.Lstat(path)
@@ -81,6 +103,12 @@ func ParseFile(path string) (*File, error) {
 	contentAsBytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
+	}
+
+	// Check if the file is encrypted and decrypt if needed
+	contentAsBytes, err = decryptIfNeeded(contentAsBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt file %s: %w", path, err)
 	}
 
 	return ParseFileFromBytes(path, contentAsBytes, lstat.ModTime(), lstat.Size())

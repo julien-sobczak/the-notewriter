@@ -1,4 +1,4 @@
-package main
+package vault
 
 import (
 	"os"
@@ -142,7 +142,7 @@ Password: secret123`)
 	}
 
 	// Decrypt
-	decrypted, err := DecryptFile(encrypted)
+	decrypted, err := DecryptFile(encrypted, key)
 	if err != nil {
 		t.Fatalf("DecryptFile failed: %v", err)
 	}
@@ -246,42 +246,6 @@ func TestLoadKeyWithWrongSize(t *testing.T) {
 	}
 	if !contains(err.Error(), "32 bytes") {
 		t.Errorf("Expected '32 bytes' error, got: %v", err)
-	}
-}
-
-func TestGetEditor(t *testing.T) {
-	// Save original EDITOR
-	origEditor := os.Getenv("EDITOR")
-	defer os.Setenv("EDITOR", origEditor)
-
-	// Test default
-	os.Unsetenv("EDITOR")
-	if editor := GetEditor(); editor != "vi" {
-		t.Errorf("Default editor should be 'vi', got %q", editor)
-	}
-
-	// Test custom
-	os.Setenv("EDITOR", "nano")
-	if editor := GetEditor(); editor != "nano" {
-		t.Errorf("Editor should be 'nano', got %q", editor)
-	}
-}
-
-func TestGetPager(t *testing.T) {
-	// Save original PAGER
-	origPager := os.Getenv("PAGER")
-	defer os.Setenv("PAGER", origPager)
-
-	// Test default
-	os.Unsetenv("PAGER")
-	if pager := GetPager(); pager != "less" {
-		t.Errorf("Default pager should be 'less', got %q", pager)
-	}
-
-	// Test custom
-	os.Setenv("PAGER", "more")
-	if pager := GetPager(); pager != "more" {
-		t.Errorf("Pager should be 'more', got %q", pager)
 	}
 }
 

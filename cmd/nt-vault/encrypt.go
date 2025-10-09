@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/julien-sobczak/the-notewriter/internal/vault"
 	"github.com/spf13/cobra"
 )
 
@@ -12,12 +13,12 @@ func init() {
 }
 
 var encryptCmd = &cobra.Command{
-	Use:   "encrypt -- <path/to/file.md>",
+	Use:   "encrypt <path/to/file.md>",
 	Short: "Encrypt a plaintext file",
 	Long:  `Encrypts the supplied file using the provided vault secret. The file is encrypted in-place.`,
 	Args:  cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		// Get the file path (after --)
+		// Get the file path
 		filePath := args[len(args)-1]
 
 		// Check if file exists
@@ -27,7 +28,7 @@ var encryptCmd = &cobra.Command{
 		}
 
 		// Load encryption key
-		key, err := LoadKey()
+		key, err := vault.LoadKey()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error loading key: %v\n", err)
 			os.Exit(1)
@@ -41,13 +42,13 @@ var encryptCmd = &cobra.Command{
 		}
 
 		// Check if file is already encrypted
-		if IsEncrypted(content) {
+		if vault.IsEncrypted(content) {
 			fmt.Fprintf(os.Stderr, "Error: file %s is already encrypted\n", filePath)
 			os.Exit(1)
 		}
 
 		// Encrypt the content
-		encrypted, err := EncryptFile(content, key)
+		encrypted, err := vault.EncryptFile(content, key)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error encrypting file: %v\n", err)
 			os.Exit(1)

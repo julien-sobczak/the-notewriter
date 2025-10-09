@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/julien-sobczak/the-notewriter/internal/vault"
 	"github.com/spf13/cobra"
 )
 
@@ -13,12 +14,12 @@ func init() {
 }
 
 var viewCmd = &cobra.Command{
-	Use:   "view -- <path/to/file.md>",
+	Use:   "view <path/to/file.md>",
 	Short: "View an encrypted file",
 	Long:  `Opens, decrypts and views an existing vaulted file using a pager.`,
 	Args:  cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		// Get the file path (after --)
+		// Get the file path
 		filePath := args[len(args)-1]
 
 		// Check if file exists
@@ -35,13 +36,20 @@ var viewCmd = &cobra.Command{
 		}
 
 		// Check if file is encrypted
-		if !IsEncrypted(content) {
+		if !vault.IsEncrypted(content) {
 			fmt.Fprintf(os.Stderr, "Error: file %s is not encrypted\n", filePath)
 			os.Exit(1)
 		}
 
+		// Load key
+		key, err := vault.LoadKey()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading key: %v\n", err)
+			os.Exit(1)
+		}
+
 		// Decrypt the file
-		decrypted, err := DecryptFile(content)
+		decrypted, err := vault.DecryptFile(content, key)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error decrypting file: %v\n", err)
 			os.Exit(1)
