@@ -71,6 +71,19 @@ func (tr *TestRepository) configureDir() {
 		})
 	}
 
+	// Set up an AES key for vault tests
+	tmpDir := tr.t.TempDir()
+	keyFilePath := filepath.Join(tmpDir, "aes_key")
+	err := os.WriteFile(keyFilePath, []byte("12345678901234567890123456789012"), 0600)
+	if err != nil {
+		tr.t.Fatal(err)
+	}
+	orig := os.Getenv("NT_VAULT_AES_KEY_FILE")
+	os.Setenv("NT_VAULT_AES_KEY_FILE", keyFilePath)
+	tr.t.Cleanup(func() {
+		os.Setenv("NT_VAULT_AES_KEY_FILE", orig)
+	})
+
 	// Force the application to consider the temporary directory as the home
 	os.Setenv("NT_HOME", tr.Root)
 	tr.t.Cleanup(func() {
@@ -93,6 +106,15 @@ func Reset() {
 }
 
 /* File Helpers */
+
+// ReadFile edits the file in the current repository to force the given content.
+func (tr *TestRepository) ReadFile(relativePath string) string {
+	root := CurrentConfig().RootDirectory
+	newFilepath := filepath.Join(root, relativePath)
+	data, err := os.ReadFile(newFilepath)
+	require.NoError(tr.t, err)
+	return string(data)
+}
 
 // WriteFile edits the file in the current repository to force the given content.
 func (tr *TestRepository) WriteFile(relativePath string, content string) {
@@ -410,13 +432,25 @@ func AppendLines(t *testing.T, path string, text string) {
 	os.WriteFile(path, []byte(content), 0644)
 }
 
-// ParseFile creates a ParsedFile from a file in the repository.
-func (tr *TestRepository) ParseFile(relativePath string) *ParsedFile {
+// AbsPath returns the absolute path of a file in the repository.
+func (tr *TestRepository) AbsolutePath(relativePath string) string {
+	return CurrentRepository().GetFileAbsolutePath(relativePath)
+}
+
+// ParseMarkdown creates a ParsedFile from a file in the repository.
+func (tr *TestRepository) ParseMarkdown(relativePath string) *markdown.File {
 	absolutePath := CurrentRepository().GetFileAbsolutePath(relativePath)
 
 	// Read the markdown
 	markdownFile, err := markdown.ParseFile(absolutePath)
 	require.NoError(tr.t, err)
+
+	return markdownFile
+}
+
+// ParseFile creates a ParsedFile from a file in the repository.
+func (tr *TestRepository) ParseFile(relativePath string) *ParsedFile {
+	markdownFile := tr.ParseMarkdown(relativePath)
 
 	parsedFile, err := ParseOrphanFile(markdownFile)
 	require.NoError(tr.t, err)

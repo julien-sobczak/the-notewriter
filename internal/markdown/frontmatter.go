@@ -3,6 +3,7 @@ package markdown
 import (
 	"bytes"
 	"fmt"
+	"regexp"
 
 	"gopkg.in/yaml.v3"
 )
@@ -12,6 +13,11 @@ const Indent int = 2
 
 // FrontMatter represents the Front Matter
 type FrontMatter string
+
+func (f FrontMatter) MatchesRegex(s string) bool {
+	re := regexp.MustCompile(s)
+	return re.MatchString(string(f))
+}
 
 func (f FrontMatter) AsNode() (*yaml.Node, error) {
 	var frontMatter = new(yaml.Node)
@@ -30,6 +36,13 @@ func (f FrontMatter) AsMap() (map[string]any, error) {
 		return nil, fmt.Errorf("failed to unmarshall YAML %q: %v", f, err)
 	}
 	return attributes, nil
+}
+
+func (f FrontMatter) Unmarshal(out any) error {
+	if err := yaml.Unmarshal([]byte(f), out); err != nil {
+		return fmt.Errorf("failed to unmarshall YAML %q: %v", f, err)
+	}
+	return nil
 }
 
 // AsBeautifulYAML formats the current attributes to the YAML front matter format.

@@ -3,6 +3,7 @@ package markdown
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -27,6 +28,12 @@ var EmptyFile = &File{
 	Content:      []byte(""),
 	Body:         EmptyDocument,
 	BodyLine:     1,
+}
+
+type FileInfo struct {
+	Path  string
+	MTime time.Time
+	Size  int64
 }
 
 func (m File) Lines() []string {
@@ -73,28 +80,78 @@ func MustParseFile(path string) *File {
 
 // ParseFile parses a Markdown file.
 func ParseFile(path string) (*File, error) {
-	lstat, err := filesystem.Lstat(path)
+	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot open file %q: %w", path, err)
 	}
-
-	contentAsBytes, err := os.ReadFile(path)
+	stat, err := filesystem.CurrentFileInfoReader().Stat(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot stat file %q: %w", path, err)
 	}
-
-	return ParseFileFromBytes(path, contentAsBytes, lstat.ModTime(), lstat.Size())
+	defer f.Close()
+	return Parse(f, FileInfo{
+		Path:  path,
+		MTime: stat.ModTime(),
+		Size:  stat.Size(),
+	})
 }
 
-// ParseFileFromBytes parses a Markdown file.
-func ParseFileFromBytes(path string, content []byte, mtime time.Time, size int64) (*File, error) {
+// MustParseFileRaw parses a Markdown file and panics if an error occurs.
+func MustParseFileRaw(path string) *File {
+	file, err := ParseFileRaw(path)
+	if err != nil {
+		panic(err)
+	}
+	return file
+}
+
+// ParseFileRaw parses a Markdown file (without trying decryption if needed).
+func ParseFileRaw(path string) (*File, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open file %q: %w", path, err)
+	}
+	stat, err := filesystem.CurrentFileInfoReader().Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("cannot stat file %q: %w", path, err)
+	}
+	defer f.Close()
+	return ParseRaw(f, FileInfo{
+		Path:  path,
+		MTime: stat.ModTime(),
+		Size:  stat.Size(),
+	})
+}
+
+// Parse parses a Markdown file (with decryption if encrypted).
+func Parse(r io.Reader, desc FileInfo) (*File, error) {
+	file, err := ParseRaw(r, desc)
+	if err != nil {
+		return nil, err
+	}
+	if file.Encrypted() {
+		decrypted, err := file.DecryptRaw()
+		if err != nil {
+			return nil, err
+		}
+		return ParseRaw(bytes.NewReader(decrypted), desc)
+	}
+	return file, nil
+}
+
+// ParseRaw parses a Markdown file (without decryption if encrypted).
+func ParseRaw(r io.Reader, desc FileInfo) (*File, error) {
 	var rawFrontMatter bytes.Buffer
 	var rawBody bytes.Buffer
 	frontMatterStarted := false
 	frontMatterEnded := false
 	bodyStarted := false
 	bodyLine := 0
-	for i, line := range strings.Split(strings.TrimSuffix(string(content), "\n"), "\n") {
+	bytes, err := io.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+	for i, line := range strings.Split(strings.TrimSuffix(string(bytes), "\n"), "\n") {
 		if strings.HasPrefix(line, "---") {
 			if bodyStarted {
 				// Flashcard Front/Back line separator
@@ -123,15 +180,25 @@ func ParseFileFromBytes(path string, content []byte, mtime time.Time, size int64
 		}
 	}
 
-	return &File{
-		AbsolutePath: path,
-		Content:      content,
-		MTime:        mtime,
-		Size:         size,
+	file := &File{
+		AbsolutePath: desc.Path,
+		Content:      bytes,
+		MTime:        desc.MTime,
+		Size:         desc.Size,
 		FrontMatter:  FrontMatter(rawFrontMatter.String()),
 		Body:         Document(rawBody.String()),
 		BodyLine:     bodyLine,
-	}, nil
+	}
+
+	return file, nil
+}
+
+func (m *File) Info() FileInfo {
+	return FileInfo{
+		Path:  m.AbsolutePath,
+		MTime: m.MTime,
+		Size:  m.Size,
+	}
 }
 
 func (m *File) LastUpdateDate() time.Time {

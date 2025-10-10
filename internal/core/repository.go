@@ -168,17 +168,27 @@ func (r *Repository) Walk(pathSpecs PathSpecs, fn func(md *markdown.File) error)
 
 	// Execute callbacks
 	for _, relativePath := range matchedFiles {
-		md, err := markdown.ParseFile(filePaths[relativePath])
+		md, err := markdown.ParseFileRaw(filePaths[relativePath])
 		if err != nil {
 			return err
 		}
 
+		// Check front matter for special file attributes
 		frontMatter, err := NewAttributeSetFromMarkdown(md)
 		if err != nil {
 			return err
 		}
 		if frontMatter.Tags().Includes("ignore") {
 			continue
+		}
+		if frontMatter.Tags().Includes("secure") {
+			return fmt.Errorf("file %s is marked as secure but unencrypted", relativePath)
+		}
+		if md.Encrypted() {
+			md, err = md.DecryptToMarkdown()
+			if err != nil {
+				return err
+			}
 		}
 
 		if err := fn(md); err != nil {
@@ -344,7 +354,11 @@ func (r *Repository) Add(paths PathSpecs) (*AddResult, error) {
 				if err != nil {
 					return err
 				}
-				if mdFile, err := markdown.ParseFileFromBytes(parentEntry.RelativePath, blobData, parentEntry.MTime, parentEntry.Size); err != nil {
+				if mdFile, err := markdown.Parse(bytes.NewReader(blobData), markdown.FileInfo{
+					Path:  parentEntry.RelativePath,
+					MTime: parentEntry.MTime,
+					Size:  parentEntry.Size,
+				}); err != nil {
 					return err
 				} else {
 					mdParentFile = mdFile
