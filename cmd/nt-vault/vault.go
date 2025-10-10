@@ -2,7 +2,8 @@ package main
 
 import (
 	"os"
-	"time"
+	"os/exec"
+	"strings"
 )
 
 // GetEditor returns the editor to use (from $EDITOR or default to vi)
@@ -23,27 +24,18 @@ func GetPager() string {
 	return pager
 }
 
-// CreateTempFile creates a temporary file with the given content
-func CreateTempFile(content []byte, suffix string) (string, error) {
-	tmpFile, err := os.CreateTemp("", "nt-vault-*"+suffix)
-	if err != nil {
-		return "", err
+// GetEditorCmd returns an exec.Cmd for the editor with the given arguments
+func GetEditorCmd(args ...string) *exec.Cmd {
+	editor := GetEditor()
+	// Support arguments in $EDITOR as VS Code requires to use 'code --wait' to wait for the tab to be closed
+	editorArgs := strings.Split(editor, " ")
+	editorBinary := editorArgs[0]
+	if len(editorArgs) > 1 {
+		editorArgs = editorArgs[1:]
+	} else {
+		editorArgs = []string{}
 	}
-	defer tmpFile.Close()
+	editorArgs = append(editorArgs, args...)
 
-	if _, err := tmpFile.Write(content); err != nil {
-		os.Remove(tmpFile.Name())
-		return "", err
-	}
-
-	return tmpFile.Name(), nil
-}
-
-// GetFileModTime returns the modification time of a file
-func GetFileModTime(path string) (time.Time, error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return time.Time{}, err
-	}
-	return info.ModTime(), nil
+	return exec.Command(editorBinary, editorArgs...)
 }

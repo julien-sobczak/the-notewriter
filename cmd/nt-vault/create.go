@@ -3,9 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
 
-	"github.com/julien-sobczak/the-notewriter/internal/vault"
+	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/spf13/cobra"
 )
 
@@ -28,56 +27,38 @@ var createCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// Load encryption key
-		key, err := vault.LoadKey()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading key: %v\n", err)
-			os.Exit(1)
-		}
-
 		// Create a temporary file for editing
-		tmpFile, err := CreateTempFile([]byte{}, ".md")
+		tmpFile, err := os.CreateTemp("", "nt-vault-*.md")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error creating temporary file: %v\n", err)
 			os.Exit(1)
 		}
-		defer os.Remove(tmpFile)
+		defer os.Remove(tmpFile.Name())
 
 		// Open editor
-		editor := GetEditor()
-		editorCmd := exec.Command(editor, tmpFile)
+		editorCmd := GetEditorCmd(tmpFile.Name())
 		editorCmd.Stdin = os.Stdin
 		editorCmd.Stdout = os.Stdout
 		editorCmd.Stderr = os.Stderr
-
 		if err := editorCmd.Run(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error running editor: %v\n", err)
 			os.Exit(1)
 		}
 
-		// Read the edited content
-		content, err := os.ReadFile(tmpFile)
+		// Read the file
+		file, err := markdown.ParseFile(tmpFile.Name())
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error reading temporary file: %v\n", err)
 			os.Exit(1)
 		}
 
-		// If the file is empty, don't create it
-		if len(content) == 0 {
-			fmt.Println("Empty file, not creating.")
-			return
+		// Encrypt the file
+		out, err := os.Open(filePath)
+		if err != nil && !os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "Error checking output file: %v\n", err)
 		}
-
-		// Encrypt the content
-		encrypted, err := vault.EncryptFile(content, key)
-		if err != nil {
+		if err := file.EncryptTo(out); err != nil {
 			fmt.Fprintf(os.Stderr, "Error encrypting file: %v\n", err)
-			os.Exit(1)
-		}
-
-		// Write to the target file
-		if err := os.WriteFile(filePath, encrypted, 0644); err != nil {
-			fmt.Fprintf(os.Stderr, "Error writing file: %v\n", err)
 			os.Exit(1)
 		}
 

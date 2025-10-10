@@ -6,15 +6,6 @@ A tool to encrypt and decrypt markdown files using AES-256 encryption, inspired 
 
 `nt-vault` allows you to securely encrypt sensitive markdown notes so that they can be stored in version control (like GitHub) without exposing private information. The encrypted files remain valid markdown files with a special frontmatter indicating they are encrypted.
 
-## Installation
-
-Build the binary:
-
-```bash
-make build
-```
-
-The binary will be available at `build/ntvault`.
 
 ## Setup
 

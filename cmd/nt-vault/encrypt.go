@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/julien-sobczak/the-notewriter/internal/vault"
+	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/spf13/cobra"
 )
 
@@ -22,41 +22,15 @@ var encryptCmd = &cobra.Command{
 		filePath := args[len(args)-1]
 
 		// Check if file exists
-		if _, err := os.Stat(filePath); os.IsNotExist(err) {
-			fmt.Fprintf(os.Stderr, "Error: file %s does not exist\n", filePath)
-			os.Exit(1)
-		}
-
-		// Load encryption key
-		key, err := vault.LoadKey()
+		file, err := markdown.ParseFileRaw(filePath)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading key: %v\n", err)
-			os.Exit(1)
-		}
-
-		// Read the plaintext file
-		content, err := os.ReadFile(filePath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading file: %v\n", err)
-			os.Exit(1)
-		}
-
-		// Check if file is already encrypted
-		if vault.IsEncrypted(content) {
-			fmt.Fprintf(os.Stderr, "Error: file %s is already encrypted\n", filePath)
+			fmt.Fprintf(os.Stderr, "Error parsing file %s: %v\n", filePath, err)
 			os.Exit(1)
 		}
 
 		// Encrypt the content
-		encrypted, err := vault.EncryptFile(content, key)
-		if err != nil {
+		if err := file.Encrypt(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error encrypting file: %v\n", err)
-			os.Exit(1)
-		}
-
-		// Write back to the same file
-		if err := os.WriteFile(filePath, encrypted, 0644); err != nil {
-			fmt.Fprintf(os.Stderr, "Error writing file: %v\n", err)
 			os.Exit(1)
 		}
 

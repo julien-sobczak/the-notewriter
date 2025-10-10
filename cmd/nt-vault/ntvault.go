@@ -20,6 +20,13 @@ var rootCmd = &cobra.Command{
 	Short: "nt-vault is a tool to encrypt/decrypt markdown files",
 	Long:  `A tool to encrypt and decrypt markdown files using AES encryption, inspired by ansible-vault.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		// Ensure we are inside a repository
+		err := core.CurrentConfig().Check()
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+
 		// Enable verbose output. The most verbose level wins when multiple flags are passed.
 		if verboseInfo {
 			core.CurrentLogger().SetVerboseLevel(core.VerboseInfo)

@@ -1,11 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
 
-	"github.com/julien-sobczak/the-notewriter/internal/vault"
+	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/spf13/cobra"
 )
 
@@ -22,57 +22,41 @@ var editCmd = &cobra.Command{
 		// Get the file path
 		filePath := args[len(args)-1]
 
-		// Check if file exists
-		if _, err := os.Stat(filePath); os.IsNotExist(err) {
-			fmt.Fprintf(os.Stderr, "Error: file %s does not exist\n", filePath)
-			os.Exit(1)
-		}
-
-		// Load encryption key
-		key, err := vault.LoadKey()
+		file, err := markdown.ParseFileRaw(filePath)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading key: %v\n", err)
-			os.Exit(1)
-		}
-
-		// Read the encrypted file
-		content, err := os.ReadFile(filePath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading file: %v\n", err)
-			os.Exit(1)
-		}
-
-		// Check if file is encrypted
-		if !vault.IsEncrypted(content) {
-			fmt.Fprintf(os.Stderr, "Error: file %s is not encrypted\n", filePath)
+			fmt.Fprintf(os.Stderr, "Error parsing file: %v\n", err)
 			os.Exit(1)
 		}
 
 		// Decrypt the file
-		decrypted, err := vault.DecryptFile(content, key)
-		if err != nil {
+		var buf bytes.Buffer
+		if err := file.DecryptTo(&buf); err != nil {
 			fmt.Fprintf(os.Stderr, "Error decrypting file: %v\n", err)
 			os.Exit(1)
 		}
 
 		// Create a temporary file with decrypted content
-		tmpFile, err := CreateTempFile(decrypted, ".md")
+		tmpFile, err := os.CreateTemp("", "nt-vault-*.md")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error creating temporary file: %v\n", err)
 			os.Exit(1)
 		}
-		defer os.Remove(tmpFile)
+		if err := os.WriteFile(tmpFile.Name(), buf.Bytes(), 0600); err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing to temporary file: %v\n", err)
+			os.Exit(1)
+		}
+		defer os.Remove(tmpFile.Name())
 
 		// Get the original modification time
-		origModTime, err := GetFileModTime(tmpFile)
+		tmpStat, err := tmpFile.Stat()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error getting file mod time: %v\n", err)
 			os.Exit(1)
 		}
+		origModTime := tmpStat.ModTime()
 
 		// Open editor
-		editor := GetEditor()
-		editorCmd := exec.Command(editor, tmpFile)
+		editorCmd := GetEditorCmd(tmpFile.Name())
 		editorCmd.Stdin = os.Stdin
 		editorCmd.Stdout = os.Stdout
 		editorCmd.Stderr = os.Stderr
@@ -82,35 +66,24 @@ var editCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// Check if file was modified
-		newModTime, err := GetFileModTime(tmpFile)
+		// Read the edited content
+		editedFile, err := markdown.ParseFileRaw(tmpFile.Name())
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error getting file mod time: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Error reading edited file: %v\n", err)
 			os.Exit(1)
 		}
-
-		if newModTime.Equal(origModTime) {
+		if editedFile.MTime.Equal(origModTime) {
 			fmt.Println("File not modified, not updating.")
 			return
 		}
-
-		// Read the edited content
-		editedContent, err := os.ReadFile(tmpFile)
+		f, err := os.Create(filePath)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading temporary file: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Error opening output file: %v\n", err)
 			os.Exit(1)
 		}
-
-		// Encrypt the content
-		encrypted, err := vault.EncryptFile(editedContent, key)
+		err = editedFile.EncryptTo(f)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error encrypting file: %v\n", err)
-			os.Exit(1)
-		}
-
-		// Write back to the original file
-		if err := os.WriteFile(filePath, encrypted, 0644); err != nil {
-			fmt.Fprintf(os.Stderr, "Error writing file: %v\n", err)
 			os.Exit(1)
 		}
 
