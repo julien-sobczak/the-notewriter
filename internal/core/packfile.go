@@ -101,10 +101,6 @@ func (od ObjectData) Unmarshal(target interface{}) error {
 		f.Read(dest)
 		return nil
 	}
-	if f, ok := target.(*Study); ok {
-		f.Read(dest)
-		return nil
-	}
 	if m, ok := target.(*Media); ok {
 		m.Read(dest)
 		return nil
@@ -177,10 +173,6 @@ func (p *PackObject) Read() Packable {
 		flashcard := new(Flashcard)
 		p.Data.Unmarshal(flashcard)
 		return flashcard
-	case "study":
-		study := new(Study)
-		p.Data.Unmarshal(study)
-		return study
 	case "note":
 		note := new(Note)
 		p.Data.Unmarshal(note)
