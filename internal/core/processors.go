@@ -311,6 +311,22 @@ func flashcardWithClozeDeletionExtractor(_ *ParsedFile, note *ParsedNote) ([]*Pa
 func ListItemsProcessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, error) {
 	listItems := extractListItems(note.Body, note.Line)
 	note.Items = NewItems(listItems)
+
+	// No item found
+	if note.Items == nil || len(note.Items.Children) == 0 {
+		return []*ParsedNote{note}, nil
+	}
+
+	// Promote non-inline, unique attributes to note level
+	noteType := CurrentConfigFile().MustGetNoteType(note.Type)
+	uniqueAttributes := note.Items.Children.UniqueAttribute()
+	for attributeName, attributeValue := range uniqueAttributes {
+		if noteType.PromoteInlineAttribute(attributeName) {
+			note.Attributes.SetIfMissing(attributeName, attributeValue)
+			note.NoteAttributes.SetIfMissing(attributeName, attributeValue)
+		}
+	}
+
 	return []*ParsedNote{note}, nil
 }
 

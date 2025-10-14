@@ -411,6 +411,117 @@ func TestListItemsProcessor(t *testing.T) {
 		assert.Equal(t, "Second numbered item", items.Children[4].Text.String())
 	})
 
+	t.Run("Promote inline attributes", func(t *testing.T) {
+		tr := core.NewTestRepository(t)
+
+		// Edit config to declare a new custom type
+		tr.WriteFile(".nt/config.jsonnet", `
+local nt = import 'nt.libsonnet';
+{
+    attributes: {
+        rating: {
+            name: "rating",
+            description: "Rating",
+            type: "integer",
+            shorthands: {
+                "☆": 0,
+                "★": 1,
+                "★★": 2,
+                "★★★": 3,
+                "★★★★": 4,
+                "★★★★★": 5,
+            },
+            preserveShorthand: true,
+        },
+		steps: {
+			name: "steps",
+			description: "Number of steps per day",
+			type: "integer",
+			shorthandPattern: "🥾 (\\d+)",
+			preserveShorthand: true,
+		},
+		deep_work: {
+			name: "deep_work",
+			description: "Number of deep work hours",
+			type: "integer",
+			shorthandPattern: "dw:(\\d+)",
+			preserveShorthand: true,
+		},
+	},
+	noteTypes: {
+
+		// A new type similar to existing ones
+		ReadingList: {
+			name: "ReadingList",
+			attributes: [
+				{
+					name: "rating",
+					promoteInline: false,
+				},
+			],
+			processors: ["list-items"],
+		},
+
+		// A new type with a custom pattern
+		Journal: {
+			name: "Journal",
+			attributes: [
+			     {
+                    name: "date",
+                    required: true,
+                },
+				{
+					name: "steps",
+					promoteInline: true,
+				},
+				{
+					name: "deep_work",
+					promoteInline: true,
+				},
+			],
+			processors: ["date-extractor", "list-items"],
+		},
+	}
+}
+		`)
+		core.CurrentConfig().Reload()
+
+		// Assert processor is configured
+		noteTypeReadingList := core.CurrentConfigFile().MustGetNoteType("ReadingList")
+		require.Contains(t, noteTypeReadingList.Processors, "list-items")
+		require.False(t, noteTypeReadingList.PromoteInlineAttribute("rating"))
+
+		noteTypeTodo := core.CurrentConfigFile().MustGetNoteType("Journal")
+		require.Contains(t, noteTypeTodo.Processors, "list-items")
+		require.True(t, noteTypeTodo.PromoteInlineAttribute("steps"))
+		require.True(t, noteTypeTodo.PromoteInlineAttribute("deep_work"))
+
+		tr.WriteFile("test.md", `# Test
+
+## ReadingList: Children's Literature
+
+* L'Enfant, la Taupe, le Renard et le Cheval, by Charlie Mackesy 🇬🇧 🇫🇷 ★★★★★
+  * A masterpiece of children literature (see the sequel _Always Remember_ ★★★, 2025, 🇬🇧 🤞 ).
+* Grand Panda et Petit Dragon, by James Norbury 🇬🇧 🇫🇷 ★★★★★
+  * A book filled with wisdom. For small kids and big adults.
+
+## Journal: 2025-10-14
+
+* 🥾 10000
+* dw:4
+* dw:3
+`)
+		file := tr.ParseFile("test.md")
+		require.Len(t, file.Notes, 2)
+		noteReadingList := file.Notes[0]
+		noteJournal := file.Notes[1]
+		require.Equal(t, "ReadingList", noteReadingList.Type)
+		require.Equal(t, "Journal", noteJournal.Type)
+
+		assert.False(t, noteReadingList.NoteAttributes.Includes("rating"))
+		assert.True(t, noteJournal.NoteAttributes.Includes("steps"))
+		assert.False(t, noteJournal.NoteAttributes.Includes("deep_work")) // Multiple occurrences prevent promotion
+	})
 }
 
 func TestTOCFileProcessor(t *testing.T) {
@@ -509,7 +620,7 @@ Implement something else.
 		require.Equal(t, "Master", masterNote.Type, "First note should be a Master note")
 
 		// Check that the Master note body was updated by the template
-		expectedBody := "- Do Something `#favorite` ❗\n- Do Something Else 🔽"
+		expectedBody := "- Do Something ❗ `#favorite`\n- Do Something Else 🔽"
 		assert.Equal(t, expectedBody, masterNote.Body.String())
 	})
 }

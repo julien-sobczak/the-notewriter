@@ -47,8 +47,36 @@ func (li *ListItem) AttributeNames() []string {
 	var names []string
 	for name := range li.Attributes {
 		names = append(names, name)
+		for _, child := range li.Children {
+			names = append(names, child.AttributeNames()...)
+		}
 	}
 	return names
+}
+
+// UniqueAttribute returns the unique attributes in the list item and its children
+func (li ListItems) UniqueAttribute() AttributeSet {
+	attributes := make(AttributeSet)
+	for _, item := range li {
+		for name, value := range item.Attributes {
+			if _, exists := attributes[name]; !exists {
+				attributes[name] = value
+			} else {
+				// Non unique...
+				delete(attributes, name)
+			}
+		}
+		childAttributes := item.Children.UniqueAttribute()
+		for name, value := range childAttributes {
+			if _, exists := attributes[name]; !exists {
+				attributes[name] = value
+			} else {
+				// Non unique...
+				delete(attributes, name)
+			}
+		}
+	}
+	return attributes
 }
 
 func NewItems(children ListItems) *Items {

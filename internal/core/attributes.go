@@ -859,8 +859,19 @@ func ExtractShorthands(doc markdown.Document, configAttributes ConfigAttributes)
 	shorthandAttributes := make(AttributeSet)
 
 	for _, attribute := range configAttributes {
-		if len(attribute.Shorthands) == 0 {
+		if len(attribute.Shorthands) == 0 && attribute.ShorthandPattern == "" {
 			continue
+		}
+
+		// If a regex pattern is defined, use it to find the shorthand value
+		if attribute.ShorthandPattern != "" {
+			re := regexp.MustCompile(attribute.ShorthandPattern)
+			matches := re.FindStringSubmatch(content)
+			if len(matches) > 1 {
+				shorthandValue := matches[1]
+				typedValue := MustCastAttribute(shorthandValue, *attribute)
+				shorthandAttributes[attribute.Name] = typedValue
+			}
 		}
 
 		// Sort shorthand keys by length (longest first) to match longer patterns first
@@ -904,8 +915,14 @@ func StripShorthands(attributes ConfigAttributes) markdown.Transformer {
 				continue
 			}
 
-			if len(attribute.Shorthands) == 0 {
+			if len(attribute.Shorthands) == 0 && attribute.ShorthandPattern == "" {
 				continue
+			}
+
+			// Strip using the regex pattern first
+			if attribute.ShorthandPattern != "" {
+				re := regexp.MustCompile(attribute.ShorthandPattern)
+				modifiedText = re.ReplaceAllString(modifiedText, "")
 			}
 
 			// Sort shorthand keys by length (longest first) to remove longer patterns first
@@ -924,20 +941,15 @@ func StripShorthands(attributes ConfigAttributes) markdown.Transformer {
 
 			// Remove shorthand keys from text (longest first)
 			for _, shorthandKey := range sortedKeys {
+				// Important: Shorthand keys must use the Unicode invisible codepoint U+FE0F
+				// (used to request the emoji presentation of a character that can be displayed either as text or emoji)
+				// See https://unicode.org/faq/emoji_dingbats.html)
 				if strings.Contains(modifiedText, shorthandKey) {
 					modifiedText = strings.ReplaceAll(modifiedText, shorthandKey, "")
 					break // Only remove the first match for this attribute
 				}
 			}
 		}
-
-		// Remove U+FE0F used to request the emoji presentation of a character that can be displayed either as text or emoji (see https://unicode.org/faq/emoji_dingbats.html)
-		modifiedText = strings.Map(func(r rune) rune {
-			if r == '\uFE0F' {
-				return -1
-			}
-			return r
-		}, modifiedText)
 
 		// Clean up consecutive spaces and trim
 		modifiedText = strings.TrimSpace(regexp.MustCompile(`\s+`).ReplaceAllString(modifiedText, " "))

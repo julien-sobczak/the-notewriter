@@ -41,3 +41,8 @@ My favorite things in life don’t cost any money. It’s really clear that the 
 <!-- Aliases are supported. -->
 
 Focusing is about saying no.
+
+
+## Journal: 2025-10-14
+
+* Walked `@steps: 10000`

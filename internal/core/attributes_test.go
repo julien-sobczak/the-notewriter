@@ -795,6 +795,18 @@ func TestShorthands(t *testing.T) {
 			},
 			PreserveShorthand: BoolPointer(true), // Keep in title
 		},
+		"steps": &ConfigAttribute{
+			Name:              "steps",
+			Type:              "integer",
+			ShorthandPattern:  "🚶‍➡️\\s+(\\d+)",
+			PreserveShorthand: BoolPointer(true),
+		},
+		"deep_work": &ConfigAttribute{
+			Name:              "deep_work",
+			Type:              "integer",
+			ShorthandPattern:  "dw:(\\d+)",
+			PreserveShorthand: BoolPointer(false),
+		},
 	}
 
 	tests := []struct {
@@ -834,6 +846,31 @@ func TestShorthands(t *testing.T) {
 			expectedAttributes: map[string]any{
 				"status": "in-progress",
 				"rating": "★★",
+			},
+		},
+		{
+			name:         "Shorthand pattern to preserve",
+			text:         "🚶‍➡️ 1000 steps 👍",
+			expectedText: "🚶‍➡️ 1000 steps 👍",
+			expectedAttributes: map[string]any{
+				"steps": int64(1000),
+			},
+		},
+		{
+			name:         "Shorthand pattern to remove",
+			text:         "🚶‍➡️ 10000 dw:3 👍",
+			expectedText: "🚶‍➡️ 10000 👍",
+			expectedAttributes: map[string]any{
+				"steps":     int64(10000),
+				"deep_work": int64(3),
+			},
+		},
+		{
+			name:               "No shorthand",
+			text:               "Add Zen Mode",
+			expectedText:       "Add Zen Mode",
+			expectedAttributes: map[string]any{
+				// No attributes
 			},
 		},
 	}

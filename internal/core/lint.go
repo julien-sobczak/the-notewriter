@@ -669,8 +669,7 @@ func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 					found = true
 
 					line := text.LineNumber(string(file.Markdown.Content), name+":")
-					stringValue := fmt.Sprintf("%s", fileValue)
-					if valid, err := attributeDefinition.Valid(stringValue); !valid {
+					if valid, err := attributeDefinition.Valid(fileValue); !valid {
 						violations = append(violations, &Violation{
 							Name:         "check-attributes",
 							RelativePath: file.RelativePath,
@@ -685,8 +684,7 @@ func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 					found = true
 
 					line := text.LineNumber(string(file.Markdown.Content), name+":")
-					stringValue := fmt.Sprintf("%s", noteValue)
-					if valid, err := attributeDefinition.Valid(stringValue); !valid {
+					if valid, err := attributeDefinition.Valid(noteValue); !valid {
 						violations = append(violations, &Violation{
 							Name:         "check-attributes",
 							RelativePath: file.RelativePath,
@@ -701,8 +699,7 @@ func CheckAttributes(file *ParsedFile) ([]*Violation, error) {
 				if presentInMerged && !presentOnNote && !presentOnFile {
 					found = true
 					// This is an attribute that comes from defaults or inheritance
-					stringValue := fmt.Sprintf("%s", mergedValue)
-					if valid, err := attributeDefinition.Valid(stringValue); !valid {
+					if valid, err := attributeDefinition.Valid(mergedValue); !valid {
 						violations = append(violations, &Violation{
 							Name:         "check-attributes",
 							RelativePath: file.RelativePath,

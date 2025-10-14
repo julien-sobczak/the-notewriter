@@ -31,6 +31,14 @@ local makeHeading = nt.Schema.makeHeading;
             format: "yyyy-mm-dd",
             inherit: true,
         },
+        // Declare an integer attribute to promote in journal entries
+        steps: {
+            name: "steps",
+            description: "Number of steps per day",
+            type: "integer",
+            min: 0,
+            max: 100000,
+        },
     },
 
     noteTypes: nt.DefaultNoteTypes + {
@@ -49,7 +57,19 @@ local makeHeading = nt.Schema.makeHeading;
                     name: "rating",
                 },
             ],
-        }
+        },
+        Journal: nt.DefaultNoteTypes.Journal + {
+            attributes: [
+                {
+                    name: "date",
+                    required: true,
+                },
+                {
+                    name: "steps",
+                    promoteInline: true,
+                }
+            ],
+        },
     },
 
     fileTypes: nt.DefaultFileTypes + {

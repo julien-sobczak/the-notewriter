@@ -429,16 +429,8 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		// Determine the attributes
 		noteTags, noteAttributes := ExtractBlockTagsAndAttributes(noteBody, configAttributes)
 
-		// Process shorthands from shortTitle
-		extractedAttributes := ExtractShorthands(shortTitle, configAttributes)
-
 		// Extract tags and attributes from shortTitle
 		titleAttributes := ExtractAttributes(shortTitle, configAttributes)
-
-		// Apply extracted shorthand attributes
-		for attrName, attrValue := range extractedAttributes {
-			noteAttributes[attrName] = attrValue
-		}
 
 		// Add title tags to noteTags
 		noteTags = noteTags.Merge(titleAttributes.Tags())

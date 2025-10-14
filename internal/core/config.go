@@ -224,14 +224,15 @@ type ConfigAttribute struct {
 	Inherit           *bool          `json:"inherit"`                 // Default: true
 	AllowedValues     []string       `json:"allowedValues,omitempty"` // For "string"-type only
 	Shorthands        map[string]any `json:"shorthands,omitempty"`
+	ShorthandPattern  string         `json:"shorthandPattern,omitempty"`
 	PreserveShorthand *bool          `json:"preserveShorthand"`      // Default: true
-	DefaultValue      interface{}    `json:"defaultValue,omitempty"` // For any type
+	DefaultValue      any            `json:"defaultValue,omitempty"` // For any type
 }
 
 type ConfigTypeAttribute struct {
-	Name     string `json:"name"`
-	Required *bool  `json:"required,omitempty"` // Default: false
-	Inline   *bool  `json:"inline,omitempty"`   // Default: false
+	Name          string `json:"name"`
+	Required      *bool  `json:"required,omitempty"`      // Default: false
+	PromoteInline *bool  `json:"promoteInline,omitempty"` // Default: false
 }
 
 type ConfigNoteType struct {
@@ -366,6 +367,16 @@ func (c *Config) SetParallel(value int) {
 func (c *ConfigNoteType) RequiredAttribute(name string) bool {
 	for _, attr := range c.Attributes {
 		if attr.Name == name && attr.Required != nil && *attr.Required {
+			return true
+		}
+	}
+	return false
+}
+
+// PromoteInlineAttribute checks if the given attribute could be promoted as a note attribute.
+func (c *ConfigNoteType) PromoteInlineAttribute(name string) bool {
+	for _, attr := range c.Attributes {
+		if attr.Name == name && attr.PromoteInline != nil && *attr.PromoteInline {
 			return true
 		}
 	}
@@ -911,8 +922,8 @@ func ParseConfigFile(jsonnetPath string) (*ConfigFile, error) {
 			if noteType.Attributes[i].Required == nil {
 				noteType.Attributes[i].Required = BoolPointer(false)
 			}
-			if noteType.Attributes[i].Inline == nil {
-				noteType.Attributes[i].Inline = BoolPointer(false)
+			if noteType.Attributes[i].PromoteInline == nil {
+				noteType.Attributes[i].PromoteInline = BoolPointer(false)
 			}
 		}
 	}
@@ -1115,6 +1126,13 @@ func (c *Config) Check() error {
 		if attribute.Pattern != "" && attribute.Pattern != "string" {
 			if _, err := regexp.Compile(attribute.Pattern); err != nil {
 				return fmt.Errorf("invalid pattern %q for attribute %q: %v", attribute.Pattern, attribute.Name, err)
+			}
+		}
+
+		// Check for invalid shorthand regex pattern
+		if attribute.ShorthandPattern != "" {
+			if _, err := regexp.Compile(attribute.ShorthandPattern); err != nil {
+				return fmt.Errorf("invalid shorthand pattern %q for attribute %q: %v", attribute.ShorthandPattern, attribute.Name, err)
 			}
 		}
 
