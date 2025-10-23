@@ -41,10 +41,17 @@ func (c *AnkiToNoteWriter) Convert() error {
 		outputFile := c.determineOutputFile(note)
 		
 		// Convert note and cards to markdown
-		markdown, err := c.convertNote(note, cards)
+		markdown, mediaFiles, err := c.convertNote(note, cards)
 		if err != nil {
 			fmt.Printf("⚠️  Warning: failed to convert note %d: %v\n", note.ID, err)
 			continue
+		}
+		
+		// Copy media files
+		if len(mediaFiles) > 0 {
+			if err := c.copyMediaFiles(mediaFiles, outputFile); err != nil {
+				fmt.Printf("⚠️  Warning: failed to copy media files: %v\n", err)
+			}
 		}
 		
 		// Append to output file
@@ -89,23 +96,25 @@ func (c *AnkiToNoteWriter) determineOutputFile(note *AnkiNote) string {
 }
 
 // convertNote converts an Anki note and its cards to markdown format
-func (c *AnkiToNoteWriter) convertNote(note *AnkiNote, cards []*AnkiCard) (string, error) {
+func (c *AnkiToNoteWriter) convertNote(note *AnkiNote, cards []*AnkiCard) (string, []string, error) {
 	model, ok := c.Collection.Models[note.Mid]
 	if !ok {
-		return "", fmt.Errorf("model %d not found", note.Mid)
+		return "", nil, fmt.Errorf("model %d not found", note.Mid)
 	}
 	
 	var sb strings.Builder
+	var mediaFiles []string
 	
 	// If note has multiple cards, create a parent heading
 	if len(cards) > 1 {
 		sb.WriteString(fmt.Sprintf("\n## Untitled `@slug: anki-%d`\n\n", note.ID))
 		
 		for _, card := range cards {
-			front, back, err := c.evaluateTemplate(model, note, card)
+			front, back, media, err := c.evaluateTemplate(model, note, card)
 			if err != nil {
-				return "", err
+				return "", nil, err
 			}
+			mediaFiles = append(mediaFiles, media...)
 			
 			sb.WriteString(fmt.Sprintf("### Flashcard: Untitled `@cid: %d` `@slug: anki-%d`\n\n", card.ID, card.ID))
 			sb.WriteString(fmt.Sprintf("**Front:**\n\n%s\n\n", front))
@@ -114,23 +123,24 @@ func (c *AnkiToNoteWriter) convertNote(note *AnkiNote, cards []*AnkiCard) (strin
 	} else {
 		// Single card
 		card := cards[0]
-		front, back, err := c.evaluateTemplate(model, note, card)
+		front, back, media, err := c.evaluateTemplate(model, note, card)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
+		mediaFiles = media
 		
 		sb.WriteString(fmt.Sprintf("\n## Flashcard: Untitled `@cid: %d` `@slug: anki-%d`\n\n", card.ID, card.ID))
 		sb.WriteString(fmt.Sprintf("**Front:**\n\n%s\n\n", front))
 		sb.WriteString(fmt.Sprintf("**Back:**\n\n%s\n\n", back))
 	}
 	
-	return sb.String(), nil
+	return sb.String(), mediaFiles, nil
 }
 
 // evaluateTemplate evaluates the Anki template for a card
-func (c *AnkiToNoteWriter) evaluateTemplate(model *AnkiModel, note *AnkiNote, card *AnkiCard) (front, back string, err error) {
+func (c *AnkiToNoteWriter) evaluateTemplate(model *AnkiModel, note *AnkiNote, card *AnkiCard) (front, back string, mediaFiles []string, err error) {
 	if card.Ord >= len(model.Templates) {
-		return "", "", fmt.Errorf("template %d not found in model", card.Ord)
+		return "", "", nil, fmt.Errorf("template %d not found in model", card.Ord)
 	}
 	
 	template := model.Templates[card.Ord]
@@ -151,11 +161,13 @@ func (c *AnkiToNoteWriter) evaluateTemplate(model *AnkiModel, note *AnkiNote, ca
 	fieldMap["FrontSide"] = front
 	back = c.evaluateTemplateString(template.Afmt, fieldMap)
 	
-	// Process HTML to markdown
-	front = c.htmlToMarkdown(front)
-	back = c.htmlToMarkdown(back)
+	// Process HTML to markdown and collect media files
+	front, frontMedia := c.htmlToMarkdown(front)
+	back, backMedia := c.htmlToMarkdown(back)
 	
-	return front, back, nil
+	mediaFiles = append(frontMedia, backMedia...)
+	
+	return front, back, mediaFiles, nil
 }
 
 // evaluateTemplateString replaces {{field}} placeholders with values
@@ -176,8 +188,9 @@ func (c *AnkiToNoteWriter) evaluateTemplateString(template string, fields map[st
 }
 
 // htmlToMarkdown converts basic HTML to markdown and processes media references
-func (c *AnkiToNoteWriter) htmlToMarkdown(html string) string {
+func (c *AnkiToNoteWriter) htmlToMarkdown(html string) (string, []string) {
 	text := html
+	var mediaFiles []string
 	
 	// Convert <b> and <strong> to **
 	text = regexp.MustCompile(`<b>(.*?)</b>`).ReplaceAllString(text, `**$1**`)
@@ -188,21 +201,24 @@ func (c *AnkiToNoteWriter) htmlToMarkdown(html string) string {
 	text = regexp.MustCompile(`<em>(.*?)</em>`).ReplaceAllString(text, `_$1_`)
 	
 	// Process media references (e.g., <img src="filename.jpg">)
-	text = c.processMediaReferences(text)
+	text, mediaFiles = c.processMediaReferences(text)
 	
 	// Note: Other HTML tags are left intact as specified
 	
-	return text
+	return text, mediaFiles
 }
 
 // processMediaReferences converts Anki media references to markdown
-func (c *AnkiToNoteWriter) processMediaReferences(text string) string {
+func (c *AnkiToNoteWriter) processMediaReferences(text string) (string, []string) {
+	var mediaFiles []string
+	
 	// Match <img src="filename">
 	imgRe := regexp.MustCompile(`<img[^>]*src=["']([^"']+)["'][^>]*>`)
 	text = imgRe.ReplaceAllStringFunc(text, func(match string) string {
 		matches := imgRe.FindStringSubmatch(match)
 		if len(matches) > 1 {
 			filename := matches[1]
+			mediaFiles = append(mediaFiles, filename)
 			// Convert to markdown image
 			return fmt.Sprintf("![%s](%s)", filename, c.getMediaPath(filename))
 		}
@@ -215,13 +231,14 @@ func (c *AnkiToNoteWriter) processMediaReferences(text string) string {
 		matches := soundRe.FindStringSubmatch(match)
 		if len(matches) > 1 {
 			filename := matches[1]
+			mediaFiles = append(mediaFiles, filename)
 			// Convert to markdown link
 			return fmt.Sprintf("[🔊 %s](%s)", filename, c.getMediaPath(filename))
 		}
 		return match
 	})
 	
-	return text
+	return text, mediaFiles
 }
 
 // getMediaPath returns the path to use for a media file in markdown
@@ -298,37 +315,77 @@ func (c *AnkiToNoteWriter) filenameToHeading(filepath string) string {
 	return strings.Join(words, " ")
 }
 
-// copyMediaFile copies a media file from the Anki collection to the output directory
-func (c *AnkiToNoteWriter) copyMediaFile(mediaID, outputDir string) error {
-	filename, ok := c.Collection.Media[mediaID]
-	if !ok {
-		return fmt.Errorf("media file %s not found in collection", mediaID)
+// copyMediaFiles copies media files referenced in the note to the appropriate location
+func (c *AnkiToNoteWriter) copyMediaFiles(mediaFiles []string, outputFile string) error {
+	// Determine output directory for media
+	outputDir := filepath.Dir(outputFile)
+	if c.MediaDir != "" {
+		outputDir = filepath.Join(outputDir, c.MediaDir)
 	}
 	
-	srcPath := filepath.Join(c.Collection.TempDir, mediaID)
-	destPath := filepath.Join(outputDir, filename)
-	
-	// Track copied media
-	c.copiedMedia[filename] = append(c.copiedMedia[filename], destPath)
-	
-	// Create destination directory
-	if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+	// Create media directory if needed
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return err
 	}
 	
-	// Copy file
-	src, err := os.Open(srcPath)
+	// Copy each media file
+	for _, filename := range mediaFiles {
+		// Find the media ID for this filename
+		var mediaID string
+		for id, name := range c.Collection.Media {
+			if name == filename {
+				mediaID = id
+				break
+			}
+		}
+		
+		if mediaID == "" {
+			fmt.Printf("⚠️  Warning: media file '%s' not found in collection\n", filename)
+			continue
+		}
+		
+		srcPath := filepath.Join(c.Collection.TempDir, mediaID)
+		destPath := filepath.Join(outputDir, filename)
+		
+		// Check if source file exists
+		if _, err := os.Stat(srcPath); os.IsNotExist(err) {
+			fmt.Printf("⚠️  Warning: media source file '%s' not found\n", srcPath)
+			continue
+		}
+		
+		// Track copied media
+		c.copiedMedia[filename] = append(c.copiedMedia[filename], destPath)
+		
+		// Copy file if it doesn't already exist
+		if _, err := os.Stat(destPath); err == nil {
+			fmt.Printf("   Media file '%s' already exists at %s\n", filename, destPath)
+			continue
+		}
+		
+		if err := copyFile(srcPath, destPath); err != nil {
+			return fmt.Errorf("failed to copy media file %s: %w", filename, err)
+		}
+		
+		fmt.Printf("   📎 Copied media file '%s' to %s\n", filename, destPath)
+	}
+	
+	return nil
+}
+
+// copyFile copies a file from src to dst
+func copyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
 	if err != nil {
 		return err
 	}
-	defer src.Close()
+	defer sourceFile.Close()
 	
-	dst, err := os.Create(destPath)
+	destFile, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer dst.Close()
+	defer destFile.Close()
 	
-	_, err = io.Copy(dst, src)
+	_, err = io.Copy(destFile, sourceFile)
 	return err
 }

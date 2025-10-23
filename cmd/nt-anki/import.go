@@ -63,6 +63,27 @@ func runImport(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("📚 Found %d notes and %d cards\n", len(collection.Notes), len(collection.Cards))
 
+	// Log reviews if present
+	if !ignoreScheduling && len(collection.Reviews) > 0 {
+		fmt.Printf("📊 Found %d review records in revlog\n", len(collection.Reviews))
+		// Log sample review data for debugging
+		for i, review := range collection.Reviews {
+			if i >= 5 {
+				fmt.Printf("   ... and %d more reviews\n", len(collection.Reviews)-5)
+				break
+			}
+			reviewType := "learn"
+			switch review.Type {
+			case 1:
+				reviewType = "review"
+			case 2:
+				reviewType = "relearn"
+			}
+			fmt.Printf("   Review %d: card=%d, ease=%d, interval=%d days, time=%dms, type=%s\n",
+				i+1, review.CID, review.Ease, review.Ivl, review.Time, reviewType)
+		}
+	}
+
 	// Convert and write flashcards
 	converter := &AnkiToNoteWriter{
 		Collection:       collection,

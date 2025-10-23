@@ -19,6 +19,7 @@ type AnkiCollection struct {
 	DB      *sql.DB
 	Notes   []*AnkiNote
 	Cards   []*AnkiCard
+	Reviews []*AnkiReview
 	Models  map[int64]*AnkiModel
 	Media   map[string]string // media ID -> filename
 }
@@ -61,6 +62,18 @@ type AnkiTemplate struct {
 	Ord  int    `json:"ord"`
 	Qfmt string `json:"qfmt"` // Question format
 	Afmt string `json:"afmt"` // Answer format
+}
+
+// AnkiReview represents a review from the revlog table
+type AnkiReview struct {
+	ID      int64
+	CID     int64 // Card ID
+	Ease    int
+	Ivl     int
+	LastIvl int
+	Factor  int
+	Time    int // Time spent in milliseconds
+	Type    int // 0=learn, 1=review, 2=relearn
 }
 
 // ExtractAnkiCollection extracts and parses an Anki .apkg file
@@ -112,6 +125,12 @@ func ExtractAnkiCollection(apkgPath string) (*AnkiCollection, error) {
 	if err := collection.loadCards(); err != nil {
 		collection.Close()
 		return nil, fmt.Errorf("failed to load cards: %w", err)
+	}
+
+	// Load reviews (revlog)
+	if err := collection.loadReviews(); err != nil {
+		collection.Close()
+		return nil, fmt.Errorf("failed to load reviews: %w", err)
 	}
 
 	return collection, nil
@@ -240,6 +259,25 @@ func (c *AnkiCollection) loadCards() error {
 			return err
 		}
 		c.Cards = append(c.Cards, card)
+	}
+
+	return rows.Err()
+}
+
+// loadReviews loads all reviews from the revlog table
+func (c *AnkiCollection) loadReviews() error {
+	rows, err := c.DB.Query("SELECT id, cid, ease, ivl, lastIvl, factor, time, type FROM revlog")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		review := &AnkiReview{}
+		if err := rows.Scan(&review.ID, &review.CID, &review.Ease, &review.Ivl, &review.LastIvl, &review.Factor, &review.Time, &review.Type); err != nil {
+			return err
+		}
+		c.Reviews = append(c.Reviews, review)
 	}
 
 	return rows.Err()
