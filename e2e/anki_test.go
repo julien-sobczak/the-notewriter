@@ -3,6 +3,7 @@
 package e2e_test
 
 import (
+	_ "embed"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,14 +14,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+//go:embed testdata/fixtures.apkg
+var fixturesAPKG []byte
+
 func TestAnkiImport(t *testing.T) {
-	// Find the fixtures.apkg file (in repository root)
-	repoRoot := ".."
-	apkgSource := filepath.Join(repoRoot, "fixtures.apkg")
+	// Write embedded fixtures to a temporary file
+	tmpFile, err := os.CreateTemp("", "fixtures-*.apkg")
+	require.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
 	
-	// Verify source file exists
-	_, err := os.Stat(apkgSource)
-	require.NoError(t, err, "fixtures.apkg not found in repository root")
+	_, err = tmpFile.Write(fixturesAPKG)
+	require.NoError(t, err)
+	tmpFile.Close()
+	
+	apkgSource := tmpFile.Name()
 	
 	t.Run("BasicImport", func(t *testing.T) {
 		testDir := t.TempDir()
@@ -53,19 +60,10 @@ func TestAnkiImport(t *testing.T) {
 		// Read and verify content
 		content, err := os.ReadFile(outputPath)
 		require.NoError(t, err)
-		contentStr := string(content)
 		
-		// Verify heading
-		assert.Contains(t, contentStr, "# Output")
-		
-		// Verify flashcard structure
-		assert.Contains(t, contentStr, "## Flashcard:")
-		assert.Contains(t, contentStr, "`@cid:")
-		assert.Contains(t, contentStr, "`@slug: anki-")
-		
-		// Verify front/back sections
-		assert.Contains(t, contentStr, "**Front:**")
-		assert.Contains(t, contentStr, "**Back:**")
+		// Expected content - compare full file content
+		expectedContent := "# Output\n\n## Flashcard: Untitled `@cid: 1761228936249` `@slug: anki-1761228936249`\n\n**Front:**\n\nThis file requires a newer version of Anki.\n\n**Back:**\n\nThis file requires a newer version of Anki.\n\n<hr id=answer>\n\n\n\n"
+		assert.Equal(t, expectedContent, string(content))
 	})
 	
 	t.Run("ImportWithMediaDir", func(t *testing.T) {
