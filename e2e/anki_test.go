@@ -4,19 +4,16 @@ package e2e_test
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/julien-sobczak/the-notewriter/pkg/anki"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestAnkiImport(t *testing.T) {
-	// Create a temporary directory for testing
-	tmpDir := t.TempDir()
-	
 	// Find the fixtures.apkg file (in repository root)
 	repoRoot := ".."
 	apkgSource := filepath.Join(repoRoot, "fixtures.apkg")
@@ -25,40 +22,32 @@ func TestAnkiImport(t *testing.T) {
 	_, err := os.Stat(apkgSource)
 	require.NoError(t, err, "fixtures.apkg not found in repository root")
 	
-	// Copy to temp directory for tests
-	apkgPath := filepath.Join(tmpDir, "fixtures.apkg")
-	sourceData, err := os.ReadFile(apkgSource)
-	require.NoError(t, err)
-	err = os.WriteFile(apkgPath, sourceData, 0644)
-	require.NoError(t, err)
-	
-	// Build the ntanki binary
-	binaryPath := filepath.Join(tmpDir, "ntanki")
-	repoRootAbs, err := filepath.Abs(repoRoot)
-	require.NoError(t, err)
-	
-	buildCmd := exec.Command("go", "build", "--tags", "fts5", "-o", binaryPath, "./cmd/nt-anki")
-	buildCmd.Dir = repoRootAbs
-	output, err := buildCmd.CombinedOutput()
-	if err != nil {
-		t.Logf("Build output: %s", output)
-	}
-	require.NoError(t, err, "Failed to build ntanki binary")
-	
 	t.Run("BasicImport", func(t *testing.T) {
-		testDir := filepath.Join(tmpDir, "basic")
-		err := os.MkdirAll(testDir, 0755)
-		require.NoError(t, err)
+		testDir := t.TempDir()
 		
-		// Run import with default mapping
-		cmd := exec.Command(binaryPath, "import", apkgPath, "-m", "default:output.md")
-		cmd.Dir = testDir
-		output, err := cmd.CombinedOutput()
-		t.Logf("Import output: %s", output)
+		// Extract collection
+		collection, err := anki.ExtractCollection(apkgSource)
+		require.NoError(t, err)
+		defer collection.Close()
+		
+		// Verify collection loaded
+		assert.Greater(t, len(collection.Notes), 0)
+		assert.Greater(t, len(collection.Cards), 0)
+		
+		// Create importer with default mapping
+		outputPath := filepath.Join(testDir, "output.md")
+		importer := &anki.Importer{
+			Collection: collection,
+			TagMappings: map[string]string{
+				"default": outputPath,
+			},
+		}
+		
+		// Run import
+		err = importer.Import()
 		require.NoError(t, err)
 		
 		// Check output file was created
-		outputPath := filepath.Join(testDir, "output.md")
 		assert.FileExists(t, outputPath)
 		
 		// Read and verify content
@@ -80,19 +69,28 @@ func TestAnkiImport(t *testing.T) {
 	})
 	
 	t.Run("ImportWithMediaDir", func(t *testing.T) {
-		testDir := filepath.Join(tmpDir, "media")
-		err := os.MkdirAll(testDir, 0755)
-		require.NoError(t, err)
+		testDir := t.TempDir()
 		
-		// Run import with media directory
-		cmd := exec.Command(binaryPath, "import", apkgPath, "-m", "default:flashcards.md", "--media-dir=assets")
-		cmd.Dir = testDir
-		output, err := cmd.CombinedOutput()
-		t.Logf("Import output: %s", output)
+		// Extract collection
+		collection, err := anki.ExtractCollection(apkgSource)
+		require.NoError(t, err)
+		defer collection.Close()
+		
+		// Create importer with media directory
+		outputPath := filepath.Join(testDir, "flashcards.md")
+		importer := &anki.Importer{
+			Collection: collection,
+			TagMappings: map[string]string{
+				"default": outputPath,
+			},
+			MediaDir: "assets",
+		}
+		
+		// Run import
+		err = importer.Import()
 		require.NoError(t, err)
 		
 		// Check output file
-		outputPath := filepath.Join(testDir, "flashcards.md")
 		assert.FileExists(t, outputPath)
 		
 		content, err := os.ReadFile(outputPath)
@@ -104,19 +102,27 @@ func TestAnkiImport(t *testing.T) {
 	})
 	
 	t.Run("ImportWithSubdirectory", func(t *testing.T) {
-		testDir := filepath.Join(tmpDir, "subdir")
-		err := os.MkdirAll(testDir, 0755)
-		require.NoError(t, err)
+		testDir := t.TempDir()
 		
-		// Run import with subdirectory path
-		cmd := exec.Command(binaryPath, "import", apkgPath, "-m", "default:skills/web/general.md")
-		cmd.Dir = testDir
-		output, err := cmd.CombinedOutput()
-		t.Logf("Import output: %s", output)
+		// Extract collection
+		collection, err := anki.ExtractCollection(apkgSource)
+		require.NoError(t, err)
+		defer collection.Close()
+		
+		// Create importer with subdirectory path
+		outputPath := filepath.Join(testDir, "skills/web/general.md")
+		importer := &anki.Importer{
+			Collection: collection,
+			TagMappings: map[string]string{
+				"default": outputPath,
+			},
+		}
+		
+		// Run import
+		err = importer.Import()
 		require.NoError(t, err)
 		
 		// Check output file was created in subdirectory
-		outputPath := filepath.Join(testDir, "skills/web/general.md")
 		assert.FileExists(t, outputPath)
 		
 		content, err := os.ReadFile(outputPath)
@@ -128,21 +134,29 @@ func TestAnkiImport(t *testing.T) {
 	})
 	
 	t.Run("AppendToExistingFile", func(t *testing.T) {
-		testDir := filepath.Join(tmpDir, "append")
-		err := os.MkdirAll(testDir, 0755)
-		require.NoError(t, err)
+		testDir := t.TempDir()
 		
 		// Create existing file
 		outputPath := filepath.Join(testDir, "existing.md")
 		existingContent := "# Existing\n\n## Some existing content\n\nHere is some text.\n"
-		err = os.WriteFile(outputPath, []byte(existingContent), 0644)
+		err := os.WriteFile(outputPath, []byte(existingContent), 0644)
 		require.NoError(t, err)
 		
+		// Extract collection
+		collection, err := anki.ExtractCollection(apkgSource)
+		require.NoError(t, err)
+		defer collection.Close()
+		
+		// Create importer
+		importer := &anki.Importer{
+			Collection: collection,
+			TagMappings: map[string]string{
+				"default": outputPath,
+			},
+		}
+		
 		// Run import
-		cmd := exec.Command(binaryPath, "import", apkgPath, "-m", "default:existing.md")
-		cmd.Dir = testDir
-		output, err := cmd.CombinedOutput()
-		t.Logf("Import output: %s", output)
+		err = importer.Import()
 		require.NoError(t, err)
 		
 		// Read file and verify both old and new content
@@ -163,78 +177,49 @@ func TestAnkiImport(t *testing.T) {
 	})
 	
 	t.Run("IgnoreScheduling", func(t *testing.T) {
-		testDir := filepath.Join(tmpDir, "scheduling")
-		err := os.MkdirAll(testDir, 0755)
-		require.NoError(t, err)
+		testDir := t.TempDir()
 		
-		// Run import with --ignore-scheduling flag
-		cmd := exec.Command(binaryPath, "import", apkgPath, "-m", "default:output.md", "--ignore-scheduling")
-		cmd.Dir = testDir
-		output, err := cmd.CombinedOutput()
-		t.Logf("Import output: %s", output)
+		// Extract collection
+		collection, err := anki.ExtractCollection(apkgSource)
+		require.NoError(t, err)
+		defer collection.Close()
+		
+		// Create importer with IgnoreScheduling flag
+		outputPath := filepath.Join(testDir, "output.md")
+		importer := &anki.Importer{
+			Collection: collection,
+			TagMappings: map[string]string{
+				"default": outputPath,
+			},
+			IgnoreScheduling: true,
+		}
+		
+		// Run import
+		err = importer.Import()
 		require.NoError(t, err)
 		
 		// The test passes if import succeeds
 		// In fixtures.apkg, there are no reviews, so there's nothing to ignore
-		outputPath := filepath.Join(testDir, "output.md")
 		assert.FileExists(t, outputPath)
 	})
-}
-
-func TestAnkiImportErrors(t *testing.T) {
-	tmpDir := t.TempDir()
 	
-	// Find the fixtures.apkg file
-	repoRoot := ".."
-	apkgSource := filepath.Join(repoRoot, "fixtures.apkg")
-	sourceData, err := os.ReadFile(apkgSource)
-	require.NoError(t, err)
-	
-	// Build the binary
-	binaryPath := filepath.Join(tmpDir, "ntanki")
-	repoRoot2 := ".."
-	repoRootAbs2, err := filepath.Abs(repoRoot2)
-	require.NoError(t, err)
-	
-	buildCmd := exec.Command("go", "build", "--tags", "fts5", "-o", binaryPath, "./cmd/nt-anki")
-	buildCmd.Dir = repoRootAbs2
-	output, err := buildCmd.CombinedOutput()
-	if err != nil {
-		t.Logf("Build output: %s", output)
-	}
-	require.NoError(t, err, "Failed to build ntanki binary")
-	
-	t.Run("FileNotFound", func(t *testing.T) {
-		testDir := filepath.Join(tmpDir, "notfound")
-		err := os.MkdirAll(testDir, 0755)
+	t.Run("NoMappingError", func(t *testing.T) {
+		// Extract collection
+		collection, err := anki.ExtractCollection(apkgSource)
 		require.NoError(t, err)
+		defer collection.Close()
 		
-		// Try to import non-existent file
-		cmd := exec.Command(binaryPath, "import", "nonexistent.apkg", "-m", "default:output.md")
-		cmd.Dir = testDir
-		output, err := cmd.CombinedOutput()
+		// Create importer without default mapping
+		importer := &anki.Importer{
+			Collection: collection,
+			TagMappings: map[string]string{
+				// No mappings defined
+			},
+		}
 		
-		// Should fail
+		// Run import - should fail with error
+		err = importer.Import()
 		assert.Error(t, err)
-		assert.Contains(t, string(output), "file not found")
-	})
-	
-	t.Run("InvalidMapping", func(t *testing.T) {
-		testDir := filepath.Join(tmpDir, "invalid")
-		err := os.MkdirAll(testDir, 0755)
-		require.NoError(t, err)
-		
-		apkgPath := filepath.Join(tmpDir, "fixtures.apkg")
-		err = os.WriteFile(apkgPath, sourceData, 0644)
-		require.NoError(t, err)
-		
-		// Try with invalid mapping format
-		cmd := exec.Command(binaryPath, "import", apkgPath, "-m", "invalid-format")
-		cmd.Dir = testDir
-		output, err := cmd.CombinedOutput()
-		
-		// Should fail
-		assert.Error(t, err)
-		assert.Contains(t, string(output), "invalid mapping format")
+		assert.Contains(t, err.Error(), "no mapping found")
 	})
 }

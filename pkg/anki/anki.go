@@ -1,4 +1,4 @@
-package main
+package anki
 
 import (
 	"archive/zip"
@@ -13,19 +13,19 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// AnkiCollection represents the extracted Anki collection data
-type AnkiCollection struct {
+// Collection represents the extracted Anki collection data
+type Collection struct {
 	TempDir string
 	DB      *sql.DB
-	Notes   []*AnkiNote
-	Cards   []*AnkiCard
-	Reviews []*AnkiReview
-	Models  map[int64]*AnkiModel
+	Notes   []*Note
+	Cards   []*Card
+	Reviews []*Review
+	Models  map[int64]*Model
 	Media   map[string]string // media ID -> filename
 }
 
-// AnkiNote represents a note from the Anki database
-type AnkiNote struct {
+// Note represents a note from the Anki database
+type Note struct {
 	ID     int64
 	GUID   string
 	Mid    int64  // Model ID
@@ -33,8 +33,8 @@ type AnkiNote struct {
 	Fields []string
 }
 
-// AnkiCard represents a card from the Anki database
-type AnkiCard struct {
+// Card represents a card from the Anki database
+type Card struct {
 	ID   int64
 	NID  int64 // Note ID
 	Ord  int   // Template ordinal
@@ -44,28 +44,30 @@ type AnkiCard struct {
 	Reps int
 }
 
-// AnkiModel represents a note type (model) from the Anki collection
-type AnkiModel struct {
+// Model represents a note type (model) from the Anki collection
+type Model struct {
 	ID        int64
 	Name      string
-	Fields    []AnkiField
-	Templates []AnkiTemplate
+	Fields    []Field
+	Templates []Template
 }
 
-type AnkiField struct {
+// Field represents a field in an Anki note type
+type Field struct {
 	Name string `json:"name"`
 	Ord  int    `json:"ord"`
 }
 
-type AnkiTemplate struct {
+// Template represents a card template in an Anki note type
+type Template struct {
 	Name string `json:"name"`
 	Ord  int    `json:"ord"`
 	Qfmt string `json:"qfmt"` // Question format
 	Afmt string `json:"afmt"` // Answer format
 }
 
-// AnkiReview represents a review from the revlog table
-type AnkiReview struct {
+// Review represents a review from the revlog table
+type Review struct {
 	ID      int64
 	CID     int64 // Card ID
 	Ease    int
@@ -76,8 +78,8 @@ type AnkiReview struct {
 	Type    int // 0=learn, 1=review, 2=relearn
 }
 
-// ExtractAnkiCollection extracts and parses an Anki .apkg file
-func ExtractAnkiCollection(apkgPath string) (*AnkiCollection, error) {
+// ExtractCollection extracts and parses an Anki .apkg file
+func ExtractCollection(apkgPath string) (*Collection, error) {
 	// Create a temporary directory for extraction
 	tempDir, err := os.MkdirTemp("", "anki-import-*")
 	if err != nil {
@@ -98,7 +100,7 @@ func ExtractAnkiCollection(apkgPath string) (*AnkiCollection, error) {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	collection := &AnkiCollection{
+	collection := &Collection{
 		TempDir: tempDir,
 		DB:      db,
 	}
@@ -137,7 +139,7 @@ func ExtractAnkiCollection(apkgPath string) (*AnkiCollection, error) {
 }
 
 // Close cleans up resources
-func (c *AnkiCollection) Close() error {
+func (c *Collection) Close() error {
 	if c.DB != nil {
 		c.DB.Close()
 	}
@@ -148,7 +150,7 @@ func (c *AnkiCollection) Close() error {
 }
 
 // loadMedia loads the media mapping from the media file
-func (c *AnkiCollection) loadMedia() error {
+func (c *Collection) loadMedia() error {
 	mediaPath := filepath.Join(c.TempDir, "media")
 	data, err := os.ReadFile(mediaPath)
 	if err != nil {
@@ -168,7 +170,7 @@ func (c *AnkiCollection) loadMedia() error {
 }
 
 // loadModels loads note types (models) from the col table
-func (c *AnkiCollection) loadModels() error {
+func (c *Collection) loadModels() error {
 	var modelsJSON string
 	err := c.DB.QueryRow("SELECT models FROM col").Scan(&modelsJSON)
 	if err != nil {
@@ -180,13 +182,13 @@ func (c *AnkiCollection) loadModels() error {
 		return fmt.Errorf("failed to parse models JSON: %w", err)
 	}
 
-	c.Models = make(map[int64]*AnkiModel)
+	c.Models = make(map[int64]*Model)
 	for idStr, modelData := range modelsMap {
 		var id int64
 		fmt.Sscanf(idStr, "%d", &id)
 
 		modelMap := modelData.(map[string]interface{})
-		model := &AnkiModel{
+		model := &Model{
 			ID:   id,
 			Name: modelMap["name"].(string),
 		}
@@ -195,7 +197,7 @@ func (c *AnkiCollection) loadModels() error {
 		if flds, ok := modelMap["flds"].([]interface{}); ok {
 			for _, f := range flds {
 				fMap := f.(map[string]interface{})
-				model.Fields = append(model.Fields, AnkiField{
+				model.Fields = append(model.Fields, Field{
 					Name: fMap["name"].(string),
 					Ord:  int(fMap["ord"].(float64)),
 				})
@@ -206,7 +208,7 @@ func (c *AnkiCollection) loadModels() error {
 		if tmpls, ok := modelMap["tmpls"].([]interface{}); ok {
 			for _, t := range tmpls {
 				tMap := t.(map[string]interface{})
-				model.Templates = append(model.Templates, AnkiTemplate{
+				model.Templates = append(model.Templates, Template{
 					Name: tMap["name"].(string),
 					Ord:  int(tMap["ord"].(float64)),
 					Qfmt: tMap["qfmt"].(string),
@@ -222,7 +224,7 @@ func (c *AnkiCollection) loadModels() error {
 }
 
 // loadNotes loads all notes from the database
-func (c *AnkiCollection) loadNotes() error {
+func (c *Collection) loadNotes() error {
 	rows, err := c.DB.Query("SELECT id, guid, mid, tags, flds FROM notes")
 	if err != nil {
 		return err
@@ -230,7 +232,7 @@ func (c *AnkiCollection) loadNotes() error {
 	defer rows.Close()
 
 	for rows.Next() {
-		note := &AnkiNote{}
+		note := &Note{}
 		var fldsStr string
 		if err := rows.Scan(&note.ID, &note.GUID, &note.Mid, &note.Tags, &fldsStr); err != nil {
 			return err
@@ -246,7 +248,7 @@ func (c *AnkiCollection) loadNotes() error {
 }
 
 // loadCards loads all cards from the database
-func (c *AnkiCollection) loadCards() error {
+func (c *Collection) loadCards() error {
 	rows, err := c.DB.Query("SELECT id, nid, ord, type, due, ivl, reps FROM cards")
 	if err != nil {
 		return err
@@ -254,7 +256,7 @@ func (c *AnkiCollection) loadCards() error {
 	defer rows.Close()
 
 	for rows.Next() {
-		card := &AnkiCard{}
+		card := &Card{}
 		if err := rows.Scan(&card.ID, &card.NID, &card.Ord, &card.Type, &card.Due, &card.Ivl, &card.Reps); err != nil {
 			return err
 		}
@@ -265,7 +267,7 @@ func (c *AnkiCollection) loadCards() error {
 }
 
 // loadReviews loads all reviews from the revlog table
-func (c *AnkiCollection) loadReviews() error {
+func (c *Collection) loadReviews() error {
 	rows, err := c.DB.Query("SELECT id, cid, ease, ivl, lastIvl, factor, time, type FROM revlog")
 	if err != nil {
 		return err
@@ -273,7 +275,7 @@ func (c *AnkiCollection) loadReviews() error {
 	defer rows.Close()
 
 	for rows.Next() {
-		review := &AnkiReview{}
+		review := &Review{}
 		if err := rows.Scan(&review.ID, &review.CID, &review.Ease, &review.Ivl, &review.LastIvl, &review.Factor, &review.Time, &review.Type); err != nil {
 			return err
 		}

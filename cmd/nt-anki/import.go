@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/julien-sobczak/the-notewriter/pkg/anki"
 	"github.com/spf13/cobra"
 )
 
@@ -55,7 +56,7 @@ func runImport(cmd *cobra.Command, args []string) error {
 
 	// Extract and parse the Anki collection
 	fmt.Printf("📦 Extracting %s...\n", filepath.Base(apkgPath))
-	collection, err := ExtractAnkiCollection(apkgPath)
+	collection, err := anki.ExtractCollection(apkgPath)
 	if err != nil {
 		return fmt.Errorf("failed to extract collection: %w", err)
 	}
@@ -85,15 +86,15 @@ func runImport(cmd *cobra.Command, args []string) error {
 	}
 
 	// Convert and write flashcards
-	converter := &AnkiToNoteWriter{
+	importer := &anki.Importer{
 		Collection:       collection,
 		TagMappings:      tagMappings,
 		MediaDir:         mediaDir,
 		IgnoreScheduling: ignoreScheduling,
 	}
 
-	if err := converter.Convert(); err != nil {
-		return fmt.Errorf("failed to convert: %w", err)
+	if err := importer.Import(); err != nil {
+		return fmt.Errorf("failed to import: %w", err)
 	}
 
 	fmt.Println("✅ Import completed successfully")
