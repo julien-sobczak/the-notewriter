@@ -80,33 +80,6 @@ type Flashcard struct {
 	Settings  map[string]any `yaml:"-" json:"-"`
 }
 
-type Study struct {
-	OID       oid.OID   `yaml:"oid" json:"oid"`               // Not persisted in database but can be useful to deduplicate, etc.
-	StartedAt time.Time `yaml:"started_at" json:"started_at"` // Timestamp when the first card was revealed
-	EndedAt   time.Time `yaml:"ended_at" json:"ended_at"`     // Timestamp when the last card was completed
-	Reviews   []*Review `yaml:"reviews" json:"reviews"`
-}
-
-/* Format */
-
-func (s *Study) ToYAML() string {
-	return ToBeautifulYAML(s)
-}
-
-func (s *Study) ToJSON() string {
-	return ToBeautifulJSON(s)
-}
-
-func (s *Study) ToMarkdown() string {
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("%d reviews:", len(s.Reviews)))
-	for _, review := range s.Reviews {
-		sb.WriteString(fmt.Sprintf("- Flashcard %s: %s", review.FlashcardOID, review.Feedback))
-		sb.WriteRune('\n')
-	}
-	return sb.String()
-}
-
 type Feedback string
 
 const (
@@ -126,6 +99,7 @@ type Review struct {
 	DurationInMs int            `yaml:"duration_ms" json:"duration_ms"`
 	CompletedAt  time.Time      `yaml:"completed_at" json:"completed_at"`
 	DueAt        time.Time      `yaml:"due_at" json:"due_at"`
+	Algorithm    string         `yaml:"algorithm" json:"algorithm"`
 	Settings     map[string]any `yaml:"settings" json:"settings"` // Include algorithm-specific attributes (like the e-factor in SM-2)
 }
 
