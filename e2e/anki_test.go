@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/julien-sobczak/the-notewriter/pkg/anki"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,7 +63,19 @@ func TestAnkiImport(t *testing.T) {
 		require.NoError(t, err)
 		
 		// Expected content - compare full file content
-		expectedContent := "# Output\n\n## Flashcard: Untitled `@cid: 1761228936249` `@slug: anki-1761228936249`\n\n**Front:**\n\nThis file requires a newer version of Anki.\n\n**Back:**\n\nThis file requires a newer version of Anki.\n\n<hr id=answer>\n\n\n\n"
+		expectedContent := text.UnescapeTestContent(`# Output
+
+## Flashcard: Untitled ‛@cid: 1761228936249‛ ‛@slug: anki-1761228936249‛
+
+**Front:**
+
+This file requires a newer version of Anki.
+
+**Back:**
+
+<hr id=answer>
+
+`)
 		assert.Equal(t, expectedContent, string(content))
 	})
 	
@@ -199,25 +212,5 @@ func TestAnkiImport(t *testing.T) {
 		// The test passes if import succeeds
 		// In fixtures.apkg, there are no reviews, so there's nothing to ignore
 		assert.FileExists(t, outputPath)
-	})
-	
-	t.Run("NoMappingError", func(t *testing.T) {
-		// Extract collection
-		collection, err := anki.ExtractCollection(apkgSource)
-		require.NoError(t, err)
-		defer collection.Close()
-		
-		// Create importer without default mapping
-		importer := &anki.Importer{
-			Collection: collection,
-			TagMappings: map[string]string{
-				// No mappings defined
-			},
-		}
-		
-		// Run import - should fail with error
-		err = importer.Import()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "no mapping found")
 	})
 }

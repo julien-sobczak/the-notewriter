@@ -101,9 +101,9 @@ func (imp *Importer) determineOutputFile(note *Note) (string, error) {
 
 // convertNote converts an Anki note and its cards to markdown format
 func (imp *Importer) convertNote(note *Note, cards []*Card) (string, []string, error) {
-	model, ok := imp.Collection.Models[note.Mid]
+	model, ok := imp.Collection.Models[note.MID]
 	if !ok {
-		return "", nil, fmt.Errorf("model %d not found", note.Mid)
+		return "", nil, fmt.Errorf("model %d not found", note.MID)
 	}
 
 	var sb strings.Builder
@@ -139,7 +139,19 @@ func (imp *Importer) convertCard(model *Model, note *Note, card *Card, headingLe
 
 	var sb strings.Builder
 	headingPrefix := strings.Repeat("#", headingLevel)
-	sb.WriteString(fmt.Sprintf("\n%s Flashcard: Untitled `@cid: %d` `@slug: anki-%d`\n\n", headingPrefix, card.ID, card.ID))
+	sb.WriteString(fmt.Sprintf("\n%s Flashcard: Untitled `@cid: %d` `@slug: anki-%d`", headingPrefix, card.ID, card.ID))
+	
+	// Add tags if present
+	if len(note.Tags) > 0 {
+		tags := strings.Fields(note.Tags)
+		if len(tags) > 0 {
+			sb.WriteString(" `#")
+			sb.WriteString(strings.Join(tags, "` `#"))
+			sb.WriteString("`")
+		}
+	}
+	
+	sb.WriteString("\n\n")
 	sb.WriteString(fmt.Sprintf("**Front:**\n\n%s\n\n", front))
 	sb.WriteString(fmt.Sprintf("**Back:**\n\n%s\n\n", back))
 
@@ -169,6 +181,11 @@ func (imp *Importer) evaluateTemplate(model *Model, note *Note, card *Card) (fro
 	// The answer template can reference {{FrontSide}}
 	fieldMap["FrontSide"] = front
 	back = imp.evaluateTemplateString(template.Afmt, fieldMap)
+	
+	// Trim FrontSide from the beginning of back if present
+	// Anki typically prepends FrontSide to the back
+	back = strings.TrimPrefix(back, front)
+	back = strings.TrimSpace(back)
 
 	// Process HTML to markdown and collect media files
 	front, frontMedia := imp.htmlToMarkdown(front)
@@ -357,11 +374,6 @@ func (imp *Importer) copyMediaFiles(mediaFiles []string, outputFile string) erro
 		// Copy file if it doesn't already exist (using pkg/filesystem)
 		if err := filesystem.CopyFileIfNotExists(srcPath, destPath); err != nil {
 			return fmt.Errorf("failed to copy media file %s: %w", filename, err)
-		}
-
-		// Check if file was actually copied (it may have already existed)
-		if _, err := os.Stat(destPath); err == nil {
-			fmt.Printf("   📎 Copied media file '%s' to %s\n", filename, destPath)
 		}
 	}
 

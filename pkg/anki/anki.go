@@ -28,7 +28,7 @@ type Collection struct {
 type Note struct {
 	ID     int64
 	GUID   string
-	Mid    int64  // Model ID
+	MID    int64  // Model ID
 	Tags   string // Space-separated tags
 	Fields []string
 }
@@ -225,7 +225,7 @@ func (c *Collection) loadModels() error {
 
 // loadNotes loads all notes from the database
 func (c *Collection) loadNotes() error {
-	rows, err := c.DB.Query("SELECT id, guid, mid, tags, flds FROM notes")
+	rows, err := c.DB.Query("SELECT id, guid, mid, tags, flds FROM notes ORDER BY id ASC")
 	if err != nil {
 		return err
 	}
@@ -234,7 +234,7 @@ func (c *Collection) loadNotes() error {
 	for rows.Next() {
 		note := &Note{}
 		var fldsStr string
-		if err := rows.Scan(&note.ID, &note.GUID, &note.Mid, &note.Tags, &fldsStr); err != nil {
+		if err := rows.Scan(&note.ID, &note.GUID, &note.MID, &note.Tags, &fldsStr); err != nil {
 			return err
 		}
 
