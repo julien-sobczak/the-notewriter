@@ -145,7 +145,7 @@ func NewOrExistingFlashcard(packFile *PackFile, file *File, note *Note, parsedFl
 // NewFlashcard initializes a new flashcard.
 func NewFlashcard(packFile *PackFile, file *File, note *Note, parsedFlashcard *ParsedFlashcard) (*Flashcard, error) {
 	f := &Flashcard{
-		OID: oid.New(),
+		OID: oid.NewFromString(parsedFlashcard.Slug),
 
 		PackFileOID: packFile.OID,
 
@@ -628,10 +628,11 @@ func QueryFlashcards(db SQLClient, whereClause string, args ...any) ([]*Flashcar
 /* Operations */
 
 type FlashcardReview struct {
-	Feedback Feedback       `yaml:"feedback" json:"feedback"`
-	Duration time.Duration  `duration:"duration" json:"duration"`
-	DueAt    time.Time      `yaml:"due_at" json:"due_at"`
-	Settings map[string]any `yaml:"settings" json:"settings"`
+	Feedback  Feedback       `yaml:"feedback" json:"feedback"`
+	Duration  time.Duration  `duration:"duration" json:"duration"`
+	DueAt     time.Time      `yaml:"due_at" json:"due_at"`
+	Algorithm string         `yaml:"algorithm" json:"algorithm"`
+	Settings  map[string]any `yaml:"settings" json:"settings"`
 }
 
 // Review updates the flashcard following a review.

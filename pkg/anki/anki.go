@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -20,7 +21,7 @@ type Collection struct {
 	Notes   []*Note
 	Cards   []*Card
 	Reviews []*Review
-	Models  map[int64]*Model
+	Models  []*Model
 	Media   map[string]string // media ID -> filename
 }
 
@@ -28,6 +29,7 @@ type Collection struct {
 type Note struct {
 	ID     int64
 	GUID   string
+	Mod    int64
 	MID    int64  // Model ID
 	Tags   string // Space-separated tags
 	Fields []string
@@ -37,7 +39,8 @@ type Note struct {
 type Card struct {
 	ID   int64
 	NID  int64 // Note ID
-	Ord  int   // Template ordinal
+	Mod  int64
+	Ord  int // Template ordinal
 	Type int
 	Due  int
 	Ivl  int
@@ -70,12 +73,12 @@ type Template struct {
 type Review struct {
 	ID      int64
 	CID     int64 // Card ID
-	Ease    int
-	Ivl     int
-	LastIvl int
-	Factor  int
-	Time    int // Time spent in milliseconds
-	Type    int // 0=learn, 1=review, 2=relearn
+	Ease    int   // Ease factor
+	Ivl     int   // Interval (days) after this review
+	LastIvl int   // Last interval (for learning cards)
+	Factor  int   // Ease factor (percentage ×10, e.g. 2500 = 250%)
+	Time    int   // Time spent answering (ms)
+	Type    int   // 0=learn, 1=review, 2=relearn
 }
 
 // ExtractCollection extracts and parses an Anki .apkg file
@@ -93,7 +96,7 @@ func ExtractCollection(apkgPath string) (*Collection, error) {
 	}
 
 	// Open the SQLite database
-	dbPath := filepath.Join(tempDir, "collection.anki2")
+	dbPath := filepath.Join(tempDir, "collection.anki21")
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		os.RemoveAll(tempDir)
@@ -177,26 +180,25 @@ func (c *Collection) loadModels() error {
 		return err
 	}
 
-	var modelsMap map[string]interface{}
+	var modelsMap map[string]any
 	if err := json.Unmarshal([]byte(modelsJSON), &modelsMap); err != nil {
 		return fmt.Errorf("failed to parse models JSON: %w", err)
 	}
 
-	c.Models = make(map[int64]*Model)
 	for idStr, modelData := range modelsMap {
 		var id int64
 		fmt.Sscanf(idStr, "%d", &id)
 
-		modelMap := modelData.(map[string]interface{})
+		modelMap := modelData.(map[string]any)
 		model := &Model{
 			ID:   id,
 			Name: modelMap["name"].(string),
 		}
 
 		// Parse fields
-		if flds, ok := modelMap["flds"].([]interface{}); ok {
+		if flds, ok := modelMap["flds"].([]any); ok {
 			for _, f := range flds {
-				fMap := f.(map[string]interface{})
+				fMap := f.(map[string]any)
 				model.Fields = append(model.Fields, Field{
 					Name: fMap["name"].(string),
 					Ord:  int(fMap["ord"].(float64)),
@@ -205,9 +207,9 @@ func (c *Collection) loadModels() error {
 		}
 
 		// Parse templates
-		if tmpls, ok := modelMap["tmpls"].([]interface{}); ok {
+		if tmpls, ok := modelMap["tmpls"].([]any); ok {
 			for _, t := range tmpls {
-				tMap := t.(map[string]interface{})
+				tMap := t.(map[string]any)
 				model.Templates = append(model.Templates, Template{
 					Name: tMap["name"].(string),
 					Ord:  int(tMap["ord"].(float64)),
@@ -217,15 +219,20 @@ func (c *Collection) loadModels() error {
 			}
 		}
 
-		c.Models[id] = model
+		c.Models = append(c.Models, model)
 	}
+
+	// Sort c.Models (SQLite seems to return them in random order)
+	sort.Slice(c.Models, func(i, j int) bool {
+		return c.Models[i].Name < c.Models[j].Name
+	})
 
 	return nil
 }
 
 // loadNotes loads all notes from the database
 func (c *Collection) loadNotes() error {
-	rows, err := c.DB.Query("SELECT id, guid, mid, tags, flds FROM notes ORDER BY id ASC")
+	rows, err := c.DB.Query("SELECT id, guid, mod, mid, tags, flds FROM notes ORDER BY id ASC")
 	if err != nil {
 		return err
 	}
@@ -234,7 +241,7 @@ func (c *Collection) loadNotes() error {
 	for rows.Next() {
 		note := &Note{}
 		var fldsStr string
-		if err := rows.Scan(&note.ID, &note.GUID, &note.MID, &note.Tags, &fldsStr); err != nil {
+		if err := rows.Scan(&note.ID, &note.GUID, &note.Mod, &note.MID, &note.Tags, &fldsStr); err != nil {
 			return err
 		}
 
@@ -249,7 +256,7 @@ func (c *Collection) loadNotes() error {
 
 // loadCards loads all cards from the database
 func (c *Collection) loadCards() error {
-	rows, err := c.DB.Query("SELECT id, nid, ord, type, due, ivl, reps FROM cards")
+	rows, err := c.DB.Query("SELECT id, nid, mod, ord, type, due, ivl, reps FROM cards ORDER BY id ASC")
 	if err != nil {
 		return err
 	}
@@ -257,7 +264,7 @@ func (c *Collection) loadCards() error {
 
 	for rows.Next() {
 		card := &Card{}
-		if err := rows.Scan(&card.ID, &card.NID, &card.Ord, &card.Type, &card.Due, &card.Ivl, &card.Reps); err != nil {
+		if err := rows.Scan(&card.ID, &card.NID, &card.Mod, &card.Ord, &card.Type, &card.Due, &card.Ivl, &card.Reps); err != nil {
 			return err
 		}
 		c.Cards = append(c.Cards, card)
@@ -268,7 +275,7 @@ func (c *Collection) loadCards() error {
 
 // loadReviews loads all reviews from the revlog table
 func (c *Collection) loadReviews() error {
-	rows, err := c.DB.Query("SELECT id, cid, ease, ivl, lastIvl, factor, time, type FROM revlog")
+	rows, err := c.DB.Query("SELECT id, cid, ease, ivl, lastIvl, factor, time, type FROM revlog ORDER BY id ASC")
 	if err != nil {
 		return err
 	}
@@ -331,4 +338,14 @@ func extractZip(zipPath, destDir string) error {
 	}
 
 	return nil
+}
+
+// FindModel finds a model by its ID
+func (c *Collection) FindModel(id int64) (*Model, bool) {
+	for _, model := range c.Models {
+		if model.ID == id {
+			return model, true
+		}
+	}
+	return nil, false
 }

@@ -11,9 +11,10 @@ import (
 )
 
 var (
-	mappings          []string
-	ignoreScheduling  bool
-	mediaDir          string
+	mappings         []string
+	ignoreScheduling bool
+	staged           bool
+	mediaDir         string
 )
 
 var importCmd = &cobra.Command{
@@ -27,7 +28,7 @@ The .apkg file is a ZIP archive containing:
 - Numbered files (0, 1, etc.): Media files
 
 Example usage:
-  nt-anki import col.apkg -m "web:skills/web/general.md" -m "default:unclassified.md"
+  nt-anki import col.apkg -m "web:skills/web/general.md" -m "default:unclassified.md" --staged
   nt-anki import col.apkg --ignore-scheduling --media-dir="medias"`,
 	Args: cobra.ExactArgs(1),
 	RunE: runImport,
@@ -37,6 +38,7 @@ func init() {
 	rootCmd.AddCommand(importCmd)
 	importCmd.Flags().StringSliceVarP(&mappings, "mapping", "m", nil, "Tag to file mapping (format: tag:filepath)")
 	importCmd.Flags().BoolVar(&ignoreScheduling, "ignore-scheduling", false, "Ignore scheduling information from revlog table")
+	importCmd.Flags().BoolVar(&staged, "staged", false, "Stage packfiles in repository index")
 	importCmd.Flags().StringVar(&mediaDir, "media-dir", "", "Subdirectory for media files (relative to output file)")
 }
 
@@ -64,36 +66,13 @@ func runImport(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("📚 Found %d notes and %d cards\n", len(collection.Notes), len(collection.Cards))
 
-	// Log reviews if present
-	if !ignoreScheduling && len(collection.Reviews) > 0 {
-		fmt.Printf("📊 Found %d review records in revlog\n", len(collection.Reviews))
-		// Log sample review data for debugging
-		for i, review := range collection.Reviews {
-			if i >= 5 {
-				fmt.Printf("   ... and %d more reviews\n", len(collection.Reviews)-5)
-				break
-			}
-			reviewType := "learn"
-			switch review.Type {
-			case 1:
-				reviewType = "review"
-			case 2:
-				reviewType = "relearn"
-			}
-			fmt.Printf("   Review %d: card=%d, ease=%d, interval=%d days, time=%dms, type=%s\n",
-				i+1, review.CID, review.Ease, review.Ivl, review.Time, reviewType)
-		}
-	}
-
 	// Convert and write flashcards
-	importer := &anki.Importer{
-		Collection:       collection,
-		TagMappings:      tagMappings,
-		MediaDir:         mediaDir,
-		IgnoreScheduling: ignoreScheduling,
-	}
-
-	if err := importer.Import(); err != nil {
+	collection.Import(
+		anki.WithTagMappings(tagMappings),
+		anki.WithMediaDir(mediaDir),
+		anki.WithIgnoreScheduling(ignoreScheduling),
+		anki.WithStaged(staged))
+	if err := collection.Import(); err != nil {
 		return fmt.Errorf("failed to import: %w", err)
 	}
 
