@@ -40,6 +40,9 @@ func New() OID {
 func NewFromBytes(b []byte) OID {
 	return generator.NewFromBytes(b)
 }
+func NewFromString(s string) OID {
+	return generator.NewFromBytes([]byte(s))
+}
 
 /* Parser */
 
