@@ -6,12 +6,12 @@
 
 - Converts only Anki `.apkg` collections to Markdown notes (`.colpkg` files will not be supported).
 - Copies media files referenced in Anki cards.
-- Creates packfiles containing review operations for imported flashcards.
+- Creates a packfile containing review operations for imported flashcards.
 
 ## Usage
 
 ```bash
-nt-anki import <anki.apkg> [--staged] [--media-dir DIR] [--ignore-scheduling] [--tag-mapping TAG=FILE ...]
+nt-anki import <anki.apkg> <markdown.md> [--staged] [--media-dir DIR] [--ignore-scheduling]
 ```
 
 ### Options
@@ -25,16 +25,10 @@ nt-anki import <anki.apkg> [--staged] [--media-dir DIR] [--ignore-scheduling] [-
 - `--ignore-scheduling`
   If set, skips creation of packfiles for reviews and only outputs Markdown and media.
 
-- `--tag-mapping TAG=FILE`
-  Map Anki tags to specific Markdown output files. Use `default=FILE` for notes without a matching tag.
-
 ### Example
 
 ```bash
-nt-anki import mydeck.apkg --staged --media-dir medias \
-  --tag-mapping english=skills/english.md \
-  --tag-mapping software=skills/software.md \
-  --tag-mapping default=skills/misc.md
+nt-anki import english.apkg skills/english.md --staged --media-dir medias
 ```
 
 ## Workflow

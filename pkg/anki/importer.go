@@ -16,7 +16,7 @@ import (
 // Importer handles the conversion of Anki collections to NoteWriter format
 type Importer struct {
 	Collection       *Collection
-	TagMappings      map[string]string
+	OutputFile       string
 	MediaDir         string
 	IgnoreScheduling bool
 	Staged           bool
@@ -26,119 +26,102 @@ type Importer struct {
 }
 
 // Import processes the Anki collection and writes flashcards to markdown files
-func (imp *Importer) Import() error {
+func (i *Importer) Import() error {
 	// Step 1: Convert notes and cards to markdown files
-	imp.copiedMedia = make(map[string][]string)
+	i.copiedMedia = make(map[string][]string)
 
 	// Group cards by note
 	cardsByNote := make(map[int64][]*Card)
-	for _, card := range imp.Collection.Cards {
+	for _, card := range i.Collection.Cards {
 		cardsByNote[card.NID] = append(cardsByNote[card.NID], card)
 	}
 
 	// Group reviews by card
 	reviewsByCard := make(map[int64][]*Review)
-	for _, review := range imp.Collection.Reviews {
+	for _, review := range i.Collection.Reviews {
 		reviewsByCard[review.CID] = append(reviewsByCard[review.CID], review)
 	}
 
-	// Track output files and notes/cards written to each
-	outputNotes := make(map[string][]*Note)
-	outputCards := make(map[string][]*Card)
-
 	// Process each note
-	for _, note := range imp.Collection.Notes {
+	for _, note := range i.Collection.Notes {
 		cards := cardsByNote[note.ID]
 		if len(cards) == 0 {
 			continue
 		}
 
-		// Determine output file based on tags
-		outputFile, err := imp.determineOutputFile(note)
-		if err != nil {
-			return err
-		}
-
-		// Track notes/cards for this output file
-		outputNotes[outputFile] = append(outputNotes[outputFile], note)
-		outputCards[outputFile] = append(outputCards[outputFile], cards...)
-
 		// Convert note and cards to markdown
-		markdown, mediaFiles, err := imp.convertNote(note, cards)
+		markdown, mediaFiles, err := i.convertNote(note, cards)
 		if err != nil {
 			return fmt.Errorf("failed to convert note %d: %w", note.ID, err)
 		}
 
 		// Copy media files
-		if err := imp.copyMediaFilesForMarkdownFile(outputFile, mediaFiles); err != nil {
+		if err := i.copyMediaFiles(mediaFiles); err != nil {
 			return fmt.Errorf("⚠️ Warning: failed to copy media files: %w", err)
 		}
 
 		// Append to output file
-		if err := appendToFile(outputFile, markdown); err != nil {
-			return fmt.Errorf("failed to write to %s: %w", outputFile, err)
+		if err := i.appendToFile(markdown); err != nil {
+			return fmt.Errorf("failed to write to %s: %w", i.OutputFile, err)
 		}
 
-		fmt.Printf("✏️ Appended %d card(s) from note %d to %s\n", len(cards), note.ID, outputFile)
+		fmt.Printf("✏️ Appended %d card(s) from note %d to %s\n", len(cards), note.ID, i.OutputFile)
 	}
 
 	// Warn about duplicate media files
-	for mediaFile, locations := range imp.copiedMedia {
+	for mediaFile, locations := range i.copiedMedia {
 		if len(locations) > 1 {
 			fmt.Printf("⚠️ Warning: media file '%s' was copied to multiple locations: %s\n", mediaFile, strings.Join(locations, ", "))
 		}
 	}
 
 	// Step 2: For each output file, create a packfile with all reviews for its notes/cards
-	if imp.IgnoreScheduling {
+	if i.IgnoreScheduling {
 		return nil
 	}
-	for _, cards := range outputCards {
+	var operations []*core.Operation
+	for _, card := range i.Collection.Cards {
 		// Build all reviews for these cards
-		var operations []*core.Operation
-
-		for _, card := range cards {
-			cardReviews := reviewsByCard[card.ID]
-			for _, ankiReview := range cardReviews {
-				// Build the review
-				review := &core.FlashcardReview{
-					Feedback:  core.FeedbackGood, // Could be mapped from ankiReview.Ease if needed
-					Duration:  time.Duration(ankiReview.Time) * time.Millisecond,
-					DueAt:     getDueAtForCard(card),
-					Algorithm: "anki-sm-2",
-					Settings: map[string]any{
-						"ease":    ankiReview.Ease,
-						"ivl":     ankiReview.Ivl,
-						"lastIvl": ankiReview.LastIvl,
-						"factor":  ankiReview.Factor,
-						"time":    ankiReview.Time,
-						"type":    ankiReview.Type,
-					},
-				}
-
-				// Build the operation
-				flashcardOID := oid.NewFromString("anki-" + fmt.Sprint(card.ID))
-				op := core.NewOperationReviewFlashcard(flashcardOID, *review)
-				op.Timestamp = time.UnixMilli(ankiReview.ID)
-				operations = append(operations, op)
+		cardReviews := reviewsByCard[card.ID]
+		for _, ankiReview := range cardReviews {
+			// Build the review
+			review := &core.FlashcardReview{
+				Feedback:  core.FeedbackGood, // Could be mapped from ankiReview.Ease if needed
+				Duration:  time.Duration(ankiReview.Time) * time.Millisecond,
+				DueAt:     getDueAtForCard(card),
+				Algorithm: "anki-sm-2",
+				Settings: map[string]any{
+					"ease":    ankiReview.Ease,
+					"ivl":     ankiReview.Ivl,
+					"lastIvl": ankiReview.LastIvl,
+					"factor":  ankiReview.Factor,
+					"time":    ankiReview.Time,
+					"type":    ankiReview.Type,
+				},
 			}
+
+			// Build the operation
+			flashcardOID := oid.NewFromString("anki-" + fmt.Sprint(card.ID))
+			op := core.NewOperationReviewFlashcard(flashcardOID, *review)
+			op.Timestamp = time.UnixMilli(ankiReview.ID)
+			operations = append(operations, op)
 		}
+	}
+	// Create packfile
+	packFile, err := core.NewPackFileFromOperations(operations)
+	if err != nil {
+		return fmt.Errorf("failed to create packfile: %w", err)
+	}
 
-		// Create packfile
-		packFile, err := core.NewPackFileFromOperations(operations)
-		if err != nil {
-			return fmt.Errorf("failed to create packfile: %w", err)
+	// If staged, add to index
+	if i.Staged {
+		// TODO call db.UpsertPackFiles(packFile) but when? Flashcard files haven't still being added to the DB
+		index := core.CurrentIndex()
+		if err := index.Add(packFile); err != nil { // TODO needed? Probably for pack file to be pushed to remote
+			return fmt.Errorf("failed to add packfile to index: %w", err)
 		}
-
-		// If staged, add to index
-		if imp.Staged {
-			index := core.CurrentIndex()
-			if err := index.Add(packFile); err != nil { // TODO needed? Probably for pack file to be pushed to remote
-				return fmt.Errorf("failed to add packfile to index: %w", err)
-			}
-			if err := index.Save(); err != nil {
-				return fmt.Errorf("failed to save index: %w", err)
-			}
+		if err := index.Save(); err != nil {
+			return fmt.Errorf("failed to save index: %w", err)
 		}
 	}
 
@@ -155,29 +138,9 @@ func getDueAtForCard(card *Card) time.Time {
 	return time.Unix(card.Mod, 0).Add(time.Duration(card.Due) * 24 * time.Hour)
 }
 
-// determineOutputFile determines which file to write the flashcard to based on tags
-func (imp *Importer) determineOutputFile(note *Note) (string, error) {
-	tags := strings.FieldsSeq(note.Tags)
-
-	// Check each tag against mappings
-	for tag := range tags {
-		if filepath, ok := imp.TagMappings[tag]; ok {
-			return filepath, nil
-		}
-	}
-
-	// Use default mapping if exists
-	if filepath, ok := imp.TagMappings["default"]; ok {
-		return filepath, nil
-	}
-
-	// Return error if no mapping found
-	return "", fmt.Errorf("no mapping found for note %d with tags: %s (and no default mapping configured)", note.ID, note.Tags)
-}
-
 // convertNote converts an Anki note and its cards to markdown format
-func (imp *Importer) convertNote(note *Note, cards []*Card) (string, []string, error) {
-	model, ok := imp.Collection.FindModel(note.MID)
+func (i *Importer) convertNote(note *Note, cards []*Card) (string, []string, error) {
+	model, ok := i.Collection.FindModel(note.MID)
 	if !ok {
 		return "", nil, fmt.Errorf("model %d not found", note.MID)
 	}
@@ -190,7 +153,7 @@ func (imp *Importer) convertNote(note *Note, cards []*Card) (string, []string, e
 		sb.WriteString(fmt.Sprintf("\n## Untitled `@slug: anki-%d`\n", note.ID))
 
 		for _, card := range cards {
-			cardMarkdown, media, err := imp.convertCard(model, note, card, 3)
+			cardMarkdown, media, err := i.convertCard(model, note, card, 3)
 			if err != nil {
 				return "", nil, err
 			}
@@ -200,7 +163,7 @@ func (imp *Importer) convertNote(note *Note, cards []*Card) (string, []string, e
 	} else {
 		// Single card
 		card := cards[0]
-		cardMarkdown, media, err := imp.convertCard(model, note, card, 2)
+		cardMarkdown, media, err := i.convertCard(model, note, card, 2)
 		if err != nil {
 			return "", nil, err
 		}
@@ -212,8 +175,8 @@ func (imp *Importer) convertNote(note *Note, cards []*Card) (string, []string, e
 }
 
 // convertCard converts a single card to markdown
-func (imp *Importer) convertCard(model *Model, note *Note, card *Card, headingLevel int) (string, []string, error) {
-	front, back, media, err := imp.evaluateTemplate(model, note, card)
+func (i *Importer) convertCard(model *Model, note *Note, card *Card, headingLevel int) (string, []string, error) {
+	front, back, media, err := i.evaluateTemplate(model, note, card)
 	if err != nil {
 		return "", nil, err
 	}
@@ -245,7 +208,7 @@ func (imp *Importer) convertCard(model *Model, note *Note, card *Card, headingLe
 	return sb.String(), media, nil
 }
 
-func (imp *Importer) evaluateClozeTemplate(model *Model, note *Note, card *Card) (front, back string, mediaFiles []string, err error) {
+func (i *Importer) evaluateClozeTemplate(model *Model, note *Note, card *Card) (front, back string, mediaFiles []string, err error) {
 	// Cloze templates are handled differently
 	// Anki template uses a special directive when rendering the field "{(cloze:Text}}"
 
@@ -256,17 +219,17 @@ func (imp *Importer) evaluateClozeTemplate(model *Model, note *Note, card *Card)
 
 	// Evaluate the template by considering only the question as the back will be generated automatically by TheNoteWriter
 	template := model.Templates[card.Ord]
-	front = imp.evaluateTemplateString(template.Qfmt, map[string]string{
+	front = i.evaluateTemplateString(template.Qfmt, map[string]string{
 		"cloze:Text": textField,
 	})
 
-	front, frontMedia := imp.htmlToMarkdown(front)
+	front, frontMedia := i.htmlToMarkdown(front)
 
 	return front, "", frontMedia, nil
 }
 
 // evaluateTemplate evaluates the Anki template for a card
-func (imp *Importer) evaluateTemplate(model *Model, note *Note, card *Card) (front, back string, mediaFiles []string, err error) {
+func (i *Importer) evaluateTemplate(model *Model, note *Note, card *Card) (front, back string, mediaFiles []string, err error) {
 	if card.Ord >= len(model.Templates) {
 		// Guard against out-of-bounds
 		return "", "", nil, fmt.Errorf("template %d not found in model", card.Ord)
@@ -274,7 +237,7 @@ func (imp *Importer) evaluateTemplate(model *Model, note *Note, card *Card) (fro
 
 	if model.Name == "Cloze" {
 		// Handle cloze separately
-		return imp.evaluateClozeTemplate(model, note, card)
+		return i.evaluateClozeTemplate(model, note, card)
 	}
 
 	template := model.Templates[card.Ord]
@@ -288,11 +251,11 @@ func (imp *Importer) evaluateTemplate(model *Model, note *Note, card *Card) (fro
 	}
 
 	// Evaluate front (question)
-	front = imp.evaluateTemplateString(template.Qfmt, fieldMap)
+	front = i.evaluateTemplateString(template.Qfmt, fieldMap)
 	// Evaluate back (answer)
 	// The answer template can reference {{FrontSide}}
 	fieldMap["FrontSide"] = front
-	back = imp.evaluateTemplateString(template.Afmt, fieldMap)
+	back = i.evaluateTemplateString(template.Afmt, fieldMap)
 
 	// Anki typically prepends FrontSide to the back and use "<hr id=answer>" as separator
 	// Trim the front side if present and any spaces around
@@ -304,8 +267,8 @@ func (imp *Importer) evaluateTemplate(model *Model, note *Note, card *Card) (fro
 	back = strings.TrimSpace(back)
 
 	// Process HTML to markdown and collect media files
-	front, frontMedia := imp.htmlToMarkdown(front)
-	back, backMedia := imp.htmlToMarkdown(back)
+	front, frontMedia := i.htmlToMarkdown(front)
+	back, backMedia := i.htmlToMarkdown(back)
 
 	mediaFiles = append(frontMedia, backMedia...)
 
@@ -313,7 +276,7 @@ func (imp *Importer) evaluateTemplate(model *Model, note *Note, card *Card) (fro
 }
 
 // evaluateTemplateString replaces {{field}} placeholders with values
-func (imp *Importer) evaluateTemplateString(template string, fields map[string]string) string {
+func (i *Importer) evaluateTemplateString(template string, fields map[string]string) string {
 	result := template
 
 	// Replace {{field}} with field values
@@ -330,7 +293,7 @@ func (imp *Importer) evaluateTemplateString(template string, fields map[string]s
 }
 
 // htmlToMarkdown converts basic HTML to markdown and processes media references
-func (imp *Importer) htmlToMarkdown(html string) (string, []string) {
+func (i *Importer) htmlToMarkdown(html string) (string, []string) {
 	text := html
 	var mediaFiles []string
 
@@ -343,7 +306,7 @@ func (imp *Importer) htmlToMarkdown(html string) (string, []string) {
 	text = regexp.MustCompile(`<em>(.*?)</em>`).ReplaceAllString(text, `_$1_`)
 
 	// Process media references (e.g., <img src="filename.jpg">)
-	text, mediaFiles = imp.processMediaReferences(text)
+	text, mediaFiles = i.processMediaReferences(text)
 
 	// Note: Other HTML tags are left intact as specified
 
@@ -351,7 +314,7 @@ func (imp *Importer) htmlToMarkdown(html string) (string, []string) {
 }
 
 // processMediaReferences converts Anki media references to markdown
-func (imp *Importer) processMediaReferences(text string) (string, []string) {
+func (i *Importer) processMediaReferences(text string) (string, []string) {
 	var mediaFiles []string
 
 	// Match <img src="filename">
@@ -362,7 +325,7 @@ func (imp *Importer) processMediaReferences(text string) (string, []string) {
 			filename := matches[1]
 			mediaFiles = append(mediaFiles, filename)
 			// Convert to markdown image (keep it simple as <img>)
-			return fmt.Sprintf("![%s](%s)", filename, getMediaPath(imp.MediaDir, filename))
+			return fmt.Sprintf("![%s](%s)", filename, i.getMediaRelativePath(filename))
 		}
 		return match
 	})
@@ -375,7 +338,7 @@ func (imp *Importer) processMediaReferences(text string) (string, []string) {
 			filename := matches[1]
 			mediaFiles = append(mediaFiles, filename)
 			// Convert to markdown link
-			return fmt.Sprintf("![%s](%s)", filename, getMediaPath(imp.MediaDir, filename))
+			return fmt.Sprintf("![%s](%s)", filename, i.getMediaRelativePath(filename))
 		}
 		return match
 	})
@@ -383,46 +346,36 @@ func (imp *Importer) processMediaReferences(text string) (string, []string) {
 	return text, mediaFiles
 }
 
-// getMediaPath returns the path to use for a media file in markdown
-func getMediaPath(mediaDir string, filename string) string {
-	if mediaDir != "" {
-		return fmt.Sprintf("./%s/%s", mediaDir, filename)
+// getMediaRelativePath returns the relative path to use for a media file in markdown
+func (i *Importer) getMediaRelativePath(mediaFilename string) string {
+	if i.MediaDir != "" {
+		return fmt.Sprintf("./%s/%s", i.MediaDir, mediaFilename)
 	}
-	return fmt.Sprintf("./%s", filename)
+	return fmt.Sprintf("./%s", mediaFilename)
 }
 
-// appendToFile appends markdown content to a file, creating it if necessary
-func appendToFile(filepath string, content string) error {
+// appendToFile appends markdown content to output file, creating it if necessary
+func (i *Importer) appendToFile(content string) error {
 	// Check if file exists
 	exists := true
-	if _, err := os.Stat(filepath); os.IsNotExist(err) {
+	if _, err := os.Stat(i.OutputFile); os.IsNotExist(err) {
 		exists = false
-	}
 
-	// Create directory if needed
-	dir := filepath
-	if idx := strings.LastIndex(filepath, "/"); idx != -1 {
-		dir = filepath[:idx]
-	} else {
-		dir = ""
-	}
-
-	if dir != "" {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		// Create missing parent directories
+		if err := os.MkdirAll(filepath.Dir(i.OutputFile), 0755); err != nil {
 			return err
 		}
 	}
 
-	f, err := os.OpenFile(filepath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(i.OutputFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
-	// If file is new, add a heading based on filename
+	// If file is new, add a dummy heading
 	if !exists {
-		heading := filenameToHeading(filepath)
-		if _, err := fmt.Fprintf(f, "# %s\n", heading); err != nil {
+		if _, err := f.WriteString("# Untitled\n"); err != nil {
 			return err
 		}
 	}
@@ -434,30 +387,13 @@ func appendToFile(filepath string, content string) error {
 	return nil
 }
 
-// filenameToHeading converts a filepath to a heading
-func filenameToHeading(filePath string) string {
-	// Get just the filename without extension
-	base := filepath.Base(filePath)
-	base = strings.TrimSuffix(base, filepath.Ext(base))
-
-	// Convert to title case
-	words := strings.Split(base, "-")
-	for i, word := range words {
-		if len(word) > 0 {
-			words[i] = strings.ToUpper(string(word[0])) + word[1:]
-		}
-	}
-
-	return strings.Join(words, " ")
-}
-
 // copyMediaFiles copies media files referenced in the note to the appropriate location
-func (imp *Importer) copyMediaFilesForMarkdownFile(mdFile string, mediaFiles []string) error {
+func (i *Importer) copyMediaFiles(mediaFiles []string) error {
 	// Copy each media file
 	for _, filename := range mediaFiles {
 		// Find the media ID for this filename
 		var mediaID string
-		for id, name := range imp.Collection.Media {
+		for id, name := range i.Collection.Media {
 			if name == filename {
 				mediaID = id
 				break
@@ -469,8 +405,8 @@ func (imp *Importer) copyMediaFilesForMarkdownFile(mdFile string, mediaFiles []s
 			continue
 		}
 
-		srcPath := filepath.Join(imp.Collection.TempDir, mediaID)
-		destPath := filepath.Join(imp.DetermineMediaDirForMarkdownFile(mdFile), filename)
+		srcPath := filepath.Join(i.Collection.TempDir, mediaID)
+		destPath := filepath.Join(filepath.Dir(i.OutputFile), i.getMediaRelativePath(filename))
 
 		// Check if source file exists
 		if _, err := os.Stat(srcPath); os.IsNotExist(err) {
@@ -479,7 +415,7 @@ func (imp *Importer) copyMediaFilesForMarkdownFile(mdFile string, mediaFiles []s
 		}
 
 		// Track copied media
-		imp.copiedMedia[filename] = append(imp.copiedMedia[filename], destPath)
+		i.copiedMedia[filename] = append(i.copiedMedia[filename], destPath)
 
 		// Copy file if it doesn't already exist (using pkg/filesystem)
 		if err := filesystem.CopyFileIfNotExists(srcPath, destPath); err != nil {
@@ -490,53 +426,38 @@ func (imp *Importer) copyMediaFilesForMarkdownFile(mdFile string, mediaFiles []s
 	return nil
 }
 
-func (imp *Importer) DetermineMediaDirForMarkdownFile(mdFile string) string {
-	outputDir := filepath.Dir(mdFile)
-	if imp.MediaDir != "" {
-		// Append options media dir if present
-		outputDir = filepath.Join(outputDir, imp.MediaDir)
-	}
-	return outputDir
-}
-
 // ImportOption configures the Importer.
 type ImportOption func(*Importer)
 
-// WithTagMappings sets the tag mappings.
-func WithTagMappings(mappings map[string]string) ImportOption {
-	return func(imp *Importer) {
-		imp.TagMappings = mappings
-	}
-}
-
 // WithMediaDir sets the media directory.
 func WithMediaDir(mediaDir string) ImportOption {
-	return func(imp *Importer) {
-		imp.MediaDir = mediaDir
+	return func(i *Importer) {
+		i.MediaDir = mediaDir
 	}
 }
 
 // WithIgnoreScheduling sets the ignore scheduling flag.
 func WithIgnoreScheduling(ignore bool) ImportOption {
-	return func(imp *Importer) {
-		imp.IgnoreScheduling = ignore
+	return func(i *Importer) {
+		i.IgnoreScheduling = ignore
 	}
 }
 
 // Add WithStaged option
 func WithStaged(staged bool) ImportOption {
-	return func(imp *Importer) {
-		imp.Staged = staged
+	return func(i *Importer) {
+		i.Staged = staged
 	}
 }
 
 // Import allows importing using functional options, hiding Importer type.
-func (c *Collection) Import(opts ...ImportOption) error {
-	imp := &Importer{
+func (c *Collection) Import(outputFile string, opts ...ImportOption) error {
+	importer := &Importer{
 		Collection: c,
+		OutputFile: outputFile,
 	}
 	for _, opt := range opts {
-		opt(imp)
+		opt(importer)
 	}
-	return imp.Import()
+	return importer.Import()
 }

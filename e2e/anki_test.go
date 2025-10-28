@@ -147,21 +147,17 @@ func TestAnkiImport(t *testing.T) {
 
 		tr := NewTestRepository(t)
 
-		outputPath := filepath.Join(tr.Root, "skills/random/index.md")
-		err := collection.Import(
-			anki.WithTagMappings(map[string]string{
-				"default": outputPath,
-			}),
-		)
+		outputFile := filepath.Join(tr.Root, "skills/random/index.md")
+		err := collection.Import(outputFile)
 		require.NoError(t, err)
 
 		// Check output file was created
-		assert.FileExists(t, outputPath)
+		assert.FileExists(t, outputFile)
 		// Read and verify content
-		content, err := os.ReadFile(outputPath)
+		content, err := os.ReadFile(outputFile)
 		require.NoError(t, err)
 		expectedContent := text.UnescapeTestContent(`
-# Index
+# Untitled
 
 ## Untitled ‛@slug: anki-1761228454049‛
 
@@ -260,7 +256,7 @@ Voiture
 		assert.Equal(t, strings.TrimSpace(expectedContent), strings.TrimSpace(string(content)))
 
 		// Check medias were extracted
-		mediaDir := filepath.Dir(outputPath)
+		mediaDir := filepath.Dir(outputFile)
 		assert.FileExists(t, filepath.Join(mediaDir, "Anki-icon.svg"))
 		assert.FileExists(t, filepath.Join(mediaDir, "En-us-happiness.ogg"))
 
@@ -269,43 +265,32 @@ Voiture
 		assert.Len(t, objects, 1)
 	})
 
-	t.Run("ImportWithMediaDirAndMultipleMarkdownFiles", func(t *testing.T) {
+	t.Run("ImportWithMediaDir", func(t *testing.T) {
 		collection := NewTestAnki(t)
 
 		tr := NewTestRepository(t)
 
-		englishPath := filepath.Join(tr.Root, "skills/speaking/english.md")
-		softwarePath := filepath.Join(tr.Root, "skills/programming/software.md")
-		defaultPath := filepath.Join(tr.Root, "skills/misc.md")
+		outputFile := filepath.Join(tr.Root, "skills/index.md")
 		err := collection.Import(
-			anki.WithTagMappings(map[string]string{
-				"english":  englishPath,
-				"software": softwarePath,
-				"default":  defaultPath,
-			}),
+			outputFile,
 			anki.WithMediaDir("medias"),
 			anki.WithStaged(true),
 		)
 		require.NoError(t, err)
 
 		// Check output files
-		assert.FileExists(t, englishPath)
-		assert.FileExists(t, softwarePath)
-		assert.FileExists(t, defaultPath)
+		assert.FileExists(t, outputFile)
 
 		// Verify media files
-		englishMediaDir := filepath.Join(filepath.Dir(englishPath), "medias")
-		softwareMediaDir := filepath.Join(filepath.Dir(softwarePath), "medias")
-		defaultMediaDir := filepath.Join(filepath.Dir(defaultPath), "medias")
-		assert.NoDirExists(t, filepath.Join(englishMediaDir))
-		assert.FileExists(t, filepath.Join(softwareMediaDir, "Anki-icon.svg"))
-		assert.NoDirExists(t, filepath.Join(defaultMediaDir))
+		mediaDir := filepath.Join(filepath.Dir(outputFile), "medias")
+		assert.FileExists(t, filepath.Join(mediaDir, "Anki-icon.svg"))
+		assert.FileExists(t, filepath.Join(mediaDir, "En-us-happiness.ogg"))
 
 		objectsDir := filepath.Join(tr.Root, ".nt/objects")
 		filenames := ListFilesInDir(t, objectsDir)
-		assert.Len(t, filenames, 3) // 3 Markdown files = 3 pack files
+		require.Len(t, filenames, 1) // 1 Markdown file = 1 pack file
 
-		// Verify one of the pack files
+		// Verify the pack file
 		packFile, err := LoadPackFileFromPath(filepath.Join(objectsDir, filenames[0]))
 		require.NoError(t, err)
 		assert.Greater(t, len(packFile.PackObjects), 0)
@@ -332,9 +317,7 @@ Voiture
 		tr.WriteFile("existing.md", "# Existing\n\n## Note: An existing note\n\nHere is some text.\n")
 
 		err := collection.Import(
-			anki.WithTagMappings(map[string]string{
-				"default": tr.AbsolutePath("existing.md"),
-			}),
+			tr.AbsolutePath("existing.md"),
 			anki.WithIgnoreScheduling(true),
 		)
 		require.NoError(t, err)
