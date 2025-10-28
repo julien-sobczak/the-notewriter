@@ -60,3 +60,65 @@ func PromptForPlaceholders(gotoLink *core.Goto) (map[string]string, error) {
 
 	return values, nil
 }
+
+// promptForHooks prompts the user to select which hooks to install
+func promptForHooks(remotes []core.ConfigRemote) ([]string, string, error) {
+	var selectedHooks []string
+	var installPrePush bool
+	var selectedRemote string
+
+	// First, ask which hooks to install
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewMultiSelect[string]().
+				Title("Select which Git hooks to install:").
+				Options(
+					huh.NewOption("pre-commit (runs 'nt lint; nt add .' before commit)", "pre-commit"),
+					huh.NewOption("post-commit (runs 'nt commit' after commit)", "post-commit"),
+					huh.NewOption("pre-push (runs 'nt push <remote>' before push)", "pre-push"),
+				).
+				Value(&selectedHooks),
+		),
+	)
+
+	if err := form.Run(); err != nil {
+		return nil, "", err
+	}
+
+	// Check if pre-push was selected
+	for _, hook := range selectedHooks {
+		if hook == "pre-push" {
+			installPrePush = true
+			break
+		}
+	}
+
+	// If pre-push was selected, ask for remote
+	if installPrePush {
+		if len(remotes) == 0 {
+			return nil, "", fmt.Errorf("no remotes configured in .nt/config.jsonnet")
+		}
+
+		// Build remote options
+		remoteOptions := make([]huh.Option[string], 0, len(remotes))
+		for _, remote := range remotes {
+			label := fmt.Sprintf("%s (%s)", remote.Name, remote.Type)
+			remoteOptions = append(remoteOptions, huh.NewOption(label, remote.Name))
+		}
+
+		remoteForm := huh.NewForm(
+			huh.NewGroup(
+				huh.NewSelect[string]().
+					Title("Select remote for pre-push hook:").
+					Options(remoteOptions...).
+					Value(&selectedRemote),
+			),
+		)
+
+		if err := remoteForm.Run(); err != nil {
+			return nil, "", err
+		}
+	}
+
+	return selectedHooks, selectedRemote, nil
+}
