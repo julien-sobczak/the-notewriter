@@ -229,3 +229,20 @@ func TestHookScriptContent(t *testing.T) {
 		assert.Less(t, lintIdx, addIdx, "lint should run before add")
 	})
 }
+
+func TestInstallHooksEmptySelection(t *testing.T) {
+	t.Run("no hooks selected installs nothing", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		hooksDir := filepath.Join(tmpDir, ".git", "hooks")
+
+		// Install empty list of hooks
+		selectedHooks := []string{}
+		err := installHooks(hooksDir, selectedHooks, "")
+		require.NoError(t, err)
+
+		// Verify hooks directory exists but is empty
+		entries, err := os.ReadDir(hooksDir)
+		require.NoError(t, err)
+		assert.Equal(t, 0, len(entries), "no hooks should be installed")
+	})
+}

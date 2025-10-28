@@ -96,7 +96,7 @@ func promptForHooks(remotes []core.ConfigRemote) ([]string, string, error) {
 	// If pre-push was selected, ask for remote
 	if installPrePush {
 		if len(remotes) == 0 {
-			return nil, "", fmt.Errorf("no remotes configured in .nt/config.jsonnet")
+			return nil, "", fmt.Errorf("no remotes configured in nt configuration")
 		}
 
 		// Build remote options

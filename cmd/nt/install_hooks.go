@@ -45,6 +45,12 @@ var installGitHooksCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
+		// Check if any hooks were selected
+		if len(selectedHooks) == 0 {
+			fmt.Println("No hooks selected. Exiting.")
+			return
+		}
+
 		// Install selected hooks
 		if err := installHooks(hooksDir, selectedHooks, selectedRemote); err != nil {
 			fmt.Fprintf(os.Stderr, "Error installing hooks: %v\n", err)
