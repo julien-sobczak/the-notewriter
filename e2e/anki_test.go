@@ -148,7 +148,7 @@ func TestAnkiImport(t *testing.T) {
 		tr := NewTestRepository(t)
 
 		outputFile := filepath.Join(tr.Root, "skills/random/index.md")
-		err := collection.Import(outputFile)
+		packFile, err := collection.Import(outputFile)
 		require.NoError(t, err)
 
 		// Check output file was created
@@ -261,6 +261,8 @@ Voiture
 		assert.FileExists(t, filepath.Join(mediaDir, "En-us-happiness.ogg"))
 
 		// Check operations were saved on disk
+		assert.FileExists(t, packFile)
+		// No other files must exist
 		objects := ListFilesInDir(t, filepath.Join(tr.Root, ".nt/objects"))
 		assert.Len(t, objects, 1)
 	})
@@ -271,7 +273,7 @@ Voiture
 		tr := NewTestRepository(t)
 
 		outputFile := filepath.Join(tr.Root, "skills/index.md")
-		err := collection.Import(
+		_, err := collection.Import(
 			outputFile,
 			anki.WithMediaDir("medias"),
 			anki.WithStaged(true),
@@ -316,7 +318,7 @@ Voiture
 		tr := NewTestRepository(t)
 		tr.WriteFile("existing.md", "# Existing\n\n## Note: An existing note\n\nHere is some text.\n")
 
-		err := collection.Import(
+		packFile, err := collection.Import(
 			tr.AbsolutePath("existing.md"),
 			anki.WithIgnoreScheduling(true),
 		)
@@ -332,6 +334,7 @@ Voiture
 		assert.Contains(t, content, "## Flashcard:")
 
 		// Check no objects were created (no packfiles needed)
+		assert.Empty(t, packFile)
 		filenames := ListFilesInDir(t, filepath.Join(tr.Root, ".nt/objects"))
 		assert.Len(t, filenames, 0)
 	})

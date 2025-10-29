@@ -26,7 +26,7 @@ type Importer struct {
 }
 
 // Import processes the Anki collection and writes flashcards to markdown files
-func (i *Importer) Import() error {
+func (i *Importer) Import() (string, error) {
 	// Step 1: Convert notes and cards to markdown files
 	i.copiedMedia = make(map[string][]string)
 
@@ -52,17 +52,17 @@ func (i *Importer) Import() error {
 		// Convert note and cards to markdown
 		markdown, mediaFiles, err := i.convertNote(note, cards)
 		if err != nil {
-			return fmt.Errorf("failed to convert note %d: %w", note.ID, err)
+			return "", fmt.Errorf("failed to convert note %d: %w", note.ID, err)
 		}
 
 		// Copy media files
 		if err := i.copyMediaFiles(mediaFiles); err != nil {
-			return fmt.Errorf("⚠️ Warning: failed to copy media files: %w", err)
+			return "", fmt.Errorf("⚠️ Warning: failed to copy media files: %w", err)
 		}
 
 		// Append to output file
 		if err := i.appendToFile(markdown); err != nil {
-			return fmt.Errorf("failed to write to %s: %w", i.OutputFile, err)
+			return "", fmt.Errorf("failed to write to %s: %w", i.OutputFile, err)
 		}
 
 		fmt.Printf("✏️ Appended %d card(s) from note %d to %s\n", len(cards), note.ID, i.OutputFile)
@@ -77,7 +77,7 @@ func (i *Importer) Import() error {
 
 	// Step 2: For each output file, create a packfile with all reviews for its notes/cards
 	if i.IgnoreScheduling {
-		return nil
+		return "", nil
 	}
 	var operations []*core.Operation
 	for _, card := range i.Collection.Cards {
@@ -110,22 +110,10 @@ func (i *Importer) Import() error {
 	// Create packfile
 	packFile, err := core.NewPackFileFromOperations(operations)
 	if err != nil {
-		return fmt.Errorf("failed to create packfile: %w", err)
+		return "", fmt.Errorf("failed to create packfile: %w", err)
 	}
 
-	// If staged, add to index
-	if i.Staged {
-		// TODO call db.UpsertPackFiles(packFile) but when? Flashcard files haven't still being added to the DB
-		index := core.CurrentIndex()
-		if err := index.Add(packFile); err != nil { // TODO needed? Probably for pack file to be pushed to remote
-			return fmt.Errorf("failed to add packfile to index: %w", err)
-		}
-		if err := index.Save(); err != nil {
-			return fmt.Errorf("failed to save index: %w", err)
-		}
-	}
-
-	return nil
+	return packFile.ObjectPath(), nil
 }
 
 // Helper to get DueAt from anki.Card
@@ -451,7 +439,7 @@ func WithStaged(staged bool) ImportOption {
 }
 
 // Import allows importing using functional options, hiding Importer type.
-func (c *Collection) Import(outputFile string, opts ...ImportOption) error {
+func (c *Collection) Import(outputFile string, opts ...ImportOption) (string, error) {
 	importer := &Importer{
 		Collection: c,
 		OutputFile: outputFile,

@@ -199,7 +199,46 @@ func (r *Repository) Walk(pathSpecs PathSpecs, fn func(md *markdown.File) error)
 	return nil
 }
 
-/* Commands */
+// IndexPackFiles indexes the given pack files into the repository.
+func (r *Repository) IndexPackFiles(absolutePaths []string) error {
+	// Step 1: Load pack files ensuring their proper location
+	var packFilesToIndex []*PackFile
+	for _, originalPath := range absolutePaths {
+		fileBasename := filepath.Base(originalPath)
+		fileName := text.TrimExtension(fileBasename)
+		fileOID := oid.ParseOrNil(fileName)
+		if fileOID.IsNil() {
+			return fmt.Errorf("invalid pack file name %s", fileName)
+		}
+		destPath := PackFilePath(fileOID)
+		if originalPath != destPath {
+			// Copy the file to expected location
+			if err := filesystem.CopyFileIfNotExists(originalPath, destPath); err != nil {
+				return fmt.Errorf("failed to copy pack file to %s: %w", destPath, err)
+			}
+		}
+		packFile, err := LoadPackFileFromPath(destPath)
+		if err != nil {
+			return fmt.Errorf("failed to load pack file %s: %w", destPath, err)
+		}
+		packFilesToIndex = append(packFilesToIndex, packFile)
+	}
+
+	// Step 2: Insert pack files to apply operations on stateful objects
+	db := CurrentDB()
+	if err := db.BeginTransaction(); err != nil {
+		return err
+	}
+	// TODO add packfile to index with their ingestion time?
+	if err := db.UpsertPackFiles(packFilesToIndex...); err != nil {
+		return err
+	}
+	if err := db.CommitTransaction(); err != nil {
+		return err
+	}
+
+	return nil
+}
 
 // Lint run linter rules on all files under the given paths.
 func (r *Repository) Lint(paths PathSpecs, ruleNames []string) (*LintResult, error) {

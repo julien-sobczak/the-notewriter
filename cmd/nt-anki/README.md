@@ -11,13 +11,10 @@
 ## Usage
 
 ```bash
-nt-anki import <anki.apkg> <markdown.md> [--staged] [--media-dir DIR] [--ignore-scheduling]
+nt-anki import <anki.apkg> <markdown.md> [--media-dir DIR] [--ignore-scheduling]
 ```
 
 ### Options
-
-- `--staged`
-  If set, newly created packfiles are staged in the index for commit.
 
 - `--media-dir DIR`
   Specify a subdirectory for media files (images, audio) referenced in Anki cards.
@@ -28,7 +25,7 @@ nt-anki import <anki.apkg> <markdown.md> [--staged] [--media-dir DIR] [--ignore-
 ### Example
 
 ```bash
-nt-anki import english.apkg skills/english.md --staged --media-dir medias
+nt-anki import english.apkg skills/english.md --media-dir medias
 ```
 
 ## Workflow
@@ -36,7 +33,12 @@ nt-anki import english.apkg skills/english.md --staged --media-dir medias
 1. Export a Anki deck (from main screen) or a subset of your notes (from browser screen).
 2. Run `nt-anki --ignore-scheduling` to check the generated Markdown first.
 3. Reset the changes using `git restore`
-4. Rerun `nt-anki --staged` to saved reviews
+4. Rerun `nt-anki` to save reviews and generate the packfile.
 5. Edit the Markdown files to define flashcard titles.
-6. Commit the changes using `git commit`.
+6. Run:
+   ```
+   $ nt add path/to/markdown.md
+   $ nt import-pack path/to/generated/packfile.pack
+   $ nt commit # Optional
+   ```
 

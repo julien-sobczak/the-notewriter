@@ -11,12 +11,11 @@ import (
 
 var (
 	ignoreScheduling bool
-	staged           bool
 	mediaDir         string
 )
 
 var importCmd = &cobra.Command{
-	Use:   "import [apkg-file]",
+	Use:   "import [apkg-file] [markdown-file]",
 	Short: "Import Anki flashcards from an .apkg file",
 	Long: `Import Anki flashcards from an .apkg file.
 
@@ -26,24 +25,19 @@ The .apkg file is a ZIP archive containing:
 - Numbered files (0, 1, etc.): Media files
 
 Example usage:
-  nt-anki import col.apkg "web:skills/web/general.md" --staged
+  nt-anki import col.apkg "web:skills/web/general.md"
   nt-anki import col.apkg --ignore-scheduling --media-dir="medias"`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.ExactArgs(2),
 	RunE: runImport,
 }
 
 func init() {
 	rootCmd.AddCommand(importCmd)
 	importCmd.Flags().BoolVar(&ignoreScheduling, "ignore-scheduling", false, "Ignore scheduling information from revlog table")
-	importCmd.Flags().BoolVar(&staged, "staged", false, "Stage packfiles in repository index")
 	importCmd.Flags().StringVar(&mediaDir, "media-dir", "", "Subdirectory for media files (relative to output file)")
 }
 
 func runImport(cmd *cobra.Command, args []string) error {
-	if len(args) < 2 {
-		return fmt.Errorf("please provide the path to the .apkg file and the output markdown file")
-	}
-
 	apkgPath := args[0]
 	markdownPath := args[1]
 
@@ -63,13 +57,20 @@ func runImport(cmd *cobra.Command, args []string) error {
 	fmt.Printf("📚 Found %d notes and %d cards\n", len(collection.Notes), len(collection.Cards))
 
 	// Convert and write flashcards
-	if err := collection.Import(markdownPath,
+	packfilePath, err := collection.Import(markdownPath,
 		anki.WithMediaDir(mediaDir),
-		anki.WithIgnoreScheduling(ignoreScheduling),
-		anki.WithStaged(staged)); err != nil {
+		anki.WithIgnoreScheduling(ignoreScheduling))
+	if err != nil {
 		return fmt.Errorf("failed to import: %w", err)
 	}
 
-	fmt.Println("✅ Import completed successfully")
+	fmt.Printf("\nThe file %s has been successfully updated.\n", markdownPath)
+	fmt.Println("Review and edit the generated file. Then, run the commands to finish the import:")
+	fmt.Printf("$ nt add %s\n", markdownPath)
+	fmt.Println()
+	if packfilePath != "" {
+		fmt.Printf("$ nt index-pack %s\n", packfilePath)
+	}
+	fmt.Println()
 	return nil
 }
