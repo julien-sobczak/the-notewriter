@@ -215,7 +215,7 @@ type ConfigCore struct {
 type ConfigAttribute struct {
 	Name              string         `json:"name"`
 	Aliases           []string       `json:"aliases,omitempty"`
-	Type              string         `json:"type"`                    // string, int, bool, string[], int[], bool[]
+	Type              string         `json:"type"`                    // string, integer, bool, string[], integer[], bool[]
 	Format            string         `json:"format"`                  // Useful for value types (ex: "markdown", "date", etc.)
 	Min               int            `json:"min,omitempty"`           // Default: 0 (for "number"-type only)
 	Max               int            `json:"max,omitempty"`           // Default: -1 (for "number"-type only)
@@ -227,6 +227,7 @@ type ConfigAttribute struct {
 	ShorthandPattern  string         `json:"shorthandPattern,omitempty"`
 	PreserveShorthand *bool          `json:"preserveShorthand"`      // Default: true
 	DefaultValue      any            `json:"defaultValue,omitempty"` // For any type
+	DailyMetrics      *bool          `json:"dailyMetrics,omitempty"` // Whether to include this attribute in daily metrics stats
 }
 
 type ConfigTypeAttribute struct {
