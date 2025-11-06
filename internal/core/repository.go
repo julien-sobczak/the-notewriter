@@ -342,6 +342,43 @@ func (r *AddResult) Delete(packFiles ...*PackFile) {
 	}
 }
 
+// extractImplicitLinks creates implicit links based on note parent relationships.
+// When a note has a parent (different heading levels), create a link from the parent to the child.
+func extractImplicitLinks(parsedFile *ParsedFile, packFile *PackFile) []*Link {
+	var implicitLinks []*Link
+
+	// Get all notes from the pack file
+	packNotes := packFile.ReadNotes()
+
+	// Traverse parsed notes to check for Parent attribute
+	for _, parsedNote := range parsedFile.Notes {
+		if parsedNote.Parent != nil {
+			// Find the parent note in the pack file
+			for _, packNote := range packNotes {
+				if packNote.Slug == parsedNote.Parent.Slug {
+					// Find the child note in the pack file
+					for _, childPackNote := range packNotes {
+						if childPackNote.Slug == parsedNote.Slug {
+							// Create implicit link: parent includes child
+							implicitLinks = append(implicitLinks, &Link{
+								SourceOID:  packNote.OID,
+								SourceKind: "note",
+								TargetOID:  childPackNote.OID,
+								TargetKind: "note",
+								Type:       "includes",
+							})
+							break
+						}
+					}
+					break
+				}
+			}
+		}
+	}
+
+	return implicitLinks
+}
+
 // Add implements the command `nt add`
 func (r *Repository) Add(paths PathSpecs) (*AddResult, error) {
 	r.MustLint(paths)
@@ -354,6 +391,7 @@ func (r *Repository) Add(paths PathSpecs) (*AddResult, error) {
 	var referencedMediaPaths []string // List of media paths present in Markdown files
 	var packFilesToUpsert []*PackFile
 	var packFilesToDelete []*PackFile
+	implicitLinksMap := make(map[oid.OID][]*Link) // Map from note OID to its implicit links
 
 	// Traverse all given paths to detected updated medias/files
 	err := r.Walk(paths, func(mdFile *markdown.File) error {
@@ -469,6 +507,12 @@ func (r *Repository) Add(paths PathSpecs) (*AddResult, error) {
 			return err
 		}
 
+		// Extract implicit links from parent-child note relationships
+		implicitLinks := extractImplicitLinks(parsedFile, packFile)
+		for _, link := range implicitLinks {
+			implicitLinksMap[link.SourceOID] = append(implicitLinksMap[link.SourceOID], link)
+		}
+
 		return nil
 	})
 	if err != nil {
@@ -520,6 +564,20 @@ func (r *Repository) Add(paths PathSpecs) (*AddResult, error) {
 	}
 	if err := db.Index().Unstage(packFilesToDelete...); err != nil {
 		return nil, err
+	}
+
+	// Update links for all objects in upserted pack files
+	for _, packFile := range packFilesToUpsert {
+		for _, packObject := range packFile.PackObjects {
+			obj := packObject.Read()
+			if obj, ok := obj.(Object); ok {
+				// Check if there are additional implicit links for this object
+				additionalLinks := implicitLinksMap[obj.UniqueOID()]
+				if err := r.UpdateLinks(obj, additionalLinks); err != nil {
+					return nil, err
+				}
+			}
+		}
 	}
 
 	// Don't forget to commit

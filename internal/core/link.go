@@ -7,7 +7,7 @@ import (
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 )
 
-type Relation struct {
+type Link struct {
 	// Source
 	SourceOID  oid.OID `yaml:"source_oid" json:"source_oid"`
 	SourceKind string  `yaml:"source_kind" json:"source_kind"`
@@ -19,13 +19,13 @@ type Relation struct {
 	Type string `yaml:"type" json:"type"`
 }
 
-func NewRelationFromObjects(objA, objB Object, relationType string) *Relation {
-	return NewRelation(objA.UniqueOID(), objA.Kind(), objB.UniqueOID(), objB.Kind(), relationType)
+func NewLinkFromObjects(objA, objB Object, relationType string) *Link {
+	return NewLink(objA.UniqueOID(), objA.Kind(), objB.UniqueOID(), objB.Kind(), relationType)
 }
 
-// NewRelation instantiates a new relation.
-func NewRelation(oidA oid.OID, kindA string, oidB oid.OID, kindB string, relationType string) *Relation {
-	r := &Relation{
+// NewLink instantiates a new link.
+func NewLink(oidA oid.OID, kindA string, oidB oid.OID, kindB string, relationType string) *Link {
+	r := &Link{
 		SourceOID:  oidA,
 		SourceKind: kindA,
 		TargetOID:  oidB,
@@ -35,30 +35,30 @@ func NewRelation(oidA oid.OID, kindA string, oidB oid.OID, kindB string, relatio
 	return r
 }
 
-func (r Relation) String() string {
-	return fmt.Sprintf("relation %s[%s] -> %s -> %s[%s]", r.SourceKind, r.SourceOID, r.Type, r.TargetKind, r.TargetOID)
+func (r Link) String() string {
+	return fmt.Sprintf("link %s[%s] -> %s -> %s[%s]", r.SourceKind, r.SourceOID, r.Type, r.TargetKind, r.TargetOID)
 }
 
-func (r *Relation) ToYAML() string {
+func (r *Link) ToYAML() string {
 	return ToBeautifulYAML(r)
 }
 
-func (r *Relation) ToJSON() string {
+func (r *Link) ToJSON() string {
 	return ToBeautifulJSON(r)
 }
 
-func (r *Relation) ToMarkdown() string {
+func (r *Link) ToMarkdown() string {
 	return fmt.Sprintf("%s(%s) -> %s(%s)", r.SourceKind, r.SourceOID, r.TargetKind, r.TargetOID)
 }
 
 /* Database Management */
 
-func (r *Repository) DeleteRelations(obj Object) error {
+func (r *Repository) DeleteLinks(obj Object) error {
 	if obj.UniqueOID() == "" {
-		// No relation was saved
+		// No link was saved
 		return nil
 	}
-	CurrentLogger().Debugf("Deleting relations from/to %s...", obj.UniqueOID())
+	CurrentLogger().Debugf("Deleting links from/to %s...", obj.UniqueOID())
 	query := `DELETE FROM relation WHERE source_oid = ? or target_oid = ?;`
 	res, err := CurrentDB().Client().Exec(query, obj.UniqueOID(), obj.UniqueOID())
 	if err != nil {
@@ -72,12 +72,12 @@ func (r *Repository) DeleteRelations(obj Object) error {
 	return nil
 }
 
-func (r *Repository) UpdateRelations(source Object) error {
-	// We systematically recreate all relations to be sure to not have dangling relations
-	// (= relations that no longer exist in notes but are still present in database)
+func (r *Repository) UpdateLinks(source Object, additionalLinks []*Link) error {
+	// We systematically recreate all links to be sure to not have dangling links
+	// (= links that no longer exist in notes but are still present in database)
 
-	// First, delete existing relations
-	CurrentLogger().Debugf("Deleting relations from %s...", source.UniqueOID())
+	// First, delete existing links
+	CurrentLogger().Debugf("Deleting links from %s...", source.UniqueOID())
 	query := `DELETE FROM relation WHERE source_oid = ?;`
 	res, err := CurrentDB().Client().Exec(query, source.UniqueOID())
 	if err != nil {
@@ -89,9 +89,12 @@ func (r *Repository) UpdateRelations(source Object) error {
 	}
 	CurrentLogger().Debugf("Deleted %d rows in table 'relation'", rows)
 
-	// Second, create the current relations
-	for _, relation := range source.Relations() {
-		CurrentLogger().Debugf("Inserting relation %s...", relation)
+	// Combine links from source object and additional links
+	allLinks := append(source.Links(), additionalLinks...)
+
+	// Second, create the current links
+	for _, link := range allLinks {
+		CurrentLogger().Debugf("Inserting link %s...", link)
 		query := `
 			INSERT INTO relation(
 				source_oid,
@@ -103,11 +106,11 @@ func (r *Repository) UpdateRelations(source Object) error {
 			VALUES (?, ?, ?, ?, ?);
 		`
 		_, err := CurrentDB().Client().Exec(query,
-			relation.SourceOID,
-			relation.SourceKind,
-			relation.TargetOID,
-			relation.TargetKind,
-			relation.Type,
+			link.SourceOID,
+			link.SourceKind,
+			link.TargetOID,
+			link.TargetKind,
+			link.Type,
 		)
 		if err != nil {
 			return err
@@ -117,8 +120,8 @@ func (r *Repository) UpdateRelations(source Object) error {
 	return nil
 }
 
-// CountRelations returns the total number of relations.
-func (r *Repository) CountRelations() (int, error) {
+// CountLinks returns the total number of links.
+func (r *Repository) CountLinks() (int, error) {
 	var count int
 	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM relation`).Scan(&count); err != nil {
 		return 0, err
@@ -126,22 +129,22 @@ func (r *Repository) CountRelations() (int, error) {
 	return count, nil
 }
 
-func (r *Repository) FindRelations() ([]*Relation, error) {
-	return QueryRelations(CurrentDB().Client(), "")
+func (r *Repository) FindLinks() ([]*Link, error) {
+	return QueryLinks(CurrentDB().Client(), "")
 }
 
-func (r *Repository) FindRelationsTo(oid oid.OID) ([]*Relation, error) {
-	return QueryRelations(CurrentDB().Client(), `WHERE target_oid = ?`, oid)
+func (r *Repository) FindLinksTo(oid oid.OID) ([]*Link, error) {
+	return QueryLinks(CurrentDB().Client(), `WHERE target_oid = ?`, oid)
 }
 
-func (r *Repository) FindRelationsFrom(oid oid.OID) ([]*Relation, error) {
-	return QueryRelations(CurrentDB().Client(), `WHERE source_oid = ?`, oid)
+func (r *Repository) FindLinksFrom(oid oid.OID) ([]*Link, error) {
+	return QueryLinks(CurrentDB().Client(), `WHERE source_oid = ?`, oid)
 }
 
 /* SQL Helpers */
 
-func QueryRelation(db SQLClient, whereClause string, args ...any) (*Relation, error) {
-	var r Relation
+func QueryLink(db SQLClient, whereClause string, args ...any) (*Link, error) {
+	var r Link
 
 	// Query for a value based on a single row.
 	if err := db.QueryRow(fmt.Sprintf(`
@@ -169,8 +172,8 @@ func QueryRelation(db SQLClient, whereClause string, args ...any) (*Relation, er
 	return &r, nil
 }
 
-func QueryRelations(db SQLClient, whereClause string, args ...any) ([]*Relation, error) {
-	var relations []*Relation
+func QueryLinks(db SQLClient, whereClause string, args ...any) ([]*Link, error) {
+	var links []*Link
 
 	rows, err := db.Query(fmt.Sprintf(`
 		SELECT
@@ -186,7 +189,7 @@ func QueryRelations(db SQLClient, whereClause string, args ...any) ([]*Relation,
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var r Relation
+		var r Link
 
 		err = rows.Scan(
 			&r.SourceOID,
@@ -199,7 +202,7 @@ func QueryRelations(db SQLClient, whereClause string, args ...any) ([]*Relation,
 			return nil, err
 		}
 
-		relations = append(relations, &r)
+		links = append(links, &r)
 	}
 
 	err = rows.Err()
@@ -207,5 +210,5 @@ func QueryRelations(db SQLClient, whereClause string, args ...any) ([]*Relation,
 		return nil, err
 	}
 
-	return relations, err
+	return links, err
 }

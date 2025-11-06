@@ -265,10 +265,10 @@ func (n *Note) Write(w io.Writer) error {
 	return err
 }
 
-func (n *Note) Relations() []*Relation {
-	var relations []*Relation
+func (n *Note) Links() []*Link {
+	var links []*Link
 
-	// Utility function to append wikilink to the returned relations
+	// Utility function to append wikilink to the returned links
 	addWikilink := func(wikilinkTxt string, relationType string) {
 		wikilink, err := markdown.NewWikilink(wikilinkTxt)
 		if err != nil {
@@ -279,7 +279,7 @@ func (n *Note) Relations() []*Relation {
 		if wikilink.Section() != "" {
 			note, _ := CurrentRepository().FindNoteByWikilink(wikilink.Link)
 			if note != nil {
-				relations = append(relations, &Relation{
+				links = append(links, &Link{
 					SourceOID:  n.OID,
 					SourceKind: "note",
 					TargetOID:  note.OID,
@@ -290,7 +290,7 @@ func (n *Note) Relations() []*Relation {
 		} else {
 			file, _ := CurrentRepository().FindFileByWikilink(wikilink.Link)
 			if file != nil {
-				relations = append(relations, &Relation{
+				links = append(links, &Link{
 					SourceOID:  n.OID,
 					SourceKind: "note",
 					TargetOID:  file.OID,
@@ -341,7 +341,7 @@ func (n *Note) Relations() []*Relation {
 		}
 	}
 
-	return relations
+	return links
 }
 
 func (n Note) String() string {
