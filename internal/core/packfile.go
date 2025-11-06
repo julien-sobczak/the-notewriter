@@ -302,9 +302,12 @@ func (p *PackFile) ReadNotes() []*Note {
 	for _, packObject := range p.PackObjects {
 		if packObject.Kind == "note" {
 			note := new(Note)
-			if err := packObject.Data.Unmarshal(note); err == nil {
-				notes = append(notes, note)
+			if err := packObject.Data.Unmarshal(note); err != nil {
+				// Log error but continue processing other notes
+				CurrentLogger().Debugf("Failed to unmarshal note %s: %v", packObject.OID, err)
+				continue
 			}
+			notes = append(notes, note)
 		}
 	}
 	return notes

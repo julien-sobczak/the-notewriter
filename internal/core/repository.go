@@ -571,8 +571,11 @@ func (r *Repository) Add(paths PathSpecs) (*AddResult, error) {
 		for _, packObject := range packFile.PackObjects {
 			obj := packObject.Read()
 			if obj, ok := obj.(Object); ok {
-				// Check if there are additional implicit links for this object
-				additionalLinks := implicitLinksMap[obj.UniqueOID()]
+				// Only notes can have implicit links as source
+				var additionalLinks []*Link
+				if packObject.Kind == "note" {
+					additionalLinks = implicitLinksMap[obj.UniqueOID()]
+				}
 				if err := r.UpdateLinks(obj, additionalLinks); err != nil {
 					return nil, err
 				}
