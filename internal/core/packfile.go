@@ -304,7 +304,7 @@ func (p *PackFile) ReadNotes() []*Note {
 			note := new(Note)
 			if err := packObject.Data.Unmarshal(note); err != nil {
 				// Log error but continue processing other notes
-				CurrentLogger().Debugf("Failed to unmarshal note %s: %v", packObject.OID, err)
+				CurrentLogger().Debugf("Failed to unmarshal note object %s: %v", packObject.OID, err)
 				continue
 			}
 			notes = append(notes, note)
