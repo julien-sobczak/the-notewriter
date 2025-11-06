@@ -1,4 +1,4 @@
-DROP TABLE relation;
+DROP TABLE link;
 DROP TABLE flashcard;
 DROP TABLE note;
 DROP TABLE note_fts;

@@ -297,20 +297,18 @@ func (p *PackFile) FindFirstBlobWithMimeType(mimeType string) *BlobRef {
 }
 
 // ReadNotes returns all notes from the pack file.
-func (p *PackFile) ReadNotes() []*Note {
+func (p *PackFile) ReadNotes() ([]*Note, error) {
 	var notes []*Note
 	for _, packObject := range p.PackObjects {
 		if packObject.Kind == "note" {
 			note := new(Note)
 			if err := packObject.Data.Unmarshal(note); err != nil {
-				// Log error but continue processing other notes
-				CurrentLogger().Debugf("Failed to unmarshal note object %s: %v", packObject.OID, err)
-				continue
+				return nil, fmt.Errorf("failed to unmarshal note object %s: %w", packObject.OID, err)
 			}
 			notes = append(notes, note)
 		}
 	}
-	return notes
+	return notes, nil
 }
 
 /* Object */

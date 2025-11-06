@@ -59,8 +59,7 @@ func (r *Repository) DeleteLinks(obj Object) error {
 		return nil
 	}
 	CurrentLogger().Debugf("Deleting links from/to %s...", obj.UniqueOID())
-	// Note: Table name is still 'relation' to avoid database migration
-	query := `DELETE FROM relation WHERE source_oid = ? or target_oid = ?;`
+	query := `DELETE FROM link WHERE source_oid = ? or target_oid = ?;`
 	res, err := CurrentDB().Client().Exec(query, obj.UniqueOID(), obj.UniqueOID())
 	if err != nil {
 		return err
@@ -79,8 +78,7 @@ func (r *Repository) UpdateLinks(source Object, additionalLinks []*Link) error {
 
 	// First, delete existing links
 	CurrentLogger().Debugf("Deleting links from %s...", source.UniqueOID())
-	// Note: Table name is still 'relation' to avoid database migration
-	query := `DELETE FROM relation WHERE source_oid = ?;`
+	query := `DELETE FROM link WHERE source_oid = ?;`
 	res, err := CurrentDB().Client().Exec(query, source.UniqueOID())
 	if err != nil {
 		return err
@@ -89,17 +87,17 @@ func (r *Repository) UpdateLinks(source Object, additionalLinks []*Link) error {
 	if err != nil {
 		return err
 	}
-	CurrentLogger().Debugf("Deleted %d rows in table 'relation'", rows)
+	CurrentLogger().Debugf("Deleted %d rows in table 'link'", rows)
 
-	// Combine links from source object and additional links
-	allLinks := append(source.Links(), additionalLinks...)
+	// Combine links from source object and additional links (use copy to avoid modifying source)
+	allLinks := append([]*Link{}, source.Links()...)
+	allLinks = append(allLinks, additionalLinks...)
 
 	// Second, create the current links
 	for _, link := range allLinks {
 		CurrentLogger().Debugf("Inserting link %s...", link)
-		// Note: Table name is still 'relation' to avoid database migration
 		query := `
-			INSERT INTO relation(
+			INSERT INTO link(
 				source_oid,
 				source_kind,
 				target_oid,
@@ -126,7 +124,7 @@ func (r *Repository) UpdateLinks(source Object, additionalLinks []*Link) error {
 // CountLinks returns the total number of links.
 func (r *Repository) CountLinks() (int, error) {
 	var count int
-	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM relation`).Scan(&count); err != nil {
+	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM link`).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
@@ -157,7 +155,7 @@ func QueryLink(db SQLClient, whereClause string, args ...any) (*Link, error) {
 			target_oid,
 			target_kind,
 			type
-		FROM relation
+		FROM link
 		%s;`, whereClause), args...).
 		Scan(
 			&r.SourceOID,
@@ -185,7 +183,7 @@ func QueryLinks(db SQLClient, whereClause string, args ...any) ([]*Link, error) 
 			target_oid,
 			target_kind,
 			type
-		FROM relation
+		FROM link
 		%s;`, whereClause), args...)
 	if err != nil {
 		return nil, err

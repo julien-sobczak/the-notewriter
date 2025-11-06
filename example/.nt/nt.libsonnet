@@ -46,7 +46,7 @@
             shorthands: {
                 "🔽": "low",
                 "🔼": "medium",
-                "❗": "high",
+                "❗️": "high",
                 "🚨": "urgent",
             },
             preserveShorthand: false,

@@ -344,11 +344,14 @@ func (r *AddResult) Delete(packFiles ...*PackFile) {
 
 // extractImplicitLinks creates implicit links based on note parent relationships.
 // When a note has a parent (different heading levels), create a link from the parent to the child.
-func extractImplicitLinks(parsedFile *ParsedFile, packFile *PackFile) []*Link {
+func extractImplicitLinks(parsedFile *ParsedFile, packFile *PackFile) ([]*Link, error) {
 	var implicitLinks []*Link
 
 	// Get all notes from the pack file
-	packNotes := packFile.ReadNotes()
+	packNotes, err := packFile.ReadNotes()
+	if err != nil {
+		return nil, err
+	}
 
 	// Create a map for O(1) lookup of notes by slug
 	notesBySlug := make(map[string]*Note)
@@ -358,25 +361,35 @@ func extractImplicitLinks(parsedFile *ParsedFile, packFile *PackFile) []*Link {
 
 	// Traverse parsed notes to check for Parent attribute
 	for _, parsedNote := range parsedFile.Notes {
-		if parsedNote.Parent != nil {
-			// Find the parent note using the map
-			if parentNote, ok := notesBySlug[parsedNote.Parent.Slug]; ok {
-				// Find the child note using the map
-				if childNote, ok := notesBySlug[parsedNote.Slug]; ok {
-					// Create implicit link: parent includes child
-					implicitLinks = append(implicitLinks, &Link{
-						SourceOID:  parentNote.OID,
-						SourceKind: "note",
-						TargetOID:  childNote.OID,
-						TargetKind: "note",
-						Type:       "includes",
-					})
-				}
-			}
+		if parsedNote.Parent == nil {
+			continue
 		}
+
+		// Find the parent note using the map
+		parentNote, ok := notesBySlug[parsedNote.Parent.Slug]
+		if !ok {
+			// Must not happen
+			continue
+		}
+
+		// Find the child note using the map
+		childNote, ok := notesBySlug[parsedNote.Slug]
+		if !ok {
+			// Must not happen
+			continue
+		}
+
+		// Create implicit link: parent includes child
+		implicitLinks = append(implicitLinks, &Link{
+			SourceOID:  parentNote.OID,
+			SourceKind: "note",
+			TargetOID:  childNote.OID,
+			TargetKind: "note",
+			Type:       "includes",
+		})
 	}
 
-	return implicitLinks
+	return implicitLinks, nil
 }
 
 // Add implements the command `nt add`
@@ -508,7 +521,10 @@ func (r *Repository) Add(paths PathSpecs) (*AddResult, error) {
 		}
 
 		// Extract implicit links from parent-child note relationships
-		implicitLinks := extractImplicitLinks(parsedFile, packFile)
+		implicitLinks, err := extractImplicitLinks(parsedFile, packFile)
+		if err != nil {
+			return err
+		}
 		for _, link := range implicitLinks {
 			implicitLinksMap[link.SourceOID] = append(implicitLinksMap[link.SourceOID], link)
 		}
@@ -568,15 +584,27 @@ func (r *Repository) Add(paths PathSpecs) (*AddResult, error) {
 
 	// Update links for all objects in upserted pack files
 	for _, packFile := range packFilesToUpsert {
+		// Process notes with ReadNotes()
+		notes, err := packFile.ReadNotes()
+		if err != nil {
+			return nil, err
+		}
+		for _, note := range notes {
+			additionalLinks := implicitLinksMap[note.UniqueOID()]
+			if err := r.UpdateLinks(note, additionalLinks); err != nil {
+				return nil, err
+			}
+		}
+
+		// Process other objects
 		for _, packObject := range packFile.PackObjects {
+			if packObject.Kind == "note" {
+				// Already processed above
+				continue
+			}
 			obj := packObject.Read()
 			if obj, ok := obj.(Object); ok {
-				// Only notes can have implicit links as source
-				var additionalLinks []*Link
-				if packObject.Kind == "note" {
-					additionalLinks = implicitLinksMap[obj.UniqueOID()]
-				}
-				if err := r.UpdateLinks(obj, additionalLinks); err != nil {
+				if err := r.UpdateLinks(obj, nil); err != nil {
 					return nil, err
 				}
 			}
