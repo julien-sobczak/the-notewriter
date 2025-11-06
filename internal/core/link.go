@@ -59,6 +59,7 @@ func (r *Repository) DeleteLinks(obj Object) error {
 		return nil
 	}
 	CurrentLogger().Debugf("Deleting links from/to %s...", obj.UniqueOID())
+	// Note: Table name is still 'relation' to avoid database migration
 	query := `DELETE FROM relation WHERE source_oid = ? or target_oid = ?;`
 	res, err := CurrentDB().Client().Exec(query, obj.UniqueOID(), obj.UniqueOID())
 	if err != nil {
@@ -78,6 +79,7 @@ func (r *Repository) UpdateLinks(source Object, additionalLinks []*Link) error {
 
 	// First, delete existing links
 	CurrentLogger().Debugf("Deleting links from %s...", source.UniqueOID())
+	// Note: Table name is still 'relation' to avoid database migration
 	query := `DELETE FROM relation WHERE source_oid = ?;`
 	res, err := CurrentDB().Client().Exec(query, source.UniqueOID())
 	if err != nil {
@@ -95,6 +97,7 @@ func (r *Repository) UpdateLinks(source Object, additionalLinks []*Link) error {
 	// Second, create the current links
 	for _, link := range allLinks {
 		CurrentLogger().Debugf("Inserting link %s...", link)
+		// Note: Table name is still 'relation' to avoid database migration
 		query := `
 			INSERT INTO relation(
 				source_oid,

@@ -350,27 +350,27 @@ func extractImplicitLinks(parsedFile *ParsedFile, packFile *PackFile) []*Link {
 	// Get all notes from the pack file
 	packNotes := packFile.ReadNotes()
 
+	// Create a map for O(1) lookup of notes by slug
+	notesBySlug := make(map[string]*Note)
+	for _, note := range packNotes {
+		notesBySlug[note.Slug] = note
+	}
+
 	// Traverse parsed notes to check for Parent attribute
 	for _, parsedNote := range parsedFile.Notes {
 		if parsedNote.Parent != nil {
-			// Find the parent note in the pack file
-			for _, packNote := range packNotes {
-				if packNote.Slug == parsedNote.Parent.Slug {
-					// Find the child note in the pack file
-					for _, childPackNote := range packNotes {
-						if childPackNote.Slug == parsedNote.Slug {
-							// Create implicit link: parent includes child
-							implicitLinks = append(implicitLinks, &Link{
-								SourceOID:  packNote.OID,
-								SourceKind: "note",
-								TargetOID:  childPackNote.OID,
-								TargetKind: "note",
-								Type:       "includes",
-							})
-							break
-						}
-					}
-					break
+			// Find the parent note using the map
+			if parentNote, ok := notesBySlug[parsedNote.Parent.Slug]; ok {
+				// Find the child note using the map
+				if childNote, ok := notesBySlug[parsedNote.Slug]; ok {
+					// Create implicit link: parent includes child
+					implicitLinks = append(implicitLinks, &Link{
+						SourceOID:  parentNote.OID,
+						SourceKind: "note",
+						TargetOID:  childNote.OID,
+						TargetKind: "note",
+						Type:       "includes",
+					})
 				}
 			}
 		}
