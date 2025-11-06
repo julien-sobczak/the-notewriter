@@ -68,7 +68,7 @@ func (r *Repository) DeleteLinks(obj Object) error {
 	if err != nil {
 		return err
 	}
-	CurrentLogger().Debugf("Deleted %d rows in table 'relation'", rows)
+	CurrentLogger().Debugf("Deleted %d rows in table 'link'", rows)
 	return nil
 }
 
