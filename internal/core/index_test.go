@@ -618,7 +618,7 @@ func TestIndexOnDisk(t *testing.T) {
 	// Read a pack object on disk
 	packObject1 := packFile1.PackObjects[0]
 	assert.Equal(t, "file", packObject1.Kind)
-	readPackObject1, err := idx.ReadPackObject(packObject1.OID) // TODO now debug
+	readPackObject1, err := idx.ReadPackObject(packObject1.OID)
 	require.NoError(t, err)
 	assert.Equal(t, packObject1.OID, readPackObject1.OID)
 

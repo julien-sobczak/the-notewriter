@@ -951,7 +951,7 @@ func ExtractShorthands(doc markdown.Document, configAttributes ConfigAttributes)
 }
 
 // StripShorthands removes shorthands from text only if marked as non-preservable.
-func StripShorthands(attributes ConfigAttributes) markdown.Transformer {
+func StripShorthands(attributes ConfigAttributes) markdown.DocumentTransformer {
 	return func(document markdown.Document) (markdown.Document, error) {
 		modifiedText := string(document)
 
@@ -1020,7 +1020,7 @@ func ExtractAllTagsAndAttributesAndEmojis(doc markdown.Document, configAttribute
 }
 
 // StripTagsAndAttributes remove all tags and attributes.
-func StripBlockTagsAndAttributes() markdown.Transformer {
+func StripBlockTagsAndAttributes() markdown.DocumentTransformer {
 	return func(document markdown.Document) (markdown.Document, error) {
 		var res bytes.Buffer
 		for _, line := range document.Lines() {
@@ -1033,22 +1033,8 @@ func StripBlockTagsAndAttributes() markdown.Transformer {
 	}
 }
 
-// StripAllTagsAndAttributes removes all tags and attributes from a text.
-func StripAllTagsAndAttributes(content markdown.Document) markdown.Document {
-	// TODO remove deprecated
-	var res bytes.Buffer
-	for _, line := range content.Lines() {
-		newLine := regexTags.ReplaceAllLiteralString(line, "")
-		newLine = regexAttributes.ReplaceAllLiteralString(newLine, "")
-		if !text.IsBlank(newLine) {
-			res.WriteString(newLine + "\n")
-		}
-	}
-	return markdown.Document(text.SquashBlankLines(res.String())).TrimSpace()
-}
-
 // StripTags removes all tags from a text.
-func StripTags() markdown.Transformer {
+func StripTags() markdown.DocumentTransformer {
 	return func(document markdown.Document) (markdown.Document, error) {
 		var res bytes.Buffer
 		for _, line := range document.Lines() {
@@ -1063,7 +1049,7 @@ func StripTags() markdown.Transformer {
 }
 
 // StripOnlyAttributes removes all attributes from a text.
-func StripOnlyAttributes() markdown.Transformer {
+func StripOnlyAttributes() markdown.DocumentTransformer {
 	return func(document markdown.Document) (markdown.Document, error) {
 		var res bytes.Buffer
 		for _, line := range document.Lines() {
@@ -1079,7 +1065,7 @@ func StripOnlyAttributes() markdown.Transformer {
 }
 
 // StripAttributes removes all attributes from a text.
-func StripAttributes(attributes ConfigAttributes) markdown.Transformer {
+func StripAttributes(attributes ConfigAttributes) markdown.DocumentTransformer {
 	return func(document markdown.Document) (markdown.Document, error) {
 		return document.MustTransform(
 			StripOnlyAttributes(),

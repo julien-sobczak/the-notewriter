@@ -360,15 +360,6 @@ func (db *DB) initRemote(config ConfigRemote) remote.Remote {
 	return nil // Unreachable
 }
 
-// Diff show the changes in the staging area.
-func (db *DB) Diff() (string, error) {
-	var diff strings.Builder
-
-	// TODO implement
-
-	return diff.String(), nil
-}
-
 type GCResult struct {
 	ReclaimedPackFiles []oid.OID // List of pack files deleted
 	ReclaimedBlobs     []oid.OID // List of blobs deleted
@@ -452,7 +443,7 @@ func (db *DB) GC(dryRun bool) (*GCResult, error) {
 		return nil, err
 	}
 
-	// Batch the deletions having having remove duplicates
+	// Batch the deletions after having remove duplicates
 	slices.Sort(reclaimedFiles)
 	reclaimedFiles = slices.Compact(reclaimedFiles)
 	for _, path := range reclaimedFiles {

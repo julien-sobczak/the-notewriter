@@ -832,7 +832,7 @@ var ReservedAttributes = map[string]ConfigAttribute{
 	"date": {
 		Name:    "date",
 		Type:    "string",
-		Format:  "date", // TODO map[format]{pattern} ???
+		Format:  "date",
 		Inherit: BoolPointer(true),
 	},
 

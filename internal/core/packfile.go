@@ -34,7 +34,7 @@ type Packable interface {
 	Write(w io.Writer) error
 
 	// ModificationTime returns the last modification time.
-	ModificationTime() time.Time // TODO rename to Timestamp()
+	ModificationTime() time.Time
 
 	// String returns a one-line description
 	String() string

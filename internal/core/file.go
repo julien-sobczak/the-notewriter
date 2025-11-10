@@ -52,11 +52,6 @@ type File struct {
 	Body     markdown.Document `yaml:"body" json:"body"`
 	BodyLine int               `yaml:"body_line" json:"body_line"`
 
-	// Subobjects (lazy-loaded)
-	notes      []*Note      `yaml:"-" json:"-"` // TODO still useful?
-	flashcards []*Flashcard `yaml:"-" json:"-"` // TODO still useful?
-
-	// TODO still useful as these fields are stored in the index?
 	// Size of the file (can be useful to detect changes)
 	Size int64 `yaml:"size" json:"size"`
 	// Hash of the content (can be useful to detect changes too)
@@ -223,46 +218,6 @@ func (f *File) GetTags() []string {
 // HasTag returns if a file has a given tag.
 func (f *File) HasTag(name string) bool {
 	return slices.Contains(f.Attributes.Tags(), name)
-}
-
-/* Content */
-
-func (f *File) GetNotes() []*Note {
-	if f.notes != nil {
-		return f.notes
-	}
-
-	// TODO CurrentRepository().FindNotes()
-	return nil
-}
-
-func (f *File) GetFlashcards() []*Flashcard {
-	if f.flashcards != nil {
-		return f.flashcards
-	}
-
-	// TODO CurrentRepository().FindFlashcards()
-	return nil
-}
-
-// FindNoteByTypeAndShortTitle searches for a given note based on its type and title.
-func (f *File) FindNoteByTypeAndShortTitle(noteType string, shortTitle string) *Note {
-	for _, note := range f.GetNotes() {
-		if note.Type == noteType && note.ShortTitle == markdown.Document(shortTitle) {
-			return note
-		}
-	}
-	return nil
-}
-
-// FindFlashcardByTitle searches for a given flashcard based on its title.
-func (f *File) FindFlashcardByTitle(shortTitle string) *Flashcard {
-	for _, flashcard := range f.GetFlashcards() {
-		if flashcard.ShortTitle == markdown.Document(shortTitle) {
-			return flashcard
-		}
-	}
-	return nil
 }
 
 /* Data Management */

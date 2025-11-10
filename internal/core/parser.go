@@ -219,7 +219,6 @@ func (p *ParsedMedia) FileHash() string {
 	// Implementation: We do not store the hash to avoid calculating
 	// the hash if not needed as medias can be large.
 	hash, _ := helpers.HashFromFile(p.AbsolutePath)
-	// TODO handle error
 	return hash
 }
 
@@ -510,7 +509,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		attributes = attributes.Merge(noteAttributes)
 		// Append hooks defined on the note type
 		if noteType.Hooks != nil {
-			attributes = attributes.AddHook(noteType.Hooks...)
+			attributes.AddHook(noteType.Hooks...)
 		}
 
 		// Apply default values for missing required attributes
@@ -602,7 +601,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 }
 
 // ReplaceMedias replaces the media links in a Markdown document by <media> tags easier to work with.
-func ReplaceMedias(medias []*ParsedMedia) markdown.Transformer {
+func ReplaceMedias(medias []*ParsedMedia) markdown.DocumentTransformer {
 	return func(doc markdown.Document) (markdown.Document, error) {
 		rawDoc := doc.String()
 		// Replace medias by <media> tags
@@ -1005,7 +1004,7 @@ func (p *ParsedNote) FindMemoryByText(text markdown.Document) (*ParsedMemory, bo
 }
 
 // StripTagsAndAttributes removes all tags and attributes from a NoteWriter note.
-func StripTagsAndAttributes(attributes ConfigAttributes) markdown.Transformer {
+func StripTagsAndAttributes(attributes ConfigAttributes) markdown.DocumentTransformer {
 	return func(doc markdown.Document) (markdown.Document, error) {
 		return doc.MustTransform(
 			StripTags(),
@@ -1197,7 +1196,7 @@ func (n *ParsedNote) Matches(query *Query) bool {
 }
 
 // SimplifyMarkdown simplifies a Markdown document by removing all tags, attributes and emphasis.
-func SimplifyMarkdown(configAttributes ConfigAttributes) markdown.Transformer {
+func SimplifyMarkdown(configAttributes ConfigAttributes) markdown.DocumentTransformer {
 	return func(doc markdown.Document) (markdown.Document, error) {
 		return doc.MustTransform(
 			StripTagsAndAttributes(configAttributes),

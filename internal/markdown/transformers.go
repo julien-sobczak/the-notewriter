@@ -8,11 +8,11 @@ import (
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
 
-// Transformer applies changes on a Markdown document
-type Transformer func(document Document) (Document, error) // TODO rename to DocumentTransformer
+// DocumentTransformer applies changes on a Markdown document
+type DocumentTransformer func(document Document) (Document, error)
 
 // Transform applies transformers successively to create a new Markdown document
-func (m Document) Transform(transformers ...Transformer) (Document, error) {
+func (m Document) Transform(transformers ...DocumentTransformer) (Document, error) {
 	result := m
 	for _, transformer := range transformers {
 		resultTransformed, err := transformer(result)
@@ -25,7 +25,7 @@ func (m Document) Transform(transformers ...Transformer) (Document, error) {
 }
 
 // MustTransform is similar to Transform but does not expect an error
-func (m Document) MustTransform(transformers ...Transformer) Document {
+func (m Document) MustTransform(transformers ...DocumentTransformer) Document {
 	result, err := m.Transform(transformers...)
 	if err != nil {
 		panic(err)
@@ -51,10 +51,8 @@ var AsciidocCharacterSubstitutions = map[string]string{
 }
 
 // ReplaceCharacters is a Markdown transformer to replace character sequences inside a document.
-func ReplaceCharacters(characterReplacements map[string]string) Transformer {
+func ReplaceCharacters(characterReplacements map[string]string) DocumentTransformer {
 	return func(document Document) (Document, error) {
-		// TODO Reuse current code but in a more-robust way
-		// - search only in texts (no code-block, no inside links/images/etc., line separator)
 		// Implementation: We must not replace characters inside code blocks (otherwise, `i--` => `i—`)
 
 		doc := string(document)
@@ -102,7 +100,7 @@ func ReplaceCharacters(characterReplacements map[string]string) Transformer {
 }
 
 // StripHTMLComments transforms a Markdown document to remove HTML comments
-func StripHTMLComments() Transformer {
+func StripHTMLComments() DocumentTransformer {
 	return func(document Document) (Document, error) {
 		md := string(document)
 		r := regexp.MustCompile(`(?s)<!--.+?-->`)
@@ -112,7 +110,7 @@ func StripHTMLComments() Transformer {
 }
 
 // StripMarkdownUnofficialComments transforms a Markdown document to remove HTML-like, mostly-official Markdown comments
-func StripMarkdownUnofficialComments() Transformer {
+func StripMarkdownUnofficialComments() DocumentTransformer {
 	return func(document Document) (Document, error) {
 		md := string(document)
 		r := regexp.MustCompile(`(?s)<!---.+?--->`)
@@ -138,7 +136,7 @@ func StripMarkdownUnofficialComments() Transformer {
 //	blablabla
 //	### Blablablabla
 //	blablablabla
-func AlignHeadings() Transformer {
+func AlignHeadings() DocumentTransformer {
 	return func(document Document) (Document, error) {
 		text := string(document)
 		// Search for top subheading level
@@ -184,7 +182,7 @@ func AlignHeadings() Transformer {
 }
 
 // StripCodeBlocks removes code blocks from a Markdown document.
-func StripCodeBlocks() Transformer {
+func StripCodeBlocks() DocumentTransformer {
 	return func(document Document) (Document, error) {
 		var newLines []string
 
@@ -210,7 +208,7 @@ func StripCodeBlocks() Transformer {
 }
 
 // StripTopHeading remove the header
-func StripTopHeading() Transformer {
+func StripTopHeading() DocumentTransformer {
 	return func(document Document) (Document, error) {
 
 		iterator := document.Iterator()
@@ -236,14 +234,14 @@ func StripTopHeading() Transformer {
 }
 
 // SquashBlankLines removes blank lines when multiple successive blank lines are present
-func SquashBlankLines() Transformer {
+func SquashBlankLines() DocumentTransformer {
 	return func(document Document) (Document, error) {
 		return Document(text.SquashBlankLines(string(document))), nil
 	}
 }
 
 // StripEmphasis remove Markdown emphasis characters.
-func StripEmphasis() Transformer {
+func StripEmphasis() DocumentTransformer {
 	return func(document Document) (Document, error) {
 		text := string(document)
 
