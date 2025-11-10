@@ -44,16 +44,7 @@ func (l *Logger) SetVerboseLevel(level VerboseLevel) *Logger {
 	return l
 }
 
-func (l *Logger) Fatal(v ...any) {
-	log.Fatalln(v...)
-}
-func (l *Logger) Fatalf(format string, v ...any) {
-	log.Fatalf(format, v...)
-}
 
-func (l *Logger) Warn(v ...any) {
-	log.Println(v...)
-}
 func (l *Logger) Warnf(format string, v ...any) {
 	log.Printf(format, v...)
 }

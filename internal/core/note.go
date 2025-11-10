@@ -792,24 +792,13 @@ func (r *Repository) CountAttributes() (map[string]int, error) {
 	return result, nil
 }
 
-func (r *Repository) DumpNotes() error {
-	notes, err := QueryNotes(CurrentDB().Client(), "")
-	if err != nil {
-		return err
-	}
-	for _, note := range notes {
-		CurrentLogger().Infof("Note %s [%s] [[%s]]\n", note.LongTitle, note.OID, note.Wikilink)
-	}
-	return nil
-}
+
 
 func (r *Repository) LoadNoteByOID(oid oid.OID) (*Note, error) {
 	return QueryNote(CurrentDB().Client(), `WHERE oid = ?`, "", oid)
 }
 
-func (r *Repository) LoadNotes() ([]*Note, error) {
-	return QueryNotes(CurrentDB().Client(), ``)
-}
+
 
 func (r *Repository) FindNotesByFileOID(oid oid.OID) ([]*Note, error) {
 	return QueryNotes(CurrentDB().Client(), `WHERE file_oid = ?`, oid)
@@ -823,9 +812,7 @@ func (r *Repository) FindNoteBySlug(slug string) (*Note, error) {
 	return QueryNote(CurrentDB().Client(), `WHERE slug = ?`, "", slug)
 }
 
-func (r *Repository) FindNoteByHash(hash string) (*Note, error) {
-	return QueryNote(CurrentDB().Client(), `WHERE hashsum = ?`, "", hash)
-}
+
 
 func (r *Repository) FindNoteByPathAndTitle(relativePath string, title string) (*Note, error) {
 	return QueryNote(CurrentDB().Client(), `WHERE relative_path = ? AND title = ?`, "", relativePath, title)

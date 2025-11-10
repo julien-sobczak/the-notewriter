@@ -520,9 +520,7 @@ func (r *Repository) LoadMediaByOID(oid oid.OID) (*Media, error) {
 	return QueryMedia(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
-func (r *Repository) LoadAllMedias() ([]*Media, error) {
-	return QueryMedias(CurrentDB().Client(), ``)
-}
+
 
 func (r *Repository) FindMatchingMedia(parsedMedia *ParsedMedia) (*Media, error) {
 	// Find by hash (ex: file was renamed)
@@ -616,76 +614,7 @@ func QueryMedia(db SQLClient, whereClause string, args ...any) (*Media, error) {
 	return &m, nil
 }
 
-func QueryMedias(db SQLClient, whereClause string, args ...any) ([]*Media, error) {
-	var medias []*Media
 
-	rows, err := db.Query(fmt.Sprintf(`
-		SELECT
-			oid,
-			packfile_oid,
-			relative_path,
-			kind,
-			dangling,
-			extension,
-			mtime,
-			hashsum,
-			size,
-			created_at,
-			updated_at,
-			indexed_at
-		FROM media
-		%s;`, whereClause), args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var m Media
-		var createdAt string
-		var updatedAt string
-		var lastIndexedAt string
-		var mTime string
-
-		err = rows.Scan(
-			&m.OID,
-			&m.PackFileOID,
-			&m.RelativePath,
-			&m.MediaKind,
-			&m.Dangling,
-			&m.Extension,
-			&mTime,
-			&m.Hash,
-			&m.Size,
-			&createdAt,
-			&updatedAt,
-			&lastIndexedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		m.CreatedAt = timeFromSQL(createdAt)
-		m.UpdatedAt = timeFromSQL(updatedAt)
-		m.IndexedAt = timeFromSQL(lastIndexedAt)
-		m.MTime = timeFromSQL(mTime)
-
-		// Load blobs
-		blobs, err := CurrentRepository().FindBlobsFromMedia(m.OID)
-		if err != nil {
-			return nil, err
-		}
-		m.BlobRefs = blobs
-
-		medias = append(medias, &m)
-	}
-
-	err = rows.Err()
-	if err != nil {
-		return nil, err
-	}
-
-	return medias, err
-}
 
 func QueryBlob(db SQLClient, whereClause string, args ...any) (*BlobRef, error) {
 	var b BlobRef

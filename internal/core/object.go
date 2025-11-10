@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -128,45 +126,7 @@ type BlobFile struct {
 	Data []byte
 }
 
-func NewBlobFile(ref *BlobRef, data []byte) *BlobFile {
-	return &BlobFile{
-		Ref:  ref,
-		Data: data,
-	}
-}
 
-// Read populates a commit from an object file.
-func (c *BlobFile) Read(r io.Reader) error {
-	data, err := io.ReadAll(r)
-	if err != nil {
-		return err
-	}
-	c.Data = data
-	return nil
-}
-
-// Write dumps a commit to an object file.
-func (c *BlobFile) Write(w io.Writer) error {
-	_, err := w.Write(c.Data)
-	if err != nil {
-		return err
-	}
-	return err
-}
-
-// Save writes a new file inside .nt/objects.
-func (c *BlobFile) Save() error {
-	path := filepath.Join(CurrentConfig().RootDirectory, ".nt/objects", c.Ref.OID.RelativePath("..blob"))
-	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
-		return err
-	}
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	return c.Write(f)
-}
 
 // Convenient type to add methods
 type BlobRefs []BlobRef

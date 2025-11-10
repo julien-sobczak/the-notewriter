@@ -265,17 +265,13 @@ func (r *Repository) LoadGotoByOID(oid oid.OID) (*Goto, error) {
 	return QueryGoto(CurrentDB().Client(), "WHERE oid = ?", oid)
 }
 
-func (r *Repository) LoadGotos() ([]*Goto, error) {
-	return QueryGotos(CurrentDB().Client(), "")
-}
+
 
 func (r *Repository) FindGotoByName(name string) (*Goto, error) {
 	return QueryGoto(CurrentDB().Client(), "WHERE name = ?", name)
 }
 
-func (r *Repository) FindGotosByText(text string) ([]*Goto, error) {
-	return QueryGotos(CurrentDB().Client(), "WHERE text = ?", text)
-}
+
 
 /* SQL Helpers */
 
@@ -327,64 +323,7 @@ func QueryGoto(db SQLClient, whereClause string, args ...any) (*Goto, error) {
 	return &l, nil
 }
 
-func QueryGotos(db SQLClient, whereClause string, args ...any) ([]*Goto, error) {
-	var links []*Goto
 
-	rows, err := db.Query(fmt.Sprintf(`
-		SELECT
-			oid,
-			packfile_oid,
-			note_oid,
-			relative_path,
-			"text",
-			url,
-			title,
-			name,
-			created_at,
-			updated_at,
-			indexed_at
-		FROM goto
-		%s;`, whereClause), args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var l Goto
-		var createdAt string
-		var updatedAt string
-		var lastIndexedAt string
-
-		err = rows.Scan(
-			&l.OID,
-			&l.PackFileOID,
-			&l.NoteOID,
-			&l.RelativePath,
-			&l.Text,
-			&l.URL,
-			&l.Title,
-			&l.Name,
-			&createdAt,
-			&updatedAt,
-			&lastIndexedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		l.CreatedAt = timeFromSQL(createdAt)
-		l.UpdatedAt = timeFromSQL(updatedAt)
-		l.IndexedAt = timeFromSQL(lastIndexedAt)
-		links = append(links, &l)
-	}
-
-	err = rows.Err()
-	if err != nil {
-		return nil, err
-	}
-
-	return links, err
-}
 
 /* ParameterizedURL */
 

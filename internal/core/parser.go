@@ -222,13 +222,7 @@ func (p *ParsedMedia) FileHash() string {
 	return hash
 }
 
-func MustParseOrphanFile(md *markdown.File) *ParsedFile {
-	parsedFile, err := ParseOrphanFile(md)
-	if err != nil {
-		panic(err)
-	}
-	return parsedFile
-}
+
 
 func ParseOrphanFile(md *markdown.File) (*ParsedFile, error) {
 	return ParseFile(md, markdown.EmptyFile)
@@ -1196,11 +1190,4 @@ func (n *ParsedNote) Matches(query *Query) bool {
 }
 
 // SimplifyMarkdown simplifies a Markdown document by removing all tags, attributes and emphasis.
-func SimplifyMarkdown(configAttributes ConfigAttributes) markdown.DocumentTransformer {
-	return func(doc markdown.Document) (markdown.Document, error) {
-		return doc.MustTransform(
-			StripTagsAndAttributes(configAttributes),
-			markdown.StripEmphasis(),
-		), nil
-	}
-}
+

@@ -119,15 +119,7 @@ func (db *DB) BeginTransaction() error {
 	return nil
 }
 
-// RollbackTransaction aborts the current transaction.
-func (db *DB) RollbackTransaction() error {
-	if db.tx == nil {
-		return errors.New("no transaction started")
-	}
-	err := db.tx.Rollback()
-	db.tx = nil
-	return err
-}
+
 
 // CommitTransaction ends the current transaction.
 func (db *DB) CommitTransaction() error {
@@ -250,12 +242,7 @@ func (db *DB) ReadPackFileOnDisk(oid oid.OID) (*PackFile, error) {
 }
 
 // WritePackFileOnDisk writes a blob file on disk
-func (db *DB) WritePackFileOnDisk(packFile *PackFile) error {
-	if err := packFile.Save(); err != nil {
-		return err
-	}
-	return nil
-}
+
 
 // DeletePackFileOnDisk removes a single pack file on disk
 func (db *DB) DeletePackFileOnDisk(packFile PackFileRef) error {
@@ -267,10 +254,7 @@ func (db *DB) DeletePackFileOnDisk(packFile PackFileRef) error {
 	return nil
 }
 
-// ReadBlobOnDisk reads a blob file on disk.
-func (db *DB) ReadBlobOnDisk(oid oid.OID) ([]byte, error) {
-	return os.ReadFile(BlobPath(oid))
-}
+
 
 // WriteBlobOnDisk writes a blob file on disk
 func (db *DB) WriteBlobOnDisk(oid oid.OID, data []byte) error {
@@ -321,9 +305,7 @@ func (db *DB) Remote(name string) remote.Remote {
 }
 
 // Origin returns the optional remote "origin".
-func (db *DB) Origin() remote.Remote {
-	return db.Remote("origin")
-}
+
 
 func (db *DB) initRemote(config ConfigRemote) remote.Remote {
 	// Initialize the remote
@@ -462,16 +444,7 @@ func (db *DB) GC(dryRun bool) (*GCResult, error) {
 /* Utility */
 
 // BlobExists checks if a blob exists locally.
-func (db *DB) BlobExists(oid oid.OID) bool {
-	_, err := os.Stat(BlobPath(oid))
-	return !os.IsNotExist(err)
-}
 
-// PackFileExists checks if a blob exists locally.
-func (db *DB) PackFileExists(oid oid.OID) bool {
-	_, err := os.Stat(PackFilePath(oid))
-	return !os.IsNotExist(err)
-}
 
 /* Stats */
 

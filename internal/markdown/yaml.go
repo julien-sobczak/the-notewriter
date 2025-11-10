@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"regexp"
 	"strings"
-
-	"gopkg.in/yaml.v3"
 )
 
 // CompactYAML removes leading spaces in front of sequences.
@@ -46,28 +44,4 @@ func CompactYAML(doc string) string {
 	return buf.String()
 }
 
-func ToSafeYAMLNode(value any) *yaml.Node {
-	var result yaml.Node
-	rawValue, err := yaml.Marshal(value)
-	if err != nil {
-		panic(err)
-	}
-	err = yaml.Unmarshal(rawValue, &result)
-	if err != nil {
-		panic(err)
-	}
-	return &result
-}
 
-func ToSafeYAMLValue(node *yaml.Node) any {
-	var result any
-	rawValue, err := yaml.Marshal(node)
-	if err != nil {
-		panic(err)
-	}
-	err = yaml.Unmarshal(rawValue, &result)
-	if err != nil {
-		panic(err)
-	}
-	return result
-}

@@ -97,13 +97,7 @@ func ParseFile(path string) (*File, error) {
 }
 
 // MustParseFileRaw parses a Markdown file and panics if an error occurs.
-func MustParseFileRaw(path string) *File {
-	file, err := ParseFileRaw(path)
-	if err != nil {
-		panic(err)
-	}
-	return file
-}
+
 
 // ParseFileRaw parses a Markdown file (without trying decryption if needed).
 func ParseFileRaw(path string) (*File, error) {

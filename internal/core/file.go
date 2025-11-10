@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"time"
@@ -69,15 +68,7 @@ type File struct {
 
 /* Creation */
 
-func NewEmptyFile(name string) *File { // TODO still useful?
-	return &File{
-		OID:          oid.New(),
-		Slug:         "",
-		Wikilink:     name,
-		RelativePath: name,
-		Attributes:   make(map[string]any),
-	}
-}
+
 
 func NewOrExistingFile(packFile *PackFile, parsedFile *ParsedFile) (*File, error) {
 	// Try to find an existing object (instead of recreating it from scratch after every change)
@@ -334,9 +325,7 @@ func (r *Repository) LoadFileByOID(oid oid.OID) (*File, error) {
 	return QueryFile(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
-func (r *Repository) LoadFiles() ([]*File, error) {
-	return QueryFiles(CurrentDB().Client(), ``)
-}
+
 
 func (r *Repository) FindFileByRelativePath(relativePath string) (*File, error) {
 	return QueryFile(CurrentDB().Client(), `WHERE relative_path = ?`, relativePath)
@@ -346,25 +335,15 @@ func (r *Repository) FindMatchingFile(parsedFile *ParsedFile) (*File, error) {
 	return QueryFile(CurrentDB().Client(), `WHERE relative_path = ?`, parsedFile.RelativePath)
 }
 
-func (r *Repository) FindMatchingParentFile(parsedFile *ParsedFile) (*File, error) {
-	if parsedFile.Filename() == "index.md" {
-		return nil, nil
-	}
-	parentRelativePath := filepath.Join(parsedFile.RelativeDir(), "index.md")
-	return r.FindFileByRelativePath(parentRelativePath)
-}
 
-func (r *Repository) FindFilesByRelativePathPrefix(relativePathPrefix string) ([]*File, error) {
-	return QueryFiles(CurrentDB().Client(), `WHERE relative_path LIKE ?`, relativePathPrefix+"%")
-}
+
+
 
 func (r *Repository) FindFileByWikilink(wikilink string) (*File, error) {
 	return QueryFile(CurrentDB().Client(), `WHERE wikilink LIKE ?`, "%"+text.TrimExtension(wikilink))
 }
 
-func (r *Repository) FindFilesByWikilink(wikilink string) ([]*File, error) {
-	return QueryFiles(CurrentDB().Client(), `WHERE wikilink LIKE ?`, "%"+text.TrimExtension(wikilink))
-}
+
 
 // CountFiles returns the total number of files.
 func (r *Repository) CountFiles() (int, error) {
@@ -451,88 +430,7 @@ func QueryFile(db SQLClient, whereClause string, args ...any) (*File, error) {
 	return &f, nil
 }
 
-func QueryFiles(db SQLClient, whereClause string, args ...any) ([]*File, error) {
-	var files []*File
 
-	rows, err := db.Query(fmt.Sprintf(`
-		SELECT
-			oid,
-			packfile_oid,
-			file_type,
-			slug,
-			relative_path,
-			wikilink,
-			front_matter,
-			attributes,
-			title,
-			short_title,
-			body,
-			body_line,
-			created_at,
-			updated_at,
-			indexed_at,
-			mtime,
-			size,
-			hashsum
-		FROM file
-		%s;`, whereClause), args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var f File
-		var createdAt string
-		var updatedAt string
-		var lastIndexedAt string
-		var mTime string
-		var attributesRaw string
-
-		err = rows.Scan(
-			&f.OID,
-			&f.PackFileOID,
-			&f.Type,
-			&f.Slug,
-			&f.RelativePath,
-			&f.Wikilink,
-			&f.FrontMatter,
-			&attributesRaw,
-			&f.Title,
-			&f.ShortTitle,
-			&f.Body,
-			&f.BodyLine,
-			&createdAt,
-			&updatedAt,
-			&lastIndexedAt,
-			&mTime,
-			&f.Size,
-			&f.Hash,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		attributes, err := NewAttributeSetFromYAML(attributesRaw)
-		if err != nil {
-			return nil, err
-		}
-
-		f.Attributes = attributes.CastOrIgnore(CurrentConfigFile().Attributes)
-		f.CreatedAt = timeFromSQL(createdAt)
-		f.UpdatedAt = timeFromSQL(updatedAt)
-		f.IndexedAt = timeFromSQL(lastIndexedAt)
-		f.MTime = timeFromSQL(mTime)
-
-		files = append(files, &f)
-	}
-
-	err = rows.Err()
-	if err != nil {
-		return nil, err
-	}
-
-	return files, err
-}
 
 /* Format */
 

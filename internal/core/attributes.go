@@ -1152,10 +1152,7 @@ func IsPrimitive(value any) bool {
 	return slices.Contains(primitiveDataTypeKinds, reflect.TypeOf(value).Kind())
 }
 
-// IsComposite returns if a variable is a composite type.
-func IsComposite(value any) bool {
-	return slices.Contains(compositeDataTypeKinds, reflect.TypeOf(value).Kind())
-}
+
 
 // IsArray returns if a variable is a JSON array.
 func IsArray(value any) bool {

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 )
 
@@ -23,12 +22,7 @@ func AssertYAMLMatches(t *testing.T, template map[string]any, r io.Reader) {
 }
 
 // RequireYAMLMatches is similar to AssertYAMLMatches but uses require.
-func RequireYAMLMatches(t *testing.T, template map[string]any, r io.Reader) {
-	t.Helper()
 
-	err := CompareYAMLReader(template, r)
-	require.NoError(t, err, "YAML does not match template")
-}
 
 func CompareYAMLReader(template map[string]any, r io.Reader) error {
 	var doc map[string]any

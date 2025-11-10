@@ -700,9 +700,7 @@ func (r *Repository) CountReminders() (int, error) {
 	return count, nil
 }
 
-func (r *Repository) FindReminders() ([]*Reminder, error) {
-	return QueryReminders(CurrentDB().Client(), "")
-}
+
 
 func (r *Repository) FindMatchingReminder(note *Note, parsedReminder *ParsedReminder) (*Reminder, error) {
 	return QueryReminder(CurrentDB().Client(), `WHERE note_oid = ? and description = ?`, note.OID, parsedReminder.Description)
@@ -716,9 +714,7 @@ func (r *Repository) LoadReminderByOID(oid oid.OID) (*Reminder, error) {
 	return QueryReminder(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
-func (r *Repository) LoadReminders() ([]*Reminder, error) {
-	return QueryReminders(CurrentDB().Client(), ``)
-}
+
 
 /* SQL Helpers */
 
@@ -776,70 +772,7 @@ func QueryReminder(db SQLClient, whereClause string, args ...any) (*Reminder, er
 	return &r, nil
 }
 
-func QueryReminders(db SQLClient, whereClause string, args ...any) ([]*Reminder, error) {
-	var reminders []*Reminder
 
-	rows, err := db.Query(fmt.Sprintf(`
-		SELECT
-			oid,
-			packfile_oid,
-			file_oid,
-			note_oid,
-			relative_path,
-			description,
-			tag,
-			last_performed_at,
-			next_performed_at,
-			created_at,
-			updated_at,
-			indexed_at
-		FROM reminder
-		%s;`, whereClause), args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var r Reminder
-		var lastPerformedAt string
-		var nextPerformedAt string
-		var createdAt string
-		var updatedAt string
-		var lastIndexedAt string
-
-		err = rows.Scan(
-			&r.OID,
-			&r.PackFileOID,
-			&r.FileOID,
-			&r.NoteOID,
-			&r.RelativePath,
-			&r.Description,
-			&r.Tag,
-			&lastPerformedAt,
-			&nextPerformedAt,
-			&createdAt,
-			&updatedAt,
-			&lastIndexedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		r.LastPerformedAt = timeFromSQL(lastPerformedAt)
-		r.NextPerformedAt = timeFromSQL(nextPerformedAt)
-		r.CreatedAt = timeFromSQL(createdAt)
-		r.UpdatedAt = timeFromSQL(updatedAt)
-		r.IndexedAt = timeFromSQL(lastIndexedAt)
-		reminders = append(reminders, &r)
-	}
-
-	err = rows.Err()
-	if err != nil {
-		return nil, err
-	}
-
-	return reminders, err
-}
 
 /*
  * Operations

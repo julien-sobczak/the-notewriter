@@ -215,17 +215,13 @@ func (r *Repository) CountMemories() (int, error) {
 	return count, nil
 }
 
-func (r *Repository) FindMemories() ([]*Memory, error) {
-	return QueryMemories(CurrentDB().Client(), "")
-}
+
 
 func (r *Repository) LoadMemoryByOID(oid oid.OID) (*Memory, error) {
 	return QueryMemory(CurrentDB().Client(), `WHERE oid = ?`, oid)
 }
 
-func (r *Repository) LoadMemories() ([]*Memory, error) {
-	return QueryMemories(CurrentDB().Client(), ``)
-}
+
 
 /* SQL Helpers */
 
@@ -275,58 +271,4 @@ func QueryMemory(db SQLClient, whereClause string, args ...any) (*Memory, error)
 	return &m, nil
 }
 
-func QueryMemories(db SQLClient, whereClause string, args ...any) ([]*Memory, error) {
-	rows, err := db.Query(fmt.Sprintf(`
-		SELECT
-			oid,
-			packfile_oid,
-			note_oid,
-			relative_path,
-			text,
-			occurred_at,
-			created_at,
-			updated_at,
-			indexed_at
-		FROM memory
-		%s
-		ORDER BY occurred_at DESC;`, whereClause), args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
 
-	var memories []*Memory
-	for rows.Next() {
-		var memory Memory
-
-		var occurredAt string
-		var createdAt string
-		var updatedAt string
-		var indexedAt sql.NullString
-
-		err := rows.Scan(
-			&memory.OID,
-			&memory.PackFileOID,
-			&memory.NoteOID,
-			&memory.RelativePath,
-			&memory.Text,
-			&occurredAt,
-			&createdAt,
-			&updatedAt,
-			&indexedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		// Parse timestamps
-		memory.OccurredAt = timeFromSQL(occurredAt)
-		memory.CreatedAt = timeFromSQL(createdAt)
-		memory.UpdatedAt = timeFromSQL(updatedAt)
-		memory.IndexedAt = timeFromNullableSQL(indexedAt)
-
-		memories = append(memories, &memory)
-	}
-
-	return memories, nil
-}

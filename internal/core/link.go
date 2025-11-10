@@ -1,7 +1,6 @@
 package core
 
 import (
-	"database/sql"
 	"fmt"
 
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
@@ -19,21 +18,7 @@ type Link struct {
 	Type string `yaml:"type" json:"type"`
 }
 
-func NewLinkFromObjects(objA, objB Object, relationship string) *Link {
-	return NewLink(objA.UniqueOID(), objA.Kind(), objB.UniqueOID(), objB.Kind(), relationship)
-}
 
-// NewLink instantiates a new link.
-func NewLink(oidA oid.OID, kindA string, oidB oid.OID, kindB string, relationship string) *Link {
-	r := &Link{
-		SourceOID:  oidA,
-		SourceKind: kindA,
-		TargetOID:  oidB,
-		TargetKind: kindB,
-		Type:       relationship,
-	}
-	return r
-}
 
 func (r Link) String() string {
 	return fmt.Sprintf("link %s[%s] -> %s -> %s[%s]", r.SourceKind, r.SourceOID, r.Type, r.TargetKind, r.TargetOID)
@@ -53,24 +38,7 @@ func (r *Link) ToMarkdown() string {
 
 /* Database Management */
 
-func (r *Repository) DeleteLinks(obj Object) error {
-	if obj.UniqueOID() == "" {
-		// No link was saved
-		return nil
-	}
-	CurrentLogger().Debugf("Deleting links from/to %s...", obj.UniqueOID())
-	query := `DELETE FROM link WHERE source_oid = ? or target_oid = ?;`
-	res, err := CurrentDB().Client().Exec(query, obj.UniqueOID(), obj.UniqueOID())
-	if err != nil {
-		return err
-	}
-	rows, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	CurrentLogger().Debugf("Deleted %d rows in table 'link'", rows)
-	return nil
-}
+
 
 func (r *Repository) UpdateLinks(source Object, additionalLinks []*Link) error {
 	// We systematically recreate all links to be sure to not have dangling links
@@ -122,56 +90,17 @@ func (r *Repository) UpdateLinks(source Object, additionalLinks []*Link) error {
 }
 
 // CountLinks returns the total number of links.
-func (r *Repository) CountLinks() (int, error) {
-	var count int
-	if err := CurrentDB().Client().QueryRow(`SELECT count(*) FROM link`).Scan(&count); err != nil {
-		return 0, err
-	}
-	return count, nil
-}
+
 
 func (r *Repository) FindLinks() ([]*Link, error) {
 	return QueryLinks(CurrentDB().Client(), "")
 }
 
-func (r *Repository) FindLinksTo(oid oid.OID) ([]*Link, error) {
-	return QueryLinks(CurrentDB().Client(), `WHERE target_oid = ?`, oid)
-}
 
-func (r *Repository) FindLinksFrom(oid oid.OID) ([]*Link, error) {
-	return QueryLinks(CurrentDB().Client(), `WHERE source_oid = ?`, oid)
-}
 
 /* SQL Helpers */
 
-func QueryLink(db SQLClient, whereClause string, args ...any) (*Link, error) {
-	var r Link
 
-	// Query for a value based on a single row.
-	if err := db.QueryRow(fmt.Sprintf(`
-		SELECT
-			source_oid,
-			source_kind,
-			target_oid,
-			target_kind,
-			type
-		FROM link
-		%s;`, whereClause), args...).
-		Scan(
-			&r.SourceOID,
-			&r.SourceKind,
-			&r.TargetOID,
-			&r.TargetKind,
-			&r.Type,
-		); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	return &r, nil
-}
 
 func QueryLinks(db SQLClient, whereClause string, args ...any) ([]*Link, error) {
 	var links []*Link

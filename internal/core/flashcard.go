@@ -1,7 +1,6 @@
 package core
 
 import (
-	"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -364,15 +363,7 @@ func (f *Flashcard) Delete() error {
 	return err
 }
 
-func SettingsJSON(settings map[string]any) (string, error) {
-	var buf bytes.Buffer
-	bufEncoder := json.NewEncoder(&buf)
-	err := bufEncoder.Encode(settings)
-	if err != nil {
-		return "", err
-	}
-	return buf.String(), nil
-}
+
 
 /* SQL Queries */
 
@@ -422,17 +413,13 @@ func (r *Repository) LoadFlashcardByNoteOID(noteID oid.OID) (*Flashcard, error) 
 	return QueryFlashcard(CurrentDB().Client(), `WHERE note_oid = ?`, noteID)
 }
 
-func (r *Repository) LoadFlashcards() ([]*Flashcard, error) {
-	return QueryFlashcards(CurrentDB().Client(), ``)
-}
+
 
 func (r *Repository) FindFlashcardByShortTitle(shortTitle string) (*Flashcard, error) {
 	return QueryFlashcard(CurrentDB().Client(), `WHERE short_title = ?`, shortTitle)
 }
 
-func (r *Repository) FindFlashcardByHash(hash string) (*Flashcard, error) {
-	return QueryFlashcard(CurrentDB().Client(), `WHERE hash = ?`, hash)
-}
+
 
 /* SQL Helpers */
 
@@ -512,92 +499,7 @@ func QueryFlashcard(db SQLClient, whereClause string, args ...any) (*Flashcard, 
 	return &f, nil
 }
 
-func QueryFlashcards(db SQLClient, whereClause string, args ...any) ([]*Flashcard, error) {
-	var flashcards []*Flashcard
 
-	rows, err := db.Query(fmt.Sprintf(`
-		SELECT
-			oid,
-			packfile_oid,
-			file_oid,
-			note_oid,
-			relative_path,
-			short_title,
-			slug,
-			tags,
-			front,
-			back,
-			due_at,
-			studied_at,
-			settings,
-			created_at,
-			updated_at,
-			indexed_at
-		FROM flashcard
-		%s;`, whereClause), args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var f Flashcard
-		var tagsRaw string
-		var settingsRaw sql.NullString
-		var dueAt sql.NullString
-		var studiedAt sql.NullString
-		var createdAt string
-		var updatedAt string
-		var lastIndexedAt string
-
-		err = rows.Scan(
-			&f.OID,
-			&f.PackFileOID,
-			&f.FileOID,
-			&f.NoteOID,
-			&f.RelativePath,
-			&f.ShortTitle,
-			&f.Slug,
-			&tagsRaw,
-			&f.Front,
-			&f.Back,
-			&dueAt,
-			&studiedAt,
-			&settingsRaw,
-			&createdAt,
-			&updatedAt,
-			&lastIndexedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		var settings map[string]any
-		if settingsRaw.Valid {
-			err := yaml.Unmarshal([]byte(settingsRaw.String), &settings)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		if tagsRaw != "" {
-			f.Tags = strings.Split(tagsRaw, ",")
-		}
-		f.Settings = settings
-		f.DueAt = timeFromNullableSQL(dueAt)
-		f.StudiedAt = timeFromNullableSQL(studiedAt)
-		f.CreatedAt = timeFromSQL(createdAt)
-		f.UpdatedAt = timeFromSQL(updatedAt)
-		f.IndexedAt = timeFromSQL(lastIndexedAt)
-		flashcards = append(flashcards, &f)
-	}
-
-	err = rows.Err()
-	if err != nil {
-		return nil, err
-	}
-
-	return flashcards, err
-}
 
 /* Operations */
 
