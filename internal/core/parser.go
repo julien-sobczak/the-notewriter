@@ -510,7 +510,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		attributes = attributes.Merge(noteAttributes)
 		// Append hooks defined on the note type
 		if noteType.Hooks != nil {
-			attributes.AddHook(noteType.Hooks...)
+			attributes = attributes.AddHook(noteType.Hooks...)
 		}
 
 		// Apply default values for missing required attributes

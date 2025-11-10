@@ -33,8 +33,8 @@ func init() {
 // DateExtractorProcessor extracts the date from the note title and sets it as an attribute.
 func DateExtractorProcessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, error) {
 	if date, ok := ExtractDateFromTitle(note.Title); ok {
-		note.Attributes.SetIfMissing("date", date)
-		note.NoteAttributes.SetIfMissing("date", date)
+		note.Attributes = note.Attributes.SetIfMissing("date", date)
+		note.NoteAttributes = note.NoteAttributes.SetIfMissing("date", date)
 	}
 	return []*ParsedNote{note}, nil
 }
@@ -322,8 +322,8 @@ func ListItemsProcessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, erro
 	uniqueAttributes := note.Items.Children.UniqueAttribute()
 	for attributeName, attributeValue := range uniqueAttributes {
 		if noteType.PromoteInlineAttribute(attributeName) {
-			note.Attributes.SetIfMissing(attributeName, attributeValue)
-			note.NoteAttributes.SetIfMissing(attributeName, attributeValue)
+			note.Attributes = note.Attributes.SetIfMissing(attributeName, attributeValue)
+			note.NoteAttributes = note.NoteAttributes.SetIfMissing(attributeName, attributeValue)
 		}
 	}
 
