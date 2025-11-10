@@ -117,7 +117,7 @@ func (r *Reminder) Write(w io.Writer) error {
 	return err
 }
 
-func (r *Reminder) Relations() []*Relation {
+func (r *Reminder) Links() []*Link {
 	return nil
 }
 

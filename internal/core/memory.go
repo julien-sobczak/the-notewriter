@@ -108,8 +108,8 @@ func (m *Memory) Write(w io.Writer) error {
 	return err
 }
 
-func (m *Memory) Relations() []*Relation {
-	// Memories don't create relations by default
+func (m *Memory) Links() []*Link {
+	// Memories don't create links by default
 	return nil
 }
 

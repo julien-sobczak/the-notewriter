@@ -103,7 +103,7 @@ func (l *Goto) Write(w io.Writer) error {
 	return err
 }
 
-func (l *Goto) Relations() []*Relation {
+func (l *Goto) Links() []*Link {
 	return nil
 }
 

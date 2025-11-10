@@ -149,8 +149,8 @@ func (f *File) Write(w io.Writer) error {
 	return err
 }
 
-func (f *File) Relations() []*Relation {
-	// We consider only relations related to notes
+func (f *File) Links() []*Link {
+	// We consider only links related to notes
 	return nil
 }
 

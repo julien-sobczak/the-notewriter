@@ -77,8 +77,8 @@ type Object interface {
 	Dumpable
 	Packable
 
-	// Relations returns the relations where the current object is the source.
-	Relations() []*Relation
+	// Links returns the links where the current object is the source.
+	Links() []*Link
 
 	// Update website/guides/devolopers/presentation.md
 }

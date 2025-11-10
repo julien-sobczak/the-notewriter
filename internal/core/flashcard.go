@@ -182,7 +182,7 @@ func (f *Flashcard) Write(w io.Writer) error {
 	return err
 }
 
-func (f *Flashcard) Relations() []*Relation {
+func (f *Flashcard) Links() []*Link {
 	return nil
 }
 

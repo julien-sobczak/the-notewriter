@@ -290,14 +290,14 @@ CREATE TABLE memory (
 );
 
 
-CREATE TABLE relation (
+CREATE TABLE link (
 	-- The source note OID that references the target note
   source_oid TEXT NOT NULL,
   source_kind TEXT NOT NULL,
 	-- The target note OID that is referenced by the source note
   target_oid TEXT NOT NULL,
   target_kind TEXT NOT NULL,
-	-- The kind of relation (to classify)
+	-- The kind of link (to classify)
 	"type" TEXT NOT NULL,
 
 	PRIMARY KEY (source_oid, target_oid, type)

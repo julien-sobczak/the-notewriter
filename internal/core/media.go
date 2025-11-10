@@ -329,8 +329,8 @@ func (m *Media) Write(w io.Writer) error {
 	return err
 }
 
-func (m *Media) Relations() []*Relation {
-	// Medias are referenced by notes but don't have relation toward other objects by themselves.
+func (m *Media) Links() []*Link {
+	// Medias are referenced by notes but don't have link toward other objects by themselves.
 	return nil
 }
 
