@@ -106,11 +106,11 @@ func TestParserWithInfobox(t *testing.T) {
 			"office":           "President of South Africa",
 			"term_start":       "1994-05-10",
 			"term_end":         "1999-06-14",
-			"deputy":           []interface{}{"Thabo Mbeki", "F. W. de Klerk"},
+			"deputy":           []any{"Thabo Mbeki", "F. W. de Klerk"},
 			"successor":        "Thabo Mbeki",
 			"order3":           "11th",
 			"office3":          "President of the African National Congress",
-			"deputy3":          []interface{}{"Walter Sisulu", "Thabo Mbeki"},
+			"deputy3":          []any{"Walter Sisulu", "Thabo Mbeki"},
 			"term_end3":        "1997-12-20",
 			"predecessor3":     "Oliver Tambo",
 			"successor3":       "Thabo Mbeki",
@@ -134,8 +134,8 @@ func TestParserWithInfobox(t *testing.T) {
 			"resting_place":    "Mandela Graveyard, {{avoid wrap|Qunu, Eastern Cape}}",
 			"party":            "African National Congress",
 			"otherparty":       "South African Communist",
-			"spouse":           []interface{}(nil),
-			"alma_mater":       []interface{}{"University of Fort Hare", "University of London", "University of South Africa", "University of the Witwatersrand"},
+			"spouse":           []any(nil),
+			"alma_mater":       []any{"University of Fort Hare", "University of London", "University of South Africa", "University of the Witwatersrand"},
 			"notableworks":     "Long Walk to Freedom",
 		},
 	}
@@ -168,9 +168,9 @@ func TestStripLinks(t *testing.T) {
 
 func TestParseAttributeValue(t *testing.T) {
 	var tests = []struct {
-		name     string      // name
-		rawValue string      // input
-		expected interface{} // expected result
+		name     string // name
+		rawValue string // input
+		expected any    // expected result
 	}{
 
 		{
@@ -209,7 +209,7 @@ func TestParseAttributeValue(t *testing.T) {
 * Thabo Mbeki
 * F. W. de Klerk
 }}`,
-			[]interface{}{"Thabo Mbeki", "F. W. de Klerk"},
+			[]any{"Thabo Mbeki", "F. W. de Klerk"},
 		},
 
 		{

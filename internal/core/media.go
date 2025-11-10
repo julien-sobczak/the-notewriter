@@ -713,7 +713,7 @@ func QueryBlob(db SQLClient, whereClause string, args ...any) (*BlobRef, error) 
 		return nil, err
 	}
 
-	attributes := make(map[string]interface{})
+	attributes := make(map[string]any)
 	err := yaml.Unmarshal([]byte(attributesRaw), &attributes)
 	if err != nil {
 		return nil, err
@@ -754,7 +754,7 @@ func QueryBlobs(db SQLClient, whereClause string, args ...any) ([]*BlobRef, erro
 			return nil, err
 		}
 
-		attributes := make(map[string]interface{})
+		attributes := make(map[string]any)
 		err := yaml.Unmarshal([]byte(attributesRaw), &attributes)
 		if err != nil {
 			return nil, err

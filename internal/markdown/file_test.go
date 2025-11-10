@@ -185,9 +185,9 @@ func TestParseMarkdown(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, map[string]any{
 					"title":  "Title",
-					"tags":   []interface{}{"tag1", "tag2"},
+					"tags":   []any{"tag1", "tag2"},
 					"rating": 3,
-					"links":  []interface{}{"https://github.com"},
+					"links":  []any{"https://github.com"},
 				}, fmMap)
 				fmNode, err := md.FrontMatter.AsNode()
 				require.NoError(t, err)

@@ -242,7 +242,7 @@ title: My Note
 		{
 			name: "join (with any)",
 			result: map[string]any{
-				"authors": []interface{}{"Bob", "Alice"},
+				"authors": []any{"Bob", "Alice"},
 				"pages":   210,
 			},
 			template: `{{index . "authors" | join ", " }}`,

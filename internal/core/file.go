@@ -75,7 +75,7 @@ func NewEmptyFile(name string) *File { // TODO still useful?
 		Slug:         "",
 		Wikilink:     name,
 		RelativePath: name,
-		Attributes:   make(map[string]interface{}),
+		Attributes:   make(map[string]any),
 	}
 }
 

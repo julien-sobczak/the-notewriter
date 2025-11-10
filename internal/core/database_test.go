@@ -85,7 +85,7 @@ class SillyClass:
 	assert.Equal(t, "programming-python", file.Slug)
 	assert.Equal(t, "programming/python", file.Wikilink)
 	assert.Equal(t, markdown.FrontMatter("tags: python\n"), file.FrontMatter)
-	assert.Equal(t, AttributeSet(map[string]interface{}{
+	assert.Equal(t, AttributeSet(map[string]any{
 		"tags": []string{"programming", "python"},
 	}), file.Attributes)
 	assert.Equal(t, "Python", file.Title.String())

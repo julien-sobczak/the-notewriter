@@ -13,7 +13,6 @@ build:
 	go build --tags "fts5" -o build/nt cmd/nt/*.go
 	go build --tags "fts5" -o build/ntlite cmd/ntlite/*.go
 	go build --tags "fts5" -o build/ntreference cmd/nt-reference/*.go
-	go build --tags "fts5" -o build/ntjournal cmd/nt-journal/*.go
 	go build --tags "fts5" -o build/ntanki cmd/nt-anki/*.go
 	go build --tags "fts5" -o build/ntbook cmd/nt-book/*.go
 	go build --tags "fts5" -o build/ntvault cmd/nt-vault/*.go
@@ -55,7 +54,6 @@ test-all:
 install: build
 	cp build/nt /Users/julien/go/bin/nt
 	cp build/ntreference /Users/julien/go/bin/nt-reference
-	cp build/ntjournal /Users/julien/go/bin/nt-journal
 	cp build/ntanki /Users/julien/go/bin/nt-anki
 	cp build/ntbook /Users/julien/go/bin/nt-book
 	cp build/ntvault /Users/julien/go/bin/nt-vault

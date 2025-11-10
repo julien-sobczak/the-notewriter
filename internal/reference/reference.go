@@ -95,7 +95,7 @@ func ParseTemplate(templateText string) (*template.Template, error) {
 			if v, ok := data.([]string); ok {
 				return strings.Join(v, sep), nil
 			}
-			if rawValues, ok := data.([]interface{}); ok {
+			if rawValues, ok := data.([]any); ok {
 				var v []string
 				for _, rawValue := range rawValues {
 					if typedValue, ok := rawValue.(string); ok {

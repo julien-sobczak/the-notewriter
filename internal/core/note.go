@@ -475,7 +475,7 @@ func (n *Note) GetFile() *File {
 	return file
 }
 
-func (n *Note) GetAttributes() map[string]interface{} {
+func (n *Note) GetAttributes() map[string]any {
 	// Present to be consistent with File.GetAttributes()
 	return n.Attributes
 }
@@ -485,14 +485,14 @@ func (n *Note) HasAttribute(name string) bool {
 	return ok
 }
 
-func (n *Note) SetAttribute(name string, value interface{}) {
+func (n *Note) SetAttribute(name string, value any) {
 	if n.Attributes == nil {
-		n.Attributes = make(map[string]interface{})
+		n.Attributes = make(map[string]any)
 	}
 	n.Attributes[name] = value
 }
 
-func (n *Note) GetAttribute(name string) interface{} {
+func (n *Note) GetAttribute(name string) any {
 	if value, ok := n.Attributes[name]; ok {
 		return value
 	}

@@ -521,7 +521,7 @@ func TestListItems(t *testing.T) {
 			Line:       1,
 			Text:       "_Atomic Habits_ by James Clear",
 			Tags:       []string{"self-help"},
-			Attributes: map[string]interface{}{"rating": 10},
+			Attributes: map[string]any{"rating": 10},
 			Emojis:     []string{"🇬🇧", "🇫🇷"},
 			Children: []*ListItem{
 				{
@@ -536,14 +536,14 @@ func TestListItems(t *testing.T) {
 			Line:       3,
 			Text:       "_The Pragmatic Programmer_ by Andrew Hunt and David Thomas",
 			Tags:       []string{"programming"},
-			Attributes: map[string]interface{}{"rating": 9},
+			Attributes: map[string]any{"rating": 9},
 			Emojis:     []string{"🇬🇧"},
 			Children: []*ListItem{
 				{
 					Line:       4,
 					Text:       "The Pragmatic Programmer is a book about software engineering best practices.",
 					Tags:       []string{"buy"},
-					Attributes: map[string]interface{}{"priority": "high"},
+					Attributes: map[string]any{"priority": "high"},
 				},
 			},
 		},

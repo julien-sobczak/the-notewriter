@@ -11,7 +11,7 @@ type Query struct {
 	Slug       string
 	Types      []string
 	Tags       []string
-	Attributes map[string]interface{}
+	Attributes map[string]any
 	Path       string
 	Terms      []string
 }
@@ -19,7 +19,7 @@ type Query struct {
 // NewQuery instantiates a new query.
 func NewQuery() *Query {
 	return &Query{
-		Attributes: make(map[string]interface{}),
+		Attributes: make(map[string]any),
 	}
 }
 
@@ -87,9 +87,9 @@ func ParseQuery(q string) (*Query, error) {
 			if pathToken == scanner.EOF {
 				return nil, errors.New("unexpected EOF when a path was expected")
 			}
-			
+
 			pathValue := s.TokenText()
-			
+
 			// If the path starts with quotes, it's a quoted path - just remove the quotes
 			if strings.HasPrefix(pathValue, `"`) {
 				result.Path = strings.TrimRight(strings.TrimLeft(pathValue, `"`), `"`)
@@ -98,14 +98,14 @@ func ParseQuery(q string) (*Query, error) {
 				// This handles cases like: path:thoughts/on-learning.md
 				var pathBuilder strings.Builder
 				pathBuilder.WriteString(pathValue)
-				
+
 				for {
 					nextRune := s.Peek()
 					if nextRune == scanner.EOF {
 						break
 					}
 					// Continue if it's a path separator, dot, hyphen, or alphanumeric
-					if nextRune == '/' || nextRune == '-' || nextRune == '.' || 
+					if nextRune == '/' || nextRune == '-' || nextRune == '.' ||
 						unicode.IsLetter(rune(nextRune)) || unicode.IsDigit(rune(nextRune)) {
 						s.Scan() // consume the token
 						pathBuilder.WriteString(s.TokenText())
@@ -123,7 +123,7 @@ func ParseQuery(q string) (*Query, error) {
 				return nil, errors.New("unexpected EOF when a tag name was expected")
 			}
 			tag := s.TokenText()
-			
+
 			// Continue reading to build the full tag including slashes and hyphens
 			// This handles cases like: #todo/read, #project/personal/goals
 			for {
@@ -132,7 +132,7 @@ func ParseQuery(q string) (*Query, error) {
 					break
 				}
 				// Continue if it's a separator we want to include in tags or alphanumeric
-				if nextRune == '/' || nextRune == '-' || 
+				if nextRune == '/' || nextRune == '-' ||
 					unicode.IsLetter(rune(nextRune)) || unicode.IsDigit(rune(nextRune)) {
 					s.Scan() // consume the token
 					tag += s.TokenText()

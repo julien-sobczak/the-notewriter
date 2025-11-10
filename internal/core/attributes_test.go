@@ -270,13 +270,13 @@ tags: favorite
 		}{
 			{
 				name: "Basic",
-				a: map[string]interface{}{
+				a: map[string]any{
 					"1": "toto",
 					"2": []string{"toto"},
 					"3": 3,
 					"4": "OK",
 				},
-				b: map[string]interface{}{
+				b: map[string]any{
 					// 1 is missing
 					"2": "toto", // different type
 					"3": "3",    // different type
@@ -308,37 +308,37 @@ tags: favorite
 			},
 			{
 				name: "append in slices",
-				inputA: map[string]interface{}{
-					"tags": []interface{}{"a", "b"},
+				inputA: map[string]any{
+					"tags": []any{"a", "b"},
 				},
-				inputB: map[string]interface{}{
-					"tags": []interface{}{"c", "d"},
+				inputB: map[string]any{
+					"tags": []any{"c", "d"},
 				},
-				expected: map[string]interface{}{
-					"tags": []interface{}{"a", "b", "c", "d"},
+				expected: map[string]any{
+					"tags": []any{"a", "b", "c", "d"},
 				},
 			},
 			{
 				name: "override basic value",
-				inputA: map[string]interface{}{
+				inputA: map[string]any{
 					"tags": "a",
 				},
-				inputB: map[string]interface{}{
+				inputB: map[string]any{
 					"tags": "b",
 				},
-				expected: map[string]interface{}{
+				expected: map[string]any{
 					"tags": "b",
 				},
 			},
 			{
 				name: "add new keys",
-				inputA: map[string]interface{}{
+				inputA: map[string]any{
 					"a": "a",
 				},
-				inputB: map[string]interface{}{
+				inputB: map[string]any{
 					"b": "b",
 				},
-				expected: map[string]interface{}{
+				expected: map[string]any{
 					"a": "a",
 					"b": "b",
 				},
@@ -572,7 +572,7 @@ composite_array:
 object:
   key: name
 `
-	data := make(map[string]interface{})
+	data := make(map[string]any)
 	err := yaml.Unmarshal([]byte(input), &data)
 	require.NoError(t, err)
 
@@ -596,12 +596,12 @@ key:
 - string
 - true
 `
-	data := make(map[string]interface{})
+	data := make(map[string]any)
 	err := yaml.Unmarshal([]byte(input), data)
 	require.NoError(t, err)
 	assert.Len(t, data["key"], 3)
-	assert.IsType(t, []interface{}{}, data["key"])
-	values := data["key"].([]interface{})
+	assert.IsType(t, []any{}, data["key"])
+	values := data["key"].([]any)
 	assert.Equal(t, 10, values[0])
 	assert.Equal(t, "string", values[1])
 	assert.Equal(t, true, values[2])

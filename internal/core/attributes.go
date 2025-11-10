@@ -260,7 +260,7 @@ func NewAttributeSet(attributes map[string]any) AttributeSet {
 
 // NewAttributeSetFromYAML unmarshall attributes.
 func NewAttributeSetFromYAML(rawValue string) (AttributeSet, error) {
-	var attributes map[string]interface{}
+	var attributes map[string]any
 	err := yaml.Unmarshal([]byte(rawValue), &attributes)
 	if err != nil {
 		return nil, err
@@ -626,7 +626,7 @@ func (a AttributeSet) CastOrIgnore(types ConfigAttributes) AttributeSet {
 
 // Cast enforces the types declared in linter schemas.
 func (a AttributeSet) Cast(types ConfigAttributes) (AttributeSet, error) {
-	result := make(map[string]interface{})
+	result := make(map[string]any)
 	for key, value := range a {
 		declaredType, found := types.Find(key)
 		if !found {
@@ -806,7 +806,7 @@ func ExtractBlockTagsAndAttributes(content markdown.Document, configAttributes C
 
 	// Collect tags and attributes
 	var tags TagSet
-	var attributes AttributeSet = make(map[string]interface{})
+	var attributes AttributeSet = make(map[string]any)
 
 	for _, line := range content.Lines() {
 
@@ -1148,47 +1148,47 @@ var floatDataTypeKinds = []reflect.Kind{
 }
 
 // IsPrimitive returns if a variable is a primitive type.
-func IsPrimitive(value interface{}) bool {
+func IsPrimitive(value any) bool {
 	return slices.Contains(primitiveDataTypeKinds, reflect.TypeOf(value).Kind())
 }
 
 // IsComposite returns if a variable is a composite type.
-func IsComposite(value interface{}) bool {
+func IsComposite(value any) bool {
 	return slices.Contains(compositeDataTypeKinds, reflect.TypeOf(value).Kind())
 }
 
 // IsArray returns if a variable is a JSON array.
-func IsArray(value interface{}) bool {
+func IsArray(value any) bool {
 	return slices.Contains(arrayDataTypeKinds, reflect.TypeOf(value).Kind())
 }
 
 // IsObject returns if a variable is a JSON map.
-func IsObject(value interface{}) bool {
+func IsObject(value any) bool {
 	return slices.Contains(objectDataTypeKinds, reflect.TypeOf(value).Kind())
 }
 
 // IsNumber returns if a variable is a JSON number.
-func IsNumber(value interface{}) bool {
+func IsNumber(value any) bool {
 	return slices.Contains(numberDataTypeKinds, reflect.TypeOf(value).Kind())
 }
 
 // IsInteger returns if a variable is a JSON number of integer type.
-func IsInteger(value interface{}) bool {
+func IsInteger(value any) bool {
 	return slices.Contains(integerDataTypeKinds, reflect.TypeOf(value).Kind())
 }
 
 // IsFloat returns if a variable is a JSON number of float type.
-func IsFloat(value interface{}) bool {
+func IsFloat(value any) bool {
 	return slices.Contains(floatDataTypeKinds, reflect.TypeOf(value).Kind())
 }
 
 // IsBool returns if a variable is a JSON boolean.
-func IsBool(value interface{}) bool {
+func IsBool(value any) bool {
 	return reflect.Bool == reflect.TypeOf(value).Kind()
 }
 
 // IsString returns if a variable is a JSON string.
-func IsString(value interface{}) bool {
+func IsString(value any) bool {
 	return reflect.String == reflect.TypeOf(value).Kind()
 }
 

@@ -83,7 +83,6 @@ Always test complete workflows after making changes:
 ├── cmd/              # CLI tool implementations
 │   ├── nt/           # Main note management tool
 │   ├── nt-anki/      # Anki flashcard integration
-│   ├── nt-journal/   # Journaling prompts and affirmations
 │   ├── nt-reference/ # Reference generation from external sources
 │   └── ntlite/       # Lightweight version (has sqlite3 issues)
 ├── e2e/              # End-to-end tests
@@ -121,10 +120,6 @@ nt gc                # Garbage collection
 - Supports Google Books, Zotero, Wikipedia as sources
 - Uses template system with custom functions (title, slug, jq, etc.)
 - Configuration in `.nt/config.jsonnet` under `[reference.ABC]` sections
-
-**nt-journal:** Journaling tool with prompts and affirmations
-- Provides daily prompts and positive affirmations
-- Interactive CLI with embedded content
 
 **nt-anki:** Anki flashcard conversion tool
 - Converts Anki flashcards to note format

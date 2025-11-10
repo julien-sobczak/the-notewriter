@@ -62,7 +62,7 @@ func NewObjectData(packable Packable) (ObjectData, error) {
 	return ObjectData(zb.Bytes()), nil
 }
 
-func (od ObjectData) MarshalYAML() (interface{}, error) {
+func (od ObjectData) MarshalYAML() (any, error) {
 	return base64.StdEncoding.EncodeToString(od), nil
 }
 
@@ -76,7 +76,7 @@ func (od *ObjectData) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (od ObjectData) Unmarshal(target interface{}) error {
+func (od ObjectData) Unmarshal(target any) error {
 	if target == nil {
 		return fmt.Errorf("cannot unmarshall in nil target")
 	}
@@ -277,7 +277,7 @@ func (p *PackFile) AppendBlobs(blobs []*BlobRef) error {
 }
 
 // UnmarshallObject extract a single object from a commit.
-func (p *PackFile) UnmarshallObject(oid oid.OID, target interface{}) error {
+func (p *PackFile) UnmarshallObject(oid oid.OID, target any) error {
 	for _, objEdit := range p.PackObjects {
 		if objEdit.OID == oid {
 			return objEdit.Data.Unmarshal(target)

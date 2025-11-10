@@ -36,13 +36,13 @@ type ParseResponse struct {
 	Parse Parse `json:"parse"`
 }
 type Parse struct {
-	Title  string      `json:"title"`
-	PageID int         `json:"pageid"`
-	Text   interface{} `json:"wikitext"`
+	Title  string `json:"title"`
+	PageID int    `json:"pageid"`
+	Text   any    `json:"wikitext"`
 }
 
 func (p Parse) RawText() string {
-	return p.Text.(map[string]interface{})["*"].(string)
+	return p.Text.(map[string]any)["*"].(string)
 }
 
 // Manager provides reference management using Wikipedia API.

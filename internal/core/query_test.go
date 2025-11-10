@@ -71,7 +71,7 @@ func TestParseQuery(t *testing.T) {
 		assert.Equal(t, "projects/toto", query.Path)
 		assert.EqualValues(t, []string{"note", "flashcard"}, query.Types)
 		assert.EqualValues(t, []string{"favorite", "life-changing"}, query.Tags)
-		assert.EqualValues(t, map[string]interface{}{
+		assert.EqualValues(t, map[string]any{
 			"title": "Note Title",
 			"name":  "Epictectus",
 		}, query.Attributes)

@@ -468,7 +468,7 @@ func (od *ObjectData) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (od ObjectData) Unmarshal(target interface{}) error {
+func (od ObjectData) Unmarshal(target any) error {
 	if target == nil {
 		return fmt.Errorf("cannot unmarshall in nil target")
 	}

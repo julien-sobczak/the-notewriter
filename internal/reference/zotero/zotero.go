@@ -193,7 +193,7 @@ func (m *Manager) Search(query string) ([]reference.Result, error) {
 		fmt.Printf("client: could not read response body: %s\n", err)
 		os.Exit(1)
 	}
-	var response []map[string]interface{}
+	var response []map[string]any
 	if err := json.Unmarshal(body, &response); err != nil {
 		return nil, err
 	}

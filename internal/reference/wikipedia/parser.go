@@ -81,7 +81,7 @@ func parseWikitext(txt string) *Infobox {
 				}
 				key, wikiValue := res[1], res[2]
 
-				var parsedValue interface{}
+				var parsedValue any
 
 				if strings.HasPrefix(wikiValue, "{{") && !strings.HasSuffix(wikiValue, "}}") {
 					// Multiline value
@@ -116,7 +116,7 @@ func parseWikitext(txt string) *Infobox {
 	return infobox
 }
 
-func parseAttributeValue(value string) interface{} {
+func parseAttributeValue(value string) any {
 	value = stripTextFormatting(value)
 	value = stripLinks(value)
 	value = stripHTMLEntities(value)
@@ -164,9 +164,9 @@ func stripTextFormatting(value string) string {
 	return value
 }
 
-func parsePlainlist(value string) []interface{} {
+func parsePlainlist(value string) []any {
 	value = strings.TrimPrefix(value, "{{plainlist|\n")
-	var items []interface{}
+	var items []any
 	for _, item := range strings.Split(value, "\n") {
 		if strings.HasPrefix(item, "}}") {
 			break

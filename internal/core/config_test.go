@@ -61,7 +61,7 @@ func TestPathSpecs(t *testing.T) {
 }
 
 func TestInitConfiguration(t *testing.T) {
-	dir := populate(t, map[string]interface{}{
+	dir := populate(t, map[string]any{
 		// missing .nt directory
 		"journal/2022-12-24.md": `# Blablabla`,
 	})
@@ -79,7 +79,7 @@ func TestInitConfiguration(t *testing.T) {
 func TestReadConfigFromDirectory(t *testing.T) {
 
 	t.Run("Config present", func(t *testing.T) {
-		dir := populate(t, map[string]interface{}{
+		dir := populate(t, map[string]any{
 
 			".nt/config.jsonnet": `
 {
@@ -112,7 +112,7 @@ Blablabla`,
 	})
 
 	t.Run("Config missing", func(t *testing.T) {
-		dir := populate(t, map[string]interface{}{
+		dir := populate(t, map[string]any{
 			// missing .nt directory
 
 			".ntignore": `README.md`,
@@ -135,7 +135,7 @@ Blablabla`,
 func TestCheckConfig(t *testing.T) {
 
 	t.Run("Unknown Lint Rule", func(t *testing.T) {
-		dir := populate(t, map[string]interface{}{
+		dir := populate(t, map[string]any{
 
 			".nt/config.jsonnet": `
 {
@@ -159,7 +159,7 @@ func TestCheckConfig(t *testing.T) {
 	})
 
 	t.Run("Invalid severity", func(t *testing.T) {
-		dir := populate(t, map[string]interface{}{
+		dir := populate(t, map[string]any{
 
 			".nt/config.jsonnet": `
 {
@@ -182,7 +182,7 @@ func TestCheckConfig(t *testing.T) {
 	})
 
 	t.Run("Invalid pattern in schema", func(t *testing.T) {
-		dir := populate(t, map[string]interface{}{
+		dir := populate(t, map[string]any{
 
 			".nt/config.jsonnet": `
 {
@@ -290,7 +290,7 @@ func TestCheckConfig(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				dir := populate(t, map[string]interface{}{
+				dir := populate(t, map[string]any{
 					".nt/config.jsonnet": tt.config,
 				})
 
@@ -322,7 +322,7 @@ func TestCheckConfig(t *testing.T) {
 
 /* Test Helpers */
 
-func populate(t *testing.T, files map[string]interface{}) string {
+func populate(t *testing.T, files map[string]any) string {
 	dir := t.TempDir()
 
 	for relpath, content := range files {
