@@ -483,16 +483,16 @@ key3:
 		})
 
 		// Override basic types
-		set.SetAttribute("source", "Another Book")
+		set = set.SetAttribute("source", "Another Book")
 		assert.Equal(t, "Another Book", set["source"])
 
 		// Append in slices
-		set.SetAttribute("tags", "life-changing")
+		set = set.SetAttribute("tags", "life-changing")
 		assert.Equal(t, []string{"favorite", "life-changing"}, set["tags"])
-		set.SetAttribute("tags", []string{"living"})
+		set = set.SetAttribute("tags", []string{"living"})
 		assert.Equal(t, []string{"favorite", "life-changing", "living"}, set["tags"])
 		// Avoid duplicates
-		set.SetAttribute("tags", []string{"living"})
+		set = set.SetAttribute("tags", []string{"living"})
 		assert.Equal(t, []string{"favorite", "life-changing", "living"}, set["tags"])
 	})
 
@@ -665,6 +665,79 @@ func TestAttributeSetSpecialAttributes(t *testing.T) {
 		}
 	})
 
+}
+
+func TestAttributeSetImmutability(t *testing.T) {
+	t.Run("SetIfMissing immutability", func(t *testing.T) {
+		original := AttributeSet{"key1": "value1"}
+		result := original.SetIfMissing("key2", "value2")
+
+		// Original should be unchanged
+		assert.Equal(t, AttributeSet{"key1": "value1"}, original)
+		// Result should have both keys
+		assert.Equal(t, AttributeSet{"key1": "value1", "key2": "value2"}, result)
+
+		// Setting existing key should not change original
+		result2 := original.SetIfMissing("key1", "newvalue")
+		assert.Equal(t, AttributeSet{"key1": "value1"}, original)
+		assert.Equal(t, AttributeSet{"key1": "value1"}, result2)
+	})
+
+	t.Run("SetAttribute immutability", func(t *testing.T) {
+		original := AttributeSet{"source": "A Book"}
+		result := original.SetAttribute("source", "Another Book")
+
+		// Original should be unchanged
+		assert.Equal(t, AttributeSet{"source": "A Book"}, original)
+		// Result should have new value
+		assert.Equal(t, AttributeSet{"source": "Another Book"}, result)
+	})
+
+	t.Run("AddTag immutability", func(t *testing.T) {
+		original := AttributeSet{"tags": []string{"favorite"}}
+		result := original.AddTag("new-tag")
+
+		// Original should be unchanged
+		assert.Equal(t, AttributeSet{"tags": []string{"favorite"}}, original)
+		// Result should have both tags
+		assert.Equal(t, AttributeSet{"tags": []string{"favorite", "new-tag"}}, result)
+	})
+
+	t.Run("AddTags immutability", func(t *testing.T) {
+		original := AttributeSet{"tags": []string{"favorite"}}
+		result := original.AddTags(TagSet{"new-tag", "another-tag"})
+
+		// Original should be unchanged
+		assert.Equal(t, AttributeSet{"tags": []string{"favorite"}}, original)
+		// Result should have all tags
+		assert.Equal(t, AttributeSet{"tags": []string{"favorite", "new-tag", "another-tag"}}, result)
+	})
+
+	t.Run("AddHook immutability", func(t *testing.T) {
+		original := AttributeSet{"hook": []string{"hook1"}}
+		result := original.AddHook("hook2", "hook3")
+
+		// Original should be unchanged
+		assert.Equal(t, AttributeSet{"hook": []string{"hook1"}}, original)
+		// Result should have all hooks
+		assert.Equal(t, AttributeSet{"hook": []string{"hook1", "hook2", "hook3"}}, result)
+	})
+
+	t.Run("Chained operations immutability", func(t *testing.T) {
+		original := AttributeSet{"key1": "value1"}
+		result := original.
+			SetIfMissing("key2", "value2").
+			AddTag("tag1").
+			AddHook("hook1")
+
+		// Original should be unchanged
+		assert.Equal(t, AttributeSet{"key1": "value1"}, original)
+		// Result should have all modifications
+		assert.Contains(t, result, "key1")
+		assert.Contains(t, result, "key2")
+		assert.Contains(t, result, "tags")
+		assert.Contains(t, result, "hook")
+	})
 }
 
 func TestTags(t *testing.T) {

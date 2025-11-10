@@ -285,12 +285,16 @@ func NewAttributeSetFromText(content string, configAttributes ConfigAttributes) 
 	return ExtractAttributes(markdown.Document(content), configAttributes)
 }
 
-// SetIfMissing sets the attribute only if it is not already set.
-func (a AttributeSet) SetIfMissing(key string, value any) {
-	// IMPROVEMENT Avoid side-effect methods
-	if _, ok := a[key]; !ok {
-		a[key] = value
+// SetIfMissing creates a new AttributeSet with the attribute set only if it is not already present.
+func (a AttributeSet) SetIfMissing(key string, value any) AttributeSet {
+	result := make(AttributeSet)
+	for k, v := range a {
+		result[k] = v
 	}
+	if _, ok := result[key]; !ok {
+		result[key] = value
+	}
+	return result
 }
 
 // DiffKeys returns the keys present in only one of the attribute sets.
@@ -316,11 +320,11 @@ func (a AttributeSet) DiffKeys(other AttributeSet) []string {
 func (a AttributeSet) Merge(attributes ...AttributeSet) AttributeSet {
 	var result AttributeSet = make(map[string]any)
 	for newKey, newValue := range a {
-		result.SetAttribute(newKey, newValue)
+		result = result.SetAttribute(newKey, newValue)
 	}
 	for _, m := range attributes {
 		for newKey, newValue := range m {
-			result.SetAttribute(newKey, newValue)
+			result = result.SetAttribute(newKey, newValue)
 		}
 	}
 
@@ -365,13 +369,18 @@ func (a AttributeSet) AsMap() map[string]any {
 	return a
 }
 
-func (a AttributeSet) SetAttribute(name string, value any) {
-	// IMPROVEMENT Avoid side-effect methods
+func (a AttributeSet) SetAttribute(name string, value any) AttributeSet {
+	result := make(AttributeSet)
+	for k, v := range a {
+		result[k] = v
+	}
+
 	// Check if the attribute was already defined
-	currentValue, ok := a[name]
+	currentValue, ok := result[name]
 
 	if !ok {
-		a[name] = value
+		result[name] = value
+		return result
 	}
 
 	// If the type is a slice, append the new value instead of overriding
@@ -380,31 +389,38 @@ func (a AttributeSet) SetAttribute(name string, value any) {
 		switch y := value.(type) {
 		case []string:
 			// Avoid duplicates when possible (ex: tags)
+			newSlice := make([]string, len(x))
+			copy(newSlice, x)
 			for _, vy := range y {
-				if !slices.Contains(x, vy) {
-					x = append(x, vy)
+				if !slices.Contains(newSlice, vy) {
+					newSlice = append(newSlice, vy)
 				}
 			}
-			a[name] = x
+			result[name] = newSlice
 		default:
 			// Avoid duplicates (ex: tags)
 			vy := fmt.Sprintf("%v", value)
-			if !slices.Contains(x, vy) {
-				x = append(x, vy)
+			newSlice := make([]string, len(x))
+			copy(newSlice, x)
+			if !slices.Contains(newSlice, vy) {
+				newSlice = append(newSlice, vy)
 			}
-			a[name] = x
+			result[name] = newSlice
 		}
 	case []any:
+		newSlice := make([]any, len(x))
+		copy(newSlice, x)
 		switch y := value.(type) {
 		case []any:
-			a[name] = append(x, y...)
+			result[name] = append(newSlice, y...)
 		default:
-			a[name] = append(x, value)
+			result[name] = append(newSlice, value)
 		}
 	default:
 		// override
-		a[name] = value
+		result[name] = value
 	}
+	return result
 }
 
 /* Special attributes */
@@ -416,29 +432,38 @@ func (a AttributeSet) Tags() TagSet {
 	return nil
 }
 
-func (a AttributeSet) AddTag(newTag string) {
-	// IMPROVEMENT Avoid side-effect methods
-	if _, ok := a["tags"]; !ok {
-		// Not tag currently present
-		a["tags"] = []string{newTag}
-		return
+func (a AttributeSet) AddTag(newTag string) AttributeSet {
+	result := make(AttributeSet)
+	for k, v := range a {
+		result[k] = v
 	}
-	if tags, ok := a["tags"].([]string); ok {
+
+	if _, ok := result["tags"]; !ok {
+		// No tag currently present
+		result["tags"] = []string{newTag}
+		return result
+	}
+	if tags, ok := result["tags"].([]string); ok {
 		for _, tag := range tags {
 			if tag == newTag {
 				// Already present
-				return
+				return result
 			}
 		}
-		a["tags"] = append(tags, newTag)
-		return
+		newTags := make([]string, len(tags))
+		copy(newTags, tags)
+		result["tags"] = append(newTags, newTag)
+		return result
 	}
+	return result
 }
 
-func (a AttributeSet) AddTags(tags TagSet) {
+func (a AttributeSet) AddTags(tags TagSet) AttributeSet {
+	result := a
 	for _, tag := range tags {
-		a.AddTag(tag)
+		result = result.AddTag(tag)
 	}
+	return result
 }
 
 func (a AttributeSet) Slug() (string, bool) {
@@ -456,21 +481,29 @@ func (a AttributeSet) Hooks() TagSet {
 	return nil
 }
 
-func (a AttributeSet) AddHook(hookNames ...string) {
-	if _, ok := a["hook"]; !ok {
-		// Not hook currently present
-		a["hook"] = hookNames
-		return
+func (a AttributeSet) AddHook(hookNames ...string) AttributeSet {
+	result := make(AttributeSet)
+	for k, v := range a {
+		result[k] = v
 	}
-	if newHooks, ok := a["hook"].([]string); ok {
+
+	if _, ok := result["hook"]; !ok {
+		// No hook currently present
+		result["hook"] = hookNames
+		return result
+	}
+	if hooks, ok := result["hook"].([]string); ok {
+		newHooks := make([]string, len(hooks))
+		copy(newHooks, hooks)
 		for _, hookName := range hookNames {
 			if !slices.Contains(newHooks, hookName) {
 				newHooks = append(newHooks, hookName)
 			}
 		}
-		a["hook"] = newHooks
-		return
+		result["hook"] = newHooks
+		return result
 	}
+	return result
 }
 
 // Attribution returns a formatted attribution string based on available attributes.
@@ -818,7 +851,7 @@ func ExtractBlockTagsAndAttributes(content markdown.Document, configAttributes C
 
 	// The tag syntax is only syntax sugar. Tags must be added in attributes too.
 	for _, tag := range tags {
-		attributes.AddTag(tag)
+		attributes = attributes.AddTag(tag)
 	}
 
 	// Add tags declared using `@tags` attributes
@@ -859,7 +892,7 @@ func ExtractOnlyAttributes(doc markdown.Document, configAttributes ConfigAttribu
 func ExtractAttributes(doc markdown.Document, configAttributes ConfigAttributes) AttributeSet {
 	attributes := ExtractOnlyAttributes(doc, configAttributes)
 	tags := ExtractTags(doc)
-	attributes.AddTags(tags)
+	attributes = attributes.AddTags(tags)
 	shorthandAttributes := ExtractShorthands(doc, configAttributes)
 	return attributes.Merge(shorthandAttributes)
 }
@@ -975,7 +1008,7 @@ func ExtractAllTagsAndAttributesAndEmojis(doc markdown.Document, configAttribute
 
 	tags := NewTagSetFromText(content)
 	attributes := NewAttributeSetFromText(content, configAttributes)
-	attributes.AddTags(tags)
+	attributes = attributes.AddTags(tags)
 
 	trimmedText := doc.MustTransform(
 		StripTags(),
