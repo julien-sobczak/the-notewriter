@@ -253,7 +253,13 @@ func (n *Note) ModificationTime() time.Time {
 }
 
 func (n *Note) Read(r io.Reader) error {
-	return yaml.NewDecoder(r).Decode(n)
+	err := yaml.NewDecoder(r).Decode(n)
+	if err != nil {
+		return err
+	}
+	// Remap attributes to expected type
+	n.Attributes = n.Attributes.CastOrIgnore(CurrentConfigFile().Attributes)
+	return nil
 }
 
 func (n *Note) Write(w io.Writer) error {
@@ -269,7 +275,7 @@ func (n *Note) Links() []*Link {
 	var links []*Link
 
 	// Utility function to append wikilink to the returned links
-	addWikilink := func(wikilinkTxt string, relationType string) {
+	addWikilink := func(wikilinkTxt string, relationship string) {
 		wikilink, err := markdown.NewWikilink(wikilinkTxt)
 		if err != nil {
 			// Ignore malformed links
@@ -284,7 +290,7 @@ func (n *Note) Links() []*Link {
 					SourceKind: "note",
 					TargetOID:  note.OID,
 					TargetKind: "note",
-					Type:       relationType,
+					Type:       relationship,
 				})
 			}
 		} else {
@@ -295,18 +301,18 @@ func (n *Note) Links() []*Link {
 					SourceKind: "note",
 					TargetOID:  file.OID,
 					TargetKind: "file",
-					Type:       relationType,
+					Type:       relationship,
 				})
 			}
 		}
 	}
 
 	// Search for embedded notes
-	reEmbeddedNote := regexp.MustCompile(`^!\[\[(.*)(?:\|.*)?\]\]\s*`)
-	matches := reEmbeddedNote.FindAllStringSubmatch(string(n.Content), -1)
+	reEmbeddedNote := regexp.MustCompile(`!(\[\[(.*)(?:\|.*)?\]\])\s*`)
+	matches := reEmbeddedNote.FindAllStringSubmatch(string(n.Body), -1)
 	for _, match := range matches {
 		wikilink := match[1]
-		addWikilink(wikilink, "includes")
+		addWikilink(wikilink, "embeds")
 	}
 
 	// Check attribute "source"
@@ -319,24 +325,20 @@ func (n *Note) Links() []*Link {
 
 	// Check attribute "references"
 	if n.HasAttribute("references") {
-		references := n.GetAttribute("references").([]interface{}) // Enforced by linter
-		for _, referenceRaw := range references {
-			if reference, ok := referenceRaw.(string); ok {
-				if markdown.MatchWikilink(reference) {
-					addWikilink(reference, "referenced_by")
-				}
+		references := n.GetAttribute("references").([]string) // Enforced by linter
+		for _, reference := range references {
+			if markdown.MatchWikilink(reference) {
+				addWikilink(reference, "referenced_by")
 			}
 		}
 	}
 
 	// Check attribute "inspirations"
 	if n.HasAttribute("inspirations") {
-		inspirations := n.GetAttribute("inspirations").([]interface{}) // Enforced by linter
-		for _, inspirationRaw := range inspirations {
-			if inspiration, ok := inspirationRaw.(string); ok {
-				if markdown.MatchWikilink(inspiration) {
-					addWikilink(inspiration, "inspired_by")
-				}
+		inspirations := n.GetAttribute("inspirations").([]string) // Enforced by linter
+		for _, inspiration := range inspirations {
+			if markdown.MatchWikilink(inspiration) {
+				addWikilink(inspiration, "inspired_by")
 			}
 		}
 	}

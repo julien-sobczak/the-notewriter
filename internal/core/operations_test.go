@@ -189,7 +189,7 @@ Who invented **Python**?
 Guido van Rossum
 `)
 	note = MustFindNoteByTitle(t, "Flashcard: Python's creator")
-	// Operation-relation fields must be preserved
+	// Operation-related fields must be preserved
 	assert.True(t, note.Marked)
 	assert.Equal(t, oid.MustParse("42d74d967d9b4e989502647ac510777ca1e22f4a"), note.Annotations[0].OID)
 

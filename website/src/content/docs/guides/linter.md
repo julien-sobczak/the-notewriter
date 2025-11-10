@@ -471,7 +471,7 @@ schemas:
       - name: tags
         type: string[]
 
-  - name: Relations
+  - name: Links
     attributes:
       - name: source
         inherit: false

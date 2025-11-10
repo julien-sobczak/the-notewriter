@@ -147,6 +147,48 @@ func TestCommandAdd(t *testing.T) {
 
 	})
 
+	t.Run("Links", func(t *testing.T) {
+		NewTestRepository(t, FromGoldenDirNamed("TestLinks"))
+
+		_, err := CurrentRepository().Add(AnyPath)
+		require.NoError(t, err)
+
+		// Check links have been created
+		links, err := CurrentRepository().FindLinks()
+		require.NoError(t, err)
+		require.NotEmpty(t, links)
+
+		// Check implicit links
+		fileD, err := CurrentRepository().FindFileByRelativePath("d.md")
+		require.NoError(t, err)
+		require.NotNil(t, fileD)
+		notes, err := CurrentRepository().FindNotesByFileOID(fileD.OID)
+		require.NoError(t, err)
+		require.Len(t, notes, 3)
+
+		noteAncestor := notes[0]
+		noteParent := notes[1]
+		noteChild := notes[2]
+		require.Equal(t, "Ancestor", noteAncestor.ShortTitle.String())
+		require.Equal(t, "Parent", noteParent.ShortTitle.String())
+		require.Equal(t, "Child", noteChild.ShortTitle.String())
+
+		assert.Contains(t, links, &Link{
+			SourceOID:  noteAncestor.OID,
+			SourceKind: "note",
+			TargetOID:  noteParent.OID,
+			TargetKind: "note",
+			Type:       "includes",
+		})
+		assert.Contains(t, links, &Link{
+			SourceOID:  noteParent.OID,
+			SourceKind: "note",
+			TargetOID:  noteChild.OID,
+			TargetKind: "note",
+			Type:       "includes",
+		})
+	})
+
 	t.Run("Repetitive", func(t *testing.T) {
 		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 

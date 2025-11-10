@@ -795,7 +795,19 @@ func ExtractBlockTagsAndAttributes(content markdown.Document, configAttributes C
 			name := match[1]
 			value := match[2]
 
-			attributes[name] = value
+			if _, exists := attributes[name]; exists {
+				// Attribute already exists, convert to array
+				currentValue := attributes[name]
+				if IsArray(currentValue) {
+					// Already an array, append
+					attributes[name] = append(UnpackArray(currentValue), value)
+				} else {
+					// Convert to array
+					attributes[name] = []any{currentValue, value}
+				}
+			} else {
+				attributes[name] = value
+			}
 		}
 	}
 

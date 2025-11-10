@@ -2,7 +2,7 @@
 title: Links
 ---
 
-## Relation Links
+## Links
 
 Notes can reference each other using wikilinks (ex: `[[file#note]]`).
 
@@ -16,13 +16,13 @@ Check note [[#A]].
 Check note [[#B]].
 ```
 
-Special attributes are also analyzed to determine the relations between notes.
+Special attributes are also analyzed to determine the links between notes.
 
 * `references` (type: `array`)
 * `source` (type: `string`)
 * `inspirations` (type: `string`)
 
-Wikilinks inside these attributes automatically generate relations (= links in _The NoteWriter Desktop_).
+Wikilinks inside these attributes automatically generate links (= navigable links in _The NoteWriter Desktop_).
 
 ### `references`
 

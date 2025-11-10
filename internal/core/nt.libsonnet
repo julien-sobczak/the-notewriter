@@ -10,7 +10,9 @@
         },
     },
 
-    // Declare default attributes with special meaning for The NoteWriter
+    // Declare default attributes with special meaning for The NoteWriter.
+    // Some reserved attributes (ex: "references" for link management) are
+    // automatically added and override this configuration.
     DefaultAttributes: {
         due: {
             name: "due",

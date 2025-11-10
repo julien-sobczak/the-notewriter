@@ -137,7 +137,13 @@ func (f *File) ModificationTime() time.Time {
 }
 
 func (f *File) Read(r io.Reader) error {
-	return yaml.NewDecoder(r).Decode(f)
+	err := yaml.NewDecoder(r).Decode(f)
+	if err != nil {
+		return err
+	}
+	// Remap attributes to expected type
+	f.Attributes = f.Attributes.CastOrIgnore(CurrentConfigFile().Attributes)
+	return nil
 }
 
 func (f *File) Write(w io.Writer) error {

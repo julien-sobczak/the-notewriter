@@ -103,8 +103,8 @@ type Object interface {
 	// ModificationTime returns the last modification time.
 	ModificationTime() time.Time
 
-	// Relations returns the relations where the current object is the source.
-	Relations() []*Relation
+	// Links returns the explicit relationships where the current object is the source.
+	Links() []*Link
 
 	// Read rereads the object from YAML.
 	Read(r io.Reader) error
@@ -406,7 +406,7 @@ Here are the common fixtures:
 * `TestMedias`: A basic set of files using all supported medias file types.
 * `TestPostProcessing`: A basic set exposing all post-processing rules applies to raw notes.
 * `TestLint`: A basic set exposing violations for every rules.
-* `TestRelations`: A basic set of inter-referenced notes.
+* `TestLinks`: A basic set of inter-referenced notes.
 
 :::
 

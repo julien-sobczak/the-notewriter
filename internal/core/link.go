@@ -19,18 +19,18 @@ type Link struct {
 	Type string `yaml:"type" json:"type"`
 }
 
-func NewLinkFromObjects(objA, objB Object, relationType string) *Link {
-	return NewLink(objA.UniqueOID(), objA.Kind(), objB.UniqueOID(), objB.Kind(), relationType)
+func NewLinkFromObjects(objA, objB Object, relationship string) *Link {
+	return NewLink(objA.UniqueOID(), objA.Kind(), objB.UniqueOID(), objB.Kind(), relationship)
 }
 
 // NewLink instantiates a new link.
-func NewLink(oidA oid.OID, kindA string, oidB oid.OID, kindB string, relationType string) *Link {
+func NewLink(oidA oid.OID, kindA string, oidB oid.OID, kindB string, relationship string) *Link {
 	r := &Link{
 		SourceOID:  oidA,
 		SourceKind: kindA,
 		TargetOID:  oidB,
 		TargetKind: kindB,
-		Type:       relationType,
+		Type:       relationship,
 	}
 	return r
 }

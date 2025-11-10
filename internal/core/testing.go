@@ -368,6 +368,13 @@ func (tr *TestRepository) AssertTrimEqual(expected string, actual string) {
 
 /* Test Queriers */
 
+func (tr *TestRepository) FindFileByRelativePath(relativePath string) *File {
+	file, err := CurrentRepository().FindFileByRelativePath(relativePath)
+	require.NoError(tr.t, err)
+	require.NotNil(tr.t, file)
+	return file
+}
+
 func (tr *TestRepository) FindFlashcardByShortTitle(shortTitle string) *Flashcard {
 	flashcard, err := CurrentRepository().FindFlashcardByShortTitle(shortTitle)
 	require.NoError(tr.t, err)

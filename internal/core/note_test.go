@@ -152,6 +152,87 @@ Golang was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in
 
 }
 
+func TestNoteLinks(t *testing.T) {
+	tr := NewTestRepository(t, FromGoldenDirNamed("TestLinks"))
+
+	_, err := CurrentRepository().Add(AnyPath)
+	require.NoError(t, err)
+
+	fileA := tr.FindFileByRelativePath("a.md")
+	fileB := tr.FindFileByRelativePath("b.md")
+	fileC := tr.FindFileByRelativePath("c.md")
+	fileD := tr.FindFileByRelativePath("d.md")
+	fileE := tr.FindFileByRelativePath("e.md")
+
+	noteA := tr.FindNoteByPathAndTitle("a.md", "Note: A")
+	noteB := tr.FindNoteByPathAndTitle("b.md", "Note: B")
+	noteC := tr.FindNoteByPathAndTitle("c.md", "Note: C")
+	noteD := tr.FindNoteByPathAndTitle("d.md", "Note: Child")
+	noteE := tr.FindNoteByPathAndTitle("e.md", "Note: Container")
+	noteEChild := tr.FindNoteByPathAndTitle("e.md", "Note: Embedded")
+
+	require.NotNil(t, fileA)
+	require.NotNil(t, fileB)
+	require.NotNil(t, fileC)
+	require.NotNil(t, fileD)
+	require.NotNil(t, fileE)
+
+	linksA := noteA.Links()
+	linksB := noteB.Links()
+	linksC := noteC.Links()
+	linksD := noteD.Links()
+	linksE := noteE.Links()
+
+	require.Len(t, linksA, 1)
+	require.Len(t, linksB, 2)
+	require.Len(t, linksC, 1)
+	require.Len(t, linksD, 0) // Implicit links are determined at parsing time
+	require.Len(t, linksE, 1)
+	assert.Equal(t, []*Link{
+		{
+			SourceOID:  noteA.OID,
+			SourceKind: "note",
+			TargetOID:  noteB.OID,
+			TargetKind: "note",
+			Type:       "referenced_by",
+		},
+	}, linksA)
+	assert.Equal(t, []*Link{
+		{
+			SourceOID:  noteB.OID,
+			SourceKind: "note",
+			TargetOID:  noteA.OID,
+			TargetKind: "note",
+			Type:       "inspired_by",
+		},
+		{
+			SourceOID:  noteB.OID,
+			SourceKind: "note",
+			TargetOID:  fileC.OID,
+			TargetKind: "file",
+			Type:       "inspired_by",
+		},
+	}, linksB)
+	assert.Equal(t, []*Link{
+		{
+			SourceOID:  noteC.OID,
+			SourceKind: "note",
+			TargetOID:  fileA.OID,
+			TargetKind: "file",
+			Type:       "references",
+		},
+	}, linksC)
+	assert.Equal(t, []*Link{
+		{
+			SourceOID:  noteE.OID,
+			SourceKind: "note",
+			TargetOID:  noteEChild.OID,
+			TargetKind: "note",
+			Type:       "embeds",
+		},
+	}, linksE)
+}
+
 func TestNoteFormats(t *testing.T) {
 	testutil.FreezeOn(t, "2023-01-01 01:12:30")
 
