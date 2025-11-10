@@ -12,7 +12,6 @@ import (
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -108,13 +107,7 @@ func Reset() {
 /* File Helpers */
 
 // ReadFile edits the file in the current repository to force the given content.
-func (tr *TestRepository) ReadFile(relativePath string) string {
-	root := CurrentConfig().RootDirectory
-	newFilepath := filepath.Join(root, relativePath)
-	data, err := os.ReadFile(newFilepath)
-	require.NoError(tr.t, err)
-	return string(data)
-}
+
 
 // WriteFile edits the file in the current repository to force the given content.
 func (tr *TestRepository) WriteFile(relativePath string, content string) {
@@ -166,10 +159,7 @@ func WithFile(path string, content string) TestRepositoryOption {
 }
 
 // FromGoldenFile creates a file in the repository from the golden file.
-func FromGoldenFile(t *testing.T) TestRepositoryOption {
-	filename := t.Name() + ".md"
-	return WithFileRaw(filename, testutil.GoldenFileNamed(t, filename))
-}
+
 
 // FromGoldenFileNamed creates a file in the repository from the golden file.
 func FromGoldenFileNamed(t *testing.T, filename string) TestRepositoryOption {
@@ -177,10 +167,7 @@ func FromGoldenFileNamed(t *testing.T, filename string) TestRepositoryOption {
 	return WithFileRaw(newFilename, testutil.GoldenFileNamed(t, filename))
 }
 
-// FromGoldenDir copies in the repository a testdata directory based on the given test name.
-func FromGoldenDir(t *testing.T) TestRepositoryOption {
-	return FromGoldenDirNamed(t.Name())
-}
+
 
 // FromGoldenDirNamed copies in the repository a testdata directory.
 func FromGoldenDirNamed(testname string) TestRepositoryOption {
@@ -224,16 +211,7 @@ func WithFreezeNow() TestRepositoryOption {
 	}
 }
 
-func (tr *TestRepository) FreezeAt(point time.Time) *clock.TestClock {
-	tr.clock = testutil.FreezeAt(tr.t, point)
-	return tr.clock
-}
 
-func WithFreezeAt(point time.Time) TestRepositoryOption {
-	return func(tr *TestRepository) {
-		tr.FreezeAt(point)
-	}
-}
 
 func WithFreezeOn(date string) TestRepositoryOption {
 	return func(tr *TestRepository) {
@@ -253,19 +231,7 @@ func WithSequenceOIDs() TestRepositoryOption {
 	}
 }
 
-// WithFixedOIDs allows to force a fixed OID for every object.
-func WithFixedOIDs(value oid.OID) TestRepositoryOption {
-	return func(tr *TestRepository) {
-		oid.UseFixed(tr.t, value)
-	}
-}
 
-// WithNextOIDs allows to set the next OIDs to use in tests.
-func WithNextOIDs(oids ...string) TestRepositoryOption {
-	return func(tr *TestRepository) {
-		oid.UseNext(tr.t, oids...)
-	}
-}
 
 // WithConfigOverride allows to override the current global configuration
 func WithConfigOverride(override func(c *Config)) TestRepositoryOption {
@@ -351,20 +317,7 @@ func (tr *TestRepository) AssertNoMedias() {
 	require.Equal(tr.t, 0, tr.CountMedias())
 }
 
-func (tr *TestRepository) AssertFrontMatterEqual(expected string, file *File) {
-	actual, err := file.FrontMatter.AsBeautifulYAML()
-	require.NoError(tr.t, err)
-	tr.AssertTrimEqual(expected, actual)
-}
 
-func (tr *TestRepository) AssertContentEqual(expected string, file *File) {
-	actual := file.Body
-	tr.AssertTrimEqual(expected, string(actual))
-}
-
-func (tr *TestRepository) AssertTrimEqual(expected string, actual string) {
-	assert.Equal(tr.t, strings.TrimSpace(expected), strings.TrimSpace(actual))
-}
 
 /* Test Queriers */
 
@@ -395,15 +348,7 @@ func (tr *TestRepository) RequireNoFileExists(relativePath string) {
 	filepath := filepath.Join(tr.Root, relativePath)
 	require.NoFileExists(tr.t, filepath)
 }
-func (tr *TestRepository) RequireFileExists(relativePath string) {
-	filepath := filepath.Join(tr.Root, relativePath)
-	require.FileExists(tr.t, filepath)
-}
 
-func (tr *TestRepository) AssertFileExists(relativePath string) {
-	filepath := filepath.Join(tr.Root, relativePath)
-	assert.FileExists(tr.t, filepath)
-}
 
 // ReplaceLine replaces a line inside a file.
 func (tr *TestRepository) ReplaceLine(relativePath string, lineNumber int, oldLine string, newLine string) {
@@ -423,10 +368,7 @@ func ReplaceLine(t *testing.T, path string, lineNumber int, oldLine string, newL
 	os.WriteFile(path, []byte(content), 0644)
 }
 
-// AppendLines append multiple lines in a file.
-func (tr *TestRepository) AppendLines(relativePath string, text string) {
-	AppendLines(tr.t, filepath.Join(tr.Root, relativePath), text)
-}
+
 
 // AppendLines append multiple lines in a file.
 func AppendLines(t *testing.T, path string, text string) {
@@ -439,10 +381,7 @@ func AppendLines(t *testing.T, path string, text string) {
 	os.WriteFile(path, []byte(content), 0644)
 }
 
-// AbsPath returns the absolute path of a file in the repository.
-func (tr *TestRepository) AbsolutePath(relativePath string) string {
-	return CurrentRepository().GetFileAbsolutePath(relativePath)
-}
+
 
 // ParseMarkdown creates a ParsedFile from a file in the repository.
 func (tr *TestRepository) ParseMarkdown(relativePath string) *markdown.File {
