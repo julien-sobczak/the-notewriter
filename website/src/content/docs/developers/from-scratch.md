@@ -125,7 +125,7 @@ type ParsedNote struct {
 }
 ```
 
-The logic to initialize a `ParsedFile` is relatively trivial, in particular when using the custom abstraction `markdown.File` (we hide the logic to parse a Markdown document, this component is ommitted from this document as there is nothing specific to _The NoteWriter_):
+The logic to initialize a `ParsedFile` is relatively trivial, in particular when using the custom abstraction `markdown.File` (we hide the logic to parse a Markdown document, this component is omitted from this document as there is nothing specific to _The NoteWriter_):
 
 ```go
 // ParseFile contains the main logic to parse a raw note file.

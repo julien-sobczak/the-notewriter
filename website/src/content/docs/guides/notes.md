@@ -261,7 +261,7 @@ You miss 100% of the shots you don’t take.
 > Trying will always more effective than doing nothing.
 ```
 
-These comments are useful to explain why a note like a quote resonates in you, or to summarize the key idea. These comments are highlighted differently (or ommitted) when rendered in _The NoteWriter Desktop_.
+These comments are useful to explain why a note like a quote resonates in you, or to summarize the key idea. These comments are highlighted differently (or omitted) when rendered in _The NoteWriter Desktop_.
 
 
 ## Asciidoc Text Replacements

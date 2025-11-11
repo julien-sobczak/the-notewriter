@@ -16,7 +16,7 @@ func TestSquashBlankLines(t *testing.T) {
 		{
 			"TwoLines",
 			`
-This is a paragrah.
+This is a paragragh.
 
 
 This is a second paragraph.
@@ -25,7 +25,7 @@ This is a third paragraph.
 
 `,
 			`
-This is a paragrah.
+This is a paragragh.
 
 This is a second paragraph.
 

@@ -37,7 +37,7 @@ type Reminder struct {
 	// Description
 	Description markdown.Document `yaml:"description" json:"description"`
 
-	// Tag value containig the formula to determine the next occurence
+	// Tag value containing the expressionexplicitely to determine the next occurrence
 	Tag string `yaml:"tag" json:"tag"`
 
 	// Timestamps to track progress
@@ -249,7 +249,7 @@ func EvaluateTimeExpressionAfter(timestamp time.Time, expr string) (time.Time, e
 		return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC), nil
 	}
 
-	// We have an expression where the year, month, day can be ommitted and where different syntaxes are supported (through variables).
+	// We have an expression where the year, month, day can be omitted and where different syntaxes are supported (through variables).
 	// The first step is to determine the different parts to know if we have a year, a month, or day.
 	yearSpecified := false
 	yearExpr := ""

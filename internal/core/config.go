@@ -815,7 +815,7 @@ func ReadConfigFromDirectory(path string) (*Config, error) {
 	return config, nil
 }
 
-// ReservedAttributes are the attributes that are used internally by the application and must not be overriden or redeclared.
+// ReservedAttributes are the attributes that are used internally by the application and must not be overridden or redeclared.
 var ReservedAttributes = map[string]ConfigAttribute{
 	"title": {
 		Name:    "title",

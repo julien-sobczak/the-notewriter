@@ -883,7 +883,7 @@ func (r *Repository) Push(remoteName string, interactive, force bool) error {
 	// The NoteWriter is a personal tool and you are not expected to push from two repositories at the same time.
 
 	if CurrentIndex().SomethingToCommit() {
-		return errors.New("changes not commited (commit first and retry)")
+		return errors.New("changes not committed (commit first and retry)")
 	}
 
 	origin := CurrentDB().Remote(remoteName)
@@ -989,7 +989,7 @@ func (r *Repository) Pull(remoteName string, interactive, force bool) error {
 	// The NoteWriter is a personal tool and you are not expected to push/pull at the same time.
 
 	if CurrentIndex().SomethingToCommit() {
-		return errors.New("changes not commited (commit first and retry)")
+		return errors.New("changes not committed (commit first and retry)")
 	}
 
 	origin := CurrentDB().Remote(remoteName)

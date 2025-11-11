@@ -233,6 +233,6 @@ func testExe(t *testing.T) string {
 	// Tests define the environment variable TEST_GIT_BEHAVIOR to determine
 	// the behavior of the replaced command.
 	testExe, err := os.Executable()
-	require.NoError(t, err, "can't determine current exectuable")
+	require.NoError(t, err, "can't determine current executable")
 	return testExe
 }

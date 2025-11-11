@@ -180,14 +180,14 @@ func TestPackFile(t *testing.T) {
 
 	t.Run("NewPackFileFromParsedMedia_Retry", func(t *testing.T) {
 		// We use a boolean to determine if the conversion was done
-		convertionDone := false
+		conversionDone := false
 		tr := NewTestRepository(t,
 			WithFreezeNow(),
 
 			// Update the boolean using hooks
 			WithConfigOverride(func(c *Config) {
 				c.Converter().OnPreGeneration(func(cmd string, args ...string) {
-					convertionDone = true
+					conversionDone = true
 				})
 			}),
 		)
@@ -197,22 +197,22 @@ func TestPackFile(t *testing.T) {
 		parsedMedia := ParseMedia(tr.Root, filepath.Join(tr.Root, "smallest.gif"))
 		packFile, err := NewPackFileFromParsedMedia(parsedMedia)
 		require.NoError(t, err)
-		assert.True(t, convertionDone)
+		assert.True(t, conversionDone)
 
 		// Reread the same file must not trigger a new pack file, neither new conversions
-		convertionDone = false
+		conversionDone = false
 		newPackFile, err := NewPackFileFromParsedMedia(parsedMedia)
 		require.NoError(t, err)
 		assert.Equal(t, packFile.OID, newPackFile.OID) // Same pack file
-		assert.False(t, convertionDone)                // No convertion was done
+		assert.False(t, conversionDone)                // No conversion was done
 
 		// An updated media must trigger a new pack file
 		tr.WriteFileRaw("smallest.gif", []byte("invalid gif"))
-		convertionDone = false
+		conversionDone = false
 		newPackFile, err = NewPackFileFromParsedMedia(parsedMedia)
 		require.NoError(t, err)
 		assert.NotEqual(t, packFile.OID, newPackFile.OID) // Different files, different pack files
-		assert.True(t, convertionDone)                    // Reconvertion
+		assert.True(t, conversionDone)                    // Reconversion
 	})
 
 	t.Run("LoadPackFileFromPath", func(t *testing.T) {

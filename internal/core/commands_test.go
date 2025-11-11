@@ -408,10 +408,10 @@ Guido van Rossum
 
 		// Push
 		err = CurrentRepository().Push("origin", false, false)
-		require.ErrorContains(t, err, "changes not commited")
+		require.ErrorContains(t, err, "changes not committed")
 		// Pull
 		err = CurrentRepository().Pull("origin", false, false)
-		require.ErrorContains(t, err, "changes not commited")
+		require.ErrorContains(t, err, "changes not committed")
 	})
 
 }

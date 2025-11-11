@@ -426,7 +426,7 @@ func (o *ObjectDiff) Patch() string {
 	return patch
 }
 
-// AfterOrBefore returns the first non-nil object prefering the after one.
+// AfterOrBefore returns the first non-nil object preferring the after one.
 func (o *ObjectDiff) AfterOrBefore() ParsedObject {
 	if o.After != nil {
 		return o.After
@@ -434,7 +434,7 @@ func (o *ObjectDiff) AfterOrBefore() ParsedObject {
 	return o.Before
 }
 
-// BeforeOrAfter returns the first non-nil object prefering the before one.
+// BeforeOrAfter returns the first non-nil object preferring the before one.
 func (o *ObjectDiff) BeforeOrAfter() ParsedObject {
 	if o.Before != nil {
 		return o.Before

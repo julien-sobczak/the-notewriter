@@ -104,8 +104,8 @@ type ParsedNote struct {
 	Content        markdown.Document
 	Body           markdown.Document
 	Comment        markdown.Document
-	NoteTags       TagSet       // Tags defined explicitely in the note
-	NoteAttributes AttributeSet // Attributes defined explicitely in the note
+	NoteTags       TagSet       // Tags defined explicitly in the note
+	NoteAttributes AttributeSet // Attributes defined explicitly in the note
 	Attributes     AttributeSet // Attributes defined in the note and inherited from the parent notes/files
 
 	// Extracted objects
@@ -160,7 +160,7 @@ type ParsedReminder struct {
 	// Description in Markdown of the reminder (ex: the line)
 	Description markdown.Document
 
-	// Tag value containig the formula to determine the next occurence
+	// Tag value containing the formula to determine the next occurrence
 	Tag string `yaml:"tag"`
 }
 

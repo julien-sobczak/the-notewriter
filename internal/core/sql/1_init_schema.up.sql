@@ -253,7 +253,7 @@ CREATE TABLE reminder (
   -- Description
   description TEXT NOT NULL,
 
-  -- Tag value containig the formula to determine the next occurence
+  -- Tag value containing the expression to determine the next occurrence
   tag TEXT NOT NULL,
 
   -- Timestamps to track progress
