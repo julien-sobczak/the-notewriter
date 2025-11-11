@@ -102,7 +102,7 @@ type ConfigFile struct {
 	FileTypes  ConfigFileTypes  `json:"fileTypes"`
 
 	// Remotes
-	Remotes []ConfigRemote `json:"remote"` // IMPROVEMENT Support multiple remotes
+	Remotes []ConfigRemote `json:"remotes"`
 
 	// Predefined searches
 	Searches map[string]*ConfigSearch `json:"searches"`
@@ -683,7 +683,6 @@ func (c *Config) TempDir() string {
 		c.tempDir = dir
 	}
 	return c.tempDir
-	// IMPROVEMENT Call defer os.RemoveAll(CurrentConfig().TempDir()) from tests?
 }
 
 // Converter returns the convertor to use when creating blobs from media files.
@@ -1032,7 +1031,6 @@ func InitConfigFromDirectory(path string, options ConfigOptions) (*Config, error
 // Useful to override default values, especially in unit tests
 // (ex: avoid the external dependency on ffmpeg).
 type ConfigOptions struct {
-	// IMPROVEMENT add more options and ask questions during 'nt init -i'
 	MediaConverter string
 }
 

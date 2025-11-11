@@ -3,6 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 
 	"github.com/julien-sobczak/the-notewriter/internal/core"
 	"github.com/spf13/cobra"
@@ -24,16 +27,32 @@ var initCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		if interactive {
-			// IMPROVEMENT: use Bubbletea to customize the generated config file
-		}
-
-		// IMPROVEMENT: check ffmpeg (or the chosen option) is present in $PATH
-
 		_, err = core.InitConfigFromDirectory(cwd, core.DefaultConfigOptions)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error while initializing configuration: %v", err)
 			os.Exit(1)
 		}
+
+		// Check media converter immediately (better to install dependencies now than later)
+		if core.CurrentConfigFile().Core.Medias.Command != "" {
+			// Check executable is present in PATH
+			mediaCmd := core.CurrentConfigFile().Core.Medias.Command
+			if strings.Contains(mediaCmd, string(filepath.Separator)) {
+				// mediaCmd contains a path separator, treat as a path
+				_, err := os.Stat(core.CurrentConfigFile().Core.Medias.Command)
+				if os.IsNotExist(err) {
+					fmt.Fprintf(os.Stderr, "Error: media command not found: %s\n", mediaCmd)
+					os.Exit(1)
+				}
+			} else {
+				// mediaCmd is just a command name, look in PATH
+				_, err := exec.LookPath(mediaCmd)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Error: media command not found in PATH: %s\n", mediaCmd)
+					os.Exit(1)
+				}
+			}
+		}
+
 	},
 }

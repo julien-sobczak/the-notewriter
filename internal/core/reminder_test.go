@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-
 func TestReminderInterfaces(t *testing.T) {
 	var reminder Reminder
 	assert.Implements(t, (*StatefulObject)(nil), &reminder)
@@ -210,20 +209,19 @@ func TestEvaluateTimeExpression(t *testing.T) {
 
 func TestEvaluateTimeExpressionAfter(t *testing.T) {
 	testutil.FreezeOn(t, "2023-07-01 12:30")
-	t.Skip() // FIXME
 
 	expr := "every-2025-${month}"
-	next := testutil.HumanTime(t, "2025-01-01 00:00:00")
+	next := testutil.HumanTime(t, "2025-01-01 12:00:00")
 
 	// Iteration 1
 	next, err := EvaluateTimeExpressionAfter(next, expr)
 	require.NoError(t, err)
-	assert.EqualValues(t, testutil.HumanTime(t, "2025-02-01 00:00:00"), next) // invalid value
+	require.EqualValues(t, testutil.HumanTime(t, "2025-02-01 00:00:00"), next) // invalid value
 
 	// Iteration 2
 	next, err = EvaluateTimeExpressionAfter(next, expr)
 	require.NoError(t, err)
-	assert.EqualValues(t, testutil.HumanTime(t, "2025-03-01 00:00:00"), next) // invalid value
+	require.EqualValues(t, testutil.HumanTime(t, "2025-03-01 00:00:00"), next) // invalid value
 }
 
 /* Test Helpers */

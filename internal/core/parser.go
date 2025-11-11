@@ -378,7 +378,6 @@ func applyFileProcessors(file *ParsedFile) (*ParsedFile, error) {
 	}
 
 	// Apply processors based on file tags
-	// IMPROVEMENT remove and force using file types instead?
 	if fileTags.Includes("toc") {
 		if processor, ok := fileProcessors["toc"]; ok {
 			var err error

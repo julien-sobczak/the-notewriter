@@ -351,8 +351,13 @@ func EvaluateTimeExpressionAfter(timestamp time.Time, expr string) (time.Time, e
 			} else {
 				daySpecified = false
 			}
+		} else {
+			dayExpr = "01"
+			daySpecified = false
 		}
-
+	} else {
+		monthExpr = "01"
+		monthSpecified = false
 	}
 
 	// The reminder must have been completely parsed now
@@ -401,7 +406,7 @@ func generateDates(timestamp time.Time, yearExpr, monthExpr, dayExpr string) []t
 	// The function is recursive. We replace each variable by all possible values before evaluating the new expressions again
 	// until they are no more variables to replace.
 
-	// Base case
+	// Base case = no more variables
 	if text.IsNumber(yearExpr) && text.IsNumber(monthExpr) && text.IsNumber(dayExpr) {
 		year, _ := strconv.Atoi(yearExpr)
 		month, _ := strconv.Atoi(monthExpr)
