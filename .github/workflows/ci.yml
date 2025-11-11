@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Run tests
+        run: make test
+
+  build:
+    name: Build binaries
+    runs-on: ubuntu-latest
+    needs: test
+
+    strategy:
+      matrix:
+        os: [linux, darwin, windows]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Build for ${{ matrix.os }}
+        run: |
+          mkdir -p build/${{ matrix.os }}-amd64
+          GOOS=${{ matrix.os }} GOARCH=amd64 make build
+          mv build/* build/${{ matrix.os }}-amd64/ || true
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nt-${{ matrix.os }}
+          path: build/${{ matrix.os }}-amd64/
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: build/
+
+      - name: Create archives
+        run: |
+          mkdir -p dist
+          for dir in build/*; do
+            if [ -d "$dir" ]; then
+              base=$(basename "$dir")
+              tar -czf dist/${base}.tar.gz -C "$dir" .
+            fi
+          done
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
