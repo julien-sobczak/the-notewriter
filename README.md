@@ -41,15 +41,15 @@ You can always fetch the latest version directly using GitHub’s `/releases/lat
 
 | Platform | Download link |
 |-----------|----------------|
-| **Linux (amd64)**   | [Download](https://github.com/julien-sobczak/the-notewriter/releases/latest/download/nt-linux.tar.gz) |
-| **macOS (amd64)**   | [Download](https://github.com/julien-sobczak/the-notewriter/releases/latest/download/nt-darwin.tar.gz) |
-| **Windows (amd64)** | [Download](https://github.com/julien-sobczak/the-notewriter/releases/latest/download/nt-windows.tar.gz) |
+| **Linux (amd64)**   | [Download](https://github.com/julien-sobczak/the-notewriter/releases/latest/download/nt-linux-amd64.tar.gz) |
+| **macOS (amd64)**   | [Download](https://github.com/julien-sobczak/the-notewriter/releases/latest/download/nt-darwin-amd64.tar.gz) |
+| **Windows (amd64)** | [Download](https://github.com/julien-sobczak/the-notewriter/releases/latest/download/nt-windows-amd64.tar.gz) |
 
 
 #### Example (Linux)
 
 ```bash
-curl -L https://github.com/julien-sobczak/the-notewriter/releases/latest/download/nt-linux.tar.gz | tar xz
+curl -L https://github.com/julien-sobczak/the-notewriter/releases/latest/download/nt-linux-amd64.tar.gz | tar xz
 sudo mv nt /usr/local/bin/
 ```
 

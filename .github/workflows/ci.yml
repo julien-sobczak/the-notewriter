@@ -51,7 +51,7 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nt-${{ matrix.os }}
+          name: nt-${{ matrix.os }}-amd64
           path: build/${{ matrix.os }}-amd64/
 
   release:

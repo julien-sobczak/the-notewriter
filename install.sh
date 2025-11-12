@@ -23,9 +23,9 @@ else
 fi
 
 if [ $# -eq 0 ]; then
-	nt_uri="https://github.com/julien-sobczak/the-notewriter/releases/latest/download/nt-${platform}.tar.gz"
+	nt_uri="https://github.com/julien-sobczak/the-notewriter/releases/latest/download/nt-${platform}-amd64.tar.gz"
 else
-	nt_uri="https://github.com/julien-sobczak/the-notewriter/releases/download/${1}/nt-${platform}.tar.gz"
+	nt_uri="https://github.com/julien-sobczak/the-notewriter/releases/download/${1}/nt-${platform}-amd64.tar.gz"
 fi
 
 nt_install="${NT_INSTALL:-$HOME/.nt}"
