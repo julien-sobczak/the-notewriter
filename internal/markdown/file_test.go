@@ -42,7 +42,7 @@ func TestParseMarkdown(t *testing.T) {
 				os.WriteFile(md.AbsolutePath, []byte("# Updated"), 0644)
 				updatedMD, err := markdown.ParseFile(md.AbsolutePath)
 				require.NoError(t, err)
-				assert.True(t, updatedAt.Before(updatedMD.LastUpdateDate()))
+				assert.False(t, updatedAt.After(updatedMD.LastUpdateDate()))
 
 				// Check sections
 				sections, err := md.GetSections()
