@@ -3,7 +3,7 @@ title: Hooks
 ---
 
 
-Hooks allow you to run custom script before a note is committed.
+Hooks allow you to run custom scripts before a note is committed.
 
 ## Syntax
 
@@ -22,6 +22,7 @@ Just before a new commit is created, _The NoteWriter_ will try to execute the ho
 
 You can use any language to write your hooks. The JSON representation of the note is available on stdin:
 
+<!-- IMPROVEMENT update with full JSON representation -->
 ```json
 {
     "oid": "16252daf",
@@ -31,14 +32,8 @@ You can use any language to write your hooks. The JSON representation of the not
      "title": "Reading List",
      "hook": "gist",
     },
-    "shortTitleRaw": "Reading List",
-    "shortTitleMarkdown": "Reading List",
-    "shortTitleHTML": "Reading List",
-    "shortTitleText": "Reading List",
-    "contentRaw": "* [*] _Limitless_, by Jim Kwik\n* [*] _Tribe of Mentors_, by Tim Ferris",
-    "contentMarkdown": "* [*] _Limitless_, by Jim Kwik\n* [*] _Tribe of Mentors_, by Tim Ferris",
-    "contentHTML": "<ul>\n<li>[*] <em>Limitless</em>, by Jim Kwik</li>\n<li>[ ] <em>Tribe of Mentors</em>, by Tim Ferris</li>\n</ul>",
-    "contentText": "* [*] _Limitless_, by Jim Kwik\n* [*] _Tribe of Mentors_, by Tim Ferris",
+    "shortTitle": "Reading List",
+    "content": "* [*] _Limitless_, by Jim Kwik\n* [*] _Tribe of Mentors_, by Tim Ferris",
 }
 ```
 
@@ -46,7 +41,7 @@ You can use any language to write your hooks. The JSON representation of the not
 
 Hooks are automatically triggered when commiting changes using the comand `nt commit`.
 
-Sometimes, you may want to run a hook manually (useful when developing new hooks). The command `nt run-hook` allows to execute a hook on a single note (you still need to use `nt add` to place the note in the index).
+Sometimes, you may want to run a hook manually (useful when developing new hooks). The command `nt run-hook` allows to execute a hook on a single note (you still need to use `nt add` to place the note in the index first).
 
 ```shell
 $ nt run-hook --vvv "todo.md#Note: Reading List"
@@ -130,3 +125,27 @@ if __name__ == "__main__":
 
 This hook is incomplete. Hooks must be idempotent as you don't want to create a new Gist every time the note is edited. But you now have a good idea of how hooks work.
 
+
+## Note Types
+
+When using the same hook on all notes of the same type, a better solution is to declare the hooks in `config.jsonnet`:
+
+```
+local nt = import 'nt.libsonnet';
+{
+  noteTypes: nt.DefaultNoteTypes {
+    BookReview: nt.DefaultNoteTypes.Note {
+      name: 'BookReview',
+      hooks: ['blog_review'],
+    },
+  }
+}
+```
+
+_The NoteWriter_ will automatically run the hook after every new book review.
+
+:::tip
+
+Use hooks to automate your note-taking workflow or integrate with third-party tools.
+
+:::

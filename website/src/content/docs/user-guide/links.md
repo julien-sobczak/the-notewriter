@@ -2,8 +2,6 @@
 title: Links
 ---
 
-## Links
-
 Notes can reference each other using wikilinks (ex: `[[file#note]]`).
 
 ```md
@@ -18,9 +16,9 @@ Check note [[#B]].
 
 Special attributes are also analyzed to determine the links between notes.
 
-* `references` (type: `array`)
+* `references` (type: `string[]`)
 * `source` (type: `string`)
-* `inspirations` (type: `string`)
+* `inspirations` (type: `string[]`)
 
 Wikilinks inside these attributes automatically generate links (= navigable links in _The NoteWriter Desktop_).
 
@@ -86,36 +84,3 @@ Use the `inspirations` attribute to specify which work has inspired this note (a
 
 A note.
 ```
-
-## Go Links
-
-Markdown links can include in their title was is called a _Go link_. A Go link is a memorable name for a hard-to-remember URL.
-
-The syntax must follow the convention `#go/{name}`.
-
-```md title:go.md
-## Note: Useful Links
-
-* [Golang](https://go.dev/doc/ "#go/go") was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in 2007.
-* [Go Playground](https://go.dev/play/ "#go/go/playground") is useful to share snippets.
-```
-
-Go links can be browsed directly from the terminal:
-
-```shell
-$ nt go go
-# Open a new tab in your browser to https://go.dev/doc/
-
-# Or
-$ nt go go/playground
-```
-
-You can also use Go links (more conveniently) from _The NoteWriter Desktop_ (no need to have a terminal open inside your notes repository).
-
-
-:::tip
-
-Use Go links for URLs that you must visit frequently (ex: internal tools at work).
-
-:::
-

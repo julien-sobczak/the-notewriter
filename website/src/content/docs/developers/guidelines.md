@@ -1,6 +1,13 @@
 ---
-title: Guide
+title: Guidelines
 ---
+
+## Value Objects
+
+_The NoteWriter_ uses value objects a lot: `markdown.Document`, `markdown.Line`, `oid.OID`, `core.ListItem`. Many value objects are defined for collection types too: `markdown.Lines`, `core.ListItems`, `core.AttributeSet`, `core.TagSet`, `core.EmojiSet`.
+
+Value objects help limiting the number of functions by having immutable types that are practical to work with.
+
 
 ## Output Management
 

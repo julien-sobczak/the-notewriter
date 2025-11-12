@@ -3,15 +3,31 @@ title: Welcome
 description: Start gathering your notes.
 template: splash
 hero:
-  image:
-    file: ../../assets/houston.webp
-  actions:
-    - text: Introduction
-      link: /the-notewriter/intro
-      icon: right-arrow
-      variant: primary
-    - text: Browse the code
-      link: https://github.com/julien-sobczak/the-notewriter
-      icon: external
+  title: Make your notes shine
+  tagline: Everything you need to use your notes creatively
 ---
+
+import Tagline from '../../components/landing/Tagline'
+import Terminal from '../../components/landing/Terminal'
+import Editor from '../../components/landing/Editor'
+
+<Tagline text="(Note-taking|Second Brain) for (creative|creative) (Developers|Hackers|tinkerers)" client:only="react" />
+
+<div style={{ position: "relative", height: 800 }}>
+  <Terminal width={300} content={[
+    { type: "cmd", text: "nt add" },
+    { type: "output", text: "1 note added" },
+    { type: "output", text: "Command successful" }
+  ]} />
+
+  <Editor top={300}
+    filename="index.md"
+    lines={[
+      { number: 1, tokens: [ { text: "#", fill: "blue" }, { text: " Heading 1" } ] },
+      { number: 3, tokens: [ { text: "Some text" } ] },
+      { number: 5, tokens: [ { text: "##", fill: "blue" }, { text: " Heading 2" } ] },
+      { number: 7, tokens: [ { text: "More content" } ] },
+    ]}
+  />
+</div>
 

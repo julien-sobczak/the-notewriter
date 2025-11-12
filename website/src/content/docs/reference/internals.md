@@ -330,7 +330,7 @@ objects:                    # The list of all objects added/modified/deleted (a 
       data: <value>                      # A base64-encoded representation of the object
     - oid: 6ee8a962
       kind: note
-      Ctime: 2023-01-01T12:00:00
+      ctime: 2023-01-01T12:00:00
       desc: 'note "Note: Hello" [6ee8a962]'
       data: <value>
 ```
@@ -351,7 +351,7 @@ content_hash: b70f7d0e2acef2e0fa1c6f117e3c11e0d7082232
 ...
 ```
 
-The main motivation behind pack files is to limit the number of files on disk (and the number of files to transfer when using a [remote repository](../guides/remote.md)).
+The main motivation behind pack files is to limit the number of files on disk (and the number of files to transfer when using a [remote repository](../guides/remotes.md)).
 
 
 ### `.nt/index`

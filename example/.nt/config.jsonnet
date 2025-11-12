@@ -111,7 +111,7 @@ local nt = import 'nt.libsonnet';
         {
             name: "My Diary",
             path: "journal/${year}/${year}-${month}-${day}.md",
-            defaultContent: "Journal: ${year}-${month}-${day}",
+            defaultContent: "# Journal: ${year}-${month}-${day}",
             routines: [
                 {
                     name: "Morning Routine",

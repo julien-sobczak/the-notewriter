@@ -4,45 +4,92 @@ title: Linter
 
 The linter enforces rules on your notes to ensure their syntax is consistent and makes easy to find them later. It's particularly interesting as your collection of notes grows over time.
 
+
 ## Configuration
 
-The linter reads its configuration from the YAML file `.nt/lint`. No file exists by default. Ex:
+By default, the linter ensures that attributes satisfy their definition. In addition, the linter also support a list of optional rules declared as functions in `nt.libsonnet` to use in `config.jsonnet`. For example:
 
-```yaml
-rules:
-- name: min-lines-between-notes
-  args: [2]
-- name: no-dangling-media
-- name: no-dead-wikilink
+```jsonnet
+local nt = import 'nt.libsonnet';
+
+{
+    attributes: nt.DefaultAttributes,
+    noteTypes: nt.DefaultNoteTypes,
+    linter: {
+        rules: [
+            // Declare rules below
+            nt.LintRules.NoEmptyTitle(),
+            nt.LintRules.NoDuplicateNoteTitle(),
+            nt.LintRules.NoDuplicateSlug(),
+            nt.LintRules.NoDanglingMedia(),
+            nt.LintRules.NoDeadWikilink(),
+        ],
+    },
+}
 ```
 
-Rules are declared under the attribute `rules`. Some rules accept arguments using the attribute `args` (array of primitive values) and you may restrict a rule to a subset of your notes using the attribute `includes` (array of glob path expressions).
+Rules have no severity to make sure that violations are fixed instead of accumulating them.
 
 
 ## Rules
 
 | Rule  | Description  | Arguments  |
 |---|---|---|
+| `no-empty-title` | Enforce all notes have a non-empty title | - |
 | `no-duplicate-note-title` | Enforce no duplicate between note titles inside the same file | - |
 | `no-duplicate-slug` | Enforce no duplicate slugs between notes across files | - |
 | `no-implicit-slug-on-flashcard` | Enforce explicit slugs on flashcards to preverse study history on rewriting | - |
 | `min-lines-between-notes` | Enforce a minimum number of lines between notes | <ul><li><code>int</code> The number of lines</li></ul> |
 |	`max-lines-between-notes` | Enforce a maximum number of lines between notes | <ul><li><code>int</code> The number of lines</li></ul> |
-|	`note-title-match` | Enforce a consistent naming for notes | <ul><li><code>string</code> A Golang regex</li></ul> |
 |	`no-dangling-media` | Path to media files must exist | - |
 |	`no-dead-wikilink` | Links between notes must exist | - |
 |	`no-extension-wikilink` | No extension in wikilinks | - |
 |	`no-ambiguous-wikilink` | No ambiguity in wikilinks | - |
-|	`require-tag` | At least one tag on quotes (must match the optional pattern) | <ul><li><code>string</code> A regex that must match all accepted tags on quotes</li></ul> |
+|	`require-tag-if` | At least one tag on notes matching the query must match | <ul><li><code>string</code> A query to match notes</li><li><code>string[]</code> A list of tags</li></ul> |
 
 
-### `no-duplicate-note-title`
+### `no-empty-title`
 
 Configuration:
 
-```yaml title=.nt/lint
-rules:
-- name: no-duplicate-note-title
+```jsonnet title=config.jsonnet
+local nt = import 'nt.libsonnet';
+{
+    linter: {
+        rules: [
+          nt.LintRules.NoEmptyTitle(),
+        ],
+    }
+}
+```
+
+Example (with violations highlighted):
+
+```md {3}
+# Example
+
+## Note:
+
+This is a note.
+```
+
+:::tip
+
+Use the rule `no-empty-title` to ensure you haven't forgotten to write the title.
+
+:::
+
+### `no-duplicate-note-title`
+
+```jsonnet title=config.jsonnet
+local nt = import 'nt.libsonnet';
+{
+    linter: {
+        rules: [
+          nt.LintRules.NoDuplicateNoteTitle(),
+        ],
+    }
+}
 ```
 
 Example (with violations highlighted):
@@ -75,11 +122,15 @@ Use the rule `no-duplicate-note-title` to ensure internal links are not ambiguou
 
 ### `no-duplicate-slug`
 
-Configuration:
-
-```yaml title=.nt/lint
-rules:
-- name: no-duplicate-slug
+```jsonnet title=config.jsonnet
+local nt = import 'nt.libsonnet';
+{
+    linter: {
+        rules: [
+          nt.LintRules.NoDuplicateSlug(),
+        ],
+    }
+}
 ```
 
 Example (with violations highlighted):
@@ -114,13 +165,15 @@ Use the rule `no-duplicate-slug` to ensure slugs can be used in URLs and match o
 
 ### `min-lines-between-notes`
 
-Configuration:
-
-```yaml title=.nt/lint
-rules:
-- name: min-lines-between-notes
-  args:
-  - 2
+```jsonnet title=config.jsonnet
+local nt = import 'nt.libsonnet';
+{
+    linter: {
+        rules: [
+          nt.LintRules.MinLinesBetweenNotes(2),
+        ],
+    }
+}
 ```
 
 Example (with violations highlighted):
@@ -155,9 +208,15 @@ Use the rule `min-lines-between-notes` to force spaces between your notes to mak
 
 Configuration:
 
-```yaml title=.nt/lint
-rules:
-- name: max-lines-between-notes
+```jsonnet title=config.jsonnet
+local nt = import 'nt.libsonnet';
+{
+    linter: {
+        rules: [
+          nt.LintRules.MaxLinesBetweenNotes(1),
+        ],
+    }
+}
 ```
 
 Example (with violations highlighted):
@@ -194,47 +253,19 @@ Use the rule `max-lines-between-notes` to avoid too many blank spaces between no
 
 :::
 
-### `note-title-match`
-
-
-Configuration:
-
-```yaml title=.nt/lint
-rules:
-- name: note-title-match
-  args:
-  - "^(Note|Reference):\s\S.*$"
-```
-
-Example (with violations highlighted):
-
-```md {7}
-# Example
-
-## Note: Example
-
-A title matching the regular expression `(Note|...):\s\S.*`.
-
-## neference: Example
-
-The type is in lowercase (allowed but enforced by the linter).
-
-```
-
-:::tip
-
-Use the rule `note-title-match` to apply naming conventions on your notes.
-
-:::
-
 ### `no-dangling-media`
 
-
 Configuration:
 
-```yaml title=.nt/lint
-rules:
-- name: no-dangling-media
+```jsonnet title=config.jsonnet
+local nt = import 'nt.libsonnet';
+{
+    linter: {
+        rules: [
+          nt.LintRules.NoDanglingMedia(),
+        ],
+    }
+}
 ```
 
 Example (with violations highlighted):
@@ -260,9 +291,15 @@ Use the rule `no-dangling-media` to ensure links to medias are correctly resolve
 
 Configuration:
 
-```yaml title=.nt/lint
-rules:
-- name: no-dead-wikilink
+```jsonnet title=config.jsonnet
+local nt = import 'nt.libsonnet';
+{
+    linter: {
+        rules: [
+          nt.LintRules.NoDeadWikilink(),
+        ],
+    }
+}
 ```
 
 Example (with violations highlighted):
@@ -293,9 +330,15 @@ Use the rule `no-dead-wikilink` to ensure links are not dead (useful after renam
 
 Configuration:
 
-```yaml title=.nt/lint
-rules:
-- name: no-extension-wikilink
+```jsonnet title=config.jsonnet
+local nt = import 'nt.libsonnet';
+{
+    linter: {
+        rules: [
+          nt.LintRules.NoExtensionWikilink(),
+        ],
+    }
+}
 ```
 
 Example (with violations highlighted):
@@ -328,12 +371,17 @@ Use the rule `no-extension-wikilink` to keep your internal links as short as pos
 
 ### `no-ambiguous-wikilink`
 
-
 Configuration:
 
-```yaml title=.nt/lint
-rules:
-- name: no-ambiguous-wikilink
+```jsonnet title=config.jsonnet
+local nt = import 'nt.libsonnet';
+{
+    linter: {
+        rules: [
+          nt.LintRules.NoAmbiguousWikilink(),
+        ],
+    }
+}
 ```
 
 Example (with violations highlighted):
@@ -352,21 +400,28 @@ Use the rule `no-ambiguous-wikilink` to ensure links are explicit and can be fol
 
 :::
 
-### `require-tag`
+### `require-tag-if`
 
 
 Configuration:
 
-```yaml title=.nt/lint
-rules:
-- name: require-tag
-  args:
-  - "^(life|favorite)$"
+```jsonnet title=config.jsonnet
+local nt = import 'nt.libsonnet';
+{
+    linter: {
+        rules: [
+          nt.LintRules.RequireTagIf("type:Quote", [
+                "learning",
+                "mastering",
+          ])
+        ],
+    }
+}
 ```
 
 Example (with violations highlighted):
 
-```md {7,14}
+```md {3,10}
 # Example
 
 ## Quote: No Tag
@@ -386,117 +441,6 @@ This is the second quote.
 
 :::tip
 
-Use the rule `require-tag` to enforce notes have tags and use the argument to limit the list of required tags.
-
-:::
-
-### `check-attribute`
-
-
-Configuration:
-
-```yaml title=.nt/lint
-rules:
-- name: check-attribute
-
-schemas:
-
-- name: Quotes
-  type: quote
-  path: references
-  attributes:
-    - name: name
-      aliases: [author, illustrator]
-      type: string
-      required: true
-```
-
-Example (with violations highlighted):
-
-```md {7}
-# Example
-
-## Note: Marcus Aurelius On Others
-
-> What’s bad for the hive is bad for the bee.
-
-## Quote: Summum Bonum
-
-Just that you do the right thing.
-
-## Quote: Memento Mori
-
-`@author: Marcus Aurelius`
-
-You could leave life right now. Let that determine what you do and say and think.
-```
-
-:::tip
-
-Use the rule `check-attribute` to ensure all values are valid and consistent between notes.
-
-:::
-
-## Schemas
-
-Schemas are used to defined attributes and must follow this structure:
-
-```yaml title=.nt/lint
-schemas:
-
-- name: Quotes          # A name used when reporting violations
-  type: quote           # Restriction on the note types
-  path: references      # Restriction on the note path (glob pattern)
-  attributes:           # Define a list of attributes
-    - name: name        # The attribute name
-      aliases: [author] # Optional aliases for the attribute name
-      type: string      # One of: string[], string (default), bool, number, object
-      required: true    # Mandatory? (default: false)
-      inherit: true     # Attribute is inheritable by sub-notes? (default: true)
-```
-
-Default schemas (important for the inner working of the application) are predefined:
-
-```yaml
-schemas:
-
-  - name: Hooks
-    attributes:
-    - name: hook
-      type: string[]
-      inherit: false
-
-  - name: Tags
-    attributes:
-      - name: tags
-        type: string[]
-
-  - name: Links
-    attributes:
-      - name: source
-        inherit: false
-      - name: references
-        type: string[]
-      - name: inspirations
-        type: string[]
-```
-
-Declaring attributes as `array` is convenient as value will automatically be appended to existing values:
-
-```md
----
-tags: life # Same as tags: [life]
----
-
-# A Note
-
-`@tags: life-changing` `#favorite`
-
-This note will have the tags `#life`, `#life-changing`, and `#favorite`.
-```
-
-:::caution
-
-Schemas are only enforced when enabling the rule `check-attribute`.
+Use the rule `require-tag-if` to enforce some notes have tags and use the argument to limit the list of required tags.
 
 :::
