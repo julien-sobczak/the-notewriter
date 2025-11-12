@@ -43,6 +43,7 @@ You can always fetch the latest version directly using GitHub’s `/releases/lat
 |-----------|----------------|
 | **Linux (amd64)**   | [Download](https://github.com/julien-sobczak/the-notewriter/releases/latest/download/nt-linux-amd64.tar.gz) |
 | **macOS (amd64)**   | [Download](https://github.com/julien-sobczak/the-notewriter/releases/latest/download/nt-darwin-amd64.tar.gz) |
+| **macOS (arm64)**   | [Download](https://github.com/julien-sobczak/the-notewriter/releases/latest/download/nt-darwin-arm64.tar.gz) |
 | **Windows (amd64)** | [Download](https://github.com/julien-sobczak/the-notewriter/releases/latest/download/nt-windows-amd64.tar.gz) |
 
 

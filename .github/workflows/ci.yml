@@ -31,7 +31,15 @@ jobs:
 
     strategy:
       matrix:
-        os: [linux, darwin, windows]
+        include:
+          - os: linux
+            arch: amd64
+          - os: darwin
+            arch: amd64
+          - os: darwin
+            arch: arm64
+          - os: windows
+            arch: amd64
 
     steps:
       - name: Checkout repository
@@ -42,17 +50,17 @@ jobs:
         with:
           go-version: '1.23'
 
-      - name: Build for ${{ matrix.os }}
+      - name: Build for ${{ matrix.os }}-${{ matrix.arch }}
         run: |
-          mkdir -p build/${{ matrix.os }}-amd64
-          GOOS=${{ matrix.os }} GOARCH=amd64 make build
-          mv build/* build/${{ matrix.os }}-amd64/ || true
+          mkdir -p build/${{ matrix.os }}-${{ matrix.arch }}
+          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} make build
+          mv build/* build/${{ matrix.os }}-${{ matrix.arch }}/ || true
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nt-${{ matrix.os }}-amd64
-          path: build/${{ matrix.os }}-amd64/
+          name: nt-${{ matrix.os }}-${{ matrix.arch }}
+          path: build/${{ matrix.os }}-${{ matrix.arch }}/
 
   release:
     name: Release

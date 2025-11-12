@@ -11,10 +11,20 @@ fi
 
 if [ "$OS" = "Windows_NT" ]; then
 	platform="windows"
+	arch="amd64"
 else
 	case $(uname -s) in
-	"Darwin") platform="darwin" ;;
-	"Linux") platform="linux" ;;
+	"Darwin")
+		platform="darwin"
+		case $(uname -m) in
+		"arm64") arch="arm64" ;;
+		*) arch="amd64" ;;
+		esac
+		;;
+	"Linux")
+		platform="linux"
+		arch="amd64"
+		;;
 	*) 
 		echo "Error: Unsupported platform $(uname -s)" 1>&2
 		exit 1
@@ -23,9 +33,9 @@ else
 fi
 
 if [ $# -eq 0 ]; then
-	nt_uri="https://github.com/julien-sobczak/the-notewriter/releases/latest/download/nt-${platform}-amd64.tar.gz"
+	nt_uri="https://github.com/julien-sobczak/the-notewriter/releases/latest/download/nt-${platform}-${arch}.tar.gz"
 else
-	nt_uri="https://github.com/julien-sobczak/the-notewriter/releases/download/${1}/nt-${platform}-amd64.tar.gz"
+	nt_uri="https://github.com/julien-sobczak/the-notewriter/releases/download/${1}/nt-${platform}-${arch}.tar.gz"
 fi
 
 nt_install="${NT_INSTALL:-$HOME/.nt}"
