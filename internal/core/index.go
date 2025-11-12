@@ -117,18 +117,18 @@ func (i *IndexEntry) LastITime() time.Time {
 }
 
 func (i *IndexEntry) ModifiedBefore(t time.Time) bool {
-	return i.LastMTime().Before(t)
+	return i.LastMTime().UTC().Before(t.UTC())
 }
 
 func (i *IndexEntry) ModifiedAfter(t time.Time) bool {
-	return i.LastMTime().After(t)
+	return i.LastMTime().UTC().After(t.UTC())
 }
 
 func (i *IndexEntry) ModifiedBeforeLastIndexation(o *IndexEntry) bool {
 	if o == nil {
 		return false // no previous entry to compare with = modified after last "unknown" indexation
 	}
-	return i.LastMTime().Before(o.LastITime())
+	return i.LastMTime().UTC().Before(o.LastITime().UTC())
 }
 
 func (i *IndexEntry) Stage(newPackFile *PackFile) {
