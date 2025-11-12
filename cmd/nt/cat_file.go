@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -38,7 +39,7 @@ var catFileCmd = &cobra.Command{
 func dumpOID(oid oid.OID) {
 	// OIDs can represent a pack file, an object inside a pack file, or a blob.
 	packFile, err := core.CurrentIndex().ReadPackFile(oid)
-	if err != nil {
+	if err != nil && !errors.Is(err, core.ErrPackFileNotFound) {
 		fmt.Fprintf(os.Stderr, "Unable to read pack file: %v", err)
 		os.Exit(1)
 	}
@@ -47,7 +48,7 @@ func dumpOID(oid oid.OID) {
 		return
 	}
 	object, err := core.CurrentIndex().ReadObject(oid)
-	if err != nil {
+	if err != nil && !errors.Is(err, core.ErrPackFileNotFound) && !errors.Is(err, core.ErrPackObjectNotFound) {
 		fmt.Fprintf(os.Stderr, "Unable to read object: %v", err)
 		os.Exit(1)
 	}
@@ -56,7 +57,7 @@ func dumpOID(oid oid.OID) {
 		return
 	}
 	blob, err := core.CurrentIndex().ReadBlob(oid)
-	if err != nil {
+	if err != nil && !errors.Is(err, core.ErrPackFileNotFound) && !errors.Is(err, core.ErrBlobNotFound) {
 		fmt.Fprintf(os.Stderr, "Unable to read blob: %v", err)
 		os.Exit(1)
 	}

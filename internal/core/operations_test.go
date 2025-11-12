@@ -151,7 +151,7 @@ Guido van Rossum
 
 	_, err := CurrentRepository().Add(PathSpecs{"python.md"})
 	require.NoError(t, err)
-	err = CurrentRepository().Commit()
+	err = CurrentRepository().Commit(true)
 	require.NoError(t, err)
 
 	// Check the note is present

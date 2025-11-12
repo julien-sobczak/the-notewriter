@@ -182,7 +182,7 @@ local srsAlgorithmSettings = {
     ],
   },
 
-  searches: {
+  queries: {
     // Show random quote at startup
     dailyQuote: {
       title: "Daily Quote",
@@ -242,7 +242,7 @@ local srsAlgorithmSettings = {
 
   },
 
-  journal: [
+  journals: [
     {
       name: 'My Diary',
       path: 'journal/${year}/${year}-${month}-${day}.md',

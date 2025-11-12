@@ -1,0 +1,759 @@
+@import url("https://fonts.googleapis.com/css2?family=Gloria+Halleluja@300..700&family=Anton&family=Inter:wght@100..900");
+
+:root {
+	--font-handwritten: "Gloria Halleluja", cursive;
+	--font-title: "Anton", sans-serif;
+	--font-body: "Inter", sans-serif;
+
+	/* Landing */
+	--color-yellow: #FFD600;
+	/* Main color to add some colors to the documentation */
+	--color-green: #4DB358;
+	/* Color to highlight pros */
+	--color-red: #FA5E57;
+	/* Color to highlight cons */
+	--color-window-close: var(var(--color-red));
+	--color-window-minimize: #FABC2E;
+	--color-window-maximize: var(var(--color-green));
+
+	--section-default-vertical-padding: 4rem;
+}
+
+/* Cancel Starlight's styles */
+
+[data-has-hero] .sl-markdown-content :not(a, strong, em, del, span, input, code)+ :not(a, strong, em, del, span, input, code, :where(.not-content *)) {
+	margin-top: 0;
+}
+
+/* Target the Landing Page specifically */
+/* Ex: https://github.com/withastro/starlight/blob/main/docs/src/assets/landing.css */
+[data-has-hero] {
+	/* Force the browser to render standard UI elements (scrollbars) in light mode */
+	color-scheme: light;
+	/* We can override the Starlight stylesheet so we have to override many rules specifically for the landing page */
+	--sl-color-white: black;
+
+	.right-group {
+		display: none !important;
+	}
+}
+
+:root[data-theme='light'] {
+	color: black;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+/* Icons */
+
+[data-has-hero] .icon {
+	display: inline-block !important;
+}
+
+/* Fonts */
+
+.handwritten-regular {
+	font-family: "Inspiration", cursive;
+	font-weight: 400;
+	font-style: normal;
+	font-size: 1.5em;
+}
+
+.monospace-regular {
+	font-family: "Roboto Mono", monospace;
+	font-optical-sizing: auto;
+	font-weight: 400;
+	font-style: normal;
+}
+
+.sans-serif-default {
+	font-family: "Open Sans", sans-serif;
+	font-optical-sizing: auto;
+	font-weight: 400;
+	font-style: normal;
+	font-variation-settings:
+		"wdth" 100;
+}
+
+/*
+ * Page
+ */
+
+[data-has-hero] .page {
+	background: white;
+	color: black;
+	font-family: "Open Sans", sans-serif;
+	font-optical-sizing: auto;
+	font-weight: 300;
+	font-style: normal;
+	font-variation-settings:
+		"wdth" 100;
+}
+
+[data-has-hero] header {
+	background-color: white;
+	color: black;
+}
+
+[data-theme='dark'] header {
+	background-color: black;
+	color: white;
+}
+
+[data-has-hero] .hero {
+	display: none;
+}
+
+/* General */
+
+[data-has-hero] .thick-highlight {
+	/* inset x-offset y-offset blur color */
+	/* The negative y-offset (-0.4em) determines height */
+	box-shadow: inset 0 -0.6em 0 0 var(--color-yellow);
+
+	display: inline;
+	line-height: 1.5;
+	/* Give it space */
+}
+
+[data-has-hero] .thick-underline {
+	/* inset x-offset y-offset blur color */
+	/* The negative y-offset (-0.4em) determines height */
+	box-shadow: inset 0 -0.2em 0 0 black;
+
+	display: inline;
+	line-height: 1.5;
+	/* Give it space */
+}
+
+[data-has-hero] .title {
+	width: 100%;
+	text-align: center;
+	font-weight: 500;
+	font-size: 2rem;
+	margin: 4rem 0 4rem;
+
+	strong {
+		font-size: 2.5rem;
+		font-weight: 700;
+	}
+}
+
+/*
+ * Tagline
+ */
+
+[data-has-hero] .tagline {
+	color: black;
+	height: calc(100vh - 4rem);
+	position: relative;
+
+	h1 {
+		position: absolute;
+		width: 100%;
+		top: calc(50% - 4rem);
+		left: 50%;
+		transform: translate(-50%, -50%);
+		text-align: center;
+		font-size: 3rem;
+		font-weight: 400;
+	}
+
+	nav ul {
+		position: absolute;
+		width: 100%;
+		bottom: calc(50% - 4rem);
+		left: 50%;
+		transform: translateX(-50%);
+		display: flex;
+		gap: 2rem;
+		justify-content: center;
+
+		li {
+			list-style: none;
+			padding: 0;
+
+			a {
+				background-color: var(--color-yellow);
+				border: 1px solid black;
+				text-decoration: none;
+				font-weight: 700;
+				padding: 0.5rem 1rem;
+				color: black;
+			}
+		}
+	}
+
+}
+
+
+/*
+ * Intro
+ */
+
+[data-has-hero] .intro {
+	text-align: center;
+	font-size: 1.5rem;
+
+	/* Add some spacing between the steps */
+	li {
+		margin-top: 3rem;
+		margin-bottom: 3rem;
+		display: inline-list-item;
+		list-style-type: disc;
+		list-style-position: inside;
+
+		/* Color the bullet point and place it near the text */
+		&::marker {
+			color: var(--color-yellow);
+			/* Changes only the circle color */
+			font-size: 1.2em;
+			/* Increase it slightly */
+		}
+
+		p {
+			display: inline-block;
+		}
+
+		/* Center images */
+		img {
+			margin: 1rem auto;
+			max-width: 35rem;
+		}
+	}
+
+}
+
+[data-has-hero] section.why {
+	padding-top: var(--section-default-vertical-padding);
+	padding-bottom: calc(var(--section-default-vertical-padding) + 10rem);
+	/* Add more space at the bottom for the character illustration */
+	position: relative;
+	background-color: var(--color-yellow);
+	text-align: center;
+	/* Keep space below for the character illustration */
+
+	ul {
+		display: inline-block;
+		margin: 0 auto;
+		text-align: left;
+
+		li {
+			display: inline-list-item;
+			list-style-type: disc;
+			list-style-position: inside;
+
+			&::marker {
+				/* Increase the disc */
+				font-size: 2rem;
+			}
+		}
+
+		li:nth-child(1) {
+			margin-left: 0rem;
+		}
+
+		li:nth-child(2) {
+			margin-left: 2rem;
+		}
+
+		li:nth-child(3) {
+			margin-left: 4rem;
+		}
+
+	}
+
+	#character-tooling {
+		position: absolute;
+		bottom: 5%;
+		left: 50%;
+		transform: translate(-100%, 0);
+		max-width: 20rem;
+
+	}
+}
+
+/*
+ * Quote
+ */
+
+
+figure.quote {
+	position: relative;
+	max-width: 45rem;
+	min-height: 10rem;
+	/* Ensure the text doesn't stretch too much */
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+
+	font-size: 1.2rem;
+
+	margin: 10rem auto;
+	margin-top: 10rem !important;
+	padding: 8rem 6rem;
+	/* Ensure my portrait is not cut off */
+	border-radius: 2rem;
+	border-bottom-left-radius: 0;
+
+	color: white;
+
+	background-color: black;
+	background-image: url("portrait.png");
+	background-size: 125px auto;
+	background-position: left bottom;
+	background-repeat: no-repeat;
+
+	.quotation-mark {
+		position: absolute;
+		top: 4rem;
+		left: 4rem;
+		height: 2rem;
+	}
+
+	blockquote {
+		/* Cancel Starlight rules */
+		border-inline-start: 0 !important;
+		padding-inline-start: 0 !important;
+	}
+
+	figcaption {
+		font-size: 0.85em;
+		display: block;
+		width: 100%;
+		text-align: right;
+	}
+}
+
+/*
+ * Features
+ */
+
+section.features {
+	padding-top: var(--section-default-vertical-padding);
+	padding-bottom: var(--section-default-vertical-padding);
+	text-align: center;
+
+	.features-list {
+		display: flex;
+		flex-direction: row;
+		flex-wrap: wrap;
+		justify-content: center;
+		align-items: center;
+		gap: 1rem;
+		--feature-padding: 2rem;
+		--feature-title-size: var(--feature-padding);
+
+		.feature,
+		.feature-more {
+			position: relative;
+			padding: var(--feature-padding);
+			width: 30rem;
+			height: 30rem;
+
+			.feature-image {
+				position: absolute;
+				width: 100%;
+				height: 100%;
+				top: 0;
+				bottom: 0;
+				left: 0;
+				right: 0;
+			}
+		}
+
+		.feature {
+			border: 1px solid black;
+			border-radius: 1rem 1rem 0 1rem;
+			/* Use a right angle for the more button */
+			background-color: var(--color-yellow);
+
+			h2 {
+				font-weight: 900;
+				font-size: var(--feature-title-size);
+				text-align: left;
+				margin-right: 10rem;
+				/* Leave space for the category tag */
+				line-height: var(--feature-title-size);
+			}
+
+			h3 {
+				position: absolute;
+				top: var(--feature-padding);
+				right: var(--feature-padding);
+				background-color: white;
+				border: 1px solid black;
+				border-radius: 0.5rem;
+				padding: 0.2rem 0.5rem;
+				font-size: calc(var(--feature-title-size) / 2.5);
+			}
+
+			p {
+				margin-top: 1rem;
+				font-style: italic;
+				font-weight: 200;
+				text-align: left;
+				margin-right: 15rem;
+				/* Leave space for the category tag */
+				font-size: calc(var(--feature-title-size) / 2);
+				line-height: 1.2em;
+			}
+		}
+
+		.feature-more p {
+			font-size: 1.2rem;
+			text-align: center;
+		}
+
+		.triangle-link {
+			position: absolute;
+			bottom: 0;
+			right: 0;
+
+			/* Size of your triangle's bounding box */
+			width: 60px;
+			height: 60px;
+
+			/* The black background and triangle shape */
+			background-color: black;
+			clip-path: polygon(100% 0, 0 100%, 100% 100%);
+
+			/* Flexbox to push the '+' to the bottom right corner */
+			display: flex;
+			align-items: flex-end;
+			justify-content: flex-end;
+
+			/* Padding to nudge the '+' exactly into the center of the triangle */
+			padding-right: 12px;
+			padding-bottom: 8px;
+			box-sizing: border-box;
+			/* Ensures padding doesn't increase width/height */
+
+			/* Text styling */
+			color: white;
+			text-decoration: none;
+			font-size: 28px;
+			font-weight: bold;
+			line-height: 1;
+		}
+	}
+}
+
+/*
+ * Principles
+ */
+
+section.principles {
+	padding-top: var(--section-default-vertical-padding);
+	padding-bottom: calc(var(--section-default-vertical-padding) * 2);
+	/* Add more space at the bottom for the character illustration */
+	background-color: var(--color-yellow);
+
+	.principles-list {
+		display: flex;
+		flex-direction: row;
+		flex-wrap: wrap;
+		justify-content: center;
+		align-items: center;
+		gap: 1rem;
+		align-items: stretch;
+
+		.principle {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			text-align: center;
+			flex-grow: 1;
+			/* Make them grow to fill the available space */
+
+			p {
+				flex-grow: 0;
+				font-size: 1.2em;
+			}
+
+			ul {
+				margin: 2rem 0 -0.5rem;
+				/* Make the images closer */
+				font-size: 0.9rem;
+				text-align: left;
+				flex-grow: 1;
+
+				li {
+					list-style-type: none;
+					margin: 1rem 0;
+				}
+			}
+
+			img {
+				flex-grow: 0;
+				max-width: 8rem;
+			}
+		}
+	}
+}
+
+.wrong,
+.neutral,
+.good {
+	color: black;
+	padding: 0.2rem 0.5rem;
+	border-radius: 0.5rem;
+}
+
+.wrong {
+	background-color: var(--color-red);
+}
+
+.neutral {
+	background-color: rgba(0, 0, 0, 0.1);
+}
+
+.good {
+	background-color: var(--color-green);
+}
+
+/*
+ * Design
+ */
+
+[data-has-hero] section.design {
+	padding-top: var(--section-default-vertical-padding);
+	padding-bottom: var(--section-default-vertical-padding);
+
+	.characteristics {
+		display: grid;
+		grid-template-columns: repeat(4, minmax(calc(25% - 2rem), 1fr));
+		grid-template-rows: auto 1fr;
+		column-gap: 1rem;
+		background-color: var(--color-yellow);
+		border-radius: 1rem;
+	}
+
+	.characteristics details {
+		display: grid;
+		grid-template-columns: subgrid;
+		grid-template-rows: subgrid;
+		grid-column: 1 / -1;
+		grid-row: 1 / span 4;
+	}
+
+	.characteristics>details[open]>div {
+		position: relative;
+		z-index: auto;
+	}
+
+	.characteristics details::details-content {
+		grid-row: 2;
+		grid-column: 1 / -1;
+		padding: 1rem;
+	}
+
+	.characteristics details:not([open])::details-content {
+		display: none;
+	}
+
+	.characteristics details[open] summary {
+		font-weight: bold;
+	}
+
+	.characteristics summary {
+		z-index: 1;
+		grid-row: 1;
+		grid-column: var(--n) / span 1;
+		display: grid;
+		padding: 1rem;
+		background: var(--color-yellow);
+		display: inline-block;
+		cursor: pointer;
+	}
+
+	.characteristics details[open] summary {
+		background: black;
+		color: white;
+	}
+
+	details:nth-of-type(1) summary {
+		grid-column: 1 / span 1;
+	}
+
+	details:nth-of-type(2) summary {
+		grid-column: 2 / span 1;
+	}
+
+	details:nth-of-type(3) summary {
+		grid-column: 3 / span 1;
+	}
+
+	details:nth-of-type(4) summary {
+		grid-column: 4 / span 1;
+	}
+
+	.characteristics h2 {
+		text-align: center;
+		font-size: 1.5rem;
+		margin: 2rem 0 4rem;
+	}
+
+	.characteristics div {
+		padding: 2rem 2rem 5rem 2rem;
+
+		img {
+			display: block;
+			margin: 0 auto;
+			max-width: 90%;
+		}
+
+		img#characteristics-minimal-illustration {
+			max-width: 70%;
+			/* Illustration is not as wide as the others */
+		}
+	}
+}
+
+
+/*
+ * FAQ
+ */
+
+section.faq {
+	margin: 10rem auto;
+	max-width: 50rem;
+
+	details {
+		position: relative;
+		margin-bottom: 2rem;
+		border: 1px solid var(--color-yellow);
+		border-left: 4px solid var(--color-yellow);
+		background-color: black;
+		color: white;
+	}
+
+	details[open] p {
+		border-left: 4px solid var(--color-yellow);
+		background-color: var(--color-yellow);
+		color: black;
+		padding: 2rem 6rem 2rem 2rem;
+	}
+
+	details summary {
+		padding: 1em 2em;
+		font-weight: bold;
+		cursor: pointer;
+
+		img.question-mark {
+			position: absolute;
+			right: 2rem;
+			max-width: 3rem;
+			top: 2rem;
+			display: none;
+			/* Only show the question mark when revealed */
+		}
+	}
+
+	details[open] img.question-mark {
+		display: block;
+	}
+}
+
+/*
+ * Footer
+ */
+
+/* Hide the footer ONLY on pages using the 'splash' template (Landing Page) */
+[data-has-hero] footer {
+	display: none !important;
+}
+
+[data-has-hero] .content-panel,
+[data-has-hero] main {
+	padding-bottom: 0;
+}
+
+/* HACK: We position above the footer. The image contains the footer background color at the baseline. */
+[data-has-hero] .prefooter {
+	margin-bottom: -2px;
+	/* White border appears otherwise */
+
+	#logo-footer {
+		width: 100%;
+		margin: 0 auto;
+	}
+}
+
+[data-has-hero] .footer {
+	position: relative;
+	background-color: var(--color-yellow);
+	color: black;
+	min-height: 20rem;
+	text-align: center;
+	margin-top: 250px;
+	/* Keep plenty of room for the logo to "espace" the footer */
+
+
+	/* Draw the favicon in larger in the background */
+	#logo-feather {
+		display: none;
+		position: absolute;
+		bottom: 0%;
+		left: 0%;
+		height: 18rem;
+		transform: translate(-10%, 0);
+	}
+
+	@media (min-width: 1024px) {
+		#logo-feather {
+			display: block;
+		}
+	}
+
+	h2 {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		font-size: 3rem;
+		font-weight: 400;
+
+		span {
+			position: relative;
+			/* To position the character relative to the text */
+		}
+
+		#logo-character-stack {
+			display: inline-block;
+			position: absolute;
+			height: 10rem;
+			/* Adjust to match the text size */
+			right: -9rem;
+			/* Must be enough to underline the word "forever" */
+			bottom: 0;
+		}
+	}
+
+	/* Draw the copyright notice in the foreground */
+	small {
+		position: absolute;
+		bottom: 1rem;
+		right: 1rem;
+		font-size: 1.5rem;
+		/* Make it not so small after all */
+		color: var(--color-yellow);
+		text-shadow: -1px -1px 0 black, 1px -1px 0 black, -1px 1px 0 black, 1px 1px 0 black;
+	}
+}
+
+/* Utility class to create a full-width breakout section and avoid the limitations of class sl-container */
+.full-width-breakout {
+	width: 100vw !important;
+	position: relative;
+	left: 50%;
+	right: 50%;
+	margin-left: -50vw;
+	margin-right: -50vw;
+
+	/* Reset padding/box-sizing */
+	box-sizing: border-box;
+}

@@ -14,6 +14,24 @@
     // Some reserved attributes (ex: "references" for link management) are
     // automatically added and override this configuration.
     DefaultAttributes: {
+        // General
+        date: {
+            name: "date",
+            type: "string",
+            format: "yyyy-mm-dd",
+            inherit: true, // Subnotes in journal inherit the date of the journal
+        },
+        // Flashcards Management
+        ease_factor: {
+            description: "SRS Ease Factor",
+            type: "float",
+        },
+        interest_factor: {
+            description: "SRS Interest Factor",
+            type: "float",
+        },
+
+        // Tasks Management
         due: {
             name: "due",
             description: "Due date",

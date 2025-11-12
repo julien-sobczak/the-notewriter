@@ -28,6 +28,15 @@ const (
 	PackFileKindOperations = "operations"
 )
 
+// ErrPackFileNotFound is returned when a pack file is not found in the index.
+var ErrPackFileNotFound = errors.New("pack file not found in index")
+
+// ErrPackObjectNotFound is returned when a pack object is not found in the pack file.
+var ErrPackObjectNotFound = errors.New("pack object not found in index")
+
+// ErrBlobNotFound is returned when a blob is not found in the pack file.
+var ErrBlobNotFound = errors.New("blob not found in index")
+
 /* Packable */
 
 // Packable represents an object that can be packed into a pack file.

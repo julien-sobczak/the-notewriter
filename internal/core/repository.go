@@ -690,38 +690,40 @@ func (r *Repository) Reset(pathSpecs PathSpecs) error {
 }
 
 // Commit implements the command `nt commit`
-func (r *Repository) Commit() error {
+func (r *Repository) Commit(skipHooks bool) error {
 	idx := CurrentIndex()
 
 	if idx.NothingToCommit() {
 		return errors.New("nothing to commit (create/copy files and use \"nt add\" to track)")
 	}
 
-	// Run hooks
-	idx.Walk(AnyPath, func(entry *IndexEntry, objects []*IndexObject, blobs []*IndexBlob) error {
-		CurrentLogger().Debugf("Processing %s...\n", entry.RelativePath)
-		if !entry.Staged || entry.HasTombstone() {
-			// Run hooks only on staged, non-deleted entries
-			return nil
-		}
+	if !skipHooks {
+		// Run hooks
+		idx.Walk(AnyPath, func(entry *IndexEntry, objects []*IndexObject, blobs []*IndexBlob) error {
+			CurrentLogger().Debugf("Processing %s...\n", entry.RelativePath)
+			if !entry.Staged || entry.HasTombstone() {
+				// Run hooks only on staged, non-deleted entries
+				return nil
+			}
 
-		// Extract the notes from the pack file
-		packFile, err := idx.ReadPackFile(entry.PackFileOID)
-		if err != nil {
-			return err
-		}
-		for _, packObject := range packFile.PackObjects {
-			if packObject.Kind == "note" {
-				note := packObject.Read().(*Note)
-				if note.HasHooks() {
-					if err := note.RunHooks(nil, false); err != nil {
-						return err
+			// Extract the notes from the pack file
+			packFile, err := idx.ReadPackFile(entry.PackFileOID)
+			if err != nil {
+				return err
+			}
+			for _, packObject := range packFile.PackObjects {
+				if packObject.Kind == "note" {
+					note := packObject.Read().(*Note)
+					if note.HasHooks() {
+						if err := note.RunHooks(nil, false); err != nil {
+							return err
+						}
 					}
 				}
 			}
-		}
-		return nil
-	})
+			return nil
+		})
+	}
 
 	return idx.Commit()
 }

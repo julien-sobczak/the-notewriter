@@ -49,6 +49,6 @@ The Advanced Encryption Standard (AES) is a symmetric block cipher chosen by the
 	assert.Contains(t, content, "The Advanced Encryption Standard (AES) is a symmetric block cipher")
 
 	// Commit the changes
-	err = CurrentRepository().Commit()
+	err = CurrentRepository().Commit(false)
 	require.NoError(t, err)
 }

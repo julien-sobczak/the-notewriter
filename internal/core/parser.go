@@ -807,7 +807,7 @@ func (p *ParsedNote) extractReminders() ([]*ParsedReminder, error) {
 func (p *ParsedNote) extractMemories() ([]*ParsedMemory, error) {
 	var memories []*ParsedMemory
 
-	// Get configuration to find attributes marked with memory: true
+	// Get configuration to find attributes marked as memory
 	config := CurrentConfigFile()
 
 	// Check note-level attributes (block attributes)

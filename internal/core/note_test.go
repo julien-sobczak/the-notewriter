@@ -129,7 +129,7 @@ Golang was designed by Robert Greisemer, Rob Pike, and Ken Thompson at Google in
 
 		_, err := CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
-		err = CurrentRepository().Commit()
+		err = CurrentRepository().Commit(true)
 		require.NoError(t, err)
 
 		// Check in database
@@ -420,7 +420,7 @@ Guido van Rossum
 
 		_, err := CurrentRepository().Add(PathSpecs{"python.md"})
 		require.NoError(t, err)
-		err = CurrentRepository().Commit()
+		err = CurrentRepository().Commit(true)
 		require.NoError(t, err)
 
 		// Check the note is present
@@ -464,7 +464,7 @@ Guido van Rossum
 
 		_, err := CurrentRepository().Add(PathSpecs{"python.md"})
 		require.NoError(t, err)
-		err = CurrentRepository().Commit()
+		err = CurrentRepository().Commit(true)
 		require.NoError(t, err)
 
 		// Check the note is present

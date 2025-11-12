@@ -2,12 +2,50 @@
 title: Why
 ---
 
-**I created _The NoteWriter_ to keep my notes in a safe place for a very long time.** I was tired of moving my notes every time a popular application was dying and a new one was rising. I was tired of putting my notes on commercial products (OSS products with a commercial offering aren't better as companies rarely last decades). **I was tired of using different tools for different kinds of notes** (Obsidian + Anki). And I had ideas for new features that were missing in my previous toolkit.
+**I created _The NoteWriter_ to keep my notes in a safe place for a very long time.**
 
-I created _The NoteWriter_ to match my requirements, refined during many years of permanent struggle with my note-taking workflow.
+_The NoteWriter_ is the result of many years struggling and experimenting with my note-taking workflow.
 
-_The NoteWriter_ source code is available on [GitHub](https://github.com/julien-sobczak/the-notewriter). You should probably not use it as long as I am the only contributor. I didn't publish it to attract contributors although contributions are welcome. I publish it to share my workflow to inspire others and iterate on current solutions that are too limited in my opinion.
+:::caution
+_The NoteWriter_ source code is available on [GitHub](https://github.com/julien-sobczak/the-notewriter). You should probably not use it as long as I am the only contributor. I didn't published it to attract contributors although contributions are welcome. I work in public to document my reflection on the subject.
+:::
 
-I designed _The NoteWriter_ to reuse as much as possible knowledge from my developer experience. I want to edit my notes using my favorite IDE, manage them using my terminal, and use it on all my devices without restrictions or additional subscriptions.
 
-I write my notes for a long time. I need a tool to preserve them even longer. Even OSS solutions can guarantee it. The only option was to maintain my own tool and/or rely on a tool with a true community of contributors. I didn't found the latter.
+## 💪 Notes > Applications
+
+Finding a great note-taking application is easy. Finding users that stay satisfied with their workflow for a very long time is hard.
+When someone is migrating to a new tool, someone else is moving from this tool.
+
+I want to write notes, not use different applications or migrate notes between them. **Notes deserve attention. Applications are distractions.**
+
+:::tip[_The NoteWriter_ is optional]
+_The NoteWriter_ was designed to keep the focus on your notes. You write them using your favorite editor and only use the desktop application to  improve the experience. _The NoteWriter_ is optional.
+:::
+
+## 💪 Notes > Applications
+
+Many popular applications for note-taking exist. Most have incredible UIs and an endless list of plugins. All will die someday. Large codebase are expensive to evolve. Even OSS projects require full-time maintainers, financed through their commercial offering, until money starts to become too scarce... Business as usual.
+
+I want my notes to outlive any application. **Notes are immortal. Applications are ephemeral.**
+
+:::tip[_The NoteWriter_ is here to stay]
+_The NoteWriter_ was designed to keep the codebase minimal, to make possible for a single person to maintain it over decades as a side project. It's the only option for long-term existence. _The NoteWriter_ is here to stay.
+:::
+
+
+## 💪 Notes > Applications
+
+Manipulating physical notes will always be special. It's hard to be more flexible than notes spreaded on your desk or post-its sticked on a wall. But as a software developer, I cannot be satisfied with it.
+
+I want my notes to be durable, always with me, but I also want to manipulate them like I would use physical notes.
+
+:::tip[_The NoteWriter_ is secondary]
+_The NoteWriter Desktop_ was designed to make the most use of your notes. Every feature was introduced to maximize the interactions with my notes. **Notes are first-class citizens. Applications are their servants.**
+:::
+
+
+## One more tool...
+
+Too many tools don't match their tagline. Too many ideas die in notebooks. Too many notes are organized without taking action. _The NoteWriter_ tries a new approach.
+
+When taking note-taking seriously, I think no business can pretend to store our notes. Notes must be considered immortal. Your notes should outlive you. _The NoteWriter_ is an application to make your notes even more useful. Your notes are Markdown files. **You don't need _The NoteWriter_ to write them, to read them, to understand them, to share them, and more important, to preserve them.**

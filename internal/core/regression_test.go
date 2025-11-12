@@ -16,7 +16,7 @@ func TestRegression(t *testing.T) {
 	_, err := CurrentRepository().Add(AnyPath)
 	require.NoError(t, err)
 
-	err = CurrentRepository().Commit()
+	err = CurrentRepository().Commit(false)
 	require.NoError(t, err)
 
 	currentStats, err := CurrentRepository().Stats()
@@ -71,7 +71,7 @@ func TestRegression(t *testing.T) {
 		_, err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 
-		err = CurrentRepository().Commit()
+		err = CurrentRepository().Commit(false)
 		require.NoError(t, err)
 
 		if edition.RunGC {
