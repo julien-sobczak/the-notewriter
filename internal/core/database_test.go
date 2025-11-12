@@ -95,9 +95,9 @@ class SillyClass:
 	assert.Greater(t, file.Size, int64(0))
 	assert.NotEmpty(t, file.Hash)
 	assert.NotNil(t, file.MTime.Truncate(time.Second))
-	assert.Equal(t, clock.Now().Truncate(time.Second), file.CreatedAt.Truncate(time.Second))
-	assert.Equal(t, clock.Now().Truncate(time.Second), file.UpdatedAt.Truncate(time.Second))
-	assert.Equal(t, clock.Now().Truncate(time.Second), file.IndexedAt.Truncate(time.Second))
+	assert.Equal(t, clock.Now().UTC().Truncate(time.Second), file.CreatedAt.UTC().Truncate(time.Second))
+	assert.Equal(t, clock.Now().UTC().Truncate(time.Second), file.UpdatedAt.UTC().Truncate(time.Second))
+	assert.Equal(t, clock.Now().UTC().Truncate(time.Second), file.IndexedAt.UTC().Truncate(time.Second))
 
 	// Media
 	media := MustFindMediaByRelativePath(t, "programming/medias/logo-python.svg")
@@ -112,9 +112,9 @@ class SillyClass:
 	assert.Zero(t, media.Hash)
 	assert.Zero(t, media.Size)
 	assert.Empty(t, media.BlobRefs)
-	assert.Equal(t, clock.Now().Truncate(time.Second), media.CreatedAt.Truncate(time.Second))
-	assert.Equal(t, clock.Now().Truncate(time.Second), media.UpdatedAt.Truncate(time.Second))
-	assert.Equal(t, clock.Now().Truncate(time.Second), media.IndexedAt.Truncate(time.Second))
+	assert.Equal(t, clock.Now().UTC().Truncate(time.Second), media.CreatedAt.UTC().Truncate(time.Second))
+	assert.Equal(t, clock.Now().UTC().Truncate(time.Second), media.UpdatedAt.UTC().Truncate(time.Second))
+	assert.Equal(t, clock.Now().UTC().Truncate(time.Second), media.IndexedAt.UTC().Truncate(time.Second))
 
 	// Note
 	note := MustFindNoteByTitle(t, "Note: Special Methods")
@@ -139,9 +139,9 @@ class SillyClass:
 	assert.NotEmpty(t, note.Hash)
 	assert.True(t, strings.HasPrefix(note.Body.String(), "```python"))
 	assert.Equal(t, markdown.Document("Make your type Python-friendly"), note.Comment)
-	assert.Equal(t, clock.Now().Truncate(time.Second), note.CreatedAt.Truncate(time.Second))
-	assert.Equal(t, clock.Now().Truncate(time.Second), note.UpdatedAt.Truncate(time.Second))
-	assert.Equal(t, clock.Now().Truncate(time.Second), note.IndexedAt.Truncate(time.Second))
+	assert.Equal(t, clock.Now().UTC().Truncate(time.Second), note.CreatedAt.UTC().Truncate(time.Second))
+	assert.Equal(t, clock.Now().UTC().Truncate(time.Second), note.UpdatedAt.UTC().Truncate(time.Second))
+	assert.Equal(t, clock.Now().UTC().Truncate(time.Second), note.IndexedAt.UTC().Truncate(time.Second))
 
 	// Flashcard
 	note = MustFindNoteByTitle(t, "Flashcard: Python's creator")
@@ -156,9 +156,9 @@ class SillyClass:
 	assert.Equal(t, TagSet([]string{"programming", "python"}), flashcard.Tags)
 	assert.Equal(t, markdown.Document("Who invented Python?"), flashcard.Front)
 	assert.Equal(t, markdown.Document("Guido van Rossum"), flashcard.Back)
-	assert.Equal(t, clock.Now().Truncate(time.Second), flashcard.CreatedAt.Truncate(time.Second))
-	assert.Equal(t, clock.Now().Truncate(time.Second), flashcard.UpdatedAt.Truncate(time.Second))
-	assert.Equal(t, clock.Now().Truncate(time.Second), flashcard.IndexedAt.Truncate(time.Second))
+	assert.Equal(t, clock.Now().UTC().Truncate(time.Second), flashcard.CreatedAt.UTC().Truncate(time.Second))
+	assert.Equal(t, clock.Now().UTC().Truncate(time.Second), flashcard.UpdatedAt.UTC().Truncate(time.Second))
+	assert.Equal(t, clock.Now().UTC().Truncate(time.Second), flashcard.IndexedAt.UTC().Truncate(time.Second))
 
 	// Reminder
 	note = MustFindNoteByTitle(t, "Note: Conferences")
@@ -170,9 +170,9 @@ class SillyClass:
 	assert.Equal(t, "programming/python.md", reminder.RelativePath)
 	assert.Equal(t, markdown.Document(`Conferences / [PyCon France](https://www.pycon.fr/2025/ "PyCon #go/pycon-fr")`), reminder.Description)
 	assert.Equal(t, "#reminder-2025-10-30", reminder.Tag)
-	assert.Equal(t, clock.Now().Truncate(time.Second), reminder.CreatedAt.Truncate(time.Second))
-	assert.Equal(t, clock.Now().Truncate(time.Second), reminder.UpdatedAt.Truncate(time.Second))
-	assert.Equal(t, clock.Now().Truncate(time.Second), reminder.IndexedAt.Truncate(time.Second))
+	assert.Equal(t, clock.Now().UTC().Truncate(time.Second), reminder.CreatedAt.UTC().Truncate(time.Second))
+	assert.Equal(t, clock.Now().UTC().Truncate(time.Second), reminder.UpdatedAt.UTC().Truncate(time.Second))
+	assert.Equal(t, clock.Now().UTC().Truncate(time.Second), reminder.IndexedAt.UTC().Truncate(time.Second))
 
 	// Goto
 	gotoLink := MustFindGotoByName(t, "pycon-fr")
@@ -184,9 +184,9 @@ class SillyClass:
 	assert.Equal(t, "https://www.pycon.fr/2025/", string(gotoLink.URL))
 	assert.Equal(t, "PyCon", gotoLink.Title)
 	assert.Equal(t, "pycon-fr", gotoLink.Name)
-	assert.Equal(t, clock.Now().Truncate(time.Second), gotoLink.CreatedAt.Truncate(time.Second))
-	assert.Equal(t, clock.Now().Truncate(time.Second), gotoLink.UpdatedAt.Truncate(time.Second))
-	assert.Equal(t, clock.Now().Truncate(time.Second), gotoLink.IndexedAt.Truncate(time.Second))
+	assert.Equal(t, clock.Now().UTC().Truncate(time.Second), gotoLink.CreatedAt.UTC().Truncate(time.Second))
+	assert.Equal(t, clock.Now().UTC().Truncate(time.Second), gotoLink.UpdatedAt.UTC().Truncate(time.Second))
+	assert.Equal(t, clock.Now().UTC().Truncate(time.Second), gotoLink.IndexedAt.UTC().Truncate(time.Second))
 }
 
 func TestStatsOnDisk(t *testing.T) {

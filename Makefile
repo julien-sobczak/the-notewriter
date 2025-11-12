@@ -27,7 +27,7 @@ build-example:
 	@echo "✅ Example repository built in example/.nt"
 
 test:
-	go test --tags "fts5" ./... -count=1 -v
+	TZ=UTC go test --tags "fts5" ./... -count=1 -v
 
 cover:
 	go test -cover --tags "fts5" ./... -count=1
