@@ -15,9 +15,27 @@ There are many modern note-taking applications trying to do more than competitor
 
 ## Installing
 
+### Using the install script (recommended)
+
+The easiest way to install The NoteWriter is using the installation script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/julien-sobczak/the-notewriter/main/install.sh | sh
+```
+
+This will download the latest release for your platform and install it to `$HOME/.nt/bin`. Follow the instructions printed by the script to add the directory to your `$PATH`.
+
+You can also install a specific version by passing the version tag as an argument:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/julien-sobczak/the-notewriter/main/install.sh | sh -s v0.0.1
+```
+
+### Manual installation
+
 You can download the latest prebuilt binaries for Linux, macOS, and Windows from the [Releases page](https://github.com/julien-sobczak/the-notewriter/releases).
 
-### Latest release
+#### Latest release
 
 You can always fetch the latest version directly using GitHub’s `/releases/latest` endpoint:
 
@@ -25,10 +43,11 @@ You can always fetch the latest version directly using GitHub’s `/releases/lat
 |-----------|----------------|
 | **Linux (amd64)**   | [Download](https://github.com/julien-sobczak/the-notewriter/releases/latest/download/nt-linux-amd64.tar.gz) |
 | **macOS (amd64)**   | [Download](https://github.com/julien-sobczak/the-notewriter/releases/latest/download/nt-darwin-amd64.tar.gz) |
+| **macOS (arm64)**   | [Download](https://github.com/julien-sobczak/the-notewriter/releases/latest/download/nt-darwin-arm64.tar.gz) |
 | **Windows (amd64)** | [Download](https://github.com/julien-sobczak/the-notewriter/releases/latest/download/nt-windows-amd64.tar.gz) |
 
 
-### Example (Linux)
+#### Example (Linux)
 
 ```bash
 curl -L https://github.com/julien-sobczak/the-notewriter/releases/latest/download/nt-linux-amd64.tar.gz | tar xz
