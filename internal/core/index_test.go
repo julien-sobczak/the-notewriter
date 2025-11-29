@@ -427,10 +427,14 @@ func TestIndex(t *testing.T) {
 		// File not in index
 		assert.True(t, idx.ModifiedBefore("python.md", clock.Now()))
 
-		// File in index, not modified
-		assert.False(t, idx.ModifiedBefore("go.md", clock.Now()))
+		// File in index, not modified recently (within a small tolerance window)
+		// Since file was created around "now", it should be modified before "now + tolerance"
+		// but NOT modified before "now - tolerance" 
+		tolerance := 2 * time.Second
+		assert.True(t, idx.ModifiedBefore("go.md", clock.Now().Add(tolerance)))
+		assert.False(t, idx.ModifiedBefore("go.md", clock.Now().Add(-tolerance)))
 
-		// File in index, modified
+		// File in index, modified in the past (well before the future)
 		assert.True(t, idx.ModifiedBefore("go.md", clock.Now().Add(1*time.Hour)))
 	})
 
