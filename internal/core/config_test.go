@@ -61,19 +61,57 @@ func TestPathSpecs(t *testing.T) {
 }
 
 func TestInitConfiguration(t *testing.T) {
-	dir := populate(t, map[string]any{
-		// missing .nt directory
-		"journal/2022-12-24.md": `# Blablabla`,
+	t.Run("With custom media converter", func(t *testing.T) {
+		dir := populate(t, map[string]any{
+			// missing .nt directory
+			"journal/2022-12-24.md": `# Blablabla`,
+		})
+
+		c, err := InitConfigFromDirectory(dir, DefaultConfigOptions)
+		require.NoError(t, err)
+		require.NotNil(t, c)
+
+		// Check generated files
+		require.FileExists(t, filepath.Join(dir, ".nt", "config.jsonnet"))
+		require.FileExists(t, filepath.Join(dir, ".nt", "nt.libsonnet"))
+		require.FileExists(t, filepath.Join(dir, ".ntignore"))
+
+		// Check that config includes core block when MediaConverter is set
+		configContent, err := os.ReadFile(filepath.Join(dir, ".nt", "config.jsonnet"))
+		require.NoError(t, err)
+		assert.Contains(t, string(configContent), "core:")
+		assert.Contains(t, string(configContent), "ffmpeg")
 	})
 
-	c, err := InitConfigFromDirectory(dir, DefaultConfigOptions)
-	require.NoError(t, err)
-	require.NotNil(t, c)
+	t.Run("Without media converter (minimal config)", func(t *testing.T) {
+		dir := populate(t, map[string]any{
+			// missing .nt directory
+			"journal/2022-12-24.md": `# Blablabla`,
+		})
 
-	// Check generated files
-	require.FileExists(t, filepath.Join(dir, ".nt", "config.jsonnet"))
-	require.FileExists(t, filepath.Join(dir, ".nt", "nt.libsonnet"))
-	require.FileExists(t, filepath.Join(dir, ".ntignore"))
+		c, err := InitConfigFromDirectory(dir, ConfigOptions{
+			MediaConverter: "",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, c)
+
+		// Check generated files
+		require.FileExists(t, filepath.Join(dir, ".nt", "config.jsonnet"))
+		require.FileExists(t, filepath.Join(dir, ".nt", "nt.libsonnet"))
+		require.FileExists(t, filepath.Join(dir, ".ntignore"))
+
+		// Check that config doesn't include core block when MediaConverter is empty
+		configContent, err := os.ReadFile(filepath.Join(dir, ".nt", "config.jsonnet"))
+		require.NoError(t, err)
+		assert.NotContains(t, string(configContent), "core:")
+		assert.Contains(t, string(configContent), "attributes: nt.DefaultAttributes")
+		assert.Contains(t, string(configContent), "noteTypes: nt.DefaultNoteTypes")
+
+		// Verify that ffmpeg is still used as default
+		assert.Equal(t, "ffmpeg", c.ConfigFile.Core.Medias.Command)
+		assert.Equal(t, 1, c.ConfigFile.Core.Medias.Parallel)
+		assert.Equal(t, "ultrafast", c.ConfigFile.Core.Medias.Preset)
+	})
 }
 
 func TestReadConfigFromDirectory(t *testing.T) {
