@@ -27,11 +27,8 @@ var initCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// Use empty MediaConverter to generate minimal config
-		// The code will default to ffmpeg if not specified
-		_, err = core.InitConfigFromDirectory(cwd, core.ConfigOptions{
-			MediaConverter: "",
-		})
+		// Use all default values by default
+		_, err = core.InitConfigFromDirectory(cwd, core.ConfigOptions{})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error while initializing configuration: %v", err)
 			os.Exit(1)
