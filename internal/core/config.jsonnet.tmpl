@@ -2,8 +2,8 @@
 local nt = import 'nt.libsonnet';
 
 {
+    {{- if .MediaConverter }}
     core: {
-        {{- if .MediaConverter }}
         medias: {
             command: "{{ .MediaConverter }}",
             {{- if eq .MediaConverter "ffmpeg" }}
@@ -11,10 +11,9 @@ local nt = import 'nt.libsonnet';
             preset: "ultrafast",
             {{- end }}
         },
-        {{- end }}
     },
 
-    # TODO add links to the documentation
+    {{- end }}
     attributes: nt.DefaultAttributes,
     noteTypes: nt.DefaultNoteTypes,
 }
