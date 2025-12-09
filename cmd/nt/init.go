@@ -27,7 +27,8 @@ var initCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		_, err = core.InitConfigFromDirectory(cwd, core.DefaultConfigOptions)
+		// Use all default values by default
+		_, err = core.InitConfigFromDirectory(cwd, core.ConfigOptions{})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error while initializing configuration: %v", err)
 			os.Exit(1)
