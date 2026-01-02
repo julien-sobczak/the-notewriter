@@ -72,9 +72,9 @@ func TestNewOperations(t *testing.T) {
 	t.Run("ReviewFlashcard", func(t *testing.T) {
 		oid := oid.OID("42d74d967d9b4e989502647ac510777ca1e22f4a")
 		review := FlashcardReview{
-			Feedback: "Good",
-			Duration: 500 * time.Millisecond,
-			DueAt:    clock.Now().Add(24 * time.Hour),
+			Confidence: 60, // Good = moderate-high confidence
+			Duration:   500 * time.Millisecond,
+			DueAt:      clock.Now().Add(24 * time.Hour),
 			Settings: map[string]any{
 				"easeFactor": 2500,
 			},
@@ -104,9 +104,9 @@ func TestNewPackFileFromOperations(t *testing.T) {
 			OID: "f97ba6134cb447f88ae831ff745cf259ebe7d9ad",
 		}),
 		NewOperationReviewFlashcard("a0e9d4bc5cf64cb2b96a489b5a1ade36d0bd8d44", FlashcardReview{
-			Feedback: "Good",
-			Duration: 500 * time.Millisecond,
-			DueAt:    clock.Now().Add(24 * time.Hour),
+			Confidence: 60, // Good = moderate-high confidence
+			Duration:   500 * time.Millisecond,
+			DueAt:      clock.Now().Add(24 * time.Hour),
 			Settings: map[string]any{
 				"easeFactor": 2500,
 			},

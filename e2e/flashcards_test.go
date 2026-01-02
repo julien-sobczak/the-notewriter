@@ -44,9 +44,9 @@ func TestFlashcards(t *testing.T) {
 	dueAt := clock.Now().Add(24 * time.Hour)
 	packFile, err := NewPackFileFromOperations([]*Operation{
 		NewOperationReviewFlashcard(flashcardRote.OID, FlashcardReview{
-			Feedback: FeedbackGood,
-			Duration: 50 * time.Millisecond,
-			DueAt:    dueAt,
+			Confidence: 60, // Good = moderate-high confidence
+			Duration:   50 * time.Millisecond,
+			DueAt:      dueAt,
 			Settings: map[string]any{
 				"interval":    1,
 				"ease_factor": 2500,
@@ -97,9 +97,9 @@ func TestFlashcards(t *testing.T) {
 	// Review a flashcard
 	oldDueAt := clock.Now().Add(-24 * time.Hour)
 	oldOperation := NewOperationReviewFlashcard(flashcardRote.OID, FlashcardReview{
-		Feedback: FeedbackEasy,
-		Duration: 150 * time.Millisecond,
-		DueAt:    oldDueAt,
+		Confidence: 80, // Easy = high confidence
+		Duration:   150 * time.Millisecond,
+		DueAt:      oldDueAt,
 		Settings: map[string]any{
 			"interval":    2,
 			"ease_factor": 2200,

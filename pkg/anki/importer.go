@@ -86,11 +86,12 @@ func (i *Importer) Import() (string, error) {
 		for _, ankiReview := range cardReviews {
 			// Build the review
 			review := &core.FlashcardReview{
-				Feedback:  core.FeedbackGood, // Could be mapped from ankiReview.Ease if needed
-				Duration:  time.Duration(ankiReview.Time) * time.Millisecond,
-				DueAt:     getDueAtForCard(card),
-				Algorithm: "anki-sm-2",
+				Confidence: 60, // Good = moderate-high confidence (could be mapped from ankiReview.Ease if needed)
+				Duration:   time.Duration(ankiReview.Time) * time.Millisecond,
+				DueAt:      getDueAtForCard(card),
+				Algorithm:  "anki-sm-2",
 				Settings: map[string]any{
+					"cid":     card.ID,
 					"ease":    ankiReview.Ease,
 					"ivl":     ankiReview.Ivl,
 					"lastIvl": ankiReview.LastIvl,
