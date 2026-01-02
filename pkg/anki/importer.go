@@ -91,6 +91,7 @@ func (i *Importer) Import() (string, error) {
 				DueAt:      getDueAtForCard(card),
 				Algorithm:  "anki-sm-2",
 				Settings: map[string]any{
+					"cid":     card.ID,
 					"ease":    ankiReview.Ease,
 					"ivl":     ankiReview.Ivl,
 					"lastIvl": ankiReview.LastIvl,
