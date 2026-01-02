@@ -185,9 +185,9 @@ Guido van Rossum
 		require.NoError(t, err)
 		require.NotNil(t, flashcard)
 		flashcard.Review(firstStudyAt, &FlashcardReview{
-			Feedback: FeedbackEasy,
-			Duration: 1 * time.Second,
-			DueAt:    firstStudyAt.Add(24 * time.Hour),
+			Confidence: 80, // Easy = high confidence
+			Duration:   1 * time.Second,
+			DueAt:      firstStudyAt.Add(24 * time.Hour),
 			Settings: map[string]any{
 				"easeFactor": 2500,
 			},
@@ -205,9 +205,9 @@ Guido van Rossum
 		// Review again
 		secondStudyAt := firstStudyAt.Add(1 * time.Hour)
 		flashcard.Review(secondStudyAt, &FlashcardReview{
-			Feedback: FeedbackHard,
-			Duration: 2 * time.Second,
-			DueAt:    secondStudyAt.Add(1 * time.Hour),
+			Confidence: 30, // Hard = low confidence
+			Duration:   2 * time.Second,
+			DueAt:      secondStudyAt.Add(1 * time.Hour),
 			Settings: map[string]any{
 				"easeFactor": 2300,
 			},

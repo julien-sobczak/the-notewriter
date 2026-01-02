@@ -80,22 +80,9 @@ type Flashcard struct {
 	Settings  map[string]any `yaml:"-" json:"-"`
 }
 
-type Feedback string
-
-const (
-	// Anki-inspired feedbacks
-	FeedbackEasy  Feedback = "easy"
-	FeedbackGood  Feedback = "good"
-	FeedbackAgain Feedback = "again"
-	FeedbackHard  Feedback = "hard"
-	// Special feedbacks
-	FeedbackTooEasy Feedback = "too-easy" // Used to bury a card to max interval
-	FeedbackTooHard Feedback = "too-hard" // Used to relearn a card from scratch
-)
-
 type Review struct {
 	FlashcardOID oid.OID        `yaml:"flashcard_oid" json:"flashcard_oid"`
-	Feedback     Feedback       `yaml:"feedback" json:"feedback"`
+	Confidence   int            `yaml:"confidence" json:"confidence"` // Value between 0 and 100
 	DurationInMs int            `yaml:"duration_ms" json:"duration_ms"`
 	CompletedAt  time.Time      `yaml:"completed_at" json:"completed_at"`
 	DueAt        time.Time      `yaml:"due_at" json:"due_at"`
@@ -602,11 +589,11 @@ func QueryFlashcards(db SQLClient, whereClause string, args ...any) ([]*Flashcar
 /* Operations */
 
 type FlashcardReview struct {
-	Feedback  Feedback       `yaml:"feedback" json:"feedback"`
-	Duration  time.Duration  `duration:"duration" json:"duration"`
-	DueAt     time.Time      `yaml:"due_at" json:"due_at"`
-	Algorithm string         `yaml:"algorithm" json:"algorithm"`
-	Settings  map[string]any `yaml:"settings" json:"settings"`
+	Confidence int            `yaml:"confidence" json:"confidence"` // Value between 0 and 100
+	Duration   time.Duration  `duration:"duration" json:"duration"`
+	DueAt      time.Time      `yaml:"due_at" json:"due_at"`
+	Algorithm  string         `yaml:"algorithm" json:"algorithm"`
+	Settings   map[string]any `yaml:"settings" json:"settings"`
 }
 
 // Review updates the flashcard following a review.
