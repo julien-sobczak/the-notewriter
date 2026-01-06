@@ -19,6 +19,7 @@ import (
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/internal/medias"
 	"github.com/julien-sobczak/the-notewriter/internal/reference"
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/julien-sobczak/the-notewriter/pkg/resync"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
@@ -104,8 +105,8 @@ type ConfigFile struct {
 	// Remotes
 	Remotes []ConfigRemote `json:"remotes"`
 
-	// Predefined searches
-	Searches map[string]*ConfigSearch `json:"searches"`
+	// Predefined queries
+	Queries map[string]*ConfigQuery `json:"queries"`
 
 	// Linter
 	Linter ConfigLinter `json:"linter"`
@@ -117,6 +118,15 @@ type ConfigFile struct {
 
 	// Decks definition when declaring notes of type "Flashcard"
 	Decks []*ConfigDeck `json:"decks"`
+
+	// Desks definition for organizing notes visually
+	Desks []*ConfigDesk `json:"desks"`
+
+	// Journals definition for daily journaling
+	Journals []*ConfigJournal `json:"journals"`
+
+	// Stats definition for data visualization
+	Stats []*ConfigStat `json:"stats"`
 
 	// Books definition for generating ePub/PDF books from notes
 	Books []*ConfigBook `json:"books"`
@@ -304,15 +314,79 @@ type ConfigDeck struct {
 	Algorithm         string         `json:"algorithm"`         // Anki2
 	AlgorithmSettings map[string]any `json:"algorithmSettings"` // SRS-specific attributes
 }
-type ConfigSearch struct {
-	Title string `json:"title"`
-	Q     string `json:"q"`
+type ConfigQuery struct {
+	Title string   `json:"title"`
+	Q     string   `json:"q"`
+	Tags  []string `json:"tags,omitempty"`
 }
 type ConfigReference struct {
 	Title    string `json:"title"`    // Ex: "A book"
 	Manager  string `json:"manager"`  // Ex: "zotero"
 	Path     string `json:"path"`     // Ex: "references/books"
 	Template string `json:"template"` // Ex: "# {{.Title}}\n"
+}
+
+// Block layout types
+const (
+	BlockLayoutContainer  = "container"
+	BlockLayoutHorizontal = "horizontal"
+	BlockLayoutVertical   = "vertical"
+)
+
+// Block view types
+const (
+	BlockViewSingle = "single"
+	BlockViewGrid   = "grid"
+	BlockViewList   = "list"
+	BlockViewFree   = "free"
+)
+
+// Stat visualization types
+const (
+	StatVisualizationPie      = "pie"
+	StatVisualizationMap      = "map"
+	StatVisualizationTimeline = "timeline"
+	StatVisualizationCalendar = "calendar"
+)
+
+type ConfigDesk struct {
+	OID         string `json:"oid,omitempty"`         // A static identifier will be determined from the name if empty
+	Name        string `json:"name"`                  // The name must be unique
+	Description string `json:"description,omitempty"` // Optional description
+	Root        Block  `json:"root"`                  // Root block of the desk
+	Template    bool   `json:"template,omitempty"`    // True to indicate this is a template for new desks
+}
+
+type Block struct {
+	OID      string    `json:"oid,omitempty"`      // Unique identifier inside a single desk
+	Name     string    `json:"name,omitempty"`     // Optional block name
+	Layout   string    `json:"layout"`             // container | horizontal | vertical
+	View     string    `json:"view,omitempty"`     // single | grid | list | free
+	Size     string    `json:"size,omitempty"`     // Percentage of this block on parent size
+	Elements []Block   `json:"elements,omitempty"` // For horizontal/vertical blocks
+	Query    string    `json:"query,omitempty"`    // For container blocks
+	NoteOIDs []oid.OID `json:"noteOids,omitempty"` // For container blocks - direct references to specific notes
+}
+
+type ConfigJournal struct {
+	Name           string          `json:"name"`
+	Path           string          `json:"path"`
+	DefaultContent string          `json:"defaultContent,omitempty"`
+	Routines       []ConfigRoutine `json:"routines"`
+}
+
+type ConfigRoutine struct {
+	Name     string `json:"name"`
+	Template string `json:"template"`
+}
+
+type ConfigStat struct {
+	Name          string            `json:"name"`
+	Query         string            `json:"query"`
+	GroupBy       string            `json:"groupBy"`
+	Visualization string            `json:"visualization"` // pie | map | timeline | calendar
+	Value         string            `json:"value,omitempty"`
+	Mapping       map[string]string `json:"mapping,omitempty"`
 }
 
 type ConfigBook struct {

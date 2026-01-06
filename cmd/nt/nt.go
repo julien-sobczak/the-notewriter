@@ -92,7 +92,7 @@ func showRandomQuote() error {
 	if err != nil {
 		return err
 	}
-	
+
 	if quote == nil {
 		fmt.Println("No quotes found in the repository.")
 		return nil
@@ -102,7 +102,7 @@ func showRandomQuote() error {
 	fmt.Println(quote.LongTitle.ToANSI())
 	fmt.Println()
 	fmt.Println(quote.Body.ToANSI())
-	
+
 	return nil
 }
 

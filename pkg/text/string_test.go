@@ -388,4 +388,3 @@ func TestSquashConsecutiveSpaces(t *testing.T) {
 		})
 	}
 }
-
