@@ -325,6 +325,29 @@ type ConfigReference struct {
 	Template string `json:"template"` // Ex: "# {{.Title}}\n"
 }
 
+// Block layout types
+const (
+	BlockLayoutContainer  = "container"
+	BlockLayoutHorizontal = "horizontal"
+	BlockLayoutVertical   = "vertical"
+)
+
+// Block view types
+const (
+	BlockViewSingle = "single"
+	BlockViewGrid   = "grid"
+	BlockViewList   = "list"
+	BlockViewFree   = "free"
+)
+
+// Stat visualization types
+const (
+	StatVisualizationPie      = "pie"
+	StatVisualizationMap      = "map"
+	StatVisualizationTimeline = "timeline"
+	StatVisualizationCalendar = "calendar"
+)
+
 type ConfigDesk struct {
 	OID         string `json:"oid,omitempty"`         // A static identifier will be determined from the name if empty
 	Name        string `json:"name"`                  // The name must be unique
@@ -344,8 +367,11 @@ type Block struct {
 	NoteRefs []NoteRef `json:"noteRefs,omitempty"` // For container blocks
 }
 
+// NoteRef represents a reference to a specific note within a desk block.
+// This is a placeholder structure for future implementation where blocks can
+// directly reference specific notes instead of using queries.
 type NoteRef struct {
-	// Placeholder for future NoteRef implementation
+	// TODO: Add fields like Wikilink, Slug, or OID when implementing note references
 }
 
 type ConfigJournal struct {
