@@ -76,8 +76,8 @@ local nt = import 'nt.libsonnet';
     # Desks for organizing notes visually
     desks: [
         {
-            name: "My Project",
-            description: "Overview of the NoteWriter project",
+            name: "The NoteWriter",
+            description: "The NoteWriter Project Management",
             root: {
                 layout: "vertical",
                 elements: [
@@ -96,8 +96,8 @@ local nt = import 'nt.libsonnet';
                                 size: "30%",
                             },
                             {
-                                name: "Ideas",
-                                query: "path:thoughts/ (@type:Note)",
+                                name: "Quotes",
+                                query: "path:projects/the-notewriter (@type:Quote)",
                             },
                         ],
                     },
@@ -162,12 +162,6 @@ local nt = import 'nt.libsonnet';
 
     # Stats for data visualization
     stats: [
-        {
-            name: "Reading Progress",
-            query: "@type:ReadingList",
-            groupBy: "rating",
-            visualization: "pie",
-        },
         {
             name: "World Inspiration",
             query: "@type:Quote",
