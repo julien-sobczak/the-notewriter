@@ -19,6 +19,7 @@ import (
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/internal/medias"
 	"github.com/julien-sobczak/the-notewriter/internal/reference"
+	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 	"github.com/julien-sobczak/the-notewriter/pkg/resync"
 	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
@@ -364,14 +365,7 @@ type Block struct {
 	Size     string    `json:"size,omitempty"`     // Percentage of this block on parent size
 	Elements []Block   `json:"elements,omitempty"` // For horizontal/vertical blocks
 	Query    string    `json:"query,omitempty"`    // For container blocks
-	NoteRefs []NoteRef `json:"noteRefs,omitempty"` // For container blocks
-}
-
-// NoteRef represents a reference to a specific note within a desk block.
-// This is a placeholder structure for future implementation where blocks can
-// directly reference specific notes instead of using queries.
-type NoteRef struct {
-	// TODO: Add fields like Wikilink, Slug, or OID when implementing note references
+	NoteOIDs []oid.OID `json:"noteOids,omitempty"` // For container blocks - direct references to specific notes
 }
 
 type ConfigJournal struct {

@@ -358,231 +358,6 @@ func TestCheckConfig(t *testing.T) {
 
 }
 
-func TestNewConfigStructures(t *testing.T) {
-
-	t.Run("ConfigQuery with Tags", func(t *testing.T) {
-		dir := populate(t, map[string]any{
-			".nt/config.jsonnet": `
-{
-	queries: {
-		myQuery: {
-			title: "My Query",
-			q: "@type:Note",
-			tags: ["tag1", "tag2"],
-		},
-	},
-}`,
-		})
-
-		c, err := ReadConfigFromDirectory(dir)
-		require.NoError(t, err)
-		require.NotNil(t, c)
-
-		// Check queries
-		require.NotNil(t, c.ConfigFile.Queries)
-		query, ok := c.ConfigFile.Queries["myQuery"]
-		require.True(t, ok)
-		assert.Equal(t, "My Query", query.Title)
-		assert.Equal(t, "@type:Note", query.Q)
-		assert.Equal(t, []string{"tag1", "tag2"}, query.Tags)
-	})
-
-	t.Run("ConfigDesk Basic", func(t *testing.T) {
-		dir := populate(t, map[string]any{
-			".nt/config.jsonnet": `
-{
-	desks: [
-		{
-			name: "My Desk",
-			description: "A test desk",
-			root: {
-				layout: "container",
-				query: "@type:Note",
-			},
-		},
-	],
-}`,
-		})
-
-		c, err := ReadConfigFromDirectory(dir)
-		require.NoError(t, err)
-		require.NotNil(t, c)
-
-		// Check desks
-		require.Len(t, c.ConfigFile.Desks, 1)
-		desk := c.ConfigFile.Desks[0]
-		assert.Equal(t, "My Desk", desk.Name)
-		assert.Equal(t, "A test desk", desk.Description)
-		assert.Equal(t, "container", desk.Root.Layout)
-		assert.Equal(t, "@type:Note", desk.Root.Query)
-	})
-
-	t.Run("ConfigDesk Complex Layout", func(t *testing.T) {
-		dir := populate(t, map[string]any{
-			".nt/config.jsonnet": `
-{
-	desks: [
-		{
-			name: "My Project",
-			root: {
-				layout: "vertical",
-				elements: [
-					{
-						name: "Notes",
-						size: "70%",
-						query: "path:projects",
-					},
-					{
-						layout: "horizontal",
-						elements: [
-							{
-								name: "Backlog",
-								query: "@type:Todo",
-								view: "single",
-								size: "30%",
-							},
-							{
-								name: "Features",
-								query: "@type:Feature",
-							},
-						],
-					},
-				],
-			},
-		},
-	],
-}`,
-		})
-
-		c, err := ReadConfigFromDirectory(dir)
-		require.NoError(t, err)
-		require.NotNil(t, c)
-
-		// Check desks
-		require.Len(t, c.ConfigFile.Desks, 1)
-		desk := c.ConfigFile.Desks[0]
-		assert.Equal(t, "My Project", desk.Name)
-		assert.Equal(t, "vertical", desk.Root.Layout)
-		require.Len(t, desk.Root.Elements, 2)
-
-		// First element
-		assert.Equal(t, "Notes", desk.Root.Elements[0].Name)
-		assert.Equal(t, "70%", desk.Root.Elements[0].Size)
-		assert.Equal(t, "path:projects", desk.Root.Elements[0].Query)
-
-		// Second element (horizontal layout)
-		assert.Equal(t, "horizontal", desk.Root.Elements[1].Layout)
-		require.Len(t, desk.Root.Elements[1].Elements, 2)
-		assert.Equal(t, "Backlog", desk.Root.Elements[1].Elements[0].Name)
-		assert.Equal(t, "single", desk.Root.Elements[1].Elements[0].View)
-		assert.Equal(t, "30%", desk.Root.Elements[1].Elements[0].Size)
-	})
-
-	t.Run("ConfigJournal", func(t *testing.T) {
-		dir := populate(t, map[string]any{
-			".nt/config.jsonnet": `
-{
-	journals: [
-		{
-			name: "My Diary",
-			path: "journal/${year}/${year}-${month}-${day}.md",
-			defaultContent: "Journal: ${year}-${month}-${day}",
-			routines: [
-				{
-					name: "Morning Routine",
-					template: "# Good morning",
-				},
-				{
-					name: "Shutdown Routine",
-					template: "# Good night",
-				},
-			],
-		},
-	],
-}`,
-		})
-
-		c, err := ReadConfigFromDirectory(dir)
-		require.NoError(t, err)
-		require.NotNil(t, c)
-
-		// Check journals
-		require.Len(t, c.ConfigFile.Journals, 1)
-		journal := c.ConfigFile.Journals[0]
-		assert.Equal(t, "My Diary", journal.Name)
-		assert.Equal(t, "journal/${year}/${year}-${month}-${day}.md", journal.Path)
-		assert.Equal(t, "Journal: ${year}-${month}-${day}", journal.DefaultContent)
-		require.Len(t, journal.Routines, 2)
-		assert.Equal(t, "Morning Routine", journal.Routines[0].Name)
-		assert.Equal(t, "# Good morning", journal.Routines[0].Template)
-		assert.Equal(t, "Shutdown Routine", journal.Routines[1].Name)
-		assert.Equal(t, "# Good night", journal.Routines[1].Template)
-	})
-
-	t.Run("ConfigStat", func(t *testing.T) {
-		dir := populate(t, map[string]any{
-			".nt/config.jsonnet": `
-{
-	stats: [
-		{
-			name: "Quotes by nationality",
-			query: "@type:Quote",
-			groupBy: "nationality",
-			visualization: "pie",
-		},
-		{
-			name: "Steps by day",
-			query: "@type:Journal",
-			groupBy: "date",
-			value: "steps",
-			visualization: "calendar",
-		},
-		{
-			name: "World Inspiration",
-			query: "@type:Quote",
-			groupBy: "nationality",
-			visualization: "map",
-			mapping: {
-				"Roman": "ITA",
-				"Greek": "GRC",
-			},
-		},
-	],
-}`,
-		})
-
-		c, err := ReadConfigFromDirectory(dir)
-		require.NoError(t, err)
-		require.NotNil(t, c)
-
-		// Check stats
-		require.Len(t, c.ConfigFile.Stats, 3)
-
-		// First stat - pie chart
-		stat1 := c.ConfigFile.Stats[0]
-		assert.Equal(t, "Quotes by nationality", stat1.Name)
-		assert.Equal(t, "@type:Quote", stat1.Query)
-		assert.Equal(t, "nationality", stat1.GroupBy)
-		assert.Equal(t, "pie", stat1.Visualization)
-
-		// Second stat - calendar
-		stat2 := c.ConfigFile.Stats[1]
-		assert.Equal(t, "Steps by day", stat2.Name)
-		assert.Equal(t, "date", stat2.GroupBy)
-		assert.Equal(t, "steps", stat2.Value)
-		assert.Equal(t, "calendar", stat2.Visualization)
-
-		// Third stat - map with mapping
-		stat3 := c.ConfigFile.Stats[2]
-		assert.Equal(t, "World Inspiration", stat3.Name)
-		assert.Equal(t, "map", stat3.Visualization)
-		require.NotNil(t, stat3.Mapping)
-		assert.Equal(t, "ITA", stat3.Mapping["Roman"])
-		assert.Equal(t, "GRC", stat3.Mapping["Greek"])
-	})
-
-}
-
 /* Test Helpers */
 
 func populate(t *testing.T, files map[string]any) string {
@@ -781,6 +556,217 @@ func TestParseConfigFile(t *testing.T) {
 		_, err := ParseConfigFile(configPath)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to evaluate config.jsonnet")
+	})
+
+	t.Run("Config with queries using tags", func(t *testing.T) {
+		configPath := MustWriteTempFile(t, "config.jsonnet", `
+{
+	queries: {
+		myQuery: {
+			title: "My Query",
+			q: "@type:Note",
+			tags: ["tag1", "tag2"],
+		},
+	},
+}`)
+
+		cfg, err := ParseConfigFile(configPath)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		// Check queries
+		require.NotNil(t, cfg.Queries)
+		query, ok := cfg.Queries["myQuery"]
+		require.True(t, ok)
+		assert.Equal(t, "My Query", query.Title)
+		assert.Equal(t, "@type:Note", query.Q)
+		assert.Equal(t, []string{"tag1", "tag2"}, query.Tags)
+	})
+
+	t.Run("Config with desk", func(t *testing.T) {
+		configPath := MustWriteTempFile(t, "config.jsonnet", `
+{
+	desks: [
+		{
+			name: "My Desk",
+			description: "A test desk",
+			root: {
+				layout: "container",
+				query: "@type:Note",
+			},
+		},
+	],
+}`)
+
+		cfg, err := ParseConfigFile(configPath)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		// Check desks
+		require.Len(t, cfg.Desks, 1)
+		desk := cfg.Desks[0]
+		assert.Equal(t, "My Desk", desk.Name)
+		assert.Equal(t, "A test desk", desk.Description)
+		assert.Equal(t, "container", desk.Root.Layout)
+		assert.Equal(t, "@type:Note", desk.Root.Query)
+	})
+
+	t.Run("Config with a complex desk", func(t *testing.T) {
+		configPath := MustWriteTempFile(t, "config.jsonnet", `
+{
+	desks: [
+		{
+			name: "My Project",
+			root: {
+				layout: "vertical",
+				elements: [
+					{
+						name: "Notes",
+						size: "70%",
+						query: "path:projects",
+					},
+					{
+						layout: "horizontal",
+						elements: [
+							{
+								name: "Backlog",
+								query: "@type:Todo",
+								view: "single",
+								size: "30%",
+							},
+							{
+								name: "Features",
+								query: "@type:Feature",
+							},
+						],
+					},
+				],
+			},
+		},
+	],
+}`)
+
+		cfg, err := ParseConfigFile(configPath)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		// Check desks
+		require.Len(t, cfg.Desks, 1)
+		desk := cfg.Desks[0]
+		assert.Equal(t, "My Project", desk.Name)
+		assert.Equal(t, "vertical", desk.Root.Layout)
+		require.Len(t, desk.Root.Elements, 2)
+
+		// First element
+		assert.Equal(t, "Notes", desk.Root.Elements[0].Name)
+		assert.Equal(t, "70%", desk.Root.Elements[0].Size)
+		assert.Equal(t, "path:projects", desk.Root.Elements[0].Query)
+
+		// Second element (horizontal layout)
+		assert.Equal(t, "horizontal", desk.Root.Elements[1].Layout)
+		require.Len(t, desk.Root.Elements[1].Elements, 2)
+		assert.Equal(t, "Backlog", desk.Root.Elements[1].Elements[0].Name)
+		assert.Equal(t, "single", desk.Root.Elements[1].Elements[0].View)
+		assert.Equal(t, "30%", desk.Root.Elements[1].Elements[0].Size)
+	})
+
+	t.Run("Config with a journal", func(t *testing.T) {
+		configPath := MustWriteTempFile(t, "config.jsonnet", `
+{
+	journals: [
+		{
+			name: "My Diary",
+			path: "journal/${year}/${year}-${month}-${day}.md",
+			defaultContent: "Journal: ${year}-${month}-${day}",
+			routines: [
+				{
+					name: "Morning Routine",
+					template: "# Good morning",
+				},
+				{
+					name: "Shutdown Routine",
+					template: "# Good night",
+				},
+			],
+		},
+	],
+}`)
+
+		cfg, err := ParseConfigFile(configPath)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		// Check journals
+		require.Len(t, cfg.Journals, 1)
+		journal := cfg.Journals[0]
+		assert.Equal(t, "My Diary", journal.Name)
+		assert.Equal(t, "journal/${year}/${year}-${month}-${day}.md", journal.Path)
+		assert.Equal(t, "Journal: ${year}-${month}-${day}", journal.DefaultContent)
+		require.Len(t, journal.Routines, 2)
+		assert.Equal(t, "Morning Routine", journal.Routines[0].Name)
+		assert.Equal(t, "# Good morning", journal.Routines[0].Template)
+		assert.Equal(t, "Shutdown Routine", journal.Routines[1].Name)
+		assert.Equal(t, "# Good night", journal.Routines[1].Template)
+	})
+
+	t.Run("Config with stats", func(t *testing.T) {
+		configPath := MustWriteTempFile(t, "config.jsonnet", `
+{
+	stats: [
+		{
+			name: "Quotes by nationality",
+			query: "@type:Quote",
+			groupBy: "nationality",
+			visualization: "pie",
+		},
+		{
+			name: "Steps by day",
+			query: "@type:Journal",
+			groupBy: "date",
+			value: "steps",
+			visualization: "calendar",
+		},
+		{
+			name: "World Inspiration",
+			query: "@type:Quote",
+			groupBy: "nationality",
+			visualization: "map",
+			mapping: {
+				"Roman": "ITA",
+				"Greek": "GRC",
+			},
+		},
+	],
+}`)
+
+		cfg, err := ParseConfigFile(configPath)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		// Check stats
+		require.Len(t, cfg.Stats, 3)
+
+		// First stat - pie chart
+		stat1 := cfg.Stats[0]
+		assert.Equal(t, "Quotes by nationality", stat1.Name)
+		assert.Equal(t, "@type:Quote", stat1.Query)
+		assert.Equal(t, "nationality", stat1.GroupBy)
+		assert.Equal(t, "pie", stat1.Visualization)
+
+		// Second stat - calendar
+		stat2 := cfg.Stats[1]
+		assert.Equal(t, "Steps by day", stat2.Name)
+		assert.Equal(t, "date", stat2.GroupBy)
+		assert.Equal(t, "steps", stat2.Value)
+		assert.Equal(t, "calendar", stat2.Visualization)
+
+		// Third stat - map with mapping
+		stat3 := cfg.Stats[2]
+		assert.Equal(t, "World Inspiration", stat3.Name)
+		assert.Equal(t, "map", stat3.Visualization)
+		require.NotNil(t, stat3.Mapping)
+		assert.Equal(t, "ITA", stat3.Mapping["Roman"])
+		assert.Equal(t, "GRC", stat3.Mapping["Greek"])
 	})
 
 }
