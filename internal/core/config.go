@@ -334,13 +334,13 @@ type ConfigDesk struct {
 }
 
 type Block struct {
-	OID      string   `json:"oid,omitempty"`      // Unique identifier inside a single desk
-	Name     string   `json:"name,omitempty"`     // Optional block name
-	Layout   string   `json:"layout"`             // container | horizontal | vertical
-	View     string   `json:"view,omitempty"`     // single | grid | list | free
-	Size     string   `json:"size,omitempty"`     // Percentage of this block on parent size
-	Elements []Block  `json:"elements,omitempty"` // For horizontal/vertical blocks
-	Query    string   `json:"query,omitempty"`    // For container blocks
+	OID      string    `json:"oid,omitempty"`      // Unique identifier inside a single desk
+	Name     string    `json:"name,omitempty"`     // Optional block name
+	Layout   string    `json:"layout"`             // container | horizontal | vertical
+	View     string    `json:"view,omitempty"`     // single | grid | list | free
+	Size     string    `json:"size,omitempty"`     // Percentage of this block on parent size
+	Elements []Block   `json:"elements,omitempty"` // For horizontal/vertical blocks
+	Query    string    `json:"query,omitempty"`    // For container blocks
 	NoteRefs []NoteRef `json:"noteRefs,omitempty"` // For container blocks
 }
 

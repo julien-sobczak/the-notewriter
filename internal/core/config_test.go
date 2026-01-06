@@ -557,7 +557,7 @@ func TestNewConfigStructures(t *testing.T) {
 
 		// Check stats
 		require.Len(t, c.ConfigFile.Stats, 3)
-		
+
 		// First stat - pie chart
 		stat1 := c.ConfigFile.Stats[0]
 		assert.Equal(t, "Quotes by nationality", stat1.Name)

@@ -429,7 +429,7 @@ func TestIndex(t *testing.T) {
 
 		// File in index, not modified recently (within a small tolerance window)
 		// Since file was created around "now", it should be modified before "now + tolerance"
-		// but NOT modified before "now - tolerance" 
+		// but NOT modified before "now - tolerance"
 		tolerance := 2 * time.Second
 		assert.True(t, idx.ModifiedBefore("go.md", clock.Now().Add(tolerance)))
 		assert.False(t, idx.ModifiedBefore("go.md", clock.Now().Add(-tolerance)))
