@@ -241,6 +241,120 @@ func TestCheckConfig(t *testing.T) {
 		require.ErrorContains(t, err, "queries[\"myQuery\"]")
 	})
 
+	t.Run("Invalid query in deck", func(t *testing.T) {
+		dir := populate(t, map[string]any{
+
+			".nt/config.jsonnet": `
+{
+	decks: [
+		{
+			name: "Test Deck",
+			query: "#",
+		},
+	],
+}`,
+		})
+
+		c, err := ReadConfigFromDirectory(dir)
+		require.NoError(t, err)
+
+		err = c.Check()
+		require.ErrorContains(t, err, "invalid query")
+		require.ErrorContains(t, err, "deck")
+		require.ErrorContains(t, err, "Test Deck")
+	})
+
+	t.Run("Invalid query in desk", func(t *testing.T) {
+		dir := populate(t, map[string]any{
+
+			".nt/config.jsonnet": `
+{
+	desks: [
+		{
+			name: "Test Desk",
+			root: {
+				layout: "container",
+				query: "#",
+			},
+		},
+	],
+}`,
+		})
+
+		c, err := ReadConfigFromDirectory(dir)
+		require.NoError(t, err)
+
+		err = c.Check()
+		require.ErrorContains(t, err, "invalid query")
+		require.ErrorContains(t, err, "desk")
+		require.ErrorContains(t, err, "Test Desk")
+	})
+
+	t.Run("Invalid query in nested desk block", func(t *testing.T) {
+		dir := populate(t, map[string]any{
+
+			".nt/config.jsonnet": `
+{
+	desks: [
+		{
+			name: "Complex Desk",
+			root: {
+				layout: "vertical",
+				elements: [
+					{
+						name: "Block 1",
+						query: "@type:Note",
+					},
+					{
+						layout: "horizontal",
+						elements: [
+							{
+								name: "Block 2",
+								query: "#",
+							},
+						],
+					},
+				],
+			},
+		},
+	],
+}`,
+		})
+
+		c, err := ReadConfigFromDirectory(dir)
+		require.NoError(t, err)
+
+		err = c.Check()
+		require.ErrorContains(t, err, "invalid query")
+		require.ErrorContains(t, err, "desk")
+		require.ErrorContains(t, err, "Complex Desk")
+	})
+
+	t.Run("Invalid query in stat", func(t *testing.T) {
+		dir := populate(t, map[string]any{
+
+			".nt/config.jsonnet": `
+{
+	stats: [
+		{
+			name: "Test Stat",
+			query: "#",
+			groupBy: "date",
+			visualization: "pie",
+		},
+	],
+}`,
+		})
+
+		c, err := ReadConfigFromDirectory(dir)
+		require.NoError(t, err)
+
+		err = c.Check()
+		require.ErrorContains(t, err, "invalid query")
+		require.ErrorContains(t, err, "stat")
+		require.ErrorContains(t, err, "Test Stat")
+	})
+
 	t.Run("Invalid pattern in schema", func(t *testing.T) {
 		dir := populate(t, map[string]any{
 
