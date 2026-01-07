@@ -219,6 +219,28 @@ func TestCheckConfig(t *testing.T) {
 		require.ErrorContains(t, err, "unknown severity")
 	})
 
+	t.Run("Invalid query in queries", func(t *testing.T) {
+		dir := populate(t, map[string]any{
+
+			".nt/config.jsonnet": `
+{
+	queries: {
+		myQuery: {
+			title: "My Query",
+			q: "#",
+		},
+	},
+}`,
+		})
+
+		c, err := ReadConfigFromDirectory(dir)
+		require.NoError(t, err)
+
+		err = c.Check()
+		require.ErrorContains(t, err, "invalid query")
+		require.ErrorContains(t, err, "queries[\"myQuery\"]")
+	})
+
 	t.Run("Invalid pattern in schema", func(t *testing.T) {
 		dir := populate(t, map[string]any{
 

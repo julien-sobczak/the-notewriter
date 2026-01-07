@@ -314,10 +314,32 @@ type ConfigDeck struct {
 	Algorithm         string         `json:"algorithm"`         // Anki2
 	AlgorithmSettings map[string]any `json:"algorithmSettings"` // SRS-specific attributes
 }
+
+// Check validates the deck configuration.
+func (cd *ConfigDeck) Check() error {
+	if cd.Query != "" {
+		_, err := ParseQuery(cd.Query)
+		if err != nil {
+			return fmt.Errorf("invalid query %q: %v", cd.Query, err)
+		}
+	}
+	return nil
+}
 type ConfigQuery struct {
 	Title string   `json:"title"`
 	Q     string   `json:"q"`
 	Tags  []string `json:"tags,omitempty"`
+}
+
+// Check validates the query syntax.
+func (cq *ConfigQuery) Check() error {
+	if cq.Q != "" {
+		_, err := ParseQuery(cq.Q)
+		if err != nil {
+			return fmt.Errorf("invalid query %q: %v", cq.Q, err)
+		}
+	}
+	return nil
 }
 type ConfigReference struct {
 	Title    string `json:"title"`    // Ex: "A book"
@@ -357,6 +379,11 @@ type ConfigDesk struct {
 	Template    bool   `json:"template,omitempty"`    // True to indicate this is a template for new desks
 }
 
+// Check validates the desk configuration including nested block queries.
+func (cd *ConfigDesk) Check() error {
+	return cd.Root.Check()
+}
+
 type Block struct {
 	OID      string    `json:"oid,omitempty"`      // Unique identifier inside a single desk
 	Name     string    `json:"name,omitempty"`     // Optional block name
@@ -366,6 +393,23 @@ type Block struct {
 	Elements []Block   `json:"elements,omitempty"` // For horizontal/vertical blocks
 	Query    string    `json:"query,omitempty"`    // For container blocks
 	NoteOIDs []oid.OID `json:"noteOids,omitempty"` // For container blocks - direct references to specific notes
+}
+
+// Check validates the block configuration including nested blocks.
+func (b *Block) Check() error {
+	if b.Query != "" {
+		_, err := ParseQuery(b.Query)
+		if err != nil {
+			return fmt.Errorf("invalid query %q: %v", b.Query, err)
+		}
+	}
+	// Check nested elements
+	for _, element := range b.Elements {
+		if err := element.Check(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type ConfigJournal struct {
@@ -387,6 +431,17 @@ type ConfigStat struct {
 	Visualization string            `json:"visualization"` // pie | map | timeline | calendar
 	Value         string            `json:"value,omitempty"`
 	Mapping       map[string]string `json:"mapping,omitempty"`
+}
+
+// Check validates the stat configuration.
+func (cs *ConfigStat) Check() error {
+	if cs.Query != "" {
+		_, err := ParseQuery(cs.Query)
+		if err != nil {
+			return fmt.Errorf("invalid query %q: %v", cs.Query, err)
+		}
+	}
+	return nil
 }
 
 type ConfigBook struct {
@@ -523,6 +578,163 @@ func (f *ConfigFile) SupportExtension(path string) bool {
 		}
 	}
 	return false
+}
+
+// Check validates the configuration file for syntactic correctness.
+func (cf *ConfigFile) Check() error {
+	// Check for invalid note types
+	for _, noteType := range cf.NoteTypes {
+		// Check for invalid regex pattern
+		if noteType.Pattern != "" {
+			if _, err := regexp.Compile(noteType.Pattern); err != nil {
+				return fmt.Errorf("invalid pattern %q for note type %q: %v", noteType.Pattern, noteType.Name, err)
+			}
+		}
+	}
+
+	// Check for invalid file types
+	for _, fileType := range cf.FileTypes {
+		// Check for invalid regex pattern
+		if fileType.Pattern != "" {
+			if _, err := regexp.Compile(fileType.Pattern); err != nil {
+				return fmt.Errorf("invalid pattern %q for file type %q: %v", fileType.Pattern, fileType.Name, err)
+			}
+		}
+		// Check for invalid regexes in schema
+		if fileType.Schema != nil {
+			err := checkHeadingSchema(fileType.Schema.Body)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// Check for default attribute values
+	for _, attribute := range cf.Attributes {
+		if attribute.DefaultValue != nil {
+			_, valid := CastAttribute(attribute.DefaultValue, *attribute)
+			if !valid {
+				return fmt.Errorf("default value %q for attribute %q is not valid", attribute.DefaultValue, attribute.Name)
+			}
+		}
+	}
+
+	// Check for invalid attributes
+	for _, attribute := range cf.Attributes {
+		// Check for invalid regex pattern
+		if attribute.Pattern != "" && attribute.Pattern != "string" {
+			if _, err := regexp.Compile(attribute.Pattern); err != nil {
+				return fmt.Errorf("invalid pattern %q for attribute %q: %v", attribute.Pattern, attribute.Name, err)
+			}
+		}
+
+		// Check for invalid shorthand regex pattern
+		if attribute.ShorthandPattern != "" {
+			if _, err := regexp.Compile(attribute.ShorthandPattern); err != nil {
+				return fmt.Errorf("invalid shorthand pattern %q for attribute %q: %v", attribute.ShorthandPattern, attribute.Name, err)
+			}
+		}
+
+		// Check that Memory is only set on date format attributes
+		if attribute.Memory != nil && *attribute.Memory {
+			if attribute.Type != "string" && attribute.Type != "date" {
+				return fmt.Errorf("memory can only be enabled on string or date type attributes, but attribute %q has type %q", attribute.Name, attribute.Type)
+			}
+			if attribute.Format == "" {
+				return fmt.Errorf("memory requires a date format to be specified, but attribute %q has no format", attribute.Name)
+			}
+
+		}
+
+		// Check for invalid shorthand values
+		for shorthandKey, shorthandValue := range attribute.Shorthands {
+			if valid, err := attribute.Valid(shorthandValue); !valid {
+				return fmt.Errorf("shorthand value %q for key %q in attribute %q is not valid: %s", shorthandValue, shorthandKey, attribute.Name, err)
+			}
+		}
+	}
+
+	// Check all rules are valid
+	for _, rule := range cf.Linter.Rules {
+		ruleName := rule.Name
+		_, ok := LintRulesFn[ruleName]
+		if !ok {
+			return fmt.Errorf("unknown lint rule %q", rule.Name)
+		}
+		if rule.Severity != "" && !slices.Contains([]string{"error", "warning"}, rule.Severity) {
+			return fmt.Errorf("unknown severity %q for lint rule %q", rule.Severity, rule.Name)
+		}
+		if rule.Query != "" {
+			_, err := ParseQuery(rule.Query)
+			if err != nil {
+				return fmt.Errorf("invalid query %q for lint rule %q: %v", rule.Query, rule.Name, err)
+			}
+		}
+	}
+
+	// Check for invalid reference templates
+	for key, referenceConfig := range cf.References {
+		// Only path and template supports Go Templating
+		_, err := reference.ParseTemplate(referenceConfig.Path)
+		if err != nil {
+			return fmt.Errorf("invalid path for reference %q: %w", key, err)
+		}
+		_, err = reference.ParseTemplate(referenceConfig.Template)
+		if err != nil {
+			return fmt.Errorf("invalid template for reference %q: %w", key, err)
+		}
+	}
+
+	// Check for invalid book configurations
+	for _, book := range cf.Books {
+		if book.Title == "" {
+			return fmt.Errorf("book title cannot be empty")
+		}
+		if len(book.Format) == 0 {
+			return fmt.Errorf("book '%s' must specify at least one format", book.Title)
+		}
+		for _, format := range book.Format {
+			if !slices.Contains([]string{"epub", "pdf", "markdown"}, strings.ToLower(format)) {
+				return fmt.Errorf("unsupported format '%s' for book '%s'. Only 'epub', 'pdf', and 'markdown' are supported", format, book.Title)
+			}
+		}
+		if len(book.Author) == 0 {
+			return fmt.Errorf("book '%s' must specify at least one author", book.Title)
+		}
+		if book.Language == "" {
+			return fmt.Errorf("book '%s' must specify a language", book.Title)
+		}
+	}
+
+	// Check for invalid queries in queries section
+	for key, query := range cf.Queries {
+		if err := query.Check(); err != nil {
+			return fmt.Errorf("invalid query in queries[%q]: %v", key, err)
+		}
+	}
+
+	// Check for invalid queries in decks
+	for _, deck := range cf.Decks {
+		if err := deck.Check(); err != nil {
+			return fmt.Errorf("invalid query in deck %q: %v", deck.Name, err)
+		}
+	}
+
+	// Check for invalid queries in desks
+	for _, desk := range cf.Desks {
+		if err := desk.Check(); err != nil {
+			return fmt.Errorf("invalid query in desk %q: %v", desk.Name, err)
+		}
+	}
+
+	// Check for invalid queries in stats
+	for _, stat := range cf.Stats {
+		if err := stat.Check(); err != nil {
+			return fmt.Errorf("invalid query in stat %q: %v", stat.Name, err)
+		}
+	}
+
+	return nil
 }
 
 // Valid validates a string value against this attribute's constraints.
@@ -1155,135 +1367,11 @@ func InitConfigFileFromDirectory(path string, options ConfigOptions) error {
 }
 
 func (c *Config) Check() error {
-
-	// Check for invalid note types
-	for _, noteType := range c.ConfigFile.NoteTypes {
-		// Check for invalid regex pattern
-		if noteType.Pattern != "" {
-			if _, err := regexp.Compile(noteType.Pattern); err != nil {
-				return fmt.Errorf("invalid pattern %q for note type %q: %v", noteType.Pattern, noteType.Name, err)
-			}
-		}
-	}
-
-	// Check for invalid file types
-	for _, fileType := range c.ConfigFile.FileTypes {
-		// Check for invalid regex pattern
-		if fileType.Pattern != "" {
-			if _, err := regexp.Compile(fileType.Pattern); err != nil {
-				return fmt.Errorf("invalid pattern %q for file type %q: %v", fileType.Pattern, fileType.Name, err)
-			}
-		}
-		// Check for invalid regexes in schema
-		if fileType.Schema != nil {
-			err := c.checkHeadingSchema(fileType.Schema.Body)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	// Check for default attribute values
-	for _, attribute := range c.ConfigFile.Attributes {
-		if attribute.DefaultValue != nil {
-			_, valid := CastAttribute(attribute.DefaultValue, *attribute)
-			if !valid {
-				return fmt.Errorf("default value %q for attribute %q is not valid", attribute.DefaultValue, attribute.Name)
-			}
-		}
-	}
-
-	// Check for invalid attributes
-	for _, attribute := range c.ConfigFile.Attributes {
-		// Check for invalid regex pattern
-		if attribute.Pattern != "" && attribute.Pattern != "string" {
-			if _, err := regexp.Compile(attribute.Pattern); err != nil {
-				return fmt.Errorf("invalid pattern %q for attribute %q: %v", attribute.Pattern, attribute.Name, err)
-			}
-		}
-
-		// Check for invalid shorthand regex pattern
-		if attribute.ShorthandPattern != "" {
-			if _, err := regexp.Compile(attribute.ShorthandPattern); err != nil {
-				return fmt.Errorf("invalid shorthand pattern %q for attribute %q: %v", attribute.ShorthandPattern, attribute.Name, err)
-			}
-		}
-
-		// Check that Memory is only set on date format attributes
-		if attribute.Memory != nil && *attribute.Memory {
-			if attribute.Type != "string" && attribute.Type != "date" {
-				return fmt.Errorf("memory can only be enabled on string or date type attributes, but attribute %q has type %q", attribute.Name, attribute.Type)
-			}
-			if attribute.Format == "" {
-				return fmt.Errorf("memory requires a date format to be specified, but attribute %q has no format", attribute.Name)
-			}
-
-		}
-
-		// Check for invalid shorthand values
-		for shorthandKey, shorthandValue := range attribute.Shorthands {
-			if valid, err := attribute.Valid(shorthandValue); !valid {
-				return fmt.Errorf("shorthand value %q for key %q in attribute %q is not valid: %s", shorthandValue, shorthandKey, attribute.Name, err)
-			}
-		}
-	}
-
-	// Check all rules are valid
-	for _, rule := range c.ConfigFile.Linter.Rules {
-		ruleName := rule.Name
-		_, ok := LintRulesFn[ruleName]
-		if !ok {
-			return fmt.Errorf("unknown lint rule %q", rule.Name)
-		}
-		if rule.Severity != "" && !slices.Contains([]string{"error", "warning"}, rule.Severity) {
-			return fmt.Errorf("unknown severity %q for lint rule %q", rule.Severity, rule.Name)
-		}
-		if rule.Query != "" {
-			_, err := ParseQuery(rule.Query)
-			if err != nil {
-				return fmt.Errorf("invalid query %q for lint rule %q: %v", rule.Query, rule.Name, err)
-			}
-		}
-	}
-
-	// Check for invalid reference templates
-	for key, referenceConfig := range c.ConfigFile.References {
-		// Only path and template supports Go Templating
-		_, err := reference.ParseTemplate(referenceConfig.Path)
-		if err != nil {
-			return fmt.Errorf("invalid path for reference %q: %w", key, err)
-		}
-		_, err = reference.ParseTemplate(referenceConfig.Template)
-		if err != nil {
-			return fmt.Errorf("invalid template for reference %q: %w", key, err)
-		}
-	}
-
-	// Check for invalid book configurations
-	for _, book := range c.ConfigFile.Books {
-		if book.Title == "" {
-			return fmt.Errorf("book title cannot be empty")
-		}
-		if len(book.Format) == 0 {
-			return fmt.Errorf("book '%s' must specify at least one format", book.Title)
-		}
-		for _, format := range book.Format {
-			if !slices.Contains([]string{"epub", "pdf", "markdown"}, strings.ToLower(format)) {
-				return fmt.Errorf("unsupported format '%s' for book '%s'. Only 'epub', 'pdf', and 'markdown' are supported", format, book.Title)
-			}
-		}
-		if len(book.Author) == 0 {
-			return fmt.Errorf("book '%s' must specify at least one author", book.Title)
-		}
-		if book.Language == "" {
-			return fmt.Errorf("book '%s' must specify a language", book.Title)
-		}
-	}
-
-	return nil
+	// Delegate to ConfigFile.Check() for all ConfigFile-specific checks
+	return c.ConfigFile.Check()
 }
 
-func (c *Config) checkHeadingSchema(schema *ConfigHeadingSchema) error {
+func checkHeadingSchema(schema *ConfigHeadingSchema) error {
 	if schema.Match != "" {
 		if _, err := regexp.Compile(schema.Match); err != nil {
 			return fmt.Errorf("invalid match pattern %q in heading schema: %v", schema.Match, err)
@@ -1295,7 +1383,7 @@ func (c *Config) checkHeadingSchema(schema *ConfigHeadingSchema) error {
 		}
 	}
 	for _, child := range schema.Children {
-		if err := c.checkHeadingSchema(child); err != nil {
+		if err := checkHeadingSchema(child); err != nil {
 			return err
 		}
 	}
