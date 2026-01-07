@@ -324,7 +324,7 @@ func TestCommandPushPull(t *testing.T) {
 		NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 		// Configure origin
 		origin := t.TempDir()
-		CurrentConfigFile().Remotes = []ConfigRemote{
+		CurrentConfigFile().Remotes = []*ConfigRemote{
 			{
 				Name: "origin",
 				Type: "fs",
@@ -359,7 +359,7 @@ func TestCommandPushPull(t *testing.T) {
 		// Force a new temp repository
 		NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 		// but with the same origin
-		CurrentConfigFile().Remotes = []ConfigRemote{
+		CurrentConfigFile().Remotes = []*ConfigRemote{
 			{
 				Name: "origin",
 				Type: "fs",
@@ -378,7 +378,7 @@ func TestCommandPushPull(t *testing.T) {
 		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
 		// Configure origin
 		origin := t.TempDir()
-		CurrentConfigFile().Remotes = []ConfigRemote{
+		CurrentConfigFile().Remotes = []*ConfigRemote{
 			{
 				Name: "origin",
 				Type: "fs",

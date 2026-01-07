@@ -5,6 +5,7 @@ import (
 	"bytes"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -66,6 +67,14 @@ func (i *IgnoreFile) MustExcludeFile(path string, dir bool) bool {
  * Jsonnet Config
  */
 
+// Configurable is an interface for configuration sections that can validate themselves and apply defaults.
+type Configurable interface {
+	// Check validates the configuration section.
+	Check() error
+	// ApplyDefaults sets default values for the configuration section.
+	ApplyDefaults()
+}
+
 var (
 	// Lazy-load configuration and ensure a single read
 	configOnce      resync.Once
@@ -79,9 +88,18 @@ type ConfigAttributes map[string]*ConfigAttribute
 type ConfigNoteTypes map[string]*ConfigNoteType
 type ConfigFileTypes map[string]*ConfigFileType
 
+func (c ConfigAttributes) Check() error {
+	for _, value := range c {
+		if err := value.Check(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Find returns the attribute with the given name or nil if not found.
-func (a ConfigAttributes) Find(name string) (*ConfigAttribute, bool) {
-	for _, attribute := range a {
+func (c ConfigAttributes) Find(name string) (*ConfigAttribute, bool) {
+	for _, attribute := range c {
 		if attribute.Name == name {
 			return attribute, true
 		}
@@ -94,43 +112,145 @@ func (a ConfigAttributes) Find(name string) (*ConfigAttribute, bool) {
 	return nil, false
 }
 
+func (c ConfigNoteTypes) Check() error {
+	for _, value := range c {
+		if err := value.Check(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c ConfigFileTypes) Check() error {
+	for _, value := range c {
+		if err := value.Check(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Note: Fields must be JSON parser to marshal them
 type ConfigFile struct {
-	Core ConfigCore `json:"core"`
+	Core *ConfigCore `json:"core"`
 
 	Attributes ConfigAttributes `json:"attributes"`
 	NoteTypes  ConfigNoteTypes  `json:"noteTypes"`
 	FileTypes  ConfigFileTypes  `json:"fileTypes"`
 
 	// Remotes
-	Remotes []ConfigRemote `json:"remotes"`
+	Remotes []*ConfigRemote `json:"remotes"`
 
 	// Predefined queries
-	Queries map[string]*ConfigQuery `json:"queries"`
+	Queries ConfigQueries `json:"queries"`
 
 	// Linter
-	Linter ConfigLinter `json:"linter"`
+	Linter *ConfigLinter `json:"linter"`
 
 	// Extensions
 
 	// Reference options when using the "nt-reference" command
-	References []*ConfigReference `json:"references"`
+	References ConfigReferences `json:"references"`
 
 	// Decks definition when declaring notes of type "Flashcard"
-	Decks []*ConfigDeck `json:"decks"`
+	Decks ConfigDecks `json:"decks"`
 
 	// Desks definition for organizing notes visually
-	Desks []*ConfigDesk `json:"desks"`
+	Desks ConfigDesks `json:"desks"`
 
 	// Journals definition for daily journaling
-	Journals []*ConfigJournal `json:"journals"`
+	Journals ConfigJournals `json:"journals"`
 
 	// Stats definition for data visualization
-	Stats []*ConfigStat `json:"stats"`
+	Stats ConfigStats `json:"stats"`
 
 	// Books definition for generating ePub/PDF books from notes
-	Books []*ConfigBook `json:"books"`
+	Books ConfigBooks `json:"books"`
 }
+
+type ConfigQueries map[string]*ConfigQuery
+type ConfigReferences []*ConfigReference
+type ConfigDecks []*ConfigDeck
+type ConfigDesks []*ConfigDesk
+type ConfigJournals []*ConfigJournal
+type ConfigStats []*ConfigStat
+type ConfigBooks []*ConfigBook
+
+func (c ConfigQueries) Check() error {
+	var errs []error
+	for key, query := range c {
+		if err := query.Check(); err != nil {
+			errs = append(errs, fmt.Errorf("invalid query %q: %v", key, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+func (c ConfigQueries) ApplyDefaults() {}
+
+func (c ConfigReferences) Check() error {
+	var errs []error
+	for _, ref := range c {
+		if err := ref.Check(); err != nil {
+			errs = append(errs, fmt.Errorf("invalid reference %q: %v", ref.Title, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+func (c ConfigReferences) ApplyDefaults() {}
+
+func (c ConfigDecks) Check() error {
+	var errs []error
+	for _, deck := range c {
+		if err := deck.Check(); err != nil {
+			errs = append(errs, fmt.Errorf("invalid deck %q: %v", deck.Name, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (c ConfigDesks) Check() error {
+	var errs []error
+	for _, desk := range c {
+		if err := desk.Check(); err != nil {
+			errs = append(errs, fmt.Errorf("invalid desk %q: %v", desk.Name, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+func (c ConfigDesks) ApplyDefaults() {}
+
+func (c ConfigJournals) Check() error {
+	var errs []error
+	for _, journal := range c {
+		if err := journal.Check(); err != nil {
+			errs = append(errs, fmt.Errorf("invalid journal %q: %v", journal.Name, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+func (c ConfigJournals) ApplyDefaults() {}
+
+func (c ConfigStats) Check() error {
+	var errs []error
+	for _, stat := range c {
+		if err := stat.Check(); err != nil {
+			errs = append(errs, fmt.Errorf("invalid stat %q: %v", stat.Name, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+func (c ConfigStats) ApplyDefaults() {}
+
+func (c ConfigBooks) Check() error {
+	var errs []error
+	for _, book := range c {
+		if err := book.Check(); err != nil {
+			errs = append(errs, fmt.Errorf("invalid book %q: %v", book.Title, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+func (c ConfigBooks) ApplyDefaults() {}
 
 // GetNoteType returns the definition of a note type
 func (c *ConfigFile) GetNoteType(noteType string) (*ConfigNoteType, bool) {
@@ -149,8 +269,8 @@ func (c *ConfigFile) MustGetNoteType(noteType string) *ConfigNoteType {
 }
 
 // MatchNoteType checks if the given text matches any of the supported note types.
-func (f *ConfigFile) MatchNoteType(heading string) (*ConfigNoteType, markdown.Document, bool) {
-	for _, noteType := range f.NoteTypes {
+func (c *ConfigFile) MatchNoteType(heading string) (*ConfigNoteType, markdown.Document, bool) {
+	for _, noteType := range c.NoteTypes {
 		if title, ok := noteType.MatchHeading(heading); ok {
 			return noteType, markdown.Document(title), true
 		}
@@ -241,43 +361,49 @@ type ConfigAttribute struct {
 }
 
 // Check validates the attribute configuration.
-func (attr *ConfigAttribute) Check() error {
+func (c *ConfigAttribute) Check() error {
+	if c == nil {
+		return nil
+	}
 	// Check for invalid regex pattern
-	if attr.Pattern != "" && attr.Pattern != "string" {
-		if _, err := regexp.Compile(attr.Pattern); err != nil {
-			return fmt.Errorf("invalid pattern %q for attribute %q: %v", attr.Pattern, attr.Name, err)
+	if c.Pattern != "" && c.Type != "string" {
+		return fmt.Errorf("invalid attribute type %s to use a pattern for attribute %q", c.Type, c.Name)
+	}
+	if c.Pattern != "" {
+		if _, err := regexp.Compile(c.Pattern); err != nil {
+			return fmt.Errorf("invalid pattern %q for attribute %q: %v", c.Pattern, c.Name, err)
 		}
 	}
 
 	// Check for invalid shorthand regex pattern
-	if attr.ShorthandPattern != "" {
-		if _, err := regexp.Compile(attr.ShorthandPattern); err != nil {
-			return fmt.Errorf("invalid shorthand pattern %q for attribute %q: %v", attr.ShorthandPattern, attr.Name, err)
+	if c.ShorthandPattern != "" {
+		if _, err := regexp.Compile(c.ShorthandPattern); err != nil {
+			return fmt.Errorf("invalid shorthand pattern %q for attribute %q: %v", c.ShorthandPattern, c.Name, err)
 		}
 	}
 
 	// Check that Memory is only set on date format attributes
-	if attr.Memory != nil && *attr.Memory {
-		if attr.Type != "string" && attr.Type != "date" {
-			return fmt.Errorf("memory can only be enabled on string or date type attributes, but attribute %q has type %q", attr.Name, attr.Type)
+	if c.Memory != nil && *c.Memory {
+		if c.Type != "string" && c.Type != "date" {
+			return fmt.Errorf("memory can only be enabled on string or date type attributes, but attribute %q has type %q", c.Name, c.Type)
 		}
-		if attr.Format == "" {
-			return fmt.Errorf("memory requires a date format to be specified, but attribute %q has no format", attr.Name)
+		if c.Format == "" {
+			return fmt.Errorf("memory requires a date format to be specified, but attribute %q has no format", c.Name)
 		}
 	}
 
 	// Check for invalid shorthand values
-	for shorthandKey, shorthandValue := range attr.Shorthands {
-		if valid, err := attr.Valid(shorthandValue); !valid {
-			return fmt.Errorf("shorthand value %q for key %q in attribute %q is not valid: %s", shorthandValue, shorthandKey, attr.Name, err)
+	for shorthandKey, shorthandValue := range c.Shorthands {
+		if valid, err := c.Valid(shorthandValue); !valid {
+			return fmt.Errorf("shorthand value %q for key %q in attribute %q is not valid: %s", shorthandValue, shorthandKey, c.Name, err)
 		}
 	}
 
 	// Check default value
-	if attr.DefaultValue != nil {
-		_, valid := CastAttribute(attr.DefaultValue, *attr)
+	if c.DefaultValue != nil {
+		_, valid := CastAttribute(c.DefaultValue, *c)
 		if !valid {
-			return fmt.Errorf("default value %q for attribute %q is not valid", attr.DefaultValue, attr.Name)
+			return fmt.Errorf("default value %q for attribute %q is not valid", c.DefaultValue, c.Name)
 		}
 	}
 
@@ -299,15 +425,73 @@ type ConfigNoteType struct {
 }
 
 // Check validates the note type configuration.
-func (nt *ConfigNoteType) Check() error {
+func (c *ConfigNoteType) Check() error {
+		if c == nil {
+		return nil
+	}
 	// Check for invalid regex pattern
-	if nt.Pattern != "" {
-		if _, err := regexp.Compile(nt.Pattern); err != nil {
-			return fmt.Errorf("invalid pattern %q for note type %q: %v", nt.Pattern, nt.Name, err)
+	if c.Pattern != "" {
+		if _, err := regexp.Compile(c.Pattern); err != nil {
+			return fmt.Errorf("invalid pattern %q for note type %q: %v", c.Pattern, c.Name, err)
 		}
 	}
 	return nil
 }
+
+func (c *ConfigNoteType) ApplyDefaults() {
+	if c.Pattern == "" {
+		c.Pattern = fmt.Sprintf("(?i)^%s:\\s*(.*)$", c.Name) // Ex: "Note: A basic note" or "note: A basic note"
+	}
+	// Set defaults for new attribute structure
+	for i := range c.Attributes {
+		if c.Attributes[i].Required == nil {
+			c.Attributes[i].Required = BoolPointer(false)
+		}
+		if c.Attributes[i].PromoteInline == nil {
+			c.Attributes[i].PromoteInline = BoolPointer(false)
+		}
+	}
+}
+
+func (c ConfigNoteTypes) ApplyDefaults() {
+	for _, noteType := range c {
+		noteType.ApplyDefaults()
+	}
+}
+
+func (c *ConfigFileType) ApplyDefaults() {
+	if c.Pattern == "" {
+		c.Pattern = fmt.Sprintf("(?i)^%s:\\s*(.*)$", c.Name) // Ex: "Reading: My Book Title" or "reading: My book title"
+	}
+}
+
+func (c ConfigFileTypes) ApplyDefaults() {
+	for _, fileType := range c {
+		fileType.ApplyDefaults()
+	}
+}
+
+func (c *ConfigDeck) ApplyDefaults() {
+	if c.Algorithm == "" {
+		c.Algorithm = DefaultSRSAlgorithm
+	}
+	if c.BoostFactor == 0 {
+		c.BoostFactor = DefaultSRSBoostFactor
+	}
+	if c.AlgorithmSettings == nil {
+		c.AlgorithmSettings = make(map[string]any)
+	}
+	if _, ok := c.AlgorithmSettings["easeFactor"]; !ok {
+		c.AlgorithmSettings["easeFactor"] = DefaultSRSEaseFactor
+	}
+}
+
+func (c ConfigDecks) ApplyDefaults() {
+	for _, deck := range c {
+		deck.ApplyDefaults()
+	}
+}
+
 
 // ConfigFileSchema defines the structure of a file's Markdown schema
 type ConfigFileSchema struct {
@@ -325,18 +509,21 @@ type ConfigHeadingSchema struct {
 }
 
 // Check validates the heading schema configuration.
-func (hs *ConfigHeadingSchema) Check() error {
-	if hs.Match != "" {
-		if _, err := regexp.Compile(hs.Match); err != nil {
-			return fmt.Errorf("invalid match pattern %q in heading schema: %v", hs.Match, err)
+func (c *ConfigHeadingSchema) Check() error {
+		if c == nil {
+		return nil
+	}
+	if c.Match != "" {
+		if _, err := regexp.Compile(c.Match); err != nil {
+			return fmt.Errorf("invalid match pattern %q in heading schema: %v", c.Match, err)
 		}
 	}
-	if hs.MatchType != "" {
-		if _, err := regexp.Compile(hs.MatchType); err != nil {
-			return fmt.Errorf("invalid match type pattern %q in heading schema: %v", hs.MatchType, err)
+	if c.MatchType != "" {
+		if _, err := regexp.Compile(c.MatchType); err != nil {
+			return fmt.Errorf("invalid match type pattern %q in heading schema: %v", c.MatchType, err)
 		}
 	}
-	for _, child := range hs.Children {
+	for _, child := range c.Children {
 		if err := child.Check(); err != nil {
 			return err
 		}
@@ -353,16 +540,19 @@ type ConfigFileType struct {
 }
 
 // Check validates the file type configuration.
-func (ft *ConfigFileType) Check() error {
+func (c *ConfigFileType) Check() error {
+		if c == nil {
+		return nil
+	}
 	// Check for invalid regex pattern
-	if ft.Pattern != "" {
-		if _, err := regexp.Compile(ft.Pattern); err != nil {
-			return fmt.Errorf("invalid pattern %q for file type %q: %v", ft.Pattern, ft.Name, err)
+	if c.Pattern != "" {
+		if _, err := regexp.Compile(c.Pattern); err != nil {
+			return fmt.Errorf("invalid pattern %q for file type %q: %v", c.Pattern, c.Name, err)
 		}
 	}
 	// Check for invalid regexes in schema
-	if ft.Schema != nil && ft.Schema.Body != nil {
-		if err := ft.Schema.Body.Check(); err != nil {
+	if c.Schema != nil && c.Schema.Body != nil {
+		if err := c.Schema.Body.Check(); err != nil {
 			return err
 		}
 	}
@@ -378,27 +568,44 @@ type ConfigLinterRule struct {
 	Query    string `json:"query,omitempty"` // Optional query to restrict which notes are concerned
 }
 
-// Check validates the linter rule configuration.
-func (lr *ConfigLinterRule) Check() error {
-	// Check rule name is known
-	_, ok := LintRulesFn[lr.Name]
-	if !ok {
-		return fmt.Errorf("unknown lint rule %q", lr.Name)
+func (c *ConfigLinter) Check() error {
+	if c == nil {
+		return nil
 	}
-	
-	// Check severity is valid
-	if lr.Severity != "" && !slices.Contains([]string{"error", "warning"}, lr.Severity) {
-		return fmt.Errorf("unknown severity %q for lint rule %q", lr.Severity, lr.Name)
-	}
-	
-	// Check query is valid
-	if lr.Query != "" {
-		_, err := ParseQuery(lr.Query)
-		if err != nil {
-			return fmt.Errorf("invalid query %q for lint rule %q: %v", lr.Query, lr.Name, err)
+	var errs []error
+	for _, rule := range c.Rules {
+		if err := rule.Check(); err != nil {
+			errs = append(errs, err)
 		}
 	}
-	
+	return errors.Join(errs...)
+}
+func (c *ConfigLinter) ApplyDefaults() {}
+
+// Check validates the linter rule configuration.
+func (c *ConfigLinterRule) Check() error {
+		if c == nil {
+		return nil
+	}
+	// Check rule name is known
+	_, ok := LintRulesFn[c.Name]
+	if !ok {
+		return fmt.Errorf("unknown lint rule %q", c.Name)
+	}
+
+	// Check severity is valid
+	if c.Severity != "" && !slices.Contains([]string{"error", "warning"}, c.Severity) {
+		return fmt.Errorf("unknown severity %q for lint rule %q", c.Severity, c.Name)
+	}
+
+	// Check query is valid
+	if c.Query != "" {
+		_, err := ParseQuery(c.Query)
+		if err != nil {
+			return fmt.Errorf("invalid query %q for lint rule %q: %v", c.Query, c.Name, err)
+		}
+	}
+
 	return nil
 }
 
@@ -432,12 +639,19 @@ type ConfigDeck struct {
 }
 
 // Check validates the deck configuration.
-func (cd *ConfigDeck) Check() error {
-	if cd.Query != "" {
-		_, err := ParseQuery(cd.Query)
+func (c *ConfigDeck) Check() error {
+		if c == nil {
+		return nil
+	}
+	if c.Query != "" {
+		_, err := ParseQuery(c.Query)
 		if err != nil {
-			return fmt.Errorf("invalid query %q: %v", cd.Query, err)
+			return fmt.Errorf("invalid query %q: %v", c.Query, err)
 		}
+	}
+	// Only a single one currently supported
+	if c.Algorithm != "" && c.Algorithm != DefaultSRSAlgorithm {
+		return fmt.Errorf("unsupported SRS algorithm %q", c.Algorithm)
 	}
 	return nil
 }
@@ -448,11 +662,14 @@ type ConfigQuery struct {
 }
 
 // Check validates the query syntax.
-func (cq *ConfigQuery) Check() error {
-	if cq.Q != "" {
-		_, err := ParseQuery(cq.Q)
+func (c *ConfigQuery) Check() error {
+		if c == nil {
+		return nil
+	}
+	if c.Q != "" {
+		_, err := ParseQuery(c.Q)
 		if err != nil {
-			return fmt.Errorf("invalid query %q: %v", cq.Q, err)
+			return fmt.Errorf("invalid query %q: %v", c.Q, err)
 		}
 	}
 	return nil
@@ -462,6 +679,23 @@ type ConfigReference struct {
 	Manager  string `json:"manager"`  // Ex: "zotero"
 	Path     string `json:"path"`     // Ex: "references/books"
 	Template string `json:"template"` // Ex: "# {{.Title}}\n"
+}
+
+// Check validates the reference configuration.
+func (c *ConfigReference) Check() error {
+		if c == nil {
+		return nil
+}
+	// Only path and template supports Go Templating
+	_, err := reference.ParseTemplate(c.Path)
+	if err != nil {
+		return fmt.Errorf("invalid path for reference %q: %w", c.Title, err)
+	}
+	_, err = reference.ParseTemplate(c.Template)
+	if err != nil {
+		return fmt.Errorf("invalid template for reference %q: %w", c.Title, err)
+	}
+	return nil
 }
 
 // Block layout types
@@ -496,8 +730,11 @@ type ConfigDesk struct {
 }
 
 // Check validates the desk configuration including nested block queries.
-func (cd *ConfigDesk) Check() error {
-	return cd.Root.Check()
+func (c *ConfigDesk) Check() error {
+	if c == nil {
+		return nil
+	}
+	return c.Root.Check()
 }
 
 type Block struct {
@@ -512,15 +749,15 @@ type Block struct {
 }
 
 // Check validates the block configuration including nested blocks.
-func (b *Block) Check() error {
-	if b.Query != "" {
-		_, err := ParseQuery(b.Query)
+func (c *Block) Check() error {
+	if c.Query != "" {
+		_, err := ParseQuery(c.Query)
 		if err != nil {
-			return fmt.Errorf("invalid query %q: %v", b.Query, err)
+			return fmt.Errorf("invalid query %q: %v", c.Query, err)
 		}
 	}
 	// Check nested elements
-	for _, element := range b.Elements {
+	for _, element := range c.Elements {
 		if err := element.Check(); err != nil {
 			return err
 		}
@@ -534,10 +771,14 @@ type ConfigJournal struct {
 	DefaultContent string          `json:"defaultContent,omitempty"`
 	Routines       []ConfigRoutine `json:"routines"`
 }
-
 type ConfigRoutine struct {
 	Name     string `json:"name"`
 	Template string `json:"template"`
+}
+
+func (c *ConfigJournal) Check() error {
+	// IMPROVEMENT: validate template syntax
+	return nil
 }
 
 type ConfigStat struct {
@@ -550,11 +791,14 @@ type ConfigStat struct {
 }
 
 // Check validates the stat configuration.
-func (cs *ConfigStat) Check() error {
-	if cs.Query != "" {
-		_, err := ParseQuery(cs.Query)
+func (c *ConfigStat) Check() error {
+	if c == nil {
+		return nil
+	}
+	if c.Query != "" {
+		_, err := ParseQuery(c.Query)
 		if err != nil {
-			return fmt.Errorf("invalid query %q: %v", cs.Query, err)
+			return fmt.Errorf("invalid query %q: %v", c.Query, err)
 		}
 	}
 	return nil
@@ -569,6 +813,31 @@ type ConfigBook struct {
 	Format   []string             `json:"format"`          // Ex: ["epub", "pdf"]
 	Build    string               `json:"build,omitempty"` // Ex: "build/life-in-progress.${extension}"
 	Chapters []*ConfigBookSection `json:"chapters"`        // Book chapters
+}
+
+// Check validates the book configuration.
+func (c *ConfigBook) Check() error {
+	if c == nil {
+		return nil
+	}
+	if c.Title == "" {
+		return fmt.Errorf("book title cannot be empty")
+	}
+	if len(c.Format) == 0 {
+		return fmt.Errorf("book '%s' must specify at least one format", c.Title)
+	}
+	for _, format := range c.Format {
+		if !slices.Contains([]string{"epub", "pdf", "markdown"}, strings.ToLower(format)) {
+			return fmt.Errorf("unsupported format '%s' for book '%s'. Only 'epub', 'pdf', and 'markdown' are supported", format, c.Title)
+		}
+	}
+	if len(c.Author) == 0 {
+		return fmt.Errorf("book '%s' must specify at least one author", c.Title)
+	}
+	if c.Language == "" {
+		return fmt.Errorf("book '%s' must specify a language", c.Title)
+	}
+	return nil
 }
 
 type ConfigBookSection struct {
@@ -589,10 +858,10 @@ type ConfigBookNote struct {
 }
 
 // OutputPath returns the output path for a book in the specified format
-func (b *ConfigBook) OutputPath(config *Config, format string) string {
-	if b.Build != "" {
+func (c *ConfigBook) OutputPath(config *Config, format string) string {
+	if c.Build != "" {
 		// Use configured build path with extension substitution
-		path := strings.ReplaceAll(b.Build, "${extension}", format)
+		path := strings.ReplaceAll(c.Build, "${extension}", format)
 		if !filepath.IsAbs(path) {
 			path = filepath.Join(config.RootDirectory, path)
 		}
@@ -600,7 +869,7 @@ func (b *ConfigBook) OutputPath(config *Config, format string) string {
 	}
 
 	// Default: use book title as filename in repository root
-	filename := text.Slugify(b.Title) + "." + format
+	filename := text.Slugify(c.Title) + "." + format
 	return filepath.Join(config.RootDirectory, filename)
 }
 
@@ -686,9 +955,9 @@ func (c *ConfigFileType) RequiredAttributes() []*ConfigTypeAttribute {
 }
 
 // SupportExtension checks if the given file extension must be considered.
-func (f *ConfigFile) SupportExtension(path string) bool {
+func (c *ConfigFile) SupportExtension(path string) bool {
 	ext := strings.TrimPrefix(filepath.Ext(path), ".") // ".md" => "md"
-	for _, extension := range f.Core.Extensions {
+	for _, extension := range c.Core.Extensions {
 		if strings.EqualFold(extension, ext) { // case-insensitive
 			return true
 		}
@@ -697,98 +966,59 @@ func (f *ConfigFile) SupportExtension(path string) bool {
 }
 
 // Check validates the configuration file for syntactic correctness.
-func (cf *ConfigFile) Check() error {
-	// Check for invalid note types
-	for _, noteType := range cf.NoteTypes {
-		if err := noteType.Check(); err != nil {
-			return err
+func (c *ConfigFile) Check() error {
+	var errs []error
+	if c.NoteTypes != nil {
+		if err := c.NoteTypes.Check(); err != nil {
+			errs = append(errs, err)
 		}
 	}
-
-	// Check for invalid file types
-	for _, fileType := range cf.FileTypes {
-		if err := fileType.Check(); err != nil {
-			return err
+	if c.FileTypes != nil {
+		if err := c.FileTypes.Check(); err != nil {
+			errs = append(errs, err)
 		}
 	}
-
-	// Check for invalid attributes
-	for _, attribute := range cf.Attributes {
-		if err := attribute.Check(); err != nil {
-			return err
+	if c.Attributes != nil {
+		if err := c.Attributes.Check(); err != nil {
+			errs = append(errs, err)
 		}
 	}
-
-	// Check all rules are valid
-	for _, rule := range cf.Linter.Rules {
-		if err := rule.Check(); err != nil {
-			return err
+	if c.Linter != nil {
+		if err := c.Linter.Check(); err != nil {
+			errs = append(errs, err)
 		}
 	}
-
-	// Check for invalid reference templates
-	for key, referenceConfig := range cf.References {
-		// Only path and template supports Go Templating
-		_, err := reference.ParseTemplate(referenceConfig.Path)
-		if err != nil {
-			return fmt.Errorf("invalid path for reference %q: %w", key, err)
-		}
-		_, err = reference.ParseTemplate(referenceConfig.Template)
-		if err != nil {
-			return fmt.Errorf("invalid template for reference %q: %w", key, err)
+	if c.References != nil {
+		if err := c.References.Check(); err != nil {
+			errs = append(errs, err)
 		}
 	}
-
-	// Check for invalid book configurations
-	for _, book := range cf.Books {
-		if book.Title == "" {
-			return fmt.Errorf("book title cannot be empty")
-		}
-		if len(book.Format) == 0 {
-			return fmt.Errorf("book '%s' must specify at least one format", book.Title)
-		}
-		for _, format := range book.Format {
-			if !slices.Contains([]string{"epub", "pdf", "markdown"}, strings.ToLower(format)) {
-				return fmt.Errorf("unsupported format '%s' for book '%s'. Only 'epub', 'pdf', and 'markdown' are supported", format, book.Title)
-			}
-		}
-		if len(book.Author) == 0 {
-			return fmt.Errorf("book '%s' must specify at least one author", book.Title)
-		}
-		if book.Language == "" {
-			return fmt.Errorf("book '%s' must specify a language", book.Title)
+	if c.Books != nil {
+		if err := c.Books.Check(); err != nil {
+			errs = append(errs, err)
 		}
 	}
-
-	// Check for invalid queries in queries section
-	for key, query := range cf.Queries {
-		if err := query.Check(); err != nil {
-			return fmt.Errorf("invalid query in queries[%q]: %v", key, err)
+	if c.Queries != nil {
+		if err := c.Queries.Check(); err != nil {
+			errs = append(errs, err)
 		}
 	}
-
-	// Check for invalid queries in decks
-	for _, deck := range cf.Decks {
-		if err := deck.Check(); err != nil {
-			return fmt.Errorf("invalid query in deck %q: %v", deck.Name, err)
+	if c.Decks != nil {
+		if err := c.Decks.Check(); err != nil {
+			errs = append(errs, err)
 		}
 	}
-
-	// Check for invalid queries in desks
-	for _, desk := range cf.Desks {
-		if err := desk.Check(); err != nil {
-			return fmt.Errorf("invalid query in desk %q: %v", desk.Name, err)
+	if c.Desks != nil {
+		if err := c.Desks.Check(); err != nil {
+			errs = append(errs, err)
 		}
 	}
-
-	// Check for invalid queries in stats
-	for _, stat := range cf.Stats {
-		if err := stat.Check(); err != nil {
-			return fmt.Errorf("invalid query in stat %q: %v", stat.Name, err)
+	if c.Stats != nil {
+		if err := c.Stats.Check(); err != nil {
+			errs = append(errs, err)
 		}
 	}
-
-	return nil
+	return errors.Join(errs...)
 }
 
 // Valid validates a string value against this attribute's constraints.
@@ -961,7 +1191,7 @@ const maxDepth = 10
 // SRS
 const (
 	DefaultSRSBoostFactor = 100
-	DefaultSRSAlgorithm   = "Anki2"
+	DefaultSRSAlgorithm   = "nt-0"
 	DefaultSRSEaseFactor  = 2.5
 )
 
@@ -1220,7 +1450,7 @@ func ParseConfigFile(jsonnetPath string) (*ConfigFile, error) {
 	// Parse the JSON content
 	result := ConfigFile{
 		// Default values
-		Core: ConfigCore{
+		Core: &ConfigCore{
 			Extensions: []string{"md", "markdown"},
 			Medias: ConfigMedias{
 				Command:  "ffmpeg",
@@ -1234,71 +1464,55 @@ func ParseConfigFile(jsonnetPath string) (*ConfigFile, error) {
 		return nil, fmt.Errorf("failed to parse JSON: %v", err)
 	}
 
-	// Apply default values...
-	// ... to attributes
-	for _, attribute := range result.Attributes {
-		if attribute.Inherit == nil {
-			attribute.Inherit = BoolPointer(true)
-		}
-		if attribute.PreserveShorthand == nil {
-			attribute.PreserveShorthand = BoolPointer(true)
-		}
+	result.ApplyDefaults()
+
+	return &result, nil
+}
+
+func (c ConfigAttributes) ApplyDefaults() {
+	for _, attribute := range c {
+		attribute.ApplyDefaults()
 	}
 	// Add reserved attributes
-	if result.Attributes == nil {
-		result.Attributes = make(ConfigAttributes)
-	}
 	for _, attribute := range ReservedAttributes {
-		result.Attributes[attribute.Name] = &attribute
+		c[attribute.Name] = &attribute
 	}
+}
 
-	// ... to note types
-	for _, noteType := range result.NoteTypes {
-		if noteType.Pattern == "" {
-			noteType.Pattern = fmt.Sprintf("(?i)^%s:\\s*(.*)$", noteType.Name) // Ex: "Note: A basic note" or "note: A basic note"
-		}
-		// Set defaults for new attribute structure
-		for i := range noteType.Attributes {
-			if noteType.Attributes[i].Required == nil {
-				noteType.Attributes[i].Required = BoolPointer(false)
-			}
-			if noteType.Attributes[i].PromoteInline == nil {
-				noteType.Attributes[i].PromoteInline = BoolPointer(false)
-			}
-		}
+func (c *ConfigAttribute) ApplyDefaults() {
+	if c.Inherit == nil {
+		c.Inherit = BoolPointer(true)
 	}
+	if c.PreserveShorthand == nil {
+		c.PreserveShorthand = BoolPointer(true)
+	}
+}
 
-	// ... to file types
-	for _, fileType := range result.FileTypes {
-		if fileType.Pattern == "" {
-			fileType.Pattern = fmt.Sprintf("(?i)^%s:\\s*(.*)$", fileType.Name) // Ex: "Reading: My Book Title" or "reading: My book title"
-		}
+func (c *ConfigFile) ApplyDefaults() {
+	if c.Attributes == nil {
+		c.Attributes = make(ConfigAttributes)
 	}
-	// ... to decks
-	for _, deck := range result.Decks {
-		if deck.Algorithm == "" {
-			deck.Algorithm = DefaultSRSAlgorithm
-		}
-		// Only a single one currently supported
-		if deck.Algorithm != DefaultSRSAlgorithm {
-			return nil, fmt.Errorf("unsupported SRS algorithm %q", deck.Algorithm)
-		}
-		if deck.BoostFactor == 0 {
-			deck.BoostFactor = DefaultSRSBoostFactor
-		}
-		if deck.AlgorithmSettings == nil {
-			deck.AlgorithmSettings = make(map[string]any)
-		}
-		if _, ok := deck.AlgorithmSettings["easeFactor"]; !ok {
-			deck.AlgorithmSettings["easeFactor"] = DefaultSRSEaseFactor
-		}
-		// And...
-		// - Search for all flashcards if query is empty
-		// - Don't add new cards by default
-		// - Don't limit the number of reviews by default
-	}
+	c.Attributes.ApplyDefaults()
 
-	return &result, err
+	if c.NoteTypes == nil {
+		c.NoteTypes = make(ConfigNoteTypes)
+	}
+	c.NoteTypes.ApplyDefaults()
+
+	if c.FileTypes == nil {
+		c.FileTypes = make(ConfigFileTypes)
+	}
+	c.FileTypes.ApplyDefaults()
+
+	if c.Decks == nil {
+		c.Decks = make(ConfigDecks, 0)
+	}
+	c.Decks.ApplyDefaults()
+
+	if c.Linter == nil {
+		c.Linter = &ConfigLinter{}
+	}
+	c.Linter.ApplyDefaults()
 }
 
 func parseIgnoreFile(content string) (*IgnoreFile, error) {

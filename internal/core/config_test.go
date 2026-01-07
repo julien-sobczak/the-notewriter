@@ -237,8 +237,7 @@ func TestCheckConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		err = c.Check()
-		require.ErrorContains(t, err, "invalid query")
-		require.ErrorContains(t, err, "queries[\"myQuery\"]")
+		require.ErrorContains(t, err, "invalid query \"myQuery\"")
 	})
 
 	t.Run("Invalid query in deck", func(t *testing.T) {
@@ -259,9 +258,8 @@ func TestCheckConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		err = c.Check()
-		require.ErrorContains(t, err, "invalid query")
-		require.ErrorContains(t, err, "deck")
-		require.ErrorContains(t, err, "Test Deck")
+		require.ErrorContains(t, err, "invalid query \"#\"")
+		require.ErrorContains(t, err, "invalid deck \"Test Deck\"")
 	})
 
 	t.Run("Invalid query in desk", func(t *testing.T) {
@@ -285,9 +283,7 @@ func TestCheckConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		err = c.Check()
-		require.ErrorContains(t, err, "invalid query")
-		require.ErrorContains(t, err, "desk")
-		require.ErrorContains(t, err, "Test Desk")
+		require.ErrorContains(t, err, "invalid desk \"Test Desk\"")
 	})
 
 	t.Run("Invalid query in nested desk block", func(t *testing.T) {
@@ -325,9 +321,8 @@ func TestCheckConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		err = c.Check()
-		require.ErrorContains(t, err, "invalid query")
-		require.ErrorContains(t, err, "desk")
-		require.ErrorContains(t, err, "Complex Desk")
+		require.ErrorContains(t, err, "invalid query \"#\"")
+		require.ErrorContains(t, err, "invalid desk \"Complex Desk\"")
 	})
 
 	t.Run("Invalid query in stat", func(t *testing.T) {
@@ -350,9 +345,8 @@ func TestCheckConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		err = c.Check()
-		require.ErrorContains(t, err, "invalid query")
-		require.ErrorContains(t, err, "stat")
-		require.ErrorContains(t, err, "Test Stat")
+		require.ErrorContains(t, err, "invalid query \"#\"")
+		require.ErrorContains(t, err, "invalid stat \"Test Stat\"")
 	})
 
 	t.Run("Invalid pattern in schema", func(t *testing.T) {

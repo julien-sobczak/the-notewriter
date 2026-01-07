@@ -325,7 +325,7 @@ func (db *DB) Origin() remote.Remote {
 	return db.Remote("origin")
 }
 
-func (db *DB) initRemote(config ConfigRemote) remote.Remote {
+func (db *DB) initRemote(config *ConfigRemote) remote.Remote {
 	// Initialize the remote
 	switch config.Type {
 	case "fs":
