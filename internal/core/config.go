@@ -240,6 +240,50 @@ type ConfigAttribute struct {
 	DailyMetrics      *bool          `json:"dailyMetrics,omitempty"` // Whether to include this attribute in daily metrics stats
 }
 
+// Check validates the attribute configuration.
+func (attr *ConfigAttribute) Check() error {
+	// Check for invalid regex pattern
+	if attr.Pattern != "" && attr.Pattern != "string" {
+		if _, err := regexp.Compile(attr.Pattern); err != nil {
+			return fmt.Errorf("invalid pattern %q for attribute %q: %v", attr.Pattern, attr.Name, err)
+		}
+	}
+
+	// Check for invalid shorthand regex pattern
+	if attr.ShorthandPattern != "" {
+		if _, err := regexp.Compile(attr.ShorthandPattern); err != nil {
+			return fmt.Errorf("invalid shorthand pattern %q for attribute %q: %v", attr.ShorthandPattern, attr.Name, err)
+		}
+	}
+
+	// Check that Memory is only set on date format attributes
+	if attr.Memory != nil && *attr.Memory {
+		if attr.Type != "string" && attr.Type != "date" {
+			return fmt.Errorf("memory can only be enabled on string or date type attributes, but attribute %q has type %q", attr.Name, attr.Type)
+		}
+		if attr.Format == "" {
+			return fmt.Errorf("memory requires a date format to be specified, but attribute %q has no format", attr.Name)
+		}
+	}
+
+	// Check for invalid shorthand values
+	for shorthandKey, shorthandValue := range attr.Shorthands {
+		if valid, err := attr.Valid(shorthandValue); !valid {
+			return fmt.Errorf("shorthand value %q for key %q in attribute %q is not valid: %s", shorthandValue, shorthandKey, attr.Name, err)
+		}
+	}
+
+	// Check default value
+	if attr.DefaultValue != nil {
+		_, valid := CastAttribute(attr.DefaultValue, *attr)
+		if !valid {
+			return fmt.Errorf("default value %q for attribute %q is not valid", attr.DefaultValue, attr.Name)
+		}
+	}
+
+	return nil
+}
+
 type ConfigTypeAttribute struct {
 	Name          string `json:"name"`
 	Required      *bool  `json:"required,omitempty"`      // Default: false
@@ -252,6 +296,17 @@ type ConfigNoteType struct {
 	Processors []string              `json:"processors"`           // Additional logic to run after parsing a note
 	Attributes []ConfigTypeAttribute `json:"attributes,omitempty"` // Structure for attributes
 	Hooks      []string              `json:"hooks"`                // List of hooks to run on this type of note
+}
+
+// Check validates the note type configuration.
+func (nt *ConfigNoteType) Check() error {
+	// Check for invalid regex pattern
+	if nt.Pattern != "" {
+		if _, err := regexp.Compile(nt.Pattern); err != nil {
+			return fmt.Errorf("invalid pattern %q for note type %q: %v", nt.Pattern, nt.Name, err)
+		}
+	}
+	return nil
 }
 
 // ConfigFileSchema defines the structure of a file's Markdown schema
@@ -269,12 +324,49 @@ type ConfigHeadingSchema struct {
 	Children      []*ConfigHeadingSchema `json:"children,omitempty"`  // Nested heading schemas
 }
 
+// Check validates the heading schema configuration.
+func (hs *ConfigHeadingSchema) Check() error {
+	if hs.Match != "" {
+		if _, err := regexp.Compile(hs.Match); err != nil {
+			return fmt.Errorf("invalid match pattern %q in heading schema: %v", hs.Match, err)
+		}
+	}
+	if hs.MatchType != "" {
+		if _, err := regexp.Compile(hs.MatchType); err != nil {
+			return fmt.Errorf("invalid match type pattern %q in heading schema: %v", hs.MatchType, err)
+		}
+	}
+	for _, child := range hs.Children {
+		if err := child.Check(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type ConfigFileType struct {
 	Name       string                `json:"name"`
 	Pattern    string                `json:"pattern,omitempty"`    // Regex to match file titles
 	Attributes []ConfigTypeAttribute `json:"attributes,omitempty"` // Required/optional attributes
 	Schema     *ConfigFileSchema     `json:"schema,omitempty"`     // Markdown schema definition for validation
 	Processors []string              `json:"processors"`           // Additional logic to run after parsing a file
+}
+
+// Check validates the file type configuration.
+func (ft *ConfigFileType) Check() error {
+	// Check for invalid regex pattern
+	if ft.Pattern != "" {
+		if _, err := regexp.Compile(ft.Pattern); err != nil {
+			return fmt.Errorf("invalid pattern %q for file type %q: %v", ft.Pattern, ft.Name, err)
+		}
+	}
+	// Check for invalid regexes in schema
+	if ft.Schema != nil && ft.Schema.Body != nil {
+		if err := ft.Schema.Body.Check(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 type ConfigLinter struct {
 	Rules []*ConfigLinterRule `json:"rules"` // List of rules to apply to notes
@@ -284,6 +376,30 @@ type ConfigLinterRule struct {
 	Args     []any  `json:"args"`
 	Severity string `json:"severity"`        // error, warning (default: error)
 	Query    string `json:"query,omitempty"` // Optional query to restrict which notes are concerned
+}
+
+// Check validates the linter rule configuration.
+func (lr *ConfigLinterRule) Check() error {
+	// Check rule name is known
+	_, ok := LintRulesFn[lr.Name]
+	if !ok {
+		return fmt.Errorf("unknown lint rule %q", lr.Name)
+	}
+	
+	// Check severity is valid
+	if lr.Severity != "" && !slices.Contains([]string{"error", "warning"}, lr.Severity) {
+		return fmt.Errorf("unknown severity %q for lint rule %q", lr.Severity, lr.Name)
+	}
+	
+	// Check query is valid
+	if lr.Query != "" {
+		_, err := ParseQuery(lr.Query)
+		if err != nil {
+			return fmt.Errorf("invalid query %q for lint rule %q: %v", lr.Query, lr.Name, err)
+		}
+	}
+	
+	return nil
 }
 
 type ConfigMedias struct {
@@ -584,91 +700,29 @@ func (f *ConfigFile) SupportExtension(path string) bool {
 func (cf *ConfigFile) Check() error {
 	// Check for invalid note types
 	for _, noteType := range cf.NoteTypes {
-		// Check for invalid regex pattern
-		if noteType.Pattern != "" {
-			if _, err := regexp.Compile(noteType.Pattern); err != nil {
-				return fmt.Errorf("invalid pattern %q for note type %q: %v", noteType.Pattern, noteType.Name, err)
-			}
+		if err := noteType.Check(); err != nil {
+			return err
 		}
 	}
 
 	// Check for invalid file types
 	for _, fileType := range cf.FileTypes {
-		// Check for invalid regex pattern
-		if fileType.Pattern != "" {
-			if _, err := regexp.Compile(fileType.Pattern); err != nil {
-				return fmt.Errorf("invalid pattern %q for file type %q: %v", fileType.Pattern, fileType.Name, err)
-			}
-		}
-		// Check for invalid regexes in schema
-		if fileType.Schema != nil {
-			err := checkHeadingSchema(fileType.Schema.Body)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	// Check for default attribute values
-	for _, attribute := range cf.Attributes {
-		if attribute.DefaultValue != nil {
-			_, valid := CastAttribute(attribute.DefaultValue, *attribute)
-			if !valid {
-				return fmt.Errorf("default value %q for attribute %q is not valid", attribute.DefaultValue, attribute.Name)
-			}
+		if err := fileType.Check(); err != nil {
+			return err
 		}
 	}
 
 	// Check for invalid attributes
 	for _, attribute := range cf.Attributes {
-		// Check for invalid regex pattern
-		if attribute.Pattern != "" && attribute.Pattern != "string" {
-			if _, err := regexp.Compile(attribute.Pattern); err != nil {
-				return fmt.Errorf("invalid pattern %q for attribute %q: %v", attribute.Pattern, attribute.Name, err)
-			}
-		}
-
-		// Check for invalid shorthand regex pattern
-		if attribute.ShorthandPattern != "" {
-			if _, err := regexp.Compile(attribute.ShorthandPattern); err != nil {
-				return fmt.Errorf("invalid shorthand pattern %q for attribute %q: %v", attribute.ShorthandPattern, attribute.Name, err)
-			}
-		}
-
-		// Check that Memory is only set on date format attributes
-		if attribute.Memory != nil && *attribute.Memory {
-			if attribute.Type != "string" && attribute.Type != "date" {
-				return fmt.Errorf("memory can only be enabled on string or date type attributes, but attribute %q has type %q", attribute.Name, attribute.Type)
-			}
-			if attribute.Format == "" {
-				return fmt.Errorf("memory requires a date format to be specified, but attribute %q has no format", attribute.Name)
-			}
-
-		}
-
-		// Check for invalid shorthand values
-		for shorthandKey, shorthandValue := range attribute.Shorthands {
-			if valid, err := attribute.Valid(shorthandValue); !valid {
-				return fmt.Errorf("shorthand value %q for key %q in attribute %q is not valid: %s", shorthandValue, shorthandKey, attribute.Name, err)
-			}
+		if err := attribute.Check(); err != nil {
+			return err
 		}
 	}
 
 	// Check all rules are valid
 	for _, rule := range cf.Linter.Rules {
-		ruleName := rule.Name
-		_, ok := LintRulesFn[ruleName]
-		if !ok {
-			return fmt.Errorf("unknown lint rule %q", rule.Name)
-		}
-		if rule.Severity != "" && !slices.Contains([]string{"error", "warning"}, rule.Severity) {
-			return fmt.Errorf("unknown severity %q for lint rule %q", rule.Severity, rule.Name)
-		}
-		if rule.Query != "" {
-			_, err := ParseQuery(rule.Query)
-			if err != nil {
-				return fmt.Errorf("invalid query %q for lint rule %q: %v", rule.Query, rule.Name, err)
-			}
+		if err := rule.Check(); err != nil {
+			return err
 		}
 	}
 
@@ -1367,27 +1421,8 @@ func InitConfigFileFromDirectory(path string, options ConfigOptions) error {
 }
 
 func (c *Config) Check() error {
-	// Delegate to ConfigFile.Check() for all ConfigFile-specific checks
+	// We only validate ConfigFile for now
 	return c.ConfigFile.Check()
-}
-
-func checkHeadingSchema(schema *ConfigHeadingSchema) error {
-	if schema.Match != "" {
-		if _, err := regexp.Compile(schema.Match); err != nil {
-			return fmt.Errorf("invalid match pattern %q in heading schema: %v", schema.Match, err)
-		}
-	}
-	if schema.MatchType != "" {
-		if _, err := regexp.Compile(schema.MatchType); err != nil {
-			return fmt.Errorf("invalid match type pattern %q in heading schema: %v", schema.MatchType, err)
-		}
-	}
-	for _, child := range schema.Children {
-		if err := checkHeadingSchema(child); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (c *Config) GetGeneratedPath() string {
