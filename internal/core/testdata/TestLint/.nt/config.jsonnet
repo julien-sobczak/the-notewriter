@@ -124,7 +124,7 @@ local makeHeading = nt.Schema.makeHeading;
             boostFactor: 100,
             newFlashcardsPerDay: 10,
             maxFlashcardsPerDay: 50,
-            algorithm: "Anki2",
+            algorithm: "nt-0",
         },
         {
             name: "Deck2",
@@ -132,7 +132,7 @@ local makeHeading = nt.Schema.makeHeading;
             boostFactor: 100,
             newFlashcardsPerDay: 10,
             maxFlashcardsPerDay: 50,
-            algorithm: "Anki2",
+            algorithm: "nt-0",
         },
     ],
 
