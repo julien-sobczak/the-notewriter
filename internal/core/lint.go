@@ -19,34 +19,24 @@ import (
 type LintResult struct {
 	AnalyzedFiles int
 	AffectedFiles int
-	Warnings      []*Violation
 	Errors        []*Violation
 }
 
 // Append merges new violations into the current result.
 func (r *LintResult) Append(violations ...*Violation) {
-	linter := CurrentConfigFile().Linter
 	for _, violation := range violations {
-		if linter.Severity(violation.Name) == "warning" {
-			r.Warnings = append(r.Warnings, violation)
-		} else {
-			r.Errors = append(r.Errors, violation)
-		}
+		r.Errors = append(r.Errors, violation)
 	}
 }
 
 func (r LintResult) String() string {
 	var res strings.Builder
-	res.WriteString(fmt.Sprintf("%d invalid files on %d analyzed files (%d errors, %d warnings)\n",
+	res.WriteString(fmt.Sprintf("%d invalid files on %d analyzed files (%d errors)\n",
 		r.AffectedFiles,
 		r.AnalyzedFiles,
-		len(r.Errors),
-		len(r.Warnings)))
+		len(r.Errors)))
 	for _, violation := range r.Errors {
-		res.WriteString(fmt.Sprintf("[WARNING] %s (%s:%d)\n", violation.Message, violation.RelativePath, violation.Line))
-	}
-	for _, violation := range r.Warnings {
-		res.WriteString(fmt.Sprintf("[WARNING] %s (%s:%d)\n", violation.Message, violation.RelativePath, violation.Line))
+		res.WriteString(fmt.Sprintf("%s (%s:%d)\n", violation.Message, violation.RelativePath, violation.Line))
 	}
 	return res.String()
 }

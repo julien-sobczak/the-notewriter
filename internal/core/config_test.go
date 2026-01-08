@@ -181,7 +181,6 @@ func TestCheckConfig(t *testing.T) {
         rules: [
 			{
                 name: "unknown-rule",
-				severity: "warning",
             },
 		]
 	},
@@ -194,29 +193,6 @@ func TestCheckConfig(t *testing.T) {
 
 		err = c.Check()
 		require.ErrorContains(t, err, "unknown lint rule")
-	})
-
-	t.Run("Invalid severity", func(t *testing.T) {
-		dir := populate(t, map[string]any{
-
-			".nt/config.jsonnet": `
-{
-	linter: {
-        rules: [
-			{
-                name: "no-duplicate-slug",
-				severity: "oops",
-            },
-		]
-	},
-}`,
-		})
-
-		c, err := ReadConfigFromDirectory(dir)
-		require.NoError(t, err)
-
-		err = c.Check()
-		require.ErrorContains(t, err, "unknown severity")
 	})
 
 	t.Run("Invalid query in queries", func(t *testing.T) {

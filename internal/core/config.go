@@ -327,17 +327,6 @@ func (c ConfigFile) GetAttributeDefaults(noteType string) AttributeSet {
 	return result
 }
 
-// DefaultConfigFile is the default configuration file
-func (c *ConfigLinter) Severity(name string) string {
-	for _, rule := range c.Rules {
-		if rule.Name == name {
-			return rule.Severity
-		}
-	}
-	// Default severity is "error"
-	return "error"
-}
-
 type ConfigCore struct {
 	Extensions []string     `json:"extensions"` // List of supported file extensions (ex: "md", "markdown")
 	Medias     ConfigMedias `json:"medias"`     // Media converter configuration
@@ -564,7 +553,6 @@ type ConfigLinter struct {
 type ConfigLinterRule struct {
 	Name     string `json:"name"`
 	Args     []any  `json:"args"`
-	Severity string `json:"severity"`        // error, warning (default: error)
 	Query    string `json:"query,omitempty"` // Optional query to restrict which notes are concerned
 }
 
@@ -593,10 +581,6 @@ func (c *ConfigLinterRule) Check() error {
 		return fmt.Errorf("unknown lint rule %q", c.Name)
 	}
 
-	// Check severity is valid
-	if c.Severity != "" && !slices.Contains([]string{"error", "warning"}, c.Severity) {
-		return fmt.Errorf("unknown severity %q for lint rule %q", c.Severity, c.Name)
-	}
 
 	// Check query is valid
 	if c.Query != "" {
