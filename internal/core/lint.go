@@ -517,6 +517,8 @@ func RequireTag(file *ParsedFile, query *Query, args []any) ([]*Violation, error
 }
 
 // RequireFlashcardSlug implements the rule "require-flashcard-slug".
+// Note: This rule has the same behavior as NoImplicitSlugOnFlashcard but with a different name
+// as requested in the issue requirements.
 func RequireFlashcardSlug(file *ParsedFile, query *Query, args []any) ([]*Violation, error) {
 	var violations []*Violation
 
