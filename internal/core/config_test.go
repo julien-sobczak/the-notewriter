@@ -219,6 +219,136 @@ func TestCheckConfig(t *testing.T) {
 		require.ErrorContains(t, err, "unknown severity")
 	})
 
+	t.Run("Invalid query in queries", func(t *testing.T) {
+		dir := populate(t, map[string]any{
+
+			".nt/config.jsonnet": `
+{
+	queries: {
+		myQuery: {
+			title: "My Query",
+			q: "#",
+		},
+	},
+}`,
+		})
+
+		c, err := ReadConfigFromDirectory(dir)
+		require.NoError(t, err)
+
+		err = c.Check()
+		require.ErrorContains(t, err, "invalid query \"myQuery\"")
+	})
+
+	t.Run("Invalid query in deck", func(t *testing.T) {
+		dir := populate(t, map[string]any{
+
+			".nt/config.jsonnet": `
+{
+	decks: [
+		{
+			name: "Test Deck",
+			query: "#",
+		},
+	],
+}`,
+		})
+
+		c, err := ReadConfigFromDirectory(dir)
+		require.NoError(t, err)
+
+		err = c.Check()
+		require.ErrorContains(t, err, "invalid query \"#\"")
+		require.ErrorContains(t, err, "invalid deck \"Test Deck\"")
+	})
+
+	t.Run("Invalid query in desk", func(t *testing.T) {
+		dir := populate(t, map[string]any{
+
+			".nt/config.jsonnet": `
+{
+	desks: [
+		{
+			name: "Test Desk",
+			root: {
+				layout: "container",
+				query: "#",
+			},
+		},
+	],
+}`,
+		})
+
+		c, err := ReadConfigFromDirectory(dir)
+		require.NoError(t, err)
+
+		err = c.Check()
+		require.ErrorContains(t, err, "invalid desk \"Test Desk\"")
+	})
+
+	t.Run("Invalid query in nested desk block", func(t *testing.T) {
+		dir := populate(t, map[string]any{
+
+			".nt/config.jsonnet": `
+{
+	desks: [
+		{
+			name: "Complex Desk",
+			root: {
+				layout: "vertical",
+				elements: [
+					{
+						name: "Block 1",
+						query: "@type:Note",
+					},
+					{
+						layout: "horizontal",
+						elements: [
+							{
+								name: "Block 2",
+								query: "#",
+							},
+						],
+					},
+				],
+			},
+		},
+	],
+}`,
+		})
+
+		c, err := ReadConfigFromDirectory(dir)
+		require.NoError(t, err)
+
+		err = c.Check()
+		require.ErrorContains(t, err, "invalid query \"#\"")
+		require.ErrorContains(t, err, "invalid desk \"Complex Desk\"")
+	})
+
+	t.Run("Invalid query in stat", func(t *testing.T) {
+		dir := populate(t, map[string]any{
+
+			".nt/config.jsonnet": `
+{
+	stats: [
+		{
+			name: "Test Stat",
+			query: "#",
+			groupBy: "date",
+			visualization: "pie",
+		},
+	],
+}`,
+		})
+
+		c, err := ReadConfigFromDirectory(dir)
+		require.NoError(t, err)
+
+		err = c.Check()
+		require.ErrorContains(t, err, "invalid query \"#\"")
+		require.ErrorContains(t, err, "invalid stat \"Test Stat\"")
+	})
+
 	t.Run("Invalid pattern in schema", func(t *testing.T) {
 		dir := populate(t, map[string]any{
 
