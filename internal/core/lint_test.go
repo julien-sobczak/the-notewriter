@@ -430,3 +430,37 @@ func TestCheckSchema(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, violations)
 }
+
+func TestRequireFlashcardSlug(t *testing.T) {
+	tr := NewTestRepository(t, FromGoldenDirNamed("TestLint"))
+
+	file := tr.ParseFile("require-flashcard-slug.md")
+
+	violations, err := RequireFlashcardSlug(file, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, []*Violation{
+		{
+			Name:         "require-flashcard-slug",
+			RelativePath: "require-flashcard-slug.md",
+			Message:      "flashcard must have an explicit slug attribute",
+			Line:         7,
+		},
+	}, violations)
+}
+
+func TestNoOrphanFlashcard(t *testing.T) {
+	tr := NewTestRepository(t, FromGoldenDirNamed("TestLint"))
+
+	file := tr.ParseFile("no-orphan-flashcard.md")
+
+	violations, err := NoOrphanFlashcard(file, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, []*Violation{
+		{
+			Name:         "no-orphan-flashcard",
+			RelativePath: "no-orphan-flashcard.md",
+			Message:      "flashcard \"Flashcard: Not matching any deck\" does not match any deck",
+			Line:         14,
+		},
+	}, violations)
+}
