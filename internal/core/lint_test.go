@@ -464,3 +464,26 @@ func TestNoOrphanFlashcard(t *testing.T) {
 		},
 	}, violations)
 }
+
+func TestNoOrphanFlashcardNoDecks(t *testing.T) {
+	// Reset the inventory to test the no-decks scenario
+	deckQueriesInventoryOnce.Reset()
+	
+	tr := NewTestRepository(t, FromGoldenDirNamed("TestLint"), WithConfigFileOverride(func(c *ConfigFile) {
+		// Remove all decks to test the no-decks scenario
+		c.Decks = make(ConfigDecks, 0)
+	}))
+
+	file := tr.ParseFile("no-orphan-flashcard-no-decks.md")
+
+	violations, err := NoOrphanFlashcard(file, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, []*Violation{
+		{
+			Name:         "no-orphan-flashcard",
+			RelativePath: "no-orphan-flashcard-no-decks.md",
+			Message:      "flashcard \"Flashcard: Flashcard without any deck defined\" does not match any deck",
+			Line:         7,
+		},
+	}, violations)
+}

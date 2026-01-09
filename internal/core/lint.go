@@ -538,28 +538,30 @@ func RequireFlashcardSlug(file *ParsedFile, query *Query, args []any) ([]*Violat
 	return violations, nil
 }
 
-// NoOrphanFlashcard implements the rule "no-orphan-flashcard".
-func NoOrphanFlashcard(file *ParsedFile, query *Query, args []any) ([]*Violation, error) {
-	var violations []*Violation
+// Keep an inventory of parsed deck queries to avoid reparsing for every file
+var deckQueriesInventory []*Query
+var deckQueriesInventoryOnce resync.Once
 
-	// Get the decks defined in configuration
+func buildDeckQueriesInventory() {
+	deckQueriesInventory = make([]*Query, 0)
 	decks := CurrentConfigFile().Decks
-	if len(decks) == 0 {
-		// No decks defined, skip this rule
-		return violations, nil
-	}
-
-	// Parse all deck queries once
-	deckQueries := make([]*Query, 0, len(decks))
 	for _, deck := range decks {
 		if deck.Query != "" {
 			deckQuery, err := ParseQuery(deck.Query)
 			if err != nil {
-				return nil, fmt.Errorf("failed to parse deck query %q: %v", deck.Query, err)
+				log.Printf("Warning: failed to parse deck query %q: %v", deck.Query, err)
+				continue
 			}
-			deckQueries = append(deckQueries, deckQuery)
+			deckQueriesInventory = append(deckQueriesInventory, deckQuery)
 		}
 	}
+}
+
+// NoOrphanFlashcard implements the rule "no-orphan-flashcard".
+func NoOrphanFlashcard(file *ParsedFile, query *Query, args []any) ([]*Violation, error) {
+	deckQueriesInventoryOnce.Do(buildDeckQueriesInventory)
+
+	var violations []*Violation
 
 	// Check each note with flashcards
 	for _, note := range file.Notes {
@@ -571,10 +573,15 @@ func NoOrphanFlashcard(file *ParsedFile, query *Query, args []any) ([]*Violation
 
 			// Check if the note matches at least one deck query
 			matchesAnyDeck := false
-			for _, deckQuery := range deckQueries {
-				if deckQuery.MatchesParsed(note) {
-					matchesAnyDeck = true
-					break
+			if len(deckQueriesInventory) == 0 {
+				// No decks defined, flashcard is orphan
+				matchesAnyDeck = false
+			} else {
+				for _, deckQuery := range deckQueriesInventory {
+					if deckQuery.MatchesParsed(note) {
+						matchesAnyDeck = true
+						break
+					}
 				}
 			}
 
