@@ -255,5 +255,13 @@
                 args: ["^(" + std.join("|", tags) + ")$"],
                 query: query,
             },
+        RequireFlashcardSlug()::
+            {
+                name: "require-flashcard-slug",
+            },
+        NoOrphanFlashcard()::
+            {
+                name: "no-orphan-flashcard",
+            },
     },
 }

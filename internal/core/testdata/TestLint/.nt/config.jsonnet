@@ -117,4 +117,23 @@ local makeHeading = nt.Schema.makeHeading;
         ],
     },
 
+    decks: [
+        {
+            name: "Deck1",
+            query: "#deck1",
+            boostFactor: 100,
+            newFlashcardsPerDay: 10,
+            maxFlashcardsPerDay: 50,
+            algorithm: "nt-0",
+        },
+        {
+            name: "Deck2",
+            query: "#deck2",
+            boostFactor: 100,
+            newFlashcardsPerDay: 10,
+            maxFlashcardsPerDay: 50,
+            algorithm: "nt-0",
+        },
+    ],
+
 }

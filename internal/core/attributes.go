@@ -811,19 +811,19 @@ func ExtractBlockTagsAndAttributes(content markdown.Document, configAttributes C
 	for _, line := range content.Lines() {
 
 		// empty or only tags and attributes?
-		if text.IsBlank(line) || !OnlyTagsAndAttributes(line) {
+		if line.IsBlank() || !OnlyTagsAndAttributes(line.Text) {
 			continue
 		}
 
 		// Append tags and attributes to collected ones
-		matches := regexTags.FindAllStringSubmatch(line, -1)
+		matches := regexTags.FindAllStringSubmatch(line.Text, -1)
 		for _, match := range matches {
 			tag := match[1]
 
 			// Append new tag
 			tags = append(tags, tag)
 		}
-		matches = regexAttributes.FindAllStringSubmatch(line, -1)
+		matches = regexAttributes.FindAllStringSubmatch(line.Text, -1)
 		for _, match := range matches {
 			name := match[1]
 			value := match[2]
@@ -1025,8 +1025,8 @@ func StripBlockTagsAndAttributes() markdown.DocumentTransformer {
 		var res bytes.Buffer
 		for _, line := range document.Lines() {
 			// not only tags and attributes?
-			if text.IsBlank(line) || strings.HasPrefix(line, "```") || !regexBlockTagAttributesLine.MatchString(line) {
-				res.WriteString(line + "\n")
+			if line.IsBlank() || line.InsideCodeBlock || !regexBlockTagAttributesLine.MatchString(line.Text) {
+				res.WriteString(line.Text + "\n")
 			}
 		}
 		return markdown.Document(text.SquashBlankLines(res.String())).TrimSpace(), nil
@@ -1038,8 +1038,11 @@ func StripTags() markdown.DocumentTransformer {
 	return func(document markdown.Document) (markdown.Document, error) {
 		var res bytes.Buffer
 		for _, line := range document.Lines() {
-			newLine := regexTags.ReplaceAllLiteralString(line, "")
-			newLine = text.SquashConsecutiveSpaces(newLine)
+			newLine := line.Text
+			if !line.InsideCodeBlock {
+				newLine = regexTags.ReplaceAllLiteralString(newLine, "")
+				newLine = text.SquashConsecutiveSpaces(newLine)
+			}
 			if !text.IsBlank(newLine) {
 				res.WriteString(newLine + "\n")
 			}
@@ -1053,8 +1056,11 @@ func StripOnlyAttributes() markdown.DocumentTransformer {
 	return func(document markdown.Document) (markdown.Document, error) {
 		var res bytes.Buffer
 		for _, line := range document.Lines() {
-			newLine := regexAttributes.ReplaceAllLiteralString(line, "")
-			newLine = text.SquashConsecutiveSpaces(newLine)
+			newLine := line.Text
+			if !line.InsideCodeBlock {
+				newLine = regexAttributes.ReplaceAllLiteralString(newLine, "")
+				newLine = text.SquashConsecutiveSpaces(newLine)
+			}
 			if !text.IsBlank(newLine) {
 				res.WriteString(newLine + "\n")
 			}

@@ -95,6 +95,12 @@ var LintRulesFn = map[string]LintRule{
 
 	// At least one tag is present (must match the optional pattern).
 	"require-tag": RequireTag,
+
+	// Flashcards must have an explicit slug attribute
+	"require-flashcard-slug": RequireFlashcardSlug,
+
+	// Flashcards must match at least one deck
+	"no-orphan-flashcard": NoOrphanFlashcard,
 }
 
 /* Rules */
@@ -504,6 +510,84 @@ func RequireTag(file *ParsedFile, query *Query, args []any) ([]*Violation, error
 				Message:      fmt.Sprintf("note %q does not have tags", note.Title),
 				Line:         note.Line,
 			})
+		}
+	}
+
+	return violations, nil
+}
+
+// RequireFlashcardSlug implements the rule "require-flashcard-slug".
+// Note: This rule has the same behavior as NoImplicitSlugOnFlashcard but with a different name
+// as requested in the issue requirements.
+func RequireFlashcardSlug(file *ParsedFile, query *Query, args []any) ([]*Violation, error) {
+	var violations []*Violation
+
+	for _, note := range file.Notes {
+		if len(note.Flashcards) > 0 {
+			if _, ok := note.NoteAttributes.Slug(); !ok {
+				violations = append(violations, &Violation{
+					Name:         "require-flashcard-slug",
+					Message:      "flashcard must have an explicit slug attribute",
+					RelativePath: file.RelativePath,
+					Line:         note.Line,
+				})
+			}
+		}
+	}
+
+	return violations, nil
+}
+
+// Keep an inventory of parsed deck queries to avoid reparsing for every file
+var deckQueriesInventory []*Query
+var deckQueriesInventoryOnce resync.Once
+
+func buildDeckQueriesInventory() {
+	deckQueriesInventory = make([]*Query, 0)
+	decks := CurrentConfigFile().Decks
+	for _, deck := range decks {
+		if deck.Query != "" {
+			deckQuery, err := ParseQuery(deck.Query)
+			if err != nil {
+				log.Printf("Warning: failed to parse deck query %q: %v", deck.Query, err)
+				continue
+			}
+			deckQueriesInventory = append(deckQueriesInventory, deckQuery)
+		}
+	}
+}
+
+// NoOrphanFlashcard implements the rule "no-orphan-flashcard".
+func NoOrphanFlashcard(file *ParsedFile, query *Query, args []any) ([]*Violation, error) {
+	deckQueriesInventoryOnce.Do(buildDeckQueriesInventory)
+
+	var violations []*Violation
+
+	// Check each note with flashcards
+	for _, note := range file.Notes {
+		if len(note.Flashcards) > 0 {
+			// Skip if the flashcard has the "suspended" tag
+			if note.NoteTags.Includes("suspended") {
+				continue
+			}
+
+			// Check if the note matches at least one deck query
+			matchesAnyDeck := false
+			for _, deckQuery := range deckQueriesInventory {
+				if deckQuery.MatchesParsed(note) {
+					matchesAnyDeck = true
+					break
+				}
+			}
+
+			if !matchesAnyDeck {
+				violations = append(violations, &Violation{
+					Name:         "no-orphan-flashcard",
+					Message:      fmt.Sprintf("flashcard %q does not match any deck", note.Title),
+					RelativePath: file.RelativePath,
+					Line:         note.Line,
+				})
+			}
 		}
 	}
 

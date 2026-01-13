@@ -55,33 +55,21 @@ func ReplaceCharacters(characterReplacements map[string]string) DocumentTransfor
 	return func(document Document) (Document, error) {
 		// Implementation: We must not replace characters inside code blocks (otherwise, `i--` => `i—`)
 
-		doc := string(document)
-
 		var newLines []string
 
-		lines := strings.Split(doc, "\n")
-		insideSourceBlocks := false
+		lines := document.Lines()
 		for _, line := range lines {
-			if strings.HasPrefix(line, "    ") {
-				newLines = append(newLines, line)
+			if line.InsideCodeBlock {
+				newLines = append(newLines, line.Text)
 				continue
 			}
-			if strings.HasPrefix(line, "```") {
-				insideSourceBlocks = !insideSourceBlocks
-				newLines = append(newLines, line)
-				continue
-			}
-			if strings.HasPrefix(line, "---") { // line separator
-				newLines = append(newLines, line)
-				continue
-			}
-			if insideSourceBlocks {
-				newLines = append(newLines, line)
+			if line.IsHorizontalRule() {
+				newLines = append(newLines, line.Text)
 				continue
 			}
 
 			// Do not substitute inside `code` block
-			parts := strings.Split(line, "`")
+			parts := strings.Split(line.Text, "`")
 			var newParts []string
 			for i, part := range parts {
 				if i%2 == 0 {
@@ -138,11 +126,12 @@ func StripMarkdownUnofficialComments() DocumentTransformer {
 //	blablablabla
 func AlignHeadings() DocumentTransformer {
 	return func(document Document) (Document, error) {
-		text := string(document)
-		// Search for top subheading level
+		// Search for the highest heading level in the document
 		minHeadingLevel := -1
-		for _, line := range strings.Split(text, "\n") {
-			ok, _, level := IsHeading(line)
+		it := document.Iterator()
+		for it.HasNext() {
+			line := it.Next()
+			ok, _, level := line.IsHeading()
 			if ok {
 				if minHeadingLevel == -1 || level < minHeadingLevel {
 					minHeadingLevel = level
@@ -163,17 +152,19 @@ func AlignHeadings() DocumentTransformer {
 			4: "####",
 			5: "#####",
 			6: "######",
-			7: "#######",
 		}
-		for _, line := range strings.Split(text, "\n") {
-			ok, headingTitle, level := IsHeading(line)
+		it = document.Iterator()
+		for it.HasNext() {
+			line := it.Next()
+			ok, headingTitle, level := line.IsHeading()
 			if ok {
 				newLevel := level - minHeadingLevel + 2 // The top sub-heading should be ## because # is reserved for the document title
 				res.WriteString(levelHeading[newLevel])
 				res.WriteString(" ")
 				res.WriteString(headingTitle)
+				it.SkipHeading() // skip next line if alternate heading
 			} else {
-				res.WriteString(line)
+				res.WriteString(line.Text)
 			}
 			res.WriteString("\n")
 		}
@@ -186,21 +177,15 @@ func StripCodeBlocks() DocumentTransformer {
 	return func(document Document) (Document, error) {
 		var newLines []string
 
-		insideCodeBlock := false
 		iterator := document.Iterator()
 		for iterator.HasNext() {
 			line := iterator.Next()
-			if strings.HasPrefix(line.Text, "```") { // Syntax 1
-				insideCodeBlock = !insideCodeBlock
+			if line.InsideCodeBlock {
+				// Preserve line count to not break line numbers
 				newLines = append(newLines, "")
-				continue
+			} else {
+				newLines = append(newLines, line.Text)
 			}
-			if strings.HasPrefix(line.Text, "    ") || insideCodeBlock { // Syntax 2
-				newLines = append(newLines, "")
-				continue
-			}
-
-			newLines = append(newLines, line.Text)
 		}
 
 		return Document(strings.Join(newLines, "\n")), nil
@@ -210,9 +195,7 @@ func StripCodeBlocks() DocumentTransformer {
 // StripTopHeading remove the header
 func StripTopHeading() DocumentTransformer {
 	return func(document Document) (Document, error) {
-
 		iterator := document.Iterator()
-
 		iterator.SkipBlankLines()
 		for iterator.HasNext() {
 			line := iterator.Next()

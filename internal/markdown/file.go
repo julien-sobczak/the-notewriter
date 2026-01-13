@@ -230,23 +230,13 @@ func (m *File) GetSections() ([]*Section, error) {
 
 	lines := m.Body.Lines()
 
-	// Current line number during the parsing
-	var lineNumber int
-
-	// Beware to ignore '#' in code blocks
-	insideCodeBlock := false
-
-	for i, line := range lines {
-		lineNumber = i + 1 // lines are 1-based
-		if strings.HasPrefix(line, "```") {
-			insideCodeBlock = !insideCodeBlock
-		}
-		if insideCodeBlock {
+	for _, line := range lines {
+		if line.InsideCodeBlock {
 			// Ignore possible Markdown heading in code blocks
 			continue
 		}
 
-		if ok, headingText, headingLevel := IsHeading(line); ok {
+		if ok, headingText, headingLevel := line.IsHeading(); ok {
 			// Previous section to close?
 			lastLevel := -1
 			var lastSection *Section
@@ -258,9 +248,9 @@ func (m *File) GetSections() ([]*Section, error) {
 				// Close previous section(s)
 				for _, section := range sections {
 					if section.HeadingLevel >= headingLevel && section.BodyLineEnd == 0 {
-						section.FileLineEnd = m.BodyLine - 1 + lineNumber - 1
-						section.BodyLineEnd = lineNumber - 1
-						section.ContentText = m.Body.ExtractLines(section.BodyLineStart, lineNumber-1)
+						section.FileLineEnd = m.BodyLine - 1 + line.Number - 1
+						section.BodyLineEnd = line.Number - 1
+						section.ContentText = m.Body.ExtractLines(section.BodyLineStart, line.Number-1)
 					}
 				}
 			}
@@ -269,8 +259,8 @@ func (m *File) GetSections() ([]*Section, error) {
 			newSection := &Section{
 				HeadingText:   Document(headingText),
 				HeadingLevel:  headingLevel,
-				FileLineStart: m.BodyLine - 1 + lineNumber,
-				BodyLineStart: lineNumber,
+				FileLineStart: m.BodyLine - 1 + line.Number,
+				BodyLineStart: line.Number,
 				Subsections:   []*Section{}, // Initialize Subsections
 			}
 			lastSectionAtLevel[headingLevel] = newSection
@@ -293,11 +283,12 @@ func (m *File) GetSections() ([]*Section, error) {
 	}
 
 	// Complete unfinished section(s)
+	lastLineNumber := lines.LastNumber()
 	for _, section := range sections {
 		if section.BodyLineEnd == 0 {
-			section.FileLineEnd = m.BodyLine - 1 + lineNumber
-			section.BodyLineEnd = lineNumber
-			section.ContentText = m.Body.ExtractLines(section.BodyLineStart, lineNumber)
+			section.FileLineEnd = m.BodyLine - 1 + lastLineNumber
+			section.BodyLineEnd = lastLineNumber
+			section.ContentText = m.Body.ExtractLines(section.BodyLineStart, lastLineNumber)
 		}
 	}
 

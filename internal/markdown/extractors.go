@@ -23,20 +23,13 @@ func (m Document) SplitByHorizontalRules() []Document {
 
 	var content bytes.Buffer
 
-	m.Transform()
-
 	iterator := m.Iterator()
 	for iterator.HasNext() {
 		line := iterator.Next()
 		text := strings.TrimSpace(line.Text)
 
-		// At least 3 identical characters (-, _, *)
-		// Blank lines before and after the horizontal rule is strongly recommended for compatibility.
-		if line.Prev().IsBlank() && line.Next().IsBlank() &&
-			(strings.HasPrefix(text, "---") && strings.Trim(text, "-") == "") ||
-			(strings.HasPrefix(text, "___") && strings.Trim(text, "_") == "") ||
-			(strings.HasPrefix(text, "***") && strings.Trim(text, "*") == "") {
-
+		// Blank lines around the horizontal rule are strongly recommended for compatibility.
+		if line.IsHorizontalRule() && line.HasPrev() && line.Prev.IsBlank() && line.HasNext() && line.Next.IsBlank(){
 			results = append(results, Document(content.String()).TrimSpace())
 			content.Reset()
 			continue
@@ -70,20 +63,26 @@ func (m Document) ExtractCodeBlocks() []*CodeBlock {
 	var currentSource bytes.Buffer
 	var currentLine int
 	var currentLanguage string
+	var currentBackticks string
+
+	regexCodeBlock := regexp.MustCompile("(`{3,})(\\w*).*")
 
 	md := string(m)
 	for i, line := range strings.Split(md, "\n") {
-		if strings.HasPrefix(line, "```") {
+		matches := regexCodeBlock.FindStringSubmatch(line)
+		if matches != nil {
+			backticks := matches[1]
 			if !insideCodeBlock {
 				// start of code block
 				currentLine = i + 1 // lines start at 1
-				currentLanguage = strings.TrimPrefix(line, "```")
+				currentBackticks = backticks
+				currentLanguage = strings.TrimLeft(line, "`")
 				index := strings.Index(currentLanguage, " ")
 				if index > -1 {
 					currentLanguage = currentLanguage[:index]
 				}
 				insideCodeBlock = true
-			} else {
+			} else if backticks == currentBackticks { // Beware Markdown in Markdown
 				// end of code block
 				results = append(results, &CodeBlock{
 					Line:     currentLine,
@@ -95,6 +94,10 @@ func (m Document) ExtractCodeBlocks() []*CodeBlock {
 				currentSource.Reset()
 				currentLine = 0
 				currentLanguage = ""
+			} else {
+				// A code block inside a code block (Markdown in Markdown)
+				currentSource.WriteString(line)
+				currentSource.WriteRune('\n')
 			}
 		} else if insideCodeBlock {
 			currentSource.WriteString(line)
@@ -117,19 +120,19 @@ func (m *Document) ExtractComment() (Document, Document) {
 	i := len(lines) - 1
 
 	// No comment or simply end with a standard quote?
-	if !strings.HasPrefix(lines[i], "> ") || strings.HasPrefix(lines[i], "> —") || strings.HasPrefix(lines[i], "> --") {
+	if !strings.HasPrefix(lines[i].Text, "> ") || strings.HasPrefix(lines[i].Text, "> —") || strings.HasPrefix(lines[i].Text, "> --") {
 		return body, ""
 	}
 
 	// Rewind until start of comment
 	for ; i > 0; i-- {
-		if !strings.HasPrefix(lines[i], "> ") {
+		if !strings.HasPrefix(lines[i].Text, "> ") {
 			break
 		}
 	}
 
 	// A blank line must precede the comment and other non-blank lines must exists before
-	if text.IsBlank(lines[i]) && i > 0 {
+	if text.IsBlank(lines[i].Text) && i > 0 {
 		content := body.ExtractLines(1, i+1)
 		comment := Document(text.TrimLinePrefix(body.ExtractLines(i+2, -1).String(), "> "))
 		return content.TrimSpace(), comment.TrimSpace()
