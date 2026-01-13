@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -140,12 +141,12 @@ A basic note without code blocks.
 
 		{
 			name: "Single code block",
-			body: "" +
-				"# Title\n" +
-				"\n" +
-				"```python\n" +
-				"print('Hey')\n" +
-				"```\n",
+			body: markdown.Document(text.UnescapeTestContent(`# Title
+
+‛‛‛python
+print('Hey')
+‛‛‛
+`)),
 			expected: []*markdown.CodeBlock{
 				{
 					Line:     3,
@@ -157,20 +158,20 @@ A basic note without code blocks.
 
 		{
 			name: "Multiple code blocks",
-			body: "" +
-				"# Title\n" +
-				"\n" +
-				"A first script in Python:\n" +
-				"```python\n" +
-				"print('Hey')\n" +
-				"```\n" +
-				"\n" +
-				"A second script in Go:\n" +
-				"```go hightlight\n" +
-				"func main() {\n" +
-				"    fmt.Println(`Hey`)\n" +
-				"}\n" +
-				"```\n",
+			body: markdown.Document(text.UnescapeTestContent(`# Title
+
+A first script in Python:
+‛‛‛python
+print('Hey')
+‛‛‛
+
+A second script in Go:
+‛‛‛go hightlight
+func main() {
+    fmt.Println(‛Hey‛)
+}
+‛‛‛
+`)),
 			expected: []*markdown.CodeBlock{
 				{
 					Line:     4,
@@ -181,6 +182,30 @@ A basic note without code blocks.
 					Line:     9,
 					Language: "go",
 					Source:   "func main() {\n    fmt.Println(`Hey`)\n}\n",
+				},
+			},
+		},
+
+		{
+			name: "Markdown in Markdown",
+			body: markdown.Document(text.UnescapeTestContent(`# Title
+‛‛‛‛md
+# A heading
+
+Some text.
+
+‛‛‛py
+print("Hello from Python!")
+‛‛‛
+
+More text.
+‛‛‛‛
+`)),
+			expected: []*markdown.CodeBlock{
+				{
+					Line:     2,
+					Language: "md",
+					Source:   "# A heading\n\nSome text.\n\n```py\nprint(\"Hello from Python!\")\n```\n\nMore text.\n",
 				},
 			},
 		},

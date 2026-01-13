@@ -777,14 +777,14 @@ func (p *ParsedNote) extractReminders() ([]*ParsedReminder, error) {
 
 	lines := p.Body.Lines()
 	for _, line := range lines {
-		matches := reReminders.FindAllStringSubmatch(line, -1)
+		matches := reReminders.FindAllStringSubmatch(line.Text, -1)
 		for _, match := range matches {
 			tag := match[1]
 			_ = match[2] // expression
 
 			description := p.ShortTitle.TrimSpace()
 
-			submatch := reList.FindStringSubmatch(line)
+			submatch := reList.FindStringSubmatch(line.Text)
 			if submatch != nil {
 				// Reminder for a list element
 				textTitle := p.ShortTitle.MustTransform(StripTagsAndAttributes(CurrentConfigFile().Attributes))
@@ -1053,13 +1053,11 @@ func StripSubNotesTransformer(document markdown.Document) (markdown.Document, er
 	// The current implementation traverses the lines until finding the first sub-note
 	it := document.Iterator()
 
-	insideCodeBlock := false
-	// We ignore headings inside code blocks
 
 	// Skip top note heading
 	for it.HasNext() {
 		line := it.Next()
-		ok, _, _ := markdown.IsHeading(line.Text)
+		ok, _, _ := line.IsHeading()
 		if ok {
 			break
 		}
@@ -1069,15 +1067,11 @@ func StripSubNotesTransformer(document markdown.Document) (markdown.Document, er
 	for it.HasNext() {
 		line := it.Next()
 
-		if markdown.IsCodeBlock(line.Text) {
-			insideCodeBlock = !insideCodeBlock
-			continue
-		}
-		if insideCodeBlock {
+		if line.InsideCodeBlock {
 			continue
 		}
 
-		ok, headingText, _ := markdown.IsHeading(line.Text)
+		ok, headingText, _ := line.IsHeading()
 		if ok {
 			_, _, supported := CurrentConfigFile().MatchNoteType(headingText)
 			if supported {

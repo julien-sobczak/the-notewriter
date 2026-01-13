@@ -16,21 +16,12 @@ type Document string
 // Null object
 var EmptyDocument = Document("")
 
-// Lines returns the lines present in the Markdown document
-func (m Document) Lines() []string {
-	return strings.Split(string(m), "\n")
-}
-
 func (m Document) IsBlank() bool {
 	return text.IsBlank(string(m))
 }
 
 func (m Document) Hash() string {
 	return helpers.Hash([]byte(m))
-}
-
-func (m Document) Iterator() *text.LineIterator {
-	return text.NewLineIteratorFromText(string(m))
 }
 
 func (m Document) String() string {
@@ -80,36 +71,4 @@ func (m Document) ToANSI() string {
 	})
 
 	return text
-}
-
-/*
- * Helpers
- */
-
-// IsCodeBlock returns if a given line is a Markdown code block.
-func IsCodeBlock(line string) bool {
-	// Check if the line starts with three backticks
-	return strings.HasPrefix(line, "```")
-}
-
-// IsHeading returns if a given line is a Markdown heading and its level.
-func IsHeading(line string) (bool, string, int) {
-	if !strings.HasPrefix(line, "#") {
-		return false, "", 0
-	}
-	if strings.HasPrefix(line, "###### ") {
-		return true, strings.TrimPrefix(line, "###### "), 6
-	} else if strings.HasPrefix(line, "##### ") {
-		return true, strings.TrimPrefix(line, "##### "), 5
-	} else if strings.HasPrefix(line, "#### ") {
-		return true, strings.TrimPrefix(line, "#### "), 4
-	} else if strings.HasPrefix(line, "### ") {
-		return true, strings.TrimPrefix(line, "### "), 3
-	} else if strings.HasPrefix(line, "## ") {
-		return true, strings.TrimPrefix(line, "## "), 2
-	} else if strings.HasPrefix(line, "# ") {
-		return true, strings.TrimPrefix(line, "# "), 1
-	}
-
-	return false, "", 0
 }

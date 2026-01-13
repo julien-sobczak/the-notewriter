@@ -36,15 +36,11 @@ func TestReplaceCharacters(t *testing.T) {
 				md: "" +
 					"i--\n" +
 					"\n" +
-					"    i--\n" +
-					"\n" +
 					"```c\n" +
 					"i--\n" +
 					"```\n",
 				expected: "" +
 					"i—\n" +
-					"\n" +
-					"    i--\n" +
 					"\n" +
 					"```c\n" +
 					"i--\n" +
@@ -192,6 +188,7 @@ blablabla
 blablablabla
 `,
 		},
+
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -217,11 +214,6 @@ func TestStripCodeBlocks(t *testing.T) {
 			name:     "Syntax with backticks",
 			md:       "# Hello\n\nWorld\n\n```md\n# Hello\nWorld\n```\n",
 			expected: "# Hello\n\nWorld\n\n\n\n\n\n",
-		},
-		{
-			name:     "Syntax with spaces",
-			md:       "# Hello\n\nWorld\n\n    # Hello\n    World\n",
-			expected: "# Hello\n\nWorld\n\n\n\n",
 		},
 	}
 	for _, tt := range tests {

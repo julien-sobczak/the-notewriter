@@ -573,15 +573,10 @@ func NoOrphanFlashcard(file *ParsedFile, query *Query, args []any) ([]*Violation
 
 			// Check if the note matches at least one deck query
 			matchesAnyDeck := false
-			if len(deckQueriesInventory) == 0 {
-				// No decks defined, flashcard is orphan
-				matchesAnyDeck = false
-			} else {
-				for _, deckQuery := range deckQueriesInventory {
-					if deckQuery.MatchesParsed(note) {
-						matchesAnyDeck = true
-						break
-					}
+			for _, deckQuery := range deckQueriesInventory {
+				if deckQuery.MatchesParsed(note) {
+					matchesAnyDeck = true
+					break
 				}
 			}
 

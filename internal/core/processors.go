@@ -169,7 +169,7 @@ func GeneratorProcessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, erro
 		if err != nil {
 			return nil, fmt.Errorf("unable to create temporary script for generator %q: %w", note.ShortTitle, err)
 		}
-		//defer os.Remove(scriptPath.Name())
+		defer os.Remove(scriptPath.Name())
 		os.WriteFile(scriptPath.Name(), []byte(scriptContent), 0755)
 
 		cmdArgs = append(cmdArgs, scriptPath.Name())
@@ -198,6 +198,7 @@ func GeneratorProcessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, erro
 	if err := os.WriteFile(mdPath.Name(), stdout.Bytes(), 0644); err != nil {
 		return nil, fmt.Errorf("unable to write temporary Markdown file for generator %q: %w", note.ShortTitle, err)
 	}
+
 
 	mdFile, err := markdown.ParseFile(mdPath.Name())
 	if err != nil {
@@ -338,7 +339,7 @@ func extractListItems(body markdown.Document, baseLineNumber int) []*ListItem {
 		lineNumber := baseLineNumber + i
 
 		// Check if this line is a list item
-		if item := parseListItemWithIndent(line, lineNumber); item != nil {
+		if item := parseListItemWithIndent(line.Text, lineNumber); item != nil {
 			items = append(items, item)
 		}
 	}
