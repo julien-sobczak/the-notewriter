@@ -1,4 +1,7 @@
 {
     "go.goroot": "/opt/homebrew/opt/go/libexec",
-    "go.testFlags": ["--tags", "fts5", "-count=1"]
+    "go.testFlags": ["--tags", "fts5", "-count=1"],
+    "go.testEnvVars": {
+        "VSCODE_GO_TEST": "1"
+    }
 }
