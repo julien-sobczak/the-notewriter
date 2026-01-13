@@ -245,7 +245,7 @@ func TestPackFile(t *testing.T) {
 			RelativePath: "go.md",
 			OID:          packFile.OID,
 			CTime:        packFile.CTime,
-			Kind:         "objects",
+			Kind:         PackFileKindObjects,
 		}, ref)
 	})
 

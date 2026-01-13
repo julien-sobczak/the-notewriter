@@ -19,6 +19,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+/* Pack File Kind Constants */
+
+const (
+	// PackFileKindObjects represents a pack file containing objects (Notes, Files, Media, etc.)
+	PackFileKindObjects = "objects"
+	// PackFileKindOperations represents a pack file containing operations (mark-note, review-flashcard, etc.)
+	PackFileKindOperations = "operations"
+)
+
 /* Packable */
 
 // Packable represents an object that can be packed into a pack file.
@@ -136,7 +145,7 @@ var NilPackFile = &PackFile{
 	FileMTime:        time.Time{},
 	FileSize:         0,
 	CTime:            time.Time{},
-	Kind:             "objects",
+	Kind:             PackFileKindObjects,
 	PackObjects:      nil,
 	BlobRefs:         nil,
 }
@@ -663,7 +672,7 @@ func NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFile, error) {
 
 		// Init pack file properties
 		CTime: clock.Now(),
-		Kind:  "objects",
+		Kind:  PackFileKindObjects,
 	}
 
 	// Create objects
@@ -776,7 +785,7 @@ func NewPackFileFromParsedMedia(parsedMedia *ParsedMedia) (*PackFile, error) {
 
 		// Init pack file properties
 		CTime: clock.Now(),
-		Kind:  "objects",
+		Kind:  PackFileKindObjects,
 	}
 
 	// Process the Media

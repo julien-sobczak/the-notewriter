@@ -1032,7 +1032,7 @@ func (r *Repository) Pull(remoteName string, interactive, force bool) error {
 	var objectsPackFiles []PackFileRef
 	var operationsPackFiles []PackFileRef
 	for _, missingPackFile := range diff.MissingPackFiles {
-		if missingPackFile.Kind == "operations" {
+		if missingPackFile.Kind == PackFileKindOperations {
 			operationsPackFiles = append(operationsPackFiles, missingPackFile)
 		} else {
 			objectsPackFiles = append(objectsPackFiles, missingPackFile)
