@@ -229,11 +229,19 @@ func (r *Repository) IndexPackFiles(absolutePaths []string) error {
 	if err := db.BeginTransaction(); err != nil {
 		return err
 	}
-	// TODO add packfile to index with their ingestion time?
 	if err := db.UpsertPackFiles(packFilesToIndex...); err != nil {
 		return err
 	}
 	if err := db.CommitTransaction(); err != nil {
+		return err
+	}
+
+	// Step 3: Add pack files to the index
+	index := CurrentIndex()
+	if err := index.Add(packFilesToIndex...); err != nil {
+		return err
+	}
+	if err := index.Save(); err != nil {
 		return err
 	}
 
@@ -1020,13 +1028,35 @@ func (r *Repository) Pull(remoteName string, interactive, force bool) error {
 	diff := CurrentIndex().Diff(originIndex)
 	diffReverse := originIndex.Diff(CurrentIndex())
 
+	// Separate pack files by kind: process "objects" first, then "operations"
+	var objectsPackFiles []PackFileRef
+	var operationsPackFiles []PackFileRef
 	for _, missingPackFile := range diff.MissingPackFiles {
+		if missingPackFile.Kind == "operations" {
+			operationsPackFiles = append(operationsPackFiles, missingPackFile)
+		} else {
+			objectsPackFiles = append(objectsPackFiles, missingPackFile)
+		}
+	}
+
+	// Download objects pack files first
+	for _, missingPackFile := range objectsPackFiles {
 		data, err := origin.GetObject(missingPackFile.ObjectRelativePath())
 		if err != nil {
 			return err
 		}
 		writeObject(missingPackFile, data)
 	}
+
+	// Download operations pack files second
+	for _, missingPackFile := range operationsPackFiles {
+		data, err := origin.GetObject(missingPackFile.ObjectRelativePath())
+		if err != nil {
+			return err
+		}
+		writeObject(missingPackFile, data)
+	}
+
 	for _, missingBlob := range diff.MissingBlobs {
 		data, err := origin.GetObject(missingBlob.ObjectRelativePath())
 		if err != nil {

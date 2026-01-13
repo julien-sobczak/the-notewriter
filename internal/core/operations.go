@@ -248,6 +248,7 @@ func NewPackFileFromOperations(operations []*Operation) (*PackFile, error) {
 		OID: oid.New(),
 		// Init pack file properties
 		CTime: clock.Now(),
+		Kind:  "operations",
 	}
 
 	// Create objects

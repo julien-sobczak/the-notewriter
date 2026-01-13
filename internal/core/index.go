@@ -46,6 +46,8 @@ type IndexEntry struct {
 
 	// Pack file OID representing this file under .nt/objects
 	PackFileOID oid.OID `yaml:"packfile_oid"`
+	// Kind of the pack file: "objects" or "operations"
+	Kind string `yaml:"kind"`
 	// File last modification date
 	MTime time.Time `yaml:"mtime"`
 	// File last indexation date
@@ -71,6 +73,7 @@ func NewIndexEntry(packFile *PackFile) *IndexEntry {
 		RelativePath: packFile.FileRelativePath,
 		MTime:        packFile.FileMTime,
 		Size:         packFile.FileSize,
+		Kind:         packFile.Kind,
 	}
 }
 
@@ -97,6 +100,7 @@ func (i *IndexEntry) Ref() PackFileRef {
 		OID:          i.PackFileOID,
 		RelativePath: i.RelativePath,
 		CTime:        i.MTime,
+		Kind:         i.Kind,
 	}
 }
 
@@ -138,6 +142,7 @@ func (i *IndexEntry) Stage(newPackFile *PackFile) {
 	i.StagedITime = clock.Now()
 	i.StagedSize = newPackFile.FileSize
 	i.StagedTombstone = time.Time{} // Zero value
+	i.Kind = newPackFile.Kind
 }
 
 func (i *IndexEntry) NeverCommitted() bool {
@@ -375,6 +380,7 @@ func (i *Index) Add(packFiles ...*PackFile) error {
 			i.Entries = append(i.Entries, entry)
 		}
 		entry.PackFileOID = packFile.OID
+		entry.Kind = packFile.Kind
 		entry.MTime = time.Time{}
 		entry.Size = 0
 		entry.Staged = false

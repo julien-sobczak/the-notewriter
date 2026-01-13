@@ -136,6 +136,7 @@ var NilPackFile = &PackFile{
 	FileMTime:        time.Time{},
 	FileSize:         0,
 	CTime:            time.Time{},
+	Kind:             "objects",
 	PackObjects:      nil,
 	BlobRefs:         nil,
 }
@@ -149,6 +150,7 @@ type PackFile struct {
 	FileSize         int64     `yaml:"file_size" json:"file_size"`
 
 	CTime       time.Time     `yaml:"ctime" json:"ctime"`
+	Kind        string        `yaml:"kind" json:"kind"` // "objects" or "operations"
 	PackObjects []*PackObject `yaml:"objects" json:"objects"`
 	BlobRefs    []*BlobRef    `yaml:"blobs" json:"blobs"`
 }
@@ -223,6 +225,7 @@ func (p *PackFile) Ref() PackFileRef {
 		RelativePath: p.FileRelativePath,
 		OID:          p.OID,
 		CTime:        p.CTime,
+		Kind:         p.Kind,
 	}
 }
 
@@ -603,6 +606,7 @@ type PackFileRef struct {
 	OID          oid.OID   `yaml:"oid" json:"oid"`
 	RelativePath string    `yaml:"relative_path" json:"relative_path"`
 	CTime        time.Time `yaml:"ctime" json:"ctime"`
+	Kind         string    `yaml:"kind" json:"kind"` // "objects" or "operations"
 }
 
 // ObjectOID returns the OID of the blob.
@@ -659,6 +663,7 @@ func NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFile, error) {
 
 		// Init pack file properties
 		CTime: clock.Now(),
+		Kind:  "objects",
 	}
 
 	// Create objects
@@ -771,6 +776,7 @@ func NewPackFileFromParsedMedia(parsedMedia *ParsedMedia) (*PackFile, error) {
 
 		// Init pack file properties
 		CTime: clock.Now(),
+		Kind:  "objects",
 	}
 
 	// Process the Media
