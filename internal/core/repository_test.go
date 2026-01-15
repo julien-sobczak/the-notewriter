@@ -294,3 +294,34 @@ func TestStatsInDB(t *testing.T) {
 		"title":    3,
 	}, stats.Attributes)
 }
+
+func TestIndexPackFiles(t *testing.T) {
+	NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
+
+	_, err := CurrentRepository().Add(AnyPath)
+	require.NoError(t, err)
+
+	note, err := CurrentRepository().FindNoteByWikilink("go#Flashcard: Golang Logo")
+	require.NoError(t, err)
+	require.NotNil(t, note)
+	assert.False(t, note.Marked)
+
+	packFile, err := NewPackFileFromOperations([]*Operation{
+		NewOperationMarkNote(note.OID),
+	})
+	require.NoError(t, err)
+	err = packFile.Save() // Save the pack file to disk (like the desktop application would do)
+	require.NoError(t, err)
+
+	err = CurrentRepository().IndexPackFiles([]string{packFile.ObjectPath()}) // Run the `index-pack` command (like the desktop application would do)
+	require.NoError(t, err)
+
+	// Check the operation has been applied in database
+	note, err = CurrentRepository().FindNoteByWikilink("go#Flashcard: Golang Logo")
+	require.NoError(t, err)
+	require.NotNil(t, note)
+	assert.True(t, note.Marked) // Must have changed
+
+	_, present := CurrentIndex().GetEntryByPackFileOID(packFile.OID)
+	require.True(t, present)
+}

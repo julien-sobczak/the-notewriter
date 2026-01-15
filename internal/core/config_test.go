@@ -203,7 +203,7 @@ func TestCheckConfig(t *testing.T) {
 	queries: {
 		myQuery: {
 			title: "My Query",
-			q: "#",
+			query: "#",
 		},
 	},
 }`,
@@ -670,7 +670,7 @@ func TestParseConfigFile(t *testing.T) {
 	queries: {
 		myQuery: {
 			title: "My Query",
-			q: "@type:Note",
+			query: "@type:Note",
 			tags: ["tag1", "tag2"],
 		},
 	},
@@ -685,7 +685,7 @@ func TestParseConfigFile(t *testing.T) {
 		query, ok := cfg.Queries["myQuery"]
 		require.True(t, ok)
 		assert.Equal(t, "My Query", query.Title)
-		assert.Equal(t, "@type:Note", query.Q)
+		assert.Equal(t, "@type:Note", query.Query)
 		assert.Equal(t, []string{"tag1", "tag2"}, query.Tags)
 	})
 

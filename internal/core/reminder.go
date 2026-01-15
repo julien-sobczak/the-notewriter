@@ -387,8 +387,8 @@ func EvaluateTimeExpressionAfter(timestamp time.Time, expr string) (time.Time, e
 	})
 
 	if len(possibleFutureDates) == 0 {
-		// Must not happen
-		return time.Time{}, fmt.Errorf("no date can be determined for reminder %q", originalExpr)
+		// Could happen when adding old notes in a repository
+		return time.Time{}, nil
 	}
 
 	return possibleFutureDates[0], nil

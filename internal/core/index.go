@@ -384,21 +384,8 @@ func (i *Index) Add(packFiles ...*PackFile) error {
 		entry.MTime = time.Time{}
 		entry.Size = 0
 		entry.Staged = false
-		// Update caches
-		for _, packObject := range packFile.PackObjects {
-			i.Objects = append(i.Objects, &IndexObject{
-				OID:         packObject.OID,
-				Kind:        packObject.Kind,
-				PackFileOID: packFile.OID,
-			})
-		}
-		for _, blob := range packFile.BlobRefs {
-			i.Blobs = append(i.Blobs, &IndexBlob{
-				OID:         blob.OID,
-				MimeType:    blob.MimeType,
-				PackFileOID: packFile.OID,
-			})
-		}
+		i.updateCaches(packFile)
+
 	}
 	return nil
 }
@@ -414,23 +401,32 @@ func (i *Index) Stage(packFiles ...*PackFile) error {
 			i.Entries = append(i.Entries, entry)
 		}
 		entry.Stage(packFile)
-		// Update caches
-		for _, packObject := range packFile.PackObjects {
-			i.Objects = append(i.Objects, &IndexObject{
-				OID:         packObject.OID,
-				Kind:        packObject.Kind,
-				PackFileOID: packFile.OID,
-			})
-		}
-		for _, blob := range packFile.BlobRefs {
-			i.Blobs = append(i.Blobs, &IndexBlob{
-				OID:         blob.OID,
-				MimeType:    blob.MimeType,
-				PackFileOID: packFile.OID,
-			})
-		}
+		i.updateCaches(packFile)
 	}
 	return nil
+}
+
+
+func (i *Index) updateCaches(packFile *PackFile) {
+	if packFile.Kind == PackFileKindOperations {
+		// We can have thousands of operations for a single object.
+		// Caches are used when looking for objects/blobs only
+		return
+	}
+	for _, packObject := range packFile.PackObjects {
+		i.Objects = append(i.Objects, &IndexObject{
+			OID:         packObject.OID,
+			Kind:        packObject.Kind,
+			PackFileOID: packFile.OID,
+		})
+	}
+	for _, blob := range packFile.BlobRefs {
+		i.Blobs = append(i.Blobs, &IndexBlob{
+			OID:         blob.OID,
+			MimeType:    blob.MimeType,
+			PackFileOID: packFile.OID,
+		})
+	}
 }
 
 // Unstage remove existing pack files from the index.
