@@ -245,6 +245,7 @@ func TestPackFile(t *testing.T) {
 			RelativePath: "go.md",
 			OID:          packFile.OID,
 			CTime:        packFile.CTime,
+			Kind:         PackFileKindObjects,
 		}, ref)
 	})
 
@@ -275,6 +276,7 @@ func TestPackFile(t *testing.T) {
 			"file_mtime":         "2023-01-01T12:30:00Z",
 			"file_size":          1,
 			"ctime":              "2023-01-01T12:30:00Z",
+			"kind":               "objects",
 			"objects": []any{
 				map[string]any{
 					"oid":   "1000000000000000000000000000000000000000",

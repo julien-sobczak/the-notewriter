@@ -96,6 +96,7 @@ func TestIndex(t *testing.T) {
 		assert.Equal(t, &IndexEntry{
 			RelativePath: "go.md",
 			PackFileOID:  packFile.OID,
+			Kind:         PackFileKindObjects,
 			MTime:        clock.Now(),
 			ITime:        clock.Now(),
 			Size:         1,
@@ -124,6 +125,7 @@ func TestIndex(t *testing.T) {
 		assert.Equal(t, &IndexEntry{
 			RelativePath: "go.md",
 			PackFileOID:  packFile.OID,
+			Kind:         PackFileKindObjects,
 			MTime:        clock.Now(),
 			ITime:        clock.Now(),
 			Size:         1,
@@ -208,6 +210,7 @@ func TestIndex(t *testing.T) {
 		assert.Equal(t, &IndexEntry{
 			RelativePath: "go.md",
 			PackFileOID:  packFile1.OID,
+			Kind:         PackFileKindObjects,
 			MTime:        clock.Now(),
 			ITime:        clock.Now(),
 			Size:         1,
@@ -223,6 +226,7 @@ func TestIndex(t *testing.T) {
 		assert.Equal(t, &IndexEntry{
 			RelativePath: "python.md",
 			PackFileOID:  packFile2.OID,
+			Kind:         PackFileKindObjects,
 			MTime:        clock.Now(),
 			ITime:        clock.Now(),
 			Size:         1,
@@ -267,6 +271,7 @@ func TestIndex(t *testing.T) {
 		assert.Equal(t, &IndexEntry{
 			RelativePath: "python.md",
 			PackFileOID:  packFile2.OID,
+			Kind:         PackFileKindObjects,
 			MTime:        clock.Now(),
 			ITime:        clock.Now(),
 			Size:         1,

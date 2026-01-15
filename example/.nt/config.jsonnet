@@ -63,12 +63,12 @@ local nt = import 'nt.libsonnet';
     queries: {
         allNotes: {
             title: "All Notes",
-            q: "@type:Note",
+            query: "@type:Note",
             tags: ["general"],
         },
         projectNotes: {
             title: "Project Notes",
-            q: "path:projects/ @type:Note",
+            query: "path:projects/ @type:Note",
             tags: ["projects", "work"],
         },
     },

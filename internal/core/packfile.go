@@ -19,6 +19,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+/* Pack File Kind Constants */
+
+const (
+	// PackFileKindObjects represents a pack file containing objects (Notes, Files, Media, etc.)
+	PackFileKindObjects = "objects"
+	// PackFileKindOperations represents a pack file containing operations (mark-note, review-flashcard, etc.)
+	PackFileKindOperations = "operations"
+)
+
 /* Packable */
 
 // Packable represents an object that can be packed into a pack file.
@@ -136,6 +145,7 @@ var NilPackFile = &PackFile{
 	FileMTime:        time.Time{},
 	FileSize:         0,
 	CTime:            time.Time{},
+	Kind:             PackFileKindObjects,
 	PackObjects:      nil,
 	BlobRefs:         nil,
 }
@@ -149,6 +159,7 @@ type PackFile struct {
 	FileSize         int64     `yaml:"file_size" json:"file_size"`
 
 	CTime       time.Time     `yaml:"ctime" json:"ctime"`
+	Kind        string        `yaml:"kind" json:"kind"` // "objects" or "operations"
 	PackObjects []*PackObject `yaml:"objects" json:"objects"`
 	BlobRefs    []*BlobRef    `yaml:"blobs" json:"blobs"`
 }
@@ -223,6 +234,7 @@ func (p *PackFile) Ref() PackFileRef {
 		RelativePath: p.FileRelativePath,
 		OID:          p.OID,
 		CTime:        p.CTime,
+		Kind:         p.Kind,
 	}
 }
 
@@ -603,6 +615,7 @@ type PackFileRef struct {
 	OID          oid.OID   `yaml:"oid" json:"oid"`
 	RelativePath string    `yaml:"relative_path" json:"relative_path"`
 	CTime        time.Time `yaml:"ctime" json:"ctime"`
+	Kind         string    `yaml:"kind" json:"kind"` // "objects" or "operations"
 }
 
 // ObjectOID returns the OID of the blob.
@@ -659,6 +672,7 @@ func NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFile, error) {
 
 		// Init pack file properties
 		CTime: clock.Now(),
+		Kind:  PackFileKindObjects,
 	}
 
 	// Create objects
@@ -771,6 +785,7 @@ func NewPackFileFromParsedMedia(parsedMedia *ParsedMedia) (*PackFile, error) {
 
 		// Init pack file properties
 		CTime: clock.Now(),
+		Kind:  PackFileKindObjects,
 	}
 
 	// Process the Media

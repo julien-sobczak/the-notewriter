@@ -641,7 +641,7 @@ func (c *ConfigDeck) Check() error {
 }
 type ConfigQuery struct {
 	Title string   `json:"title"`
-	Q     string   `json:"q"`
+	Query string   `json:"query"`
 	Tags  []string `json:"tags,omitempty"`
 }
 
@@ -650,10 +650,10 @@ func (c *ConfigQuery) Check() error {
 		if c == nil {
 		return nil
 	}
-	if c.Q != "" {
-		_, err := ParseQuery(c.Q)
+	if c.Query != "" {
+		_, err := ParseQuery(c.Query)
 		if err != nil {
-			return fmt.Errorf("invalid query %q: %v", c.Q, err)
+			return fmt.Errorf("invalid query %q: %v", c.Query, err)
 		}
 	}
 	return nil

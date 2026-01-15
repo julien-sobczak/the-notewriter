@@ -46,6 +46,8 @@ type IndexEntry struct {
 
 	// Pack file OID representing this file under .nt/objects
 	PackFileOID oid.OID `yaml:"packfile_oid"`
+	// Kind of the pack file: "objects" or "operations"
+	Kind string `yaml:"kind"`
 	// File last modification date
 	MTime time.Time `yaml:"mtime"`
 	// File last indexation date
@@ -71,6 +73,7 @@ func NewIndexEntry(packFile *PackFile) *IndexEntry {
 		RelativePath: packFile.FileRelativePath,
 		MTime:        packFile.FileMTime,
 		Size:         packFile.FileSize,
+		Kind:         packFile.Kind,
 	}
 }
 
@@ -97,6 +100,7 @@ func (i *IndexEntry) Ref() PackFileRef {
 		OID:          i.PackFileOID,
 		RelativePath: i.RelativePath,
 		CTime:        i.MTime,
+		Kind:         i.Kind,
 	}
 }
 
@@ -138,6 +142,7 @@ func (i *IndexEntry) Stage(newPackFile *PackFile) {
 	i.StagedITime = clock.Now()
 	i.StagedSize = newPackFile.FileSize
 	i.StagedTombstone = time.Time{} // Zero value
+	i.Kind = newPackFile.Kind
 }
 
 func (i *IndexEntry) NeverCommitted() bool {
@@ -375,24 +380,12 @@ func (i *Index) Add(packFiles ...*PackFile) error {
 			i.Entries = append(i.Entries, entry)
 		}
 		entry.PackFileOID = packFile.OID
+		entry.Kind = packFile.Kind
 		entry.MTime = time.Time{}
 		entry.Size = 0
 		entry.Staged = false
-		// Update caches
-		for _, packObject := range packFile.PackObjects {
-			i.Objects = append(i.Objects, &IndexObject{
-				OID:         packObject.OID,
-				Kind:        packObject.Kind,
-				PackFileOID: packFile.OID,
-			})
-		}
-		for _, blob := range packFile.BlobRefs {
-			i.Blobs = append(i.Blobs, &IndexBlob{
-				OID:         blob.OID,
-				MimeType:    blob.MimeType,
-				PackFileOID: packFile.OID,
-			})
-		}
+		i.updateCaches(packFile)
+
 	}
 	return nil
 }
@@ -408,23 +401,32 @@ func (i *Index) Stage(packFiles ...*PackFile) error {
 			i.Entries = append(i.Entries, entry)
 		}
 		entry.Stage(packFile)
-		// Update caches
-		for _, packObject := range packFile.PackObjects {
-			i.Objects = append(i.Objects, &IndexObject{
-				OID:         packObject.OID,
-				Kind:        packObject.Kind,
-				PackFileOID: packFile.OID,
-			})
-		}
-		for _, blob := range packFile.BlobRefs {
-			i.Blobs = append(i.Blobs, &IndexBlob{
-				OID:         blob.OID,
-				MimeType:    blob.MimeType,
-				PackFileOID: packFile.OID,
-			})
-		}
+		i.updateCaches(packFile)
 	}
 	return nil
+}
+
+
+func (i *Index) updateCaches(packFile *PackFile) {
+	if packFile.Kind == PackFileKindOperations {
+		// We can have thousands of operations for a single object.
+		// Caches are used when looking for objects/blobs only
+		return
+	}
+	for _, packObject := range packFile.PackObjects {
+		i.Objects = append(i.Objects, &IndexObject{
+			OID:         packObject.OID,
+			Kind:        packObject.Kind,
+			PackFileOID: packFile.OID,
+		})
+	}
+	for _, blob := range packFile.BlobRefs {
+		i.Blobs = append(i.Blobs, &IndexBlob{
+			OID:         blob.OID,
+			MimeType:    blob.MimeType,
+			PackFileOID: packFile.OID,
+		})
+	}
 }
 
 // Unstage remove existing pack files from the index.
