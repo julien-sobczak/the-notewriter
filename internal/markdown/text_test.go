@@ -53,6 +53,11 @@ func TestSlug(t *testing.T) {
 			[]any{`Answering "Why?"`},
 			"answering-why",
 		},
+		{
+			"Code",
+			[]any{"(Go) `int32` vs `int`"},
+			"go-int32-vs-int",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -1019,7 +1019,7 @@ func DetermineFileSlug(relativePath string) string {
 	// Include the dirname
 	dirname := filepath.Base(filepath.Dir(relativePath))
 	if dirname != "" {
-		// Do not prefix by the dirname when file are present at the root
+		// Do not prefix by the dirname when files are present at the root
 		slugsParts = append(slugsParts, dirname)
 	}
 
