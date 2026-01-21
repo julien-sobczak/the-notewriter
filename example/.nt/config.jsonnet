@@ -1,220 +1,301 @@
-# See https://jsonnet.org/learning/tutorial.html to learn the Jsonnet syntax
 local nt = import 'nt.libsonnet';
 
+local srsAlgorithmSettings = {
+  easeFactor: 2.5,
+};
+
 {
-    core: {
-        medias: {
-            command: "ffmpeg",
-            parallel: 1,
-            preset: "ultrafast",
-        },
+  attributes: nt.DefaultAttributes + {
+    date: {
+      name: "date",
+      type: "string",
+      format: "yyyy-mm-dd",
+      inherit: true,
+    },
+    // Identify the author (useful on quotes)
+    name: {
+      name: "name",
+      aliases: ["author"],
+      type: "string",
+      format: "markdown",
+      inherit: true, // Often declared in Front Matter
+    },
+    occupation: {
+      name: "occupation",
+      type: "string",
+      format: "markdown",
+      inherit: true, // Often declared in Front Matter
     },
 
-    # TODO add links to the documentation
-    attributes: nt.DefaultAttributes + {
-        rating: {
-            name: "rating",
-            type: "string",
-            allowedValues: ["★", "★★", "★★★"],
-            defaultValue: "★★",
-            shorthands: {
-                "★": "★",
-                "★★": "★★",
-                "★★★": "★★★",
-            },
-        },
+    // Book
+    isbn: {
+      name: "isbn",
+      type: "string",
+      format: "isbn",
+      inherit: true, // Often declared in Front Matter
     },
 
-    # TODO add links to the documentation
-    noteTypes: nt.DefaultNoteTypes + {
-        Todo: nt.DefaultNoteTypes.Todo + {
-            attributes: [
-                {
-                    name: "status",
-                    optional: false,
-                    inline: true,
-                },
-            ],
-        },
-        BookReview: nt.DefaultNoteTypes.Note + {
-            name: "BookReview",
-            attributes: [
-                {
-                    name: "rating",
-                    optional: false,
-                    inline: false,
-                },
-            ],
-        },
-        ReadingList: nt.DefaultNoteTypes.Note + {
-            name: "ReadingList",
-            attributes: [
-                {
-                    name: "rating",
-                    optional: false,
-                    inline: false,
-                },
-            ],
-            processors: ["list-items"],
-        },
+    // Project
+    draft: {
+      name: "draft",
+      type: "bool",
+      inherit: false,
     },
 
-    # Predefined queries with tags
-    queries: {
-        allNotes: {
-            title: "All Notes",
-            query: "@type:Note",
-            tags: ["general"],
+    // Readings
+    read_date: {
+      name: "read_date",
+      type: "string", # Avoid type "date" to not dump a full date as timestamp
+      format: "yyyy-mm-dd",
+      inherit: true, // Often declared in Front Matter
+      memory: true, // Used to mark this note as memory
+    },
+    rating: {
+      name: "rating",
+      type: "string",
+      allowedValues: ["★", "★★", "★★★"],
+      defaultValue: "★★",
+      shorthands: {
+        "★": "★",
+        "★★": "★★",
+        "★★★": "★★★",
+      },
+    },
+  },
+
+  noteTypes: nt.DefaultNoteTypes + {
+    // Customize default note types
+    Quote: nt.DefaultNoteTypes.Quote + {
+      // Override to enforce a few attributes
+      attributes: [
+        {
+          name: "name",
+          required: true,
         },
-        projectNotes: {
-            title: "Project Notes",
-            query: "path:projects/ @type:Note",
-            tags: ["projects", "work"],
+        {
+          name: "occupation",
+          required: true,
         },
+      ],
+    },
+    Artwork: nt.DefaultNoteTypes.Artwork + {
+      attributes: [
+        {
+          name: "artist",
+        },
+        {
+          name: "year",
+        },
+      ],
     },
 
-    # Desks for organizing notes visually
-    desks: [
+    // Declare custom types for specific uses
+    // Synopsis presents the project overview (= the initial idea)
+    Synopsis: self.Synopsis + {
+      name: "Synopsis",
+    },
+    Idea: self.Idea + {
+      name: "Idea",
+    },
+    // Cheatsheet presents "How to..." solutions
+    Cheatsheet: self.Note + {
+      name: "Cheatsheet",
+    },
+    // BookReview is a note reviewing a book
+    BookReview: self.Note + {
+      name: "BookReview",
+      attributes: [
         {
-            name: "The NoteWriter",
-            description: "The NoteWriter Project Management",
-            root: {
-                layout: "vertical",
-                elements: [
-                    {
-                        name: "Notes",
-                        size: "70%",
-                        query: "path:projects/the-notewriter (@type:Note)",
-                    },
-                    {
-                        layout: "horizontal",
-                        elements: [
-                            {
-                                name: "Backlog",
-                                query: "path:projects/the-notewriter @type:Todo",
-                                view: "single",
-                                size: "30%",
-                            },
-                            {
-                                name: "Quotes",
-                                query: "path:projects/the-notewriter (@type:Quote)",
-                            },
-                        ],
-                    },
-                ],
-            },
+          // ISBN is required to identify the book (often inherited from the book reference)
+          name: "isbn",
+          required: true,
         },
-    ],
-
-    # Journals for daily note-taking
-    journals: [
         {
-            name: "My Diary",
-            path: "journal/${year}/${year}-${month}-${day}.md",
-            defaultContent: "Journal: ${year}-${month}-${day}",
-            routines: [
-                {
-                    name: "Morning Routine",
-                    template: |||
-                        # 💪 Affirmation
-
-                        <Affirmation wikilink="journaling#List: Affirmations" tags="success,optimism" />
-
-                        # ✍️ Morning Pages
-
-                        <MorningPages throwAway />
-
-                        # 😘 Gratitude Journal
-
-                        3 things I appreciate:
-
-                        * <Input />
-                        * <Input />
-                        * <Input />
-
-                        # 🤔 Prompt
-
-                        <Prompt wikilink="journaling#List: Prompts" />
-
-                        # 🎯 My BIG thing for today
-
-                        <Input />
-                    |||,
-                },
-                {
-                    name: "Shutdown Routine",
-                    template: |||
-                        # ❓ How was my day? Why?
-
-                        <Input />
-
-                        # 📋 3+1 tasks to complete tomorrow:
-
-                        * [ ] <Input /> (work)
-                        * [ ] <Input />
-                        * [ ] <Input />
-                        * [ ] <Input />
-                    |||,
-                },
-            ],
+          // Omitted the attribute is not allowed to prevent a review from being published before it's ready
+          name: "draft",
+          required: true,
         },
-    ],
-
-    # Stats for data visualization
-    stats: [
         {
-            name: "World Inspiration",
-            query: "@type:Quote",
-            groupBy: "nationality",
-            visualization: "map",
-            mapping: {
-                "Roman": "ITA",
-                "Greek": "GRC",
-                "German": "DEU",
-                "French": "FRA",
-                "American": "USA",
-                "English": "GBR",
-            },
+          // Rating of the book
+          name: "rating",
+          required: true,
         },
-    ],
-
-    # Books configuration for generating ePub/PDF books
-    books: [
         {
-            title: "Sample Book",
-            author: ["NoteWriter User"],
-            language: "en-US",
-            toc: true,
-            format: ["epub", "pdf", "markdown"],
-            chapters: [
-                {
-                    title: "Introduction",
-                    illustration: "thoughts/medias/pencil.png",
-                    text: "This is a sample book generated with The NoteWriter.",
-                },
-                {
-                    title: "Part I",
-                    subtitle: "Thoughts",
-                    sections: [
-                        {
-                            title: "On Learning",
-                            query: "path:\"thoughts/on-learning.md\"",
-                            pageBreaks: false,
-                            includeComments: false,
-                        },
-                        {
-                            title: "On Doing",
-                            query: "path:\"thoughts/on-doing.md\"",
-                            pageBreaks: true,
-                            includeComments: true,
-                        },
-                    ]
-                },
-                {
-                    title: "Afterword",
-                    text: importstr 'afterword.md',
-                }
-            ]
-        }
+          // Date when the book was read
+          name: "read_date",
+          required: true,
+        },
+      ],
+    },
+    // ReadingList is a list of books (read, to read, dnf, etc.)
+    ReadingList: nt.DefaultNoteTypes.Note + {
+      name: "ReadingList",
+      attributes: [
+        {
+          name: "rating",
+          optional: true,
+          inline: false,
+        },
+      ],
+      processors: ["list-items"],
+    },
+  },
+
+  linter: {
+    rules: [
+      nt.LintRules.NoEmptyTitle(),
+      nt.LintRules.NoDuplicateNoteTitle(),
+      nt.LintRules.NoDuplicateSlug(),
+      nt.LintRules.NoDanglingMedia(),
+      nt.LintRules.NoDeadWikilink(),
+      nt.LintRules.NoExtensionWikilink(),
+      nt.LintRules.NoAmbiguousWikilink(),
+      nt.LintRules.NoOrphanFlashcard(),
+      nt.LintRules.RequireTagIf("type:Quote", [
+        "focusing",
+        "reading",
+        "understanding",
+        "knowing",
+        "learning",
+        "mastering",
+        "doing",
+        "being",
+        "reflecting",
+        "living",
+        "suffering",
+        "loving",
+        "problem-solving",
+        "thinking",
+        "programming",
+        "planning",
+        "writing",
+        "note-taking",
+        "aging",
+        "dying",
+      ])
     ],
+  },
+
+  searches: {
+    // Show random quote at startup
+    dailyQuote: {
+      title: "Daily Quote",
+      query: "path:resources/books type:Quote",
+      tags: ["daily-quote"],
+    },
+    // A few custom queries to review some notes regularly
+    favoriteQuotes: {
+      title: "Favorite Quotes",
+      query: "#favorite type:Quote",
+      tags: ["daily-quote"],
+    },
+    unpublishedReviews: {
+      title: "Unpublished Book Reviews",
+      query: "@draft:true type:BookReview",
+    },
+    myNextBook: {
+      title: "Reading List",
+      query: "type:ReadingList",
+    },
+
+    // Configure sources of inspiration
+    inspirationArt: {
+      title: 'Art',
+      query: 'path:resources/art type:Artwork',
+      tags: ['inspiration'],
+    },
+    inspirationFavorite: {
+      title: 'Favorite',
+      query: '#favorite',
+      tags: ['inspiration'],
+    },
+
+    // Project Management
+    sideProjects: {
+      title: 'Side Projects',
+      query: 'path:projects/ @title:Synopsis',
+      tags: ['project'],
+    },
+    personalBacklog: {
+      title: 'Personal Backlog',
+      query: 'path:projects/ type:Todo',
+      tags: ['task'],
+    },
+
+    // Zen Mode
+    zenQuotes: {
+      title: 'Bits of Books',
+      query: 'path:references/books type:Quote',
+      tags: ['zen'],
+    },
+    zenThoughts: {
+      title: 'Bits of Learning',
+      query: 'path:area/learning type:Quote',
+      tags: ['zen'],
+    },
+
+  },
+
+  journal: [
+    {
+      name: 'My Diary',
+      path: 'journal/${year}/${year}-${month}-${day}.md',
+      defaultContent: 'Journal: ${year}-${month}-${day}',
+      routines: [
+        {
+          name: 'Morning Routine',
+          template: |||
+            # 💪 Affirmation
+
+            <Affirmation wikilink="journaling#List: Affirmations" tags="success,optimism" />
+
+            # 😘 Gratitude Journal
+
+            3 things I appreciate:
+
+            * <Input />
+            * <Input />
+            * <Input />
+
+            # 🤔 Prompt
+
+            <Prompt wikilink="journaling#List: Prompts" />
+
+            # 🎯 My BIG thing for today
+
+            <Input />
+          |||,
+        },
+        {
+          name: 'Shutdown Routine',
+          template: |||
+            # ❓ How was my day? Why?
+
+            <Input />
+
+            # 📋 3 tasks to complete tomorrow:
+
+            * [ ] <Input />
+            * [ ] <Input />
+            * [ ] <Input />
+          |||,
+        },
+      ],
+    },
+  ],
+
+  decks: [
+    {
+      name: "Skills",
+      query: "path:resources/skills",
+      newFlashcardsPerDay: 10,
+      algorithmSettings: srsAlgorithmSettings,
+    },
+    {
+      name: "General",
+      // Every other flashcards that didn't match above decks
+      newFlashcardsPerDay: 10,
+      algorithmSettings: srsAlgorithmSettings,
+    }
+  ],
 }
