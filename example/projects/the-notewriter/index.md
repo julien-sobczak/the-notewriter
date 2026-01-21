@@ -24,60 +24,37 @@ The tool is built in Go for performance and cross-platform compatibility, with a
 
 # Tasks
 
-## Task: Complete Documentation
+## Task: Complete Documentation 📅 🚨
 
-`@status: 📅`
-`@priority: 🚨`
 `@due: 2026-02-01`
 
 Finish comprehensive documentation covering all features, configuration options, and use cases. Include practical examples and tutorials.
 
-## Task: Implement Advanced Query Syntax
-
-`@status: 📝`
-`@priority: ❗️`
+## Task: Implement Advanced Query Syntax 📝 ❗️
 
 Enhance the query language to support more complex searches including boolean operators, nested queries, and attribute-based filtering.
 
-## Task: Add Export Functionality
-
-`@status: 📝`
-`@priority: 🔼`
+## Task: Add Export Functionality 📝 🔼
 
 Implement export features for different formats (PDF, HTML, ePub) to make notes shareable and accessible outside the CLI.
 
-## Task: Optimize Database Performance
-
-`@status: ⏱️`
-`@priority: ❗️`
+## Task: Optimize Database Performance ⏱️ ❗️
 
 Profile and optimize SQLite queries, especially for large note collections. Implement caching strategies where appropriate.
 
-## Task: Build Web Interface
-
-`@status: 📝`
-`@priority: 🔽`
+## Task: Build Web Interface 📝 🔽
 
 Create a web-based interface for browsing and editing notes, complementing the CLI tool.
 
-## Task: Improve Error Messages
-
-`@status: 📅`
-`@priority: 🔼`
+## Task: Improve Error Messages 📅 🔼
 
 Make error messages more helpful and actionable, with suggestions for fixing common issues.
 
-## Task: Add Plugin System
-
-`@status: 📝`
-`@priority: 🔽`
+## Task: Add Plugin System 📝 🔽
 
 Design and implement a plugin architecture for extending functionality without modifying core code.
 
-## Task: Write Integration Tests
-
-`@status: ⏱️`
-`@priority: 🔼`
+## Task: Write Integration Tests ⏱️ 🔼
 
 Expand test coverage with integration tests that validate end-to-end workflows and common use cases.
 

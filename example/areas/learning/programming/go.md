@@ -114,13 +114,13 @@ The empty interface can hold values of any type since every type implements zero
 
 ### List: Conferences
 
-* GopherCon - The largest Go conference, held annually in multiple locations worldwide `@date: 2006` `@continent: North America`
-* dotGo - European Go conference held in Paris, France `@date: 2014` `@continent: Europe`
-* GoLab - Italian Go conference focused on practical applications `@date: 2015` `@continent: Europe`
-* GopherCon Europe - European edition with rotating locations `@date: 2015` `@continent: Europe`
-* Go devroom at FOSDEM - Open source conference with dedicated Go track `@date: 2009` `@continent: Europe`
-* Capital Go - Conference in Washington DC focusing on Go in production `@date: 2016` `@continent: North America`
-* GoWayFest - Conference in Minsk focusing on Go ecosystem `@date: 2017` `@continent: Europe`
+* GopherCon - The largest Go conference, held annually in multiple locations worldwide `@month: July-September` `@frequency: Annual` `@continent: North America`
+* dotGo - European Go conference held in Paris, France `@month: March` `@frequency: Annual` `@continent: Europe`
+* GoLab - Italian Go conference focused on practical applications `@month: October` `@frequency: Annual` `@continent: Europe`
+* GopherCon Europe - European edition with rotating locations `@month: June-July` `@frequency: Annual` `@continent: Europe`
+* Go devroom at FOSDEM - Open source conference with dedicated Go track `@month: February` `@frequency: Annual` `@continent: Europe`
+* Capital Go - Conference in Washington DC focusing on Go in production `@month: September` `@frequency: Annual` `@continent: North America`
+* GoWayFest - Conference in Minsk focusing on Go ecosystem `@month: July` `@frequency: Annual` `@continent: Europe`
 
 ### List: Frameworks
 
