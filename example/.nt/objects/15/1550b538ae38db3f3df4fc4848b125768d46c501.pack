@@ -1,0 +1,34 @@
+oid: 1550b538ae38db3f3df4fc4848b125768d46c501
+file_relative_path: journal/2025/2025-12-05.md
+file_mtime: 2026-01-21T12:58:51.024224721Z
+file_size: 741
+ctime: 2026-01-21T13:08:48.968776935Z
+kind: objects
+objects:
+    - oid: bb23f661aa914239a8f699efbdc98ae1d4d283e8
+      kind: file
+      ctime: 2026-01-21T12:58:51.024224721Z
+      desc: file "journal/2025/2025-12-05.md" [bb23f661aa914239a8f699efbdc98ae1d4d283e8]
+      data: eJyUVM1u5EQQvvspSpNDpJVm1v/j8SVKwiYM0kqrhRXSEjQqu8vjZtrdprscxyCegQMc4T14nn0BXgHZ42yWEUhZH3yor+qr+r7qbiNFDkURRlWaBoibIA6jDWZVutlQVYhykyEFIhZhFlHmOdXtcwj9MFlOvyBc+onXYnmopKLdRBYkiV8kUYYUZaKIqkhUcVXGWZwVQZis00zEaZn4gWdJIct72rXIdQ4/mM5qVC9H4pdP7KtGeL08SCX14X+TvMoazbsGmcnmsFh4LFlRDudfHQvmoafkc8/VxvJuTlk8IQuvMGLIYXEG/1F3p+/0C7h75/t+cBNdRxD4B7Ddp9FNmsIrZKgJFdfDiHz44/e///oVrk3TKmIS0DmCEh3B+VtCIfX+fCQ+O4O3pmOpKYfXxmqp94+BI3z22CO+vITLqpK2QZZGj+huCyVqEAZQD1yPtVtoO4ZmgEZqAWxWuxOaNMjg1iJL7gQ9yh1zIpgYHGwB29ZSKZEpP4p/Q1hS1Sn4sZPEwLKhMbzVrpV2bFsafU/WzZO9gCvCjuVY0RNyTfZkik0QwxtrmpaPOjT0NTL0ODgoTacESAYsuUOlBigIUINpW2O505IHkBqEdPtOOrqYFH5BTu41cE2gqR/NtiA1k62wPHUyuryB1wNcbW+PkqEyFtgIHJ7J9LSyr+uOhen16c4+/PkbfGl66NGNyxA4XMC39XAx4q8eSlKKNK/gRmrpahKASkGrUGsSwOgODlALoHvSUKOYDJ+mdKYhoIdWGTt5vTo9JNdXEM0MbKCcTx+waYy1pp/3+R18D7POUeOYZjRpdo/gu1YgE/TSUmWxoY/A7bTNoysVkSiwPNzp4wXaqcmTwHPyJ8phHQdeja7+jKehGYVOdy9d+sEyDL4JwjzJ8iRY+WEchvE6DN57hTKFyz0AgCV83tsD09dMXZge+GWD9jAucEaQ2cqiY3I5/PzLHGTcz+3mllbupUb1SegjTWkJmcQO+d8yotzP8jhbbdJsvU43UfLe6yaPn5UqtaCH56X+EwAA//94LdMH
+    - oid: b6e65cda77e8432094c8e047afebeded8eda6ae4
+      kind: note
+      ctime: 2026-01-21T13:08:48.968776935Z
+      desc: 'note "Journal: 2025-12-05" [b6e65cda77e8432094c8e047afebeded8eda6ae4]'
+      data: eJy0krFu2zwUhXc+xYUyGPgBJ6RI0RTX4O/QsWiXIoBB8l5FjGXJkOg2foouGfMgfZ68QF+hkOPUbuy0XspBAO855Pl4oC6iBa9JFwHdbEZGyZyXKhjiauYq8oSEhtBpR4oNzfrWQs7zYrr9iHzKi+ldt+5b1xyM2MqFRRUbmm/vF0XBfSGNI2nQy0pipaqgjDJe5MVMG1Q6FFyw/RHvc1lpLZwrhcpl6Uyly5Iqj6E0jgQqzI0kw9JmRRbePyOwFFNDFia7/Y51yzRhTdfezneObC9kbKi7Pp1Uempcil9ovnKptrB76dVoudr7LpfIvsZFbGK7sDB5w3VxEsql1Ee/TjRYBgCALr2GGMen4JrYkgXBQtcmapOF7AJOZNy0N+1/cPOJcy7eyWsJgi+gXx9OS63hf5egJtekejMqT48PP75/g+tuuWooEcJ6IAhuIJh8IIexvZ1kL8nz2g21BWGU95wQpSqEyilorCgYg8YY4QKWvhSGG2K+w42F7B9BxUTLXZmhjg321D7vxjWFl9bg10p0P5Z3DJMdmGjZ3cXBHkzGyw4OZUcZ+ZsZr552fk6p9XGOPMo5o6e/Rj49PrBT6l75YwW/EYeeXCKcu7T9MfWUi2kuPgppubHKXJbazGa6lMVntl7hudbYIt2fZ/0ZAAD//2hqUpM=
+    - oid: 43e8ea6b865a45cdb7cdbdb2dea1fc020283d1b5
+      kind: note
+      ctime: 2026-01-21T13:08:48.968776935Z
+      desc: 'note "Routine: Morning Routine" [43e8ea6b865a45cdb7cdbdb2dea1fc020283d1b5]'
+      data: eJzMVE2L5DYQvftXFNOHgYWesfwhy76EWcIuHVhYQnIJA01JKrWVcUuOXN6O/31w9wwDDU32sJBcDFK9eh964OhtB1VJilBqJWusamN1Y6y2urCEwpm8yAtVWqHrbBrmQwdFXtTb80cU27zepjizD7Q9xhR8OLydsxHNi/MD7c8ioq5zXZcKqVRWl660rnKmUpXSoqgbqWwlTZ2L7H1F66J0UgrEVlRF2aJysm3JaWtahSRsZQtVksp4GamDX1912fNAHdy/njv4cjH2BrjPhhgO+1fYexB4vEZmUx8TvyGvh4kGZP+N9iNy38GfcU4Bh8eV8PGd9eFos5N/8YMPLx3c30BtbptF5uT1zDR1GQCARaYO7t53787XN0wOZ9ImMzEwBe7gbrOBW2LP4TlsNht4/j3Pc/GpenqCJ+d8OiL7GNbpfgcGA9gIGBbu190djDPDcYGjDxY4PuyvaKRQ8Dkhe54twS+XB1gxJZwZJtgBjmMi49do6+QDfCU05OYB/po9MbA/0nq9C9Po0yprYvhGaXp19gE+Es7s140TIfeUrly0ooKvKR5HvuQIcOqR4YTLBCbOgwXPgIZnHIYFNAEGiOMYE8/B8wI+gPXTYfYT/XRO+DNN/hCAe4JAJ5gnSuADU3Jorl+yfPoEXxb4uPt8iQwuJuBocflXpru36vY9Tn0H2kiFuSajjHR5I3KpVYOSXFuTRZJStk41bZ7paJdL3T+kzv9Fm/9lmT+my0TIZPfI5z+P3OZiW4jfRNnlqqvUQytV08i2rP/I5tF+L9QHS39/H/SfAAAA///+j+7b
+    - oid: dd68c824776f43b58edc77c5d0a751b1502bd4c5
+      kind: note
+      ctime: 2026-01-21T13:08:48.968776935Z
+      desc: 'note "Routine: Shutdown Routine" [dd68c824776f43b58edc77c5d0a751b1502bd4c5]'
+      data: eJzEk89u00AQxu9+ilFyqISUdNe7tte+VOJP4QxUSFAUjT3jeslmN1pvmuY5OPNyPAlKSMihKuoJLpY832++b/xJDpYaICpNZ3JdVWWvVVsYpq6quoIEVoVsZSHylnRXZKPb3DWQi7yYHR4yn4liFsMmWc+zcdgkClt/GmRr7Ja9dbw4pMiiEG2hDLIy1KpeUa/7ThttWpkXVWlIl10hZHZeadtc9WUpEWupc1Wj6cu65r6lrjbIkjTlRrHJ0m7NDbw/5iabHDdwcXxv4MPxshNxkbng7xZH7vwpcPkIzcYhxHRCH6mRHSZ7z4s1pqGBb2ETPbrLveXl2Xe+omxrl9ZZv2zg4glq+pd7MaVo203isckAAAgTNzA5L08O46fOdAdbJbMu+MQ+NTCZTuHJvFt/66fTKfz88R3ehS1scYTVDgh3V/Bp2F3t9TcPHTvHPs3h2no7DkyAzsHaofdMkHBcjoCegO/Zw4AEya4Y+hBhDCsGfli7EDHZ4OenwNsbIYS81q9egjo6pABdWK0dJ4YUViHGsG32/Av4Al/hNY/2zoPn7QELnn0aT+LNet8TbG3kPuKK/whvMQ0cYTNyhJ6ZWuyWk1M5iwHHoQFTElWdFmw0kpHYG+6pLpTQQppeIapKiFbnWRto97vQf9zX/64rMiamBabDP1TOhJzl8qNUjTCNNvO6NFVV1qr4nG0Ozs9CrSd+eB76KwAA//8pRIUe
+blobs:
+    - oid: 1550b538ae38db3f3df4fc4848b125768d46c501
+      mime: text/markdown
+      attributes: {}
+      tags:
+        - original
+        - markdown

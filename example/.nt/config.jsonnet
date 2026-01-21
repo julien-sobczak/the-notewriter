@@ -91,10 +91,10 @@ local srsAlgorithmSettings = {
 
     // Declare custom types for specific uses
     // Synopsis presents the project overview (= the initial idea)
-    Synopsis: self.Synopsis + {
+    Synopsis: self.Note + {
       name: "Synopsis",
     },
-    Idea: self.Idea + {
+    Idea: self.Note + {
       name: "Idea",
     },
     // Cheatsheet presents "How to..." solutions
