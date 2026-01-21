@@ -4,73 +4,43 @@ nationality: Greek
 title: Enchiridion
 author: Epictetus
 isbn: 978-0486433592
+name: Epictetus
+occupation: Stoic Philosopher
 ---
 
 # Enchiridion
 
 ## Quote: On Control `#mastering` `#understanding` `#favorite`
 
-`@name: Epictetus`
-
-`@occupation: Stoic Philosopher`
-
-> Some things are in our control and others not. Things in our control are opinion, pursuit, desire, aversion, and, in a word, whatever are our own actions. Things not in our control are body, property, reputation, command, and, in one word, whatever are not our own actions.
+Some things are in our control and others not. Things in our control are opinion, pursuit, desire, aversion, and, in a word, whatever are our own actions. Things not in our control are body, property, reputation, command, and, in one word, whatever are not our own actions.
 
 ## Quote: On Expectations `#thinking` `#living`
 
-`@name: Epictetus`
-
-`@occupation: Stoic Philosopher`
-
-> Don't demand or expect that events happen as you would wish them to. Accept events as they actually happen. That way, peace is possible.
+Don't demand or expect that events happen as you would wish them to. Accept events as they actually happen. That way, peace is possible.
 
 ## Quote: On Judgment `#reflecting` `#understanding`
 
-`@name: Epictetus`
-
-`@occupation: Stoic Philosopher`
-
-> Men are disturbed not by things, but by the views which they take of them.
+Men are disturbed not by things, but by the views which they take of them.
 
 ## Quote: On Roles `#being` `#living`
 
-`@name: Epictetus`
-
-`@occupation: Stoic Philosopher`
-
-> Remember that you are an actor in a drama, of such a kind as the author pleases to make it.
+Remember that you are an actor in a drama, of such a kind as the author pleases to make it.
 
 ## Quote: On Virtue `#mastering` `#doing`
 
-`@name: Epictetus`
-
-`@occupation: Stoic Philosopher`
-
-> First say to yourself what you would be; and then do what you have to do.
+First say to yourself what you would be; and then do what you have to do.
 
 ## Quote: On Freedom `#being` `#understanding` `#favorite`
 
-`@name: Epictetus`
-
-`@occupation: Stoic Philosopher`
-
-> Freedom is the only worthy goal in life. It is won by disregarding things that lie beyond our control.
+Freedom is the only worthy goal in life. It is won by disregarding things that lie beyond our control.
 
 ## Quote: On Difficulties `#learning` `#problem-solving`
 
-`@name: Epictetus`
-
-`@occupation: Stoic Philosopher`
-
-> Difficulties are things that show a person what they are.
+Difficulties are things that show a person what they are.
 
 ## Quote: On Progress `#learning` `#doing`
 
-`@name: Epictetus`
-
-`@occupation: Stoic Philosopher`
-
-> He is a wise man who does not grieve for the things which he has not, but rejoices for those which he has.
+He is a wise man who does not grieve for the things which he has not, but rejoices for those which he has.
 
 ## BookReview: My Review
 

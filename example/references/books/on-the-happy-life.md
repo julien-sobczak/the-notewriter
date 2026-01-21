@@ -4,73 +4,43 @@ nationality: Roman
 title: On the Happy Life
 author: Seneca
 isbn: 978-1420957532
+name: Seneca
+occupation: Roman Statesman and Stoic Philosopher
 ---
 
 # On the Happy Life
 
 ## Quote: On Happiness `#being` `#living` `#favorite`
 
-`@name: Seneca`
-
-`@occupation: Roman Statesman and Stoic Philosopher`
-
-> True happiness is to enjoy the present, without anxious dependence upon the future.
+True happiness is to enjoy the present, without anxious dependence upon the future.
 
 ## Quote: On Virtue `#being` `#mastering`
 
-`@name: Seneca`
-
-`@occupation: Roman Statesman and Stoic Philosopher`
-
-> A happy life is one which is in accordance with its own nature.
+A happy life is one which is in accordance with its own nature.
 
 ## Quote: On Pleasure `#understanding` `#living`
 
-`@name: Seneca`
-
-`@occupation: Roman Statesman and Stoic Philosopher`
-
-> The greatest blessings of mankind are within us and within our reach. A wise man is content with his lot, whatever it may be, without wishing for what he has not.
+The greatest blessings of mankind are within us and within our reach. A wise man is content with his lot, whatever it may be, without wishing for what he has not.
 
 ## Quote: On Wisdom `#understanding` `#learning`
 
-`@name: Seneca`
-
-`@occupation: Roman Statesman and Stoic Philosopher`
-
-> No man can have a peaceful life who thinks too much about lengthening it.
+No man can have a peaceful life who thinks too much about lengthening it.
 
 ## Quote: On Character `#being` `#doing`
 
-`@name: Seneca`
-
-`@occupation: Roman Statesman and Stoic Philosopher`
-
-> The good things which belong to prosperity are to be wished, but the good things that belong to adversity are to be admired.
+The good things which belong to prosperity are to be wished, but the good things that belong to adversity are to be admired.
 
 ## Quote: On Self-Sufficiency `#being` `#understanding`
 
-`@name: Seneca`
-
-`@occupation: Roman Statesman and Stoic Philosopher`
-
-> He who is brave is free.
+He who is brave is free.
 
 ## Quote: On Goals `#doing` `#planning`
 
-`@name: Seneca`
-
-`@occupation: Roman Statesman and Stoic Philosopher`
-
-> If a man knows not to which port he sails, no wind is favorable.
+If a man knows not to which port he sails, no wind is favorable.
 
 ## Quote: On Reason `#thinking` `#understanding` `#favorite`
 
-`@name: Seneca`
-
-`@occupation: Roman Statesman and Stoic Philosopher`
-
-> The mind is never right but when it is at peace with itself.
+The mind is never right but when it is at peace with itself.
 
 ## BookReview: My Review
 

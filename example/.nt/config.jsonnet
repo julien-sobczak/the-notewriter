@@ -53,12 +53,14 @@ local srsAlgorithmSettings = {
     rating: {
       name: "rating",
       type: "string",
-      allowedValues: ["★", "★★", "★★★"],
-      defaultValue: "★★",
+      allowedValues: ["★", "★★", "★★★", "★★★★", "★★★★★"],
+      defaultValue: "★★★",
       shorthands: {
         "★": "★",
         "★★": "★★",
         "★★★": "★★★",
+        "★★★★": "★★★★",
+        "★★★★★": "★★★★★",
       },
     },
   },

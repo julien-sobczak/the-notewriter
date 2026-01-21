@@ -4,89 +4,51 @@ nationality: Roman
 title: Meditations
 author: Marcus Aurelius
 isbn: 978-0140449334
+name: Marcus Aurelius
+occupation: Roman Emperor and Stoic Philosopher
 ---
 
 # Meditations
 
 ## Quote: On Self-Mastery `#mastering` `#favorite`
 
-`@name: Marcus Aurelius`
-
-`@occupation: Roman Emperor and Stoic Philosopher`
-
-> You have power over your mind - not outside events. Realize this, and you will find strength.
+You have power over your mind - not outside events. Realize this, and you will find strength.
 
 ## Quote: On Perspective `#thinking` `#reflecting`
 
-`@name: Marcus Aurelius`
-
-`@occupation: Roman Emperor and Stoic Philosopher`
-
-> The happiness of your life depends upon the quality of your thoughts.
+The happiness of your life depends upon the quality of your thoughts.
 
 ## Quote: On Present Moment `#living` `#being`
 
-`@name: Marcus Aurelius`
-
-`@occupation: Roman Emperor and Stoic Philosopher`
-
-> Confine yourself to the present.
+Confine yourself to the present.
 
 ## Quote: On Obstacles `#problem-solving` `#doing`
 
-`@name: Marcus Aurelius`
-
-`@occupation: Roman Emperor and Stoic Philosopher`
-
-> The impediment to action advances action. What stands in the way becomes the way.
+The impediment to action advances action. What stands in the way becomes the way.
 
 ## Quote: On Time `#living` `#reflecting` `#favorite`
 
-`@name: Marcus Aurelius`
-
-`@occupation: Roman Emperor and Stoic Philosopher`
-
-> Time is a sort of river of passing events, and strong is its current; no sooner is a thing brought to sight than it is swept by and another takes its place, and this too will be swept away.
+Time is a sort of river of passing events, and strong is its current; no sooner is a thing brought to sight than it is swept by and another takes its place, and this too will be swept away.
 
 ## Quote: On Inner Peace `#being` `#reflecting`
 
-`@name: Marcus Aurelius`
-
-`@occupation: Roman Emperor and Stoic Philosopher`
-
-> You don't have to turn this into something. It doesn't have to upset you.
+You don't have to turn this into something. It doesn't have to upset you.
 
 ## Quote: On Death `#dying` `#living`
 
-`@name: Marcus Aurelius`
-
-`@occupation: Roman Emperor and Stoic Philosopher`
-
-> Death smiles at us all, but all a man can do is smile back.
+Death smiles at us all, but all a man can do is smile back.
 
 ## Quote: On Action `#doing` `#being`
 
-`@name: Marcus Aurelius`
-
-`@occupation: Roman Emperor and Stoic Philosopher`
-
-> Waste no more time arguing about what a good man should be. Be one.
+Waste no more time arguing about what a good man should be. Be one.
 
 ## Quote: On Change `#living` `#learning`
 
-`@name: Marcus Aurelius`
-
-`@occupation: Roman Emperor and Stoic Philosopher`
-
-> The universe is change; our life is what our thoughts make it.
+The universe is change; our life is what our thoughts make it.
 
 ## Quote: On Focus `#focusing` `#doing` `#favorite`
 
-`@name: Marcus Aurelius`
-
-`@occupation: Roman Emperor and Stoic Philosopher`
-
-> Do every act of your life as though it were the very last act of your life.
+Do every act of your life as though it were the very last act of your life.
 
 ## BookReview: My Review
 

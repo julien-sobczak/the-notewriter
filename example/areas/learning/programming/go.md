@@ -4,7 +4,7 @@
 
 ### Flashcard: Variable Declaration
 
-What are the three ways to declare a variable in Go?
+What are the **three ways** to **declare a variable** in Go?
 
 ---
 
@@ -14,7 +14,7 @@ What are the three ways to declare a variable in Go?
 
 ### Flashcard: Slice vs Array
 
-What's the key difference between a slice and an array in Go?
+What's the **key difference** between a **slice** and an **array** in Go?
 
 ---
 
@@ -22,7 +22,7 @@ Arrays have fixed size defined at compile time `[3]int`, while slices have dynam
 
 ### Flashcard: Defer Statement
 
-What does the `defer` keyword do in Go?
+What does the **`defer` keyword** do in Go?
 
 ---
 
@@ -30,7 +30,7 @@ Defer postpones the execution of a function until the surrounding function retur
 
 ### Flashcard: Error Handling
 
-What's the idiomatic way to handle errors in Go?
+What's the **idiomatic way** to **handle errors** in Go?
 
 ---
 
@@ -38,7 +38,7 @@ Check errors explicitly: `if err != nil { return err }`. Go doesn't use exceptio
 
 ### Flashcard: Goroutines
 
-How do you create a goroutine?
+How do you **create a goroutine**?
 
 ---
 
@@ -46,7 +46,7 @@ Add the `go` keyword before a function call: `go myFunction()`. This runs the fu
 
 ### Flashcard: Channels
 
-What's a buffered channel and how is it different from unbuffered?
+What's a **buffered channel** and how is it **different from unbuffered**?
 
 ---
 
@@ -54,7 +54,7 @@ Buffered channels have capacity: `ch := make(chan int, 3)`. They block only when
 
 ### Flashcard: Interface Implementation
 
-How do you implement an interface in Go?
+How do you **implement an interface** in Go?
 
 ---
 
@@ -62,7 +62,7 @@ Implicitly. If a type implements all methods of an interface, it satisfies that 
 
 ### Flashcard: Pointer Receivers
 
-When should you use pointer receivers vs value receivers for methods?
+When should you use **pointer receivers** vs **value receivers** for methods?
 
 ---
 
@@ -73,7 +73,7 @@ Use pointer receivers when:
 
 ### Flashcard: Select Statement
 
-What does the `select` statement do in Go?
+What does the **`select` statement** do in Go?
 
 ---
 
@@ -81,7 +81,7 @@ What does the `select` statement do in Go?
 
 ### Flashcard: Struct Embedding
 
-How does struct embedding work in Go?
+How does **struct embedding** work in Go?
 
 ---
 
@@ -96,7 +96,7 @@ type Employee struct {
 
 ### Flashcard: Context Package
 
-What's the purpose of the context package?
+What's the **purpose** of the **context package**?
 
 ---
 
@@ -104,7 +104,7 @@ Provides a way to carry deadlines, cancellation signals, and request-scoped valu
 
 ### Flashcard: Empty Interface
 
-What does `interface{}` (or `any` in Go 1.18+) represent?
+What does **`interface{}`** (or **`any`** in Go 1.18+) represent?
 
 ---
 
@@ -114,41 +114,41 @@ The empty interface can hold values of any type since every type implements zero
 
 ### List: Conferences
 
-* GopherCon - The largest Go conference, held annually in multiple locations worldwide
-* dotGo - European Go conference held in Paris, France
-* GoLab - Italian Go conference focused on practical applications
-* GopherCon Europe - European edition with rotating locations
-* Go devroom at FOSDEM - Open source conference with dedicated Go track
-* Capital Go - Conference in Washington DC focusing on Go in production
-* GoWayFest - Conference in Minsk focusing on Go ecosystem
+* GopherCon - The largest Go conference, held annually in multiple locations worldwide `@date: 2006` `@continent: North America`
+* dotGo - European Go conference held in Paris, France `@date: 2014` `@continent: Europe`
+* GoLab - Italian Go conference focused on practical applications `@date: 2015` `@continent: Europe`
+* GopherCon Europe - European edition with rotating locations `@date: 2015` `@continent: Europe`
+* Go devroom at FOSDEM - Open source conference with dedicated Go track `@date: 2009` `@continent: Europe`
+* Capital Go - Conference in Washington DC focusing on Go in production `@date: 2016` `@continent: North America`
+* GoWayFest - Conference in Minsk focusing on Go ecosystem `@date: 2017` `@continent: Europe`
 
 ### List: Frameworks
 
-* Gin - High-performance HTTP web framework
-* Echo - High performance, minimalist Go web framework
-* Fiber - Express-inspired web framework built on Fasthttp
-* Beego - Full-featured MVC framework for rapid development
-* Buffalo - Rapid web development framework with scaffolding
-* Revel - High-productivity framework inspired by Rails
-* Iris - Fast HTTP/2 web framework with MVC support
-* Chi - Lightweight router for building Go HTTP services
-* Gorilla - Collection of packages for web applications (mux, sessions, etc.)
-* Martini - Classy web framework (now deprecated but influential)
+* [Gin](https://github.com/gin-gonic/gin) - High-performance HTTP web framework `#web` `#framework`
+* [Echo](https://echo.labstack.com/) - High performance, minimalist Go web framework `#web` `#framework`
+* [Fiber](https://gofiber.io/) - Express-inspired web framework built on Fasthttp `#web` `#framework`
+* [Beego](https://beego.vip/) - Full-featured MVC framework for rapid development `#web` `#framework`
+* [Buffalo](https://gobuffalo.io/) - Rapid web development framework with scaffolding `#web` `#framework`
+* [Revel](https://revel.github.io/) - High-productivity framework inspired by Rails `#web` `#framework`
+* [Iris](https://www.iris-go.com/) - Fast HTTP/2 web framework with MVC support `#web` `#framework`
+* [Chi](https://github.com/go-chi/chi) - Lightweight router for building Go HTTP services `#web` `#library`
+* [Gorilla](https://github.com/gorilla) - Collection of packages for web applications (mux, sessions, etc.) `#web` `#library`
+* [Martini](https://github.com/go-martini/martini) - Classy web framework (now deprecated but influential) `#web` `#framework`
 
 ### List: OSS
 
-* Kubernetes - Container orchestration platform
-* Docker - Containerization platform (core written in Go)
-* Prometheus - Monitoring and alerting toolkit
-* Terraform - Infrastructure as code tool
-* etcd - Distributed key-value store
-* Hugo - Fast static site generator
-* CockroachDB - Distributed SQL database
-* InfluxDB - Time series database
-* Consul - Service mesh and service discovery
-* Vault - Secrets management tool
-* Traefik - Modern HTTP reverse proxy and load balancer
-* Caddy - Web server with automatic HTTPS
-* Minio - High-performance object storage
-* Gitea - Git service written in Go
-* Drone - Container-native CI/CD platform
+* [Kubernetes](https://kubernetes.io/) - Container orchestration platform `#devops` `#infrastructure`
+* [Docker](https://www.docker.com/) - Containerization platform (core written in Go) `#devops` `#infrastructure`
+* [Prometheus](https://prometheus.io/) - Monitoring and alerting toolkit `#devops` `#monitoring`
+* [Terraform](https://www.terraform.io/) - Infrastructure as code tool `#devops` `#infrastructure`
+* [etcd](https://etcd.io/) - Distributed key-value store `#database` `#infrastructure`
+* [Hugo](https://gohugo.io/) - Fast static site generator `#web` `#tooling`
+* [CockroachDB](https://www.cockroachlabs.com/) - Distributed SQL database `#database`
+* [InfluxDB](https://www.influxdata.com/) - Time series database `#database` `#monitoring`
+* [Consul](https://www.consul.io/) - Service mesh and service discovery `#devops` `#infrastructure`
+* [Vault](https://www.vaultproject.io/) - Secrets management tool `#devops` `#security`
+* [Traefik](https://traefik.io/) - Modern HTTP reverse proxy and load balancer `#web` `#devops`
+* [Caddy](https://caddyserver.com/) - Web server with automatic HTTPS `#web` `#server`
+* [Minio](https://min.io/) - High-performance object storage `#storage` `#infrastructure`
+* [Gitea](https://gitea.io/) - Git service written in Go `#devops` `#tooling`
+* [Drone](https://www.drone.io/) - Container-native CI/CD platform `#devops` `#ci-cd`

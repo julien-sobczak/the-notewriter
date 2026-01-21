@@ -4,73 +4,43 @@ nationality: Roman
 title: On the Shortness of Life
 author: Seneca
 isbn: 978-0143036326
+name: Seneca
+occupation: Roman Statesman and Stoic Philosopher
 ---
 
 # On the Shortness of Life
 
 ## Quote: On Wasting Time `#living` `#reflecting` `#favorite`
 
-`@name: Seneca`
-
-`@occupation: Roman Statesman and Stoic Philosopher`
-
-> Life is long if you know how to use it.
+Life is long if you know how to use it.
 
 ## Quote: On Present Living `#living` `#being`
 
-`@name: Seneca`
-
-`@occupation: Roman Statesman and Stoic Philosopher`
-
-> Begin at once to live, and count each separate day as a separate life.
+Begin at once to live, and count each separate day as a separate life.
 
 ## Quote: On Priorities `#focusing` `#doing` `#favorite`
 
-`@name: Seneca`
-
-`@occupation: Roman Statesman and Stoic Philosopher`
-
-> You are living as if destined to live forever; your own frailty never occurs to you; you don't notice how much time has already passed, but squander it as though you had a full and overflowing supply.
+You are living as if destined to live forever; your own frailty never occurs to you; you don't notice how much time has already passed, but squander it as though you had a full and overflowing supply.
 
 ## Quote: On Postponement `#living` `#doing`
 
-`@name: Seneca`
-
-`@occupation: Roman Statesman and Stoic Philosopher`
-
-> While we wait for life, life passes.
+While we wait for life, life passes.
 
 ## Quote: On Busyness `#reflecting` `#understanding`
 
-`@name: Seneca`
-
-`@occupation: Roman Statesman and Stoic Philosopher`
-
-> Everyone hustles his life along, and is troubled by a longing for the future and weariness of the present.
+Everyone hustles his life along, and is troubled by a longing for the future and weariness of the present.
 
 ## Quote: On Philosophy `#learning` `#understanding`
 
-`@name: Seneca`
-
-`@occupation: Roman Statesman and Stoic Philosopher`
-
-> Life is divided into three periods: that which has been, that which is, that which will be. Of these the present time is short, the future is doubtful, the past is certain.
+Life is divided into three periods: that which has been, that which is, that which will be. Of these the present time is short, the future is doubtful, the past is certain.
 
 ## Quote: On Study `#learning` `#living`
 
-`@name: Seneca`
-
-`@occupation: Roman Statesman and Stoic Philosopher`
-
-> The mind that is anxious about future events is miserable.
+The mind that is anxious about future events is miserable.
 
 ## Quote: On Possessions `#understanding` `#being`
 
-`@name: Seneca`
-
-`@occupation: Roman Statesman and Stoic Philosopher`
-
-> It is not the man who has too little, but the man who craves more, that is poor.
+It is not the man who has too little, but the man who craves more, that is poor.
 
 ## BookReview: My Review
 

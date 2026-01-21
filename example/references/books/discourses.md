@@ -4,81 +4,47 @@ nationality: Greek
 title: Discourses
 author: Epictetus
 isbn: 978-0140449464
+name: Epictetus
+occupation: Stoic Philosopher
 ---
 
 # Discourses
 
 ## Quote: On Philosophy `#learning` `#understanding`
 
-`@name: Epictetus`
-
-`@occupation: Stoic Philosopher`
-
-> Don't explain your philosophy. Embody it.
+Don't explain your philosophy. Embody it.
 
 ## Quote: On Desire `#mastering` `#being`
 
-`@name: Epictetus`
-
-`@occupation: Stoic Philosopher`
-
-> Wealth consists not in having great possessions, but in having few wants.
+Wealth consists not in having great possessions, but in having few wants.
 
 ## Quote: On Self-Improvement `#learning` `#doing` `#favorite`
 
-`@name: Epictetus`
-
-`@occupation: Stoic Philosopher`
-
-> If you want to improve, be content to be thought foolish and stupid.
+If you want to improve, be content to be thought foolish and stupid.
 
 ## Quote: On Nature `#understanding` `#living`
 
-`@name: Epictetus`
-
-`@occupation: Stoic Philosopher`
-
-> What disturbs men's minds is not events but their judgments on events.
+What disturbs men's minds is not events but their judgments on events.
 
 ## Quote: On Responsibility `#being` `#doing`
 
-`@name: Epictetus`
-
-`@occupation: Stoic Philosopher`
-
-> The greater the difficulty, the more glory in surmounting it. Skillful pilots gain their reputation from storms and tempests.
+The greater the difficulty, the more glory in surmounting it. Skillful pilots gain their reputation from storms and tempests.
 
 ## Quote: On Attention `#focusing` `#learning`
 
-`@name: Epictetus`
-
-`@occupation: Stoic Philosopher`
-
-> Attach yourself to what is spiritually superior, regardless of what other people think or do. Hold to your true aspirations no matter what is going on around you.
+Attach yourself to what is spiritually superior, regardless of what other people think or do. Hold to your true aspirations no matter what is going on around you.
 
 ## Quote: On Wisdom `#understanding` `#knowing`
 
-`@name: Epictetus`
-
-`@occupation: Stoic Philosopher`
-
-> Only the educated are free.
+Only the educated are free.
 
 ## Quote: On Character `#being` `#mastering`
 
-`@name: Epictetus`
-
-`@occupation: Stoic Philosopher`
-
-> No man is free who is not master of himself.
+No man is free who is not master of himself.
 
 ## Quote: On Daily Practice `#doing` `#living`
 
-`@name: Epictetus`
-
-`@occupation: Stoic Philosopher`
-
-> Begin each day by telling yourself: Today I shall be meeting with interference, ingratitude, insolence, disloyalty, ill-will, and selfishness.
+Begin each day by telling yourself: Today I shall be meeting with interference, ingratitude, insolence, disloyalty, ill-will, and selfishness.
 
 ## BookReview: My Review
 
