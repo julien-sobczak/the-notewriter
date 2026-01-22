@@ -23,7 +23,7 @@ Books are configured in your `.nt/config.jsonnet` file under the `books` array:
 ```jsonnet
 {
     // ... other configuration ...
-    
+
     books: [
         {
             title: "My Book Title",
@@ -40,7 +40,7 @@ Books are configured in your `.nt/config.jsonnet` file under the `books` array:
                     text: "Direct markdown content here.",
                 },
                 {
-                    title: "Chapter 2", 
+                    title: "Chapter 2",
                     sections: [
                         {
                             title: "Section 1",
@@ -158,7 +158,7 @@ The tool includes default CSS styling that works for both EPUB and PDF formats, 
 
 ## Examples
 
-See the `example/` directory for a working configuration that generates a sample book from the example notes.
+See the `examples/` directory for a working configuration that generates a sample book from the example notes.
 
 ## Troubleshooting
 

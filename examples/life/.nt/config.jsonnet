@@ -5,6 +5,7 @@ local srsAlgorithmSettings = {
 };
 
 {
+  slug: 'life',
   attributes: nt.DefaultAttributes + {
     date: {
       name: "date",
@@ -311,22 +312,22 @@ local srsAlgorithmSettings = {
       chapters: [
         {
           title: "On Being",
-          path: "thoughts/on-being.md",
+          query: "path:thoughts/on-being",
           icon: "thoughts/medias/on-being.png",
         },
         {
           title: "On Doing",
-          path: "thoughts/on-doing.md",
+          query: "path:thoughts/on-doing",
           icon: "thoughts/medias/on-doing.png",
         },
         {
           title: "On Learning",
-          path: "thoughts/on-learning.md",
+          query: "path:thoughts/on-learning",
           icon: "thoughts/medias/on-learning.png",
         },
         {
           title: "On Thinking",
-          path: "thoughts/on-thinking.md",
+          query: "path:thoughts/on-thinking",
           icon: "thoughts/medias/on-thinking.png",
         },
       ],

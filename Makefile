@@ -1,4 +1,4 @@
-.PHONY: build
+.PHONY: build examples
 
 GO_FILES = $(shell find . -name "*.go" | grep -v .go | uniq)
 GO_PACKAGES = $(shell go list ./... | grep -v .go)
@@ -21,14 +21,9 @@ fix:
 	go build --tags "fts5" -o build/nt cmd/nt/*.go
 	cp build/nt /Users/julien/go/bin/nt
 
-build-example:
-	@rm -Rf example/.nt/{objects,refs,database.db,index}
-	@cd example; nt add --v . && nt commit; cd ..;
-	@echo "✅ Example repository built in example/.nt"
-
 examples:
 	@rm -Rf examples/life/.nt/{objects,refs,database.db,index}
-	@cd examples/life; ../../build/nt add --v . && ../../build/nt commit; cd ../..;
+	@cd examples/life; ../../build/nt add . && ../../build/nt commit; cd ../..;
 	@echo "✅ Examples repository built in examples/life/.nt"
 
 test:

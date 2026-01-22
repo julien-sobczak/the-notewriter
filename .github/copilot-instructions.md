@@ -44,7 +44,7 @@ Always test complete workflows after making changes:
 1. **Basic Commands Workflow:**
 
    ```bash
-   cd example/
+   cd examples/life/
    ../build/nt init
    ../build/nt status
    ../build/nt add . # takes ~2 minutes. NEVER CANCEL. Set timeout to 5+ minutes.
@@ -91,7 +91,7 @@ Always test complete workflows after making changes:
 │   ├── nt-reference/ # Reference generation from external sources
 │   └── ntlite/       # Lightweight version (documentation-only)
 ├── e2e/              # End-to-end tests
-├── example/          # Sample note repository for testing
+├── examples/         # Sample note repositories for testing
 ├── go.mod            # Go module definition
 ├── go.sum            # Go module checksums
 ├── internal/         # Internal packages
@@ -167,7 +167,7 @@ Supported note types are `Note`, `Quote`, `TODO`, `Flashcard`, `Artwork` but cus
 ## Dependencies
 
 - Always use `--tags "fts5"` when building Go binaries
-- The `example/` directory provides a good test environment
+- The `examples/` directory provides a good test environment
 - `ffmpeg` dependency required for media file processing
 - SQLite with FTS5 extension required for full-text search
 - Node.js 20+ required for documentation website

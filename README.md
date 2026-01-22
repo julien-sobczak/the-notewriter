@@ -81,7 +81,7 @@ Documentation is present in the directory `website/`. Run `make docs` to start l
 ├── internal/      # Core logic (core, markdown, medias, etc.)
 ├── pkg/           # Public packages
 ├── build/         # Compiled binaries
-├── example/       # Example repository and config
+├── examples/      # Example repositories
 ├── e2e/           # End-to-end tests
 ├── website/       # Documentation site (Astro/Starlight)
 └── ...
