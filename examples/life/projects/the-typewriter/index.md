@@ -10,6 +10,11 @@ The TypeWriter is a desktop application designed to help developers and writers 
 
 The application tracks progress, provides detailed statistics, and adapts difficulty based on performance. It's designed for both casual practice sessions and intensive training.
 
+## List: Useful Links
+
+* <a href="https://github.com/julien-sobczak/the-typewriter/">GitHub Repository</a>
+* <a href="https://github.com/julien-sobczak/the-typewriter/${section:[issues,pulls,actions,...]}">GitHub Section</a>
+
 # Tasks
 
 ## Todo: Setup Electron Project Structure `@status: 📝` `@priority: 🚨`

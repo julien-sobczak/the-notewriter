@@ -19,8 +19,7 @@ The tool is built in Go for performance and cross-platform compatibility, with a
 ## List: Useful Links
 
 * <a href="https://github.com/julien-sobczak/the-notewriter/">GitHub Repository</a>
-* <a href="https://github.com/julien-sobczak/the-notewriter/${section:[issues,pulls,actions,wiki,discussions]}">GitHub Section</a>
-* <a href="https://github.com/${user}/${repo}/${section:[issues,pulls]}">GitHub</a>
+* <a href="https://github.com/julien-sobczak/the-notewriter/${section:[issues,pulls,actions,...]}">GitHub Section</a>
 
 # Tasks
 

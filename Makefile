@@ -26,6 +26,11 @@ build-example:
 	@cd example; nt add --v . && nt commit; cd ..;
 	@echo "✅ Example repository built in example/.nt"
 
+examples:
+	@rm -Rf examples/life/.nt/{objects,refs,database.db,index}
+	@cd examples/life; ../../build/nt add --v . && ../../build/nt commit; cd ../..;
+	@echo "✅ Examples repository built in examples/life/.nt"
+
 test:
 	TZ=UTC go test --tags "fts5" ./... -count=1 -v
 

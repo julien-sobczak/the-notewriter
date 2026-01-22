@@ -300,4 +300,36 @@ local srsAlgorithmSettings = {
       algorithmSettings: srsAlgorithmSettings,
     }
   ],
+
+  books: [
+    {
+      title: "Reflections on Life",
+      subtitle: "Modern Wisdom from Timeless Quotes",
+      format: ["markdown"],
+      author: ["Various"],
+      language: "en",
+      chapters: [
+        {
+          title: "On Being",
+          path: "thoughts/on-being.md",
+          icon: "thoughts/medias/on-being.png",
+        },
+        {
+          title: "On Doing",
+          path: "thoughts/on-doing.md",
+          icon: "thoughts/medias/on-doing.png",
+        },
+        {
+          title: "On Learning",
+          path: "thoughts/on-learning.md",
+          icon: "thoughts/medias/on-learning.png",
+        },
+        {
+          title: "On Thinking",
+          path: "thoughts/on-thinking.md",
+          icon: "thoughts/medias/on-thinking.png",
+        },
+      ],
+    },
+  ],
 }

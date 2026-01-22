@@ -1,5 +1,7 @@
 ---
 tags: doing
+name: James Clear
+occupation: Author and Speaker
 ---
 
 # On Doing
