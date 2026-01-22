@@ -12,8 +12,8 @@ import (
 func TestNewTestRepository(t *testing.T) {
 
 	t.Run("No option", func(t *testing.T) {
-		tr := NewTestRepository(t, FromGoldenDirNamed("example"))
-		require.FileExists(t, filepath.Join(tr.Root, "thoughts/on-doing.md"))
+		tr := NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
+		require.FileExists(t, filepath.Join(tr.Root, "go.md"))
 	})
 }
 

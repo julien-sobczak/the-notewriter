@@ -132,6 +132,7 @@ func (c ConfigFileTypes) Check() error {
 
 // Note: Fields must be JSON parser to marshal them
 type ConfigFile struct {
+	Slug string      `json:"slug"`
 	Core *ConfigCore `json:"core"`
 
 	Attributes ConfigAttributes `json:"attributes"`
