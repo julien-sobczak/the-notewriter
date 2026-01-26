@@ -34,22 +34,42 @@ graph TB
     Coyote --> Storage
 ```
 
-## Flashcard: What are the two main components of the Acme Platform?
+## Flashcard: Platform Components
+
+What are the **two main components** of the Acme Platform?
+
+---
 
 Coyote API and Runner Worker
 
-## Flashcard: What is the purpose of the Coyote API?
+## Flashcard: Coyote API Purpose
+
+What is the **purpose** of the Coyote API?
+
+---
 
 Serves as the central hub for client interactions, providing a RESTful interface for data management, authentication, and business logic
 
-## Flashcard: What does the Runner Worker handle?
+## Flashcard: Runner Worker Tasks
+
+What does the **Runner Worker** handle?
+
+---
 
 Processes asynchronous tasks such as data synchronization, report generation, email notifications, and scheduled maintenance
 
-## Flashcard: What uptime does the Acme Platform maintain?
+## Flashcard: Platform Uptime
+
+What **uptime** does the Acme Platform maintain?
+
+---
 
 99.9% uptime
 
-## Flashcard: What architecture pattern does the Acme Platform use?
+## Flashcard: Architecture Pattern
+
+What **architecture pattern** does the Acme Platform use?
+
+---
 
 Microservices architecture

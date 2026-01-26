@@ -14,22 +14,42 @@ Acme Corporation is a fictional company featured in numerous Warner Bros. cartoo
 * [Time Tracking System](https://acme.corp/timesheet "#go/acme/timesheet")
 * [Expense Reports](https://acme.corp/expenses "#go/acme/expenses")
 
-## Flashcard: When was Acme Corporation founded?
+## Flashcard: Company Foundation
+
+When was **Acme Corporation** founded?
+
+---
 
 Early 1900s
 
-## Flashcard: What is Acme Corporation best known for?
+## Flashcard: Company Products
+
+What is **Acme Corporation** best known for?
+
+---
 
 Manufacturing a wide variety of products, from household items to complex machinery, often featured in Warner Bros. cartoons.
 
-## Flashcard: In which cartoon series is Acme Corporation most prominently featured?
+## Flashcard: Featured Cartoons
+
+In which **cartoon series** is Acme Corporation most prominently featured?
+
+---
 
 Road Runner and Wile E. Coyote series
 
-## Flashcard: What is the reputation of Acme products?
+## Flashcard: Product Reputation
+
+What is the **reputation** of Acme products?
+
+---
 
 Innovative but often unreliable, frequently malfunctioning in comical ways
 
-## Flashcard: What does Acme Corporation represent in popular culture?
+## Flashcard: Cultural Significance
+
+What does **Acme Corporation** represent in popular culture?
+
+---
 
 The quintessential mail-order company and a placeholder name for generic corporations
