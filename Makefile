@@ -22,9 +22,10 @@ fix:
 	cp build/nt /Users/julien/go/bin/nt
 
 examples:
-	@rm -Rf examples/life/.nt/{objects,refs,database.db,index}
+	@rm -Rf examples/{life,work}/.nt/{objects,refs,database.db,index}
 	@cd examples/life; ../../build/nt add . && ../../build/nt commit; cd ../..;
-	@echo "✅ Examples repository built in examples/life/.nt"
+	@cd examples/work; ../../build/nt add . && ../../build/nt commit; cd ../..;
+	@echo "✅ Examples repository built in examples/"
 
 test:
 	TZ=UTC go test --tags "fts5" ./... -count=1 -v
