@@ -24,42 +24,36 @@ Add HTTP endpoint for health monitoring to enable better observability and integ
 
 ### Todo: Add metrics collection 🔼
 
-`@status: todo` `@priority: medium`
-
 Implement Prometheus metrics for job processing times, success rates, and queue depths.
 
 ### Todo: Optimize database connection pooling ⏱️ ❗️
 
-`@status: in-progress` `@priority: high`
+`@status: in-progress`
 
 Review and optimize connection pool settings to reduce database load during peak processing times.
 
 ### Todo: Implement job prioritization 📝
 
-`@status: todo` `@priority: medium`
-
 Add priority levels to jobs so that critical tasks are processed before lower-priority ones.
 
 ### Todo: Add integration tests 🔼
-
-`@status: todo` `@priority: medium`
 
 Create comprehensive integration test suite covering main job processing scenarios.
 
 ## Checklist: Deployment
 
-1. Update version number in configuration
-2. Run unit tests: `go test ./...`
-3. Build binary: `make build-runner`
-4. Create Docker image: `docker build -t runner:latest .`
-5. Tag image with version: `docker tag runner:latest runner:v1.2.3`
-6. Push to registry: `docker push runner:v1.2.3`
-7. Update Kubernetes manifests with new version
-8. Apply rolling update: `kubectl apply -f k8s/runner-deployment.yaml`
-9. Monitor logs: `kubectl logs -f deployment/runner`
-10. Verify metrics in Grafana dashboard
-11. Check job processing rate and error rate
-12. Update deployment documentation
+* [ ] Update version number in configuration
+* [ ] Run unit tests: `go test ./...`
+* [ ] Build binary: `make build-runner`
+* [ ] Create Docker image: `docker build -t runner:latest .`
+* [ ] Tag image with version: `docker tag runner:latest runner:v1.2.3`
+* [ ] Push to registry: `docker push runner:v1.2.3`
+* [ ] Update Kubernetes manifests with new version
+* [ ] Apply rolling update: `kubectl apply -f k8s/runner-deployment.yaml`
+* [ ] Monitor logs: `kubectl logs -f deployment/runner`
+* [ ] Verify metrics in Grafana dashboard
+* [ ] Check job processing rate and error rate
+* [ ] Update deployment documentation
 
 ## Cheatsheet: View Active Jobs
 

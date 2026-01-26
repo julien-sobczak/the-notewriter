@@ -26,48 +26,44 @@ Add GraphQL support alongside REST API to provide more flexible data querying fo
 
 ### Todo: Add API versioning 🔼
 
-`@status: todo` `@priority: medium`
-
 Implement proper API versioning strategy to support backward compatibility and smooth migrations.
 
 ### Todo: Optimize authentication middleware ⏱️ 🔼
 
-`@status: in-progress` `@priority: medium`
+`@status: in-progress`
 
 Reduce authentication overhead by implementing token caching and optimizing database queries.
 
 ### Todo: Implement request tracing 📝 🔼
 
-`@status: todo` `@priority: medium`
-
 Add distributed tracing support using OpenTelemetry for better observability across microservices.
 
 ### Todo: Write API documentation 📅 🔼
 
-`@status: in-progress` `@due: 2026-01-25` `@priority: medium`
+`@status: in-progress` `@due: 2026-01-25`
 
 Complete OpenAPI specification and generate interactive API documentation using Swagger UI.
 
 ## Checklist: Deployment
 
-1. Review and merge approved pull requests
-2. Update CHANGELOG.md with new features and fixes
-3. Bump version number in version.go
-4. Run linter: `make lint`
-5. Run unit tests: `make test`
-6. Run integration tests: `make test-integration`
-7. Build production binary: `make build-prod`
-8. Create Docker image: `docker build -t coyote:latest -f Dockerfile.prod .`
-9. Run security scan: `trivy image coyote:latest`
-10. Tag image: `docker tag coyote:latest coyote:v2.3.4`
-11. Push to registry: `docker push coyote:v2.3.4`
-12. Update Helm chart values with new version
-13. Deploy to staging: `helm upgrade coyote ./charts/coyote -f values-staging.yaml`
-14. Run smoke tests against staging
-15. Deploy to production: `helm upgrade coyote ./charts/coyote -f values-production.yaml --wait`
-16. Monitor error rates and latency in Datadog
-17. Verify health checks: `curl https://api.acme.corp/health`
-18. Announce deployment in #deployments Slack channel
+* [ ] Review and merge approved pull requests
+* [ ] Update CHANGELOG.md with new features and fixes
+* [ ] Bump version number in version.go
+* [ ] Run linter: `make lint`
+* [ ] Run unit tests: `make test`
+* [ ] Run integration tests: `make test-integration`
+* [ ] Build production binary: `make build-prod`
+* [ ] Create Docker image: `docker build -t coyote:latest -f Dockerfile.prod .`
+* [ ] Run security scan: `trivy image coyote:latest`
+* [ ] Tag image: `docker tag coyote:latest coyote:v2.3.4`
+* [ ] Push to registry: `docker push coyote:v2.3.4`
+* [ ] Update Helm chart values with new version
+* [ ] Deploy to staging: `helm upgrade coyote ./charts/coyote -f values-staging.yaml`
+* [ ] Run smoke tests against staging
+* [ ] Deploy to production: `helm upgrade coyote ./charts/coyote -f values-production.yaml --wait`
+* [ ] Monitor error rates and latency in Datadog
+* [ ] Verify health checks: `curl https://api.acme.corp/health`
+* [ ] Announce deployment in #deployments Slack channel
 
 ## Cheatsheet: Check API Health
 
@@ -128,31 +124,6 @@ kubectl rollout restart deployment/coyote
 kubectl logs -f deployment/coyote | grep DEBUG
 
 # Remember to set back to "info" after debugging
-```
-
-## Cheatsheet: Test Rate Limiting
-
-To verify rate limiting is working correctly:
-
-```bash
-# Test with multiple rapid requests
-for i in {1..100}; do
-  curl -w "\n%{http_code}\n" \
-    -H "Authorization: Bearer $TOKEN" \
-    https://api.acme.corp/api/v1/users
-  sleep 0.1
-done
-
-# Should see 429 Too Many Requests after threshold
-# Check rate limit headers:
-curl -I \
-  -H "Authorization: Bearer $TOKEN" \
-  https://api.acme.corp/api/v1/users
-
-# Headers should include:
-# X-RateLimit-Limit: 100
-# X-RateLimit-Remaining: 95
-# X-RateLimit-Reset: 1640000000
 ```
 
 ## Cheatsheet: Invalidate Cache

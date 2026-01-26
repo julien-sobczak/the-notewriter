@@ -8,7 +8,7 @@ local nt = import 'nt.libsonnet';
     Reference: nt.DefaultNoteTypes.Note + {
       name: "Reference",
     },
-    // Synopsis presents the project overview (= the initial idea)
+    // Project overview
     Overview: self.Note + {
       name: "Overview",
     },
