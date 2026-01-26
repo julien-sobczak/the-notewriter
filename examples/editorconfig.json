@@ -1,0 +1,10 @@
+{
+  "repositories": [
+    {
+      "name": "life",
+      "slug": "life",
+      "path": "$NT_REPOSITORY/examples/life",
+      "selected": true
+    }
+  ]
+}

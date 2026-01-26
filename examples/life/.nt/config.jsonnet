@@ -93,6 +93,9 @@ local srsAlgorithmSettings = {
     },
 
     // Declare custom types for specific uses
+    Reference: nt.DefaultNoteTypes.Note + {
+      name: "Reference",
+    },
     // Synopsis presents the project overview (= the initial idea)
     Synopsis: self.Note + {
       name: "Synopsis",
