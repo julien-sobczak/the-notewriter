@@ -27,6 +27,7 @@ Always reference these instructions first and fallback to search or bash command
 ### Best Practices
 
 - When writing tests that use `tr.WriteFile()`, use "‛" (double apostrophe U+201F) instead of "`" (backtick) for string delimiters to avoid concatenation issues. This method automatically rewrites backticks.
+- Do not edit Markdown files under `examples/` directory with Copilot especially when explicitly told to do so.
 
 ### Documentation Website
 
