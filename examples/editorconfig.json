@@ -5,6 +5,12 @@
       "slug": "life",
       "path": "$NT_REPOSITORY/examples/life",
       "selected": true
+    },
+    {
+      "name": "work",
+      "slug": "work",
+      "path": "$NT_REPOSITORY/examples/work",
+      "selected": false
     }
   ]
 }

@@ -1,0 +1,4 @@
+# Ignore book files
+/*.epub
+/*.pdf
+/*.markdown
