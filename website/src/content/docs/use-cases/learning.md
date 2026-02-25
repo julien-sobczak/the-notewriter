@@ -57,7 +57,7 @@ interest_factor: 1.5
 
 Studying decks is available in the desktop application.
 
-<img src="/the-notewriter/screen-deck-selection@2x.png" alt="Deck selection" width="400" />
+<img class="illustration" src="/the-notewriter/screen-deck-selection@2x.png" alt="Deck selection" width="400" />
 
 :::tip[Study on the go]
 
@@ -67,7 +67,7 @@ Studying decks is available in the desktop application.
 
 After selecting a deck, the study session for today begins:
 
-<img src="/the-notewriter/screen-flashcard@2x.png" alt="Flashcard study" width="400" />
+<img class="illustration" src="/the-notewriter/screen-flashcard@2x.png" alt="Flashcard study" width="400" />
 
 Flashcards are stored along other objects defined in a Markdown file. When studying, the application need to persist reviews. These study sessions are saved differently. They don't belong to the flashcard object but are a different kind of objects that work on top of the flashcard object itself.
 
