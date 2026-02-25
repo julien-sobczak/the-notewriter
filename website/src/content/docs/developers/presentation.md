@@ -22,7 +22,7 @@ Users edit Markdown files (with a few extensions). _The NoteWriter_ CLI parses t
 
 :::tip
 
-Start with commands under `cmd/` when inspecting code to quickly locate the interesting lines of code.
+Start with commands under `cmd/` when inspecting the code to quickly locate the interesting lines of code.
 
 :::
 

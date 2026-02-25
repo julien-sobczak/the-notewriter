@@ -275,7 +275,7 @@ func TestCheckConfig(t *testing.T) {
 				elements: [
 					{
 						name: "Block 1",
-						query: "@type:Note",
+						query: "type:Note",
 					},
 					{
 						layout: "horizontal",
@@ -670,7 +670,7 @@ func TestParseConfigFile(t *testing.T) {
 	queries: {
 		myQuery: {
 			title: "My Query",
-			query: "@type:Note",
+			query: "type:Note",
 			tags: ["tag1", "tag2"],
 		},
 	},
@@ -685,7 +685,7 @@ func TestParseConfigFile(t *testing.T) {
 		query, ok := cfg.Queries["myQuery"]
 		require.True(t, ok)
 		assert.Equal(t, "My Query", query.Title)
-		assert.Equal(t, "@type:Note", query.Query)
+		assert.Equal(t, "type:Note", query.Query)
 		assert.Equal(t, []string{"tag1", "tag2"}, query.Tags)
 	})
 
@@ -698,7 +698,7 @@ func TestParseConfigFile(t *testing.T) {
 			description: "A test desk",
 			root: {
 				layout: "container",
-				query: "@type:Note",
+				query: "type:Note",
 			},
 		},
 	],
@@ -714,7 +714,7 @@ func TestParseConfigFile(t *testing.T) {
 		assert.Equal(t, "My Desk", desk.Name)
 		assert.Equal(t, "A test desk", desk.Description)
 		assert.Equal(t, "container", desk.Root.Layout)
-		assert.Equal(t, "@type:Note", desk.Root.Query)
+		assert.Equal(t, "type:Note", desk.Root.Query)
 	})
 
 	t.Run("Config with a complex desk", func(t *testing.T) {
@@ -736,13 +736,13 @@ func TestParseConfigFile(t *testing.T) {
 						elements: [
 							{
 								name: "Backlog",
-								query: "@type:Todo",
+								query: "type:Todo",
 								view: "single",
 								size: "30%",
 							},
 							{
 								name: "Features",
-								query: "@type:Feature",
+								query: "type:Feature",
 							},
 						],
 					},
@@ -783,7 +783,7 @@ func TestParseConfigFile(t *testing.T) {
 		{
 			name: "My Diary",
 			path: "journal/${year}/${year}-${month}-${day}.md",
-			defaultContent: "Journal: ${year}-${month}-${day}",
+			defaultContent: "# Journal: ${year}-${month}-${day}",
 			routines: [
 				{
 					name: "Morning Routine",
@@ -807,7 +807,7 @@ func TestParseConfigFile(t *testing.T) {
 		journal := cfg.Journals[0]
 		assert.Equal(t, "My Diary", journal.Name)
 		assert.Equal(t, "journal/${year}/${year}-${month}-${day}.md", journal.Path)
-		assert.Equal(t, "Journal: ${year}-${month}-${day}", journal.DefaultContent)
+		assert.Equal(t, "# Journal: ${year}-${month}-${day}", journal.DefaultContent)
 		require.Len(t, journal.Routines, 2)
 		assert.Equal(t, "Morning Routine", journal.Routines[0].Name)
 		assert.Equal(t, "# Good morning", journal.Routines[0].Template)
@@ -821,20 +821,20 @@ func TestParseConfigFile(t *testing.T) {
 	stats: [
 		{
 			name: "Quotes by nationality",
-			query: "@type:Quote",
+			query: "type:Quote",
 			groupBy: "nationality",
 			visualization: "pie",
 		},
 		{
 			name: "Steps by day",
-			query: "@type:Journal",
+			query: "type:Journal",
 			groupBy: "date",
 			value: "steps",
 			visualization: "calendar",
 		},
 		{
 			name: "World Inspiration",
-			query: "@type:Quote",
+			query: "type:Quote",
 			groupBy: "nationality",
 			visualization: "map",
 			mapping: {
@@ -855,7 +855,7 @@ func TestParseConfigFile(t *testing.T) {
 		// First stat - pie chart
 		stat1 := cfg.Stats[0]
 		assert.Equal(t, "Quotes by nationality", stat1.Name)
-		assert.Equal(t, "@type:Quote", stat1.Query)
+		assert.Equal(t, "type:Quote", stat1.Query)
 		assert.Equal(t, "nationality", stat1.GroupBy)
 		assert.Equal(t, "pie", stat1.Visualization)
 

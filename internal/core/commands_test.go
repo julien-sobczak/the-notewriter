@@ -84,7 +84,7 @@ func TestCommandAdd(t *testing.T) {
 		assert.FileExists(t, PackFilePath(entry2.StagedPackFileOID))
 
 		// Commit
-		err = CurrentRepository().Commit()
+		err = CurrentRepository().Commit(true)
 		require.NoError(t, err)
 
 		// Check index file
@@ -194,7 +194,7 @@ func TestCommandAdd(t *testing.T) {
 
 		_, err := CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
-		err = CurrentRepository().Commit()
+		err = CurrentRepository().Commit(true)
 		require.NoError(t, err)
 
 		idx := MustReadIndex()
@@ -211,19 +211,19 @@ func TestCommandAdd(t *testing.T) {
 		_, err = CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
 
-		err = CurrentRepository().Commit()
+		err = CurrentRepository().Commit(true)
 		require.NoError(t, err)
 
 		// Check 2: Try to commit the same file repeatability
 		tr.ReplaceLine("go.md", 19, "(Go) What does the **logo** represent?", "What is the **logo**?")
 		_, err = CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
-		err = CurrentRepository().Commit()
+		err = CurrentRepository().Commit(true)
 		require.NoError(t, err)
 		tr.ReplaceLine("go.md", 19, "What is the **logo**?", "What represents the **logo**?")
 		_, err = CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
-		err = CurrentRepository().Commit()
+		err = CurrentRepository().Commit(true)
 		require.NoError(t, err)
 
 		// Check the file is still listed only once
@@ -290,7 +290,7 @@ func TestCommandCommit(t *testing.T) {
 		_, err := CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)
 
-		err = CurrentRepository().Commit()
+		err = CurrentRepository().Commit(true)
 		require.NoError(t, err)
 
 		tr.RequireNoFileExists("python.md")
@@ -305,14 +305,14 @@ Who invented Python?
 Guido van Rossum
 `)
 
-		err = CurrentRepository().Commit()
+		err = CurrentRepository().Commit(true)
 		require.ErrorContains(t, err, "nothing to commit")
 
 		// Create a second commit
 		_, err = CurrentRepository().Add(PathSpecs{"python.md"})
 		require.NoError(t, err)
 
-		err = CurrentRepository().Commit()
+		err = CurrentRepository().Commit(true)
 		require.NoError(t, err)
 	})
 
@@ -335,7 +335,7 @@ func TestCommandPushPull(t *testing.T) {
 		// Push
 		_, err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
-		err = CurrentRepository().Commit()
+		err = CurrentRepository().Commit(true)
 		require.NoError(t, err)
 		require.NoError(t, CurrentConfig().Save()) // Simulate Cobra PostRun logic
 		err = CurrentRepository().Push("origin", false, false)
@@ -389,7 +389,7 @@ func TestCommandPushPull(t *testing.T) {
 		// Commit
 		_, err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
-		err = CurrentRepository().Commit()
+		err = CurrentRepository().Commit(true)
 		require.NoError(t, err)
 
 		// Stage a few changes
@@ -587,7 +587,7 @@ func TestCommandDiff(t *testing.T) {
 
 		// Step 3: Commit the staged file
 
-		err = CurrentRepository().Commit()
+		err = CurrentRepository().Commit(true)
 		require.NoError(t, err)
 
 		diffs, err = CurrentRepository().Diff(AnyPath, true) // Staging area is empty = must be empty
@@ -678,7 +678,7 @@ func TestCommandGC(t *testing.T) {
 		// Add
 		_, err := CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
-		err = CurrentRepository().Commit()
+		err = CurrentRepository().Commit(true)
 		require.NoError(t, err)
 
 		entryMarkdown := CurrentIndex().GetEntry("go.md")
@@ -692,7 +692,7 @@ func TestCommandGC(t *testing.T) {
 		tr.WriteFile("go.md", `# Go`)
 		_, err = CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
-		err = CurrentRepository().Commit()
+		err = CurrentRepository().Commit(true)
 		require.NoError(t, err)
 
 		// The media must have been removed from the index
@@ -760,7 +760,7 @@ Robert Greisemer, Rob Pike, and Ken Thompson.
 		assert.Len(t, resultGC.ReclaimedBlobs, 0)
 
 		// Commit the changes
-		err = CurrentRepository().Commit()
+		err = CurrentRepository().Commit(true)
 		require.NoError(t, err)
 
 		// The old files can now be reclaimed
@@ -783,7 +783,7 @@ tags: go
 		require.Len(t, resultAdd.Upserted, 2) // Both content changed = new pack files
 		require.Len(t, resultAdd.Deleted, 0)
 
-		err = CurrentRepository().Commit()
+		err = CurrentRepository().Commit(true)
 		require.NoError(t, err)
 
 		resultGC, err = CurrentDB().GC(false) // All old files must not be reclaimed as still not committed
@@ -818,7 +818,7 @@ tags: go
 		assert.Len(t, resultGC.ReclaimedBlobs, 0)
 
 		// Commit the changes
-		err = CurrentRepository().Commit()
+		err = CurrentRepository().Commit(true)
 		require.NoError(t, err)
 
 		resultGC, err = CurrentDB().GC(false)

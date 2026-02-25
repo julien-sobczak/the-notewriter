@@ -176,7 +176,7 @@ Guido van Rossum
 
 		_, err := CurrentRepository().Add(PathSpecs{"python.md"})
 		require.NoError(t, err)
-		err = CurrentRepository().Commit()
+		err = CurrentRepository().Commit(false)
 		require.NoError(t, err)
 
 		// Review the flashcard

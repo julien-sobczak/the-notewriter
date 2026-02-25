@@ -3,15 +3,415 @@ title: Welcome
 description: Start gathering your notes.
 template: splash
 hero:
-  image:
-    file: ../../assets/houston.webp
-  actions:
-    - text: Introduction
-      link: /the-notewriter/intro
-      icon: right-arrow
-      variant: primary
-    - text: Browse the code
-      link: https://github.com/julien-sobczak/the-notewriter
-      icon: external
+  title: Make your notes shine
+  tagline: Everything you need to use your notes creatively
 ---
 
+import { Icon } from '@astrojs/starlight/components';
+import { Image } from 'astro:assets';
+import logo from '../../assets/logo.svg';
+import logoFooter from '../../assets/logo-footer.svg';
+import logoFeather from '../../assets/logo-feather.svg';
+import logoCharacterStack from '../../assets/character-stack.svg';
+import introStep1 from '../../assets/intro-step1@2x.png';
+import introStep2 from '../../assets/intro-step2@2x.png';
+import introStep3 from '../../assets/intro-step3@2x.png';
+import designMarkdown from '../../assets/design-markdown@2x.png';
+import designGit from '../../assets/design-git@2x.png';
+import designLocal from '../../assets/design-local@2x.png';
+import designMinimal from '../../assets/design-minimal@2x.png';
+import characterTooling from '../../assets/character-tooling.svg';
+import characterQuestion from '../../assets/character-question.svg';
+import characterMinimal from '../../assets/character-minimal.svg';
+import characterLocal from '../../assets/character-local.svg';
+import characterOptional from '../../assets/character-optional.svg';
+import quote from '../../assets/quote.svg';
+import featureCascadingAttributes from '../../assets/feature-cascading-attributes@2x.png';
+import featureExpressiveAttributes from '../../assets/feature-expressive-attributes@2x.png';
+import featureTypeChecking from '../../assets/feature-type-checking@2x.png';
+import featureCustomNoteTypes from '../../assets/feature-custom-note-types@2x.png';
+import featureLinter from '../../assets/feature-linter@2x.png';
+import featureJournaling from '../../assets/feature-journaling@2x.png';
+import featureFlashcards from '../../assets/feature-flashcards@2x.png';
+import featureMemories from '../../assets/feature-memories@2x.png';
+import featureHooks from '../../assets/feature-hooks@2x.png';
+import featureGotos from '../../assets/feature-gotos@2x.png';
+import featureReminders from '../../assets/feature-reminders@2x.png';
+import featureMore from '../../assets/feature-more@2x.png';
+
+
+<section class="tagline">
+  <h1>Note-Taking for <span class="thick-highlight"><span class="handwritten-regular">Creative</span> Developers</span></h1>
+  <nav>
+    <ul>
+      <li><a href="overview"><Icon class="icon" name="open-book" /> Read the docs</a></li>
+      <li><a href="https://github.com/julien-sobczak/the-notewriter"><Icon class="icon" name="github" /> Check the code</a></li>
+    </ul>
+  </nav>
+</section>
+
+<figure class="quote">
+  <Image class="quotation-mark" src={quote} alt="Quote" />
+  <blockquote>
+    <p>_The NoteWriter_ started with a problem: <em>How to keep notes on a computer with the same longevity and freedom than paper?</em></p>
+    <p>Few commercial products last decades. Few open source projects do better. Why not try a different approach?</p>
+  </blockquote>
+  <figcaption>— <span class="handwritten-regular">Julien Sobczak</span></figcaption>
+</figure>
+
+
+<section class="intro">
+  <ul>
+    <li>
+      <span class="handwritten-regular">1.</span>
+      Write in your favorite editor <span class="handwritten-regular">using Markdown</span>
+      <Image src={introStep1} alt="Write in Markdown" />
+    </li>
+    <li>
+      <span class="handwritten-regular">2.</span>
+      Add your notes <span class="handwritten-regular">using a cli</span>
+      <Image src={introStep2} alt="Add your notes" />
+    </li>
+    <li>
+      <span class="handwritten-regular">3.</span>
+      Manipulate your notes <span class="handwritten-regular">like on your desk</span>
+      <Image src={introStep3} alt="Manipulate your notes" />
+    </li>
+  </ul>
+</section>
+
+<section class="why full-width-breakout">
+  <h1 class="title">Apps are <strong class="thick-underline">DISTRACTIONS</strong></h1>
+  <ul>
+    <li>Using <i>apps</i> is not the goal. Using <i>notes</i> is.</li>
+    <li>Switching between <i>apps</i> is not the goal. Writing <i>notes</i> is.</li>
+    <li><i>Apps</i> are volatile.  <i>Notes</i> are permanent.</li>
+  </ul>
+  <Image id="character-tooling" src={characterTooling} alt="Apps are distractions" />
+</section>
+
+
+<figure class="quote">
+  <Image class="quotation-mark" src={quote} alt="Quote" />
+  <blockquote>
+    <p>Using a single Markdown file as a notebook completely changed my approach. I use Markdown files like I would use physical notebooks. Different topics go to different files. Grouping my notes make it easier to find, organize, factorize, and avoid duplication. _The NoteWriter_ feels like note-taking as code.</p>
+  </blockquote>
+  <figcaption>— <span class="handwritten-regular">Julien Sobczak</span></figcaption>
+</figure>
+
+
+{/*
+  * Design
+  */}
+
+<section class="design">
+  <h1 class="title">Designed for <strong class="thick-underline">DEVELOPERS</strong></h1>
+
+  {/* See https://css-tricks.com/pure-css-tabs-with-details-grid-and-subgrid/ for a pure HTML/CSS tabs implementation */}
+  <div class="characteristics">
+    <details name="alpha" open>
+      <summary>Plain-old <strong>Markdown</strong></summary>
+      <div>
+        <h2>From <strong>Markdown</strong> to <strong>Objects</strong></h2>
+        <Image id="characteristics-markdown-illustration" src={designMarkdown} alt="From Markdown to Objects" />
+      </div>
+    </details>
+    <details name="alpha">
+      <summary>Inspired by <strong>Git</strong>.<br/>Powered by <strong>Git</strong>.</summary>
+      <div>
+        <h2>Designed to work with <strong>Git</strong></h2>
+        <Image id="characteristics-git-illustration" src={designGit} alt="Designed to work with Git" />
+      </div>
+    </details>
+    <details name="alpha">
+      <summary><strong>Minimal</strong> Scope.<br/><strong>Maximal</strong> Impact.</summary>
+      <div>
+        <h2>The <i><strong>right</strong></i> tool for the <i><strong>right</strong></i> task</h2>
+        <Image id="characteristics-minimal-illustration" src={designMinimal} alt="The right tool for the right task" />
+      </div>
+    </details>
+    <details name="alpha">
+      <summary><strong>Local</strong> First</summary>
+      <div>
+        <h2><strong>Your</strong> Notes. <strong>Your</strong> Data.</h2>
+        <Image id="characteristics-local-illustration" src={designLocal} alt="Local First" />
+      </div>
+    </details>
+  </div>
+</section>
+
+<figure class="quote">
+  <Image class="quotation-mark" src={quote} alt="Quote" />
+  <blockquote>
+    <p>I chose a few principles to guide me during the development to ensure the application doesn't become bloated. Having clear principles makes it easier to make decisions and stay focused on the long-term goal to have a safe place for my notes.</p>
+  </blockquote>
+  <figcaption>— <span class="handwritten-regular">Julien Sobczak</span></figcaption>
+</figure>
+
+{/*
+  * Principles
+  */}
+
+<section class="principles full-width-breakout">
+  <h1 class="title">Minimal. Local. <span class="handwritten-regular"><span class="thick-underline">Optional</span>.</span></h1>
+  <div class="principles-list">
+    <div class="principle">
+      <p>Opinionated</p>
+      <ul>
+        <li><span class="wrong">Collaborative Mode</span> ➤ Focus on personal notes.</li>
+        <li><span class="wrong">Plugins</span> ➤ Features must be first-class citizens.</li>
+        <li><span class="wrong">Rich UI</span> ➤ Code editors are more powerful to edit Markdown.</li>
+      </ul>
+      <Image src={characterMinimal} alt="Minimal" />
+    </div>
+    <div class="principle">
+      <p>Work locally</p>
+      <ul>
+        <li><span class="neutral">Own your notes</span> ➤ Use Git as usual.</li>
+        <li><span class="neutral">Use your notes</span> ➤ Read them locally, always.</li>
+        <li><span class="neutral">Sync your notes</span> ➤ Push them to your phone directly.</li>
+      </ul>
+      <Image src={characterLocal} alt="Local" />
+    </div>
+    <div class="principle">
+      <p>Disposable</p>
+      <ul>
+        <li><span class="good">Notes are Markdown files</span> ➤ Notes are Markdown files.</li>
+        <li><span class="good">Personal project</span> ➤ No money needed to last.</li>
+        <li><span class="good">Open Source</span> ➤ Full codebase publicly available.</li>
+      </ul>
+      <Image src={characterOptional} alt="Optional" />
+    </div>
+  </div>
+</section>
+
+<figure class="quote">
+  <Image class="quotation-mark" src={quote} alt="Quote" />
+  <blockquote>
+    <p>I chose deliberately features based on two goals: <em>minimize</em> the number of lines of code AND <em>maximize</em> the use of notes. Getting the most out of my notes is more important than having a feature-rich application.</p>
+  </blockquote>
+  <figcaption>— <span class="handwritten-regular">Julien Sobczak</span></figcaption>
+</figure>
+
+{/*
+  * Features
+  */}
+
+<section class="features full-width-breakout">
+  <h1 class="title"><strong class="thick-underline">Features</strong> <span class="handwritten-regular">at a glance</span></h1>
+  <div class="features-list">
+
+    {/* Cascading Attributes */}
+    <div class="feature">
+      <h2>Cascading Attributes</h2>
+      <p>Attributes are inherited from the Front Matter and parent headings.</p>
+      <h3>Note-Taking</h3>
+      <Image className="feature-image"
+        id="feature-cascading-attributes"
+        src={featureCascadingAttributes}
+        alt="Cascading Attributes Illustrated" />
+      <a href="user-guide/attributes" class="triangle-link">
+        <span>+</span>
+      </a>
+    </div>
+
+    {/* Expressive Attributes */}
+    <div class="feature">
+      <h2>Expressive Attributes</h2>
+      <p>Define attributes using emojis or even natural language.</p>
+      <h3>Note-Taking</h3>
+      <Image className="feature-image"
+        src={featureExpressiveAttributes}
+        alt="Expressive Attributes Illustrated" />
+      <a href="user-guide/attributes" class="triangle-link">
+        <span>+</span>
+      </a>
+    </div>
+
+    {/* Custom Note Types */}
+    <div class="feature">
+      <h2>Custom Note Types</h2>
+      <p>Create your own note types to suit your workflow.</p>
+      <h3>Note-Taking</h3>
+      <Image className="feature-image"
+        src={featureCustomNoteTypes}
+        alt="Custom Note Types Illustrated" />
+      <a href="user-guide/note-types" class="triangle-link">
+        <span>+</span>
+      </a>
+    </div>
+
+    {/* Type Checking */}
+    <div class="feature">
+      <h2>Type Checking</h2>
+      <p>Ensure your notes adhere to defined types and structures.</p>
+      <h3>Automating</h3>
+      <Image className="feature-image"
+        src={featureTypeChecking}
+        alt="Type Checking Illustrated" />
+      <a href="user-guide/note-types" class="triangle-link">
+        <span>+</span>
+      </a>
+    </div>
+
+    {/* Linter */}
+    <div class="feature">
+      <h2>Linter</h2>
+      <p>Automatically check your notes for errors and inconsistencies.</p>
+      <h3>Automating</h3>
+      <Image className="feature-image"
+        id="feature-linter"
+        src={featureLinter}
+        alt="Linter Illustrated" />
+      <a href="user-guide/linter" class="triangle-link">
+        <span>+</span>
+      </a>
+    </div>
+
+    {/* Gotos */}
+    <div class="feature">
+      <h2>Gotos</h2>
+      <p>Turn Markdown links into memorable shortcuts.</p>
+      <h3>Browsing</h3>
+      <Image className="feature-image"
+        src={featureGotos}
+        alt="Gotos Illustrated" />
+      <a href="user-guide/gotos" class="triangle-link">
+        <span>+</span>
+      </a>
+    </div>
+
+    {/* Hooks */}
+    <div class="feature">
+      <h2>Hooks</h2>
+      <p>Run scripts when a note is edited.</p>
+      <h3>Automating</h3>
+      <Image className="feature-image"
+        src={featureHooks}
+        alt="Hooks Illustrated" />
+      <a href="user-guide/hooks" class="triangle-link">
+        <span>+</span>
+      </a>
+    </div>
+
+    {/* Flashcards */}
+    <div class="feature">
+      <h2>Flashcards</h2>
+      <p>Turn your notes into flashcards to study.</p>
+      <h3>Studying</h3>
+      <Image className="feature-image"
+        src={featureFlashcards}
+        alt="Flashcards Illustrated" />
+      <a href="user-guide/flashcards" class="triangle-link">
+        <span>+</span>
+      </a>
+    </div>
+
+    {/* Reminders */}
+    <div class="feature">
+      <h2>Reminders</h2>
+      <p>Remind future events or tasks to complete.</p>
+      <h3>Planning</h3>
+      <Image className="feature-image"
+        src={featureReminders}
+        alt="Reminders Illustrated" />
+      <a href="user-guide/reminders" class="triangle-link">
+        <span>+</span>
+      </a>
+    </div>
+
+    {/* Memories */}
+    <div class="feature">
+      <h2>Memories</h2>
+      <p>Remember past memorable events.</p>
+      <h3>Reflecting</h3>
+      <Image className="feature-image"
+        src={featureMemories}
+        alt="Memories Illustrated" />
+      <a href="user-guide/memories" class="triangle-link">
+        <span>+</span>
+      </a>
+    </div>
+
+    {/* Journaling */}
+    <div class="feature">
+      <h2>Journaling Routines</h2>
+      <p>Generate your daily routines using templates.</p>
+      <h3>Reflecting</h3>
+      <Image className="feature-image"
+        src={featureJournaling}
+        alt="Journaling Routines Illustrated" />
+      <a href="use-cases/journaling" class="triangle-link">
+        <span>+</span>
+      </a>
+    </div>
+
+    <div class="feature-more">
+      <p><span className="handwritten-regular">And also</span>… desks, commonplace books, master notes, secure files, zen mode, …</p>
+      <Image className="feature-image"
+        src={featureMore}
+        alt="Even more features available" />
+    </div>
+
+  </div>
+</section>
+
+
+{/*
+  * F.A.Q.
+  */}
+
+<section class="faq">
+  <h1 class="title">F.A.Q.</h1>
+
+  <details>
+    <summary><span class="handwritten-regular">Is</span> it okay if I use it? <Image class="question-mark" src={characterQuestion} alt="Question?" /></summary>
+    <p>Yes, but no...<br/>I created _The NoteWriter_ to experiment with my note-taking approach. I reworked some features several times (and I still have ideas to try). Breaking changes are inevitable when experimenting.</p>
+  </details>
+
+  <details>
+    <summary><span class="handwritten-regular">Why</span> another tool? <Image class="question-mark" src={characterQuestion} alt="Question?" /></summary>
+    <p>I love reading and writing but I wasn't satisfied with my reading and writing workflow. I created _The NoteWriter_ to optimize my process. I didn't created it to have an open source project to showcase. My long-term goal is to write more using my readings as inspiration.</p>
+  </details>
+
+  <details>
+    <summary><span class="handwritten-regular">Why</span> for developers? <Image class="question-mark" src={characterQuestion} alt="Question?" /></summary>
+    <p>As a developer, I tried to reuse most of my knowledge. Git is more efficient to version my notes. Code editors are most efficient to enter text. No UI can compete with these tools. I introduced concepts familiar to developers — configuration files, templates, linter, hooks, remotes —  to have a powerful tool with a minimal codebase.</p>
+  </details>
+
+  <details>
+    <summary><span class="handwritten-regular">Why</span> not use paper notes? <Image class="question-mark" src={characterQuestion} alt="Question?" /></summary>
+    <p>Paper notes have obvious advantages. The pencil is one of the best human inventions, like the computer. Digital notebooks have drawbacks but also many advantages: you can insert notes between existing ones, delete without scribbles, copy URLs using shortcuts, etc. _The NoteWriter_ is designed to leverage these advantages while minimizing the drawbacks of not having a pencil in my hand.</p>
+  </details>
+
+  <details>
+    <summary><span class="handwritten-regular">Why</span> is it open source? <Image class="question-mark" src={characterQuestion} alt="Question?" /></summary>
+    <p>Working in public is a great way to share my reflection on the topic. I'm not looking for contributors. I designed the application to be maintainable by a solo developer (me) on my spare time. My goal is inspire others to reflect on their own note-taking process. We need more OSS tools designed for the long term like [SQLite](https://sqlite.org/lts.html).</p>
+  </details>
+
+  <details>
+    <summary><span class="handwritten-regular">What</span> is the current status of the project? <Image class="question-mark" src={characterQuestion} alt="Question?" /></summary>
+    <p>The CLI is relatively stable and well-tested.<br/>The desktop application is a work in progress. I continue to experiment a lot with it.<br/>The mobile application is still in its infancy. I have a clear idea of the goal and its limited scope but I prefer to focus on the desktop application for now.</p>
+  </details>
+
+</section>
+
+<section class="prefooter full-width-breakout">
+  <Image id="logo-footer" src={logoFooter} alt="The NoteWriter Logo" />
+</section>
+<section class="footer full-width-breakout">
+  {/* Astro already embbeds a Footer.jsx component that is hidden using a CSS rule. */}
+
+  <Image id="logo-feather" src={logoFeather} alt="The NoteWriter Logo Feather" />
+
+  {/* The tagline */}
+  <h2>
+    <span>
+      Where notes live <span class="handwritten-regular">forever</span>
+      <Image id="logo-character-stack" src={logoCharacterStack} alt="The NoteWriter preserves your notes" />
+    </span>
+  </h2>
+
+  {/* The copyright */}
+  <small class="monospace-regular">&copy; 2026 Julien Sobczak</small>
+</section>

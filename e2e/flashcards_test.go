@@ -26,7 +26,7 @@ func TestFlashcards(t *testing.T) {
 
 	_, err := CurrentRepository().Add(AnyPath)
 	require.NoError(t, err)
-	err = CurrentRepository().Commit()
+	err = CurrentRepository().Commit(false)
 	require.NoError(t, err)
 
 	// Check the flashcard
@@ -83,7 +83,7 @@ func TestFlashcards(t *testing.T) {
 		`)
 	_, err = CurrentRepository().Add(AnyPath)
 	require.NoError(t, err)
-	err = CurrentRepository().Commit()
+	err = CurrentRepository().Commit(false)
 	require.NoError(t, err)
 
 	// Check the flashcard text has been updated and prior reviews still preserved

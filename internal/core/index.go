@@ -406,7 +406,6 @@ func (i *Index) Stage(packFiles ...*PackFile) error {
 	return nil
 }
 
-
 func (i *Index) updateCaches(packFile *PackFile) {
 	if packFile.Kind == PackFileKindOperations {
 		// We can have thousands of operations for a single object.
@@ -612,11 +611,11 @@ func (i *Index) GC() error {
 // ReadPackFile reads a pack file from the index.
 func (i *Index) ReadPackFile(oid oid.OID) (*PackFile, error) {
 	for _, entry := range i.Entries {
-		if entry.PackFileOID == oid {
+		if entry.PackFileOID == oid || (entry.Staged && entry.StagedPackFileOID == oid) {
 			return LoadPackFileFromPath(PackFilePath(oid))
 		}
 	}
-	return nil, nil
+	return nil, fmt.Errorf("unable to find pack file %q: %w", oid, ErrPackFileNotFound)
 }
 
 // MustReadPackFile reads a pack file from the index or fails abruptly.
@@ -632,7 +631,7 @@ func (i *Index) MustReadPackFile(oid oid.OID) *PackFile {
 func (i *Index) ReadPackFileData(oid oid.OID) ([]byte, error) {
 	entry, ok := i.GetEntryByPackFileOID(oid)
 	if !ok {
-		return nil, fmt.Errorf("packfile %q is unknown", oid)
+		return nil, fmt.Errorf("unable to find pack file %q: %w", oid, ErrPackFileNotFound)
 	}
 	data, err := os.ReadFile(PackFilePath(entry.PackFileOID))
 	if err != nil {
@@ -651,12 +650,12 @@ func (i *Index) ReadPackObject(oid oid.OID) (*PackObject, error) {
 			}
 			packObject, ok := packFile.GetPackObject(oid)
 			if !ok {
-				return nil, fmt.Errorf("missing object %q in pack file %q", oid, packFile.FileRelativePath)
+				return nil, fmt.Errorf("unable to read pack object %q in pack file %q: %w", oid, packFile.FileRelativePath, ErrPackObjectNotFound)
 			}
 			return packObject, nil
 		}
 	}
-	return nil, nil
+	return nil, fmt.Errorf("unable to find object %q: %w", oid, ErrPackObjectNotFound)
 }
 
 // ReadPackable reads an object from the index.
@@ -694,10 +693,10 @@ func (i *Index) ReadBlob(oid oid.OID) (*BlobRef, error) {
 					return blob, nil
 				}
 			}
-			return nil, fmt.Errorf("missing blob %q in pack file %q", oid, packFile.FileRelativePath)
+			return nil, fmt.Errorf("unable to find blob %q in pack file %q: %w", oid, packFile.FileRelativePath, ErrBlobNotFound)
 		}
 	}
-	return nil, nil
+	return nil, fmt.Errorf("unable to find blob %q: %w", oid, ErrBlobNotFound)
 }
 
 // ReadBlobData reads a blob from the index.

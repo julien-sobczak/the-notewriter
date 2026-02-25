@@ -21,6 +21,12 @@ func (n *Note) HasHooks() bool {
 
 func (n *Note) GetHooks() []string {
 	hooks := n.Attributes.Hooks()
+
+	// Append hooks again as configuration may have been updated since the note was added
+	if noteType, ok := CurrentConfigFile().GetNoteType(n.Type); ok {
+		hooks = append(hooks, noteType.Hooks...)
+	}
+
 	if len(hooks) == 0 {
 		return nil
 	}

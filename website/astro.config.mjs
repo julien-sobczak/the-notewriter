@@ -1,4 +1,5 @@
 import { defineConfig } from 'astro/config';
+import react from '@astrojs/react';
 import starlight from '@astrojs/starlight';
 
 // https://astro.build/config
@@ -6,49 +7,124 @@ export default defineConfig({
 	site: 'https://julien-sobczak.github.io',
 	base: 'the-notewriter',
 	integrations: [
+		react(),
 		starlight({
 			title: 'The NoteWriter Documentation',
+			logo: {
+				// src: './src/assets/logo.svg', // When using a single logo
+				light: './src/assets/logo-version-light.svg',
+				dark: './src/assets/logo-version-dark.svg',
+				alt: 'The NoteWriter Logo',
+				// Remove the text title as the logo includes it
+				replacesTitle: true,
+			},
 			social: {
 				github: 'https://github.com/julien-sobczak/the-notewriter',
 			},
+			head: [
+				{
+					tag: 'link',
+					attrs: {
+						rel: 'preconnect',
+						href: 'https://fonts.googleapis.com',
+					},
+				},
+				{
+					tag: 'link',
+					attrs: {
+						rel: 'preconnect',
+						href: 'https://fonts.gstatic.com',
+						crossorigin: 'anonymous',
+					},
+				},
+				{
+					tag: 'link',
+					attrs: {
+						rel: 'stylesheet',
+						href: 'https://fonts.googleapis.com/css2?family=Inspiration&family=Open+Sans:ital,wdth,wght@0,87.5,300..800;1,87.5,300..800&family=Roboto+Mono:ital,wght@0,100..700;1,100..700&display=swap',
+					},
+				},
+			],
+			customCss: ['./src/assets/landing.css', './src/assets/documentation.css'],
 			sidebar: [
 				{
-					label: "Introduction",
-					link: '/intro'
+					label: "Overview",
+					link: '/overview'
 				},
 				{
 					label: "Why",
 					link: '/why'
 				},
+				// TODO rename in In a Nutshell/In Depth/In Action
 				{
 					label: "Getting Started",
 					link: '/getting-started'
 				},
 				{
-					label: 'Guides',
+					label: 'User Guide',
 					items: [
-						{ label: 'Notes', link: '/guides/notes' },
-						{ label: 'Attributes', link: '/guides/attributes' },
-						{ label: 'Medias', link: '/guides/medias' },
-						{ label: 'Links', link: '/guides/links' },
-						{ label: 'Flashcards', link: '/guides/flashcards' },
-						{ label: 'Reminders', link: '/guides/reminders' },
-						{ label: 'Hooks', link: '/guides/hooks' },
-						{ label: 'Linter', link: '/guides/linter' },
-						{ label: 'Remote', link: '/guides/remote' },
+						// TODO Rename to Overview if there are other Overview pages
+						{ label: 'Introduction', link: '/user-guide/introduction' },
+						{ label: 'Configuration', link: '/user-guide/configuration' },
+						{ label: 'Files', link: '/user-guide/files' },
+						{ label: 'Notes', link: '/user-guide/notes' },
+						{ label: 'Attributes', link: '/user-guide/attributes' },
+						{ label: 'Tags', link: '/user-guide/tags' },
+						{ label: 'Note Types', link: '/user-guide/note-types' },
+						// TODO file types with their Markdown schemas
+						// { label: 'File Types', link: '/user-guide/file-types' },
+						{ label: 'Links', link: '/user-guide/links' },
+						{ label: 'Linter', link: '/user-guide/linter' },
+						{
+							label: 'Objects',
+							items: [
+								{ label: 'Overview', link: '/user-guide/objects' },
+								{ label: 'Medias', link: '/user-guide/medias' },
+								{ label: 'Flashcards', link: '/user-guide/flashcards' },
+								{ label: 'Gotos', link: '/user-guide/gotos' },
+								{ label: 'Reminders', link: '/user-guide/reminders' },
+								{ label: 'Memories', link: '/user-guide/memories' },
+							]
+						},
+						{ label: 'Hooks', link: '/user-guide/hooks' },
+						{ label: 'Remotes', link: '/user-guide/remotes' },
 					],
 				},
 				{
-					label: 'Practices',
+					label: 'Use Cases',
+					items: [
+						{ label: 'Overview', link: '/use-cases/overview' },
+						{ label: 'Reading', link: '/use-cases/reading' },
+						{ label: 'Learning', link: '/use-cases/learning' },
+						{ label: 'Journaling', link: '/use-cases/journaling' },
+						{ label: 'Planning', link: '/use-cases/planning' },
+						{ label: 'Writing', link: '/use-cases/writing' },
+						{ label: 'Creating', link: '/use-cases/creating' },
+					],
+				},
+				{
+					label: 'Examples',
+					link: '/examples',
+					items: [
+						{ label: "Overview", link: '/examples/my-workflow/overview' },
+						{ label: 'My Daily Workflow', link: '/examples/my-workflow/daily' },
+						{ label: 'My Reading Workflow', link: '/examples/my-workflow/reading' },
+						{ label: 'My Writing Workflow', link: '/examples/my-workflow/writing' },
+						// IMPROVEMENT add more example workflows
+						// { label: 'My Journaling Workflow', link: '/examples/my-workflow/writing' },
+					],
+				},
+				{
+					label: 'Best Practices',
 					items: [
 						{ label: 'Guidelines', link: '/practices/guidelines' },
 						{ label: 'VS Code', link: '/practices/vs-code' },
-						{ label: 'My Workflow', link: '/practices/my-workflow' },
 					],
 				},
 				{
 					label: 'Reference',
 					items: [
+						{ label: 'Syntax', link: '/reference/syntax' },
 						{ label: 'Internals', link: '/reference/internals' },
 						{
 							label: "Commands",
@@ -69,12 +145,12 @@ export default defineConfig({
 					]
 				},
 				{
-					label: 'Developers',
+					label: 'Developer Guide',
 					items: [
 						{ label: 'Presentation', link: '/developers/presentation' },
 						{ label: 'Principles', link: '/developers/principles' },
 						{ label: 'From Scratch', link: '/developers/from-scratch' },
-						{ label: 'Guide', link: '/developers/guide' },
+						{ label: 'Guidelines', link: '/developers/guidelines' },
 						{ label: 'Contributing', link: '/developers/contributing' },
 					]
 				}

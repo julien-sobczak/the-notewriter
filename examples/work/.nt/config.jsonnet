@@ -34,7 +34,7 @@ local nt = import 'nt.libsonnet';
     ],
   },
 
-  searches: {
+  queries: {
     // Project Management
     workProjects: {
       title: 'Work Projects',
@@ -48,7 +48,7 @@ local nt = import 'nt.libsonnet';
     },
   },
 
-  journal: [
+  journals: [
     {
       name: 'Work Diary',
       path: 'journal/${year}/${year}-${month}-${day}.md',
