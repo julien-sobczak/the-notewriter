@@ -66,9 +66,7 @@ Some notes to explain how the bug was resolved.
 * 🌯 Whole wheat wrap filled with hummus, spinach, shredded carrots, and avocado
 ```
 
-_The NoteWriter Desktop_ provides a screen to visualize a diary using a timeline to filter the date range, and different options. Sub-notes will listed (expanded by default) too.
-
-TODO screenshot
+_The NoteWriter Desktop_ provides a screen to visualize a diary using a timeline to filter on date range or attributes. Sub-notes are also listed (but not expanded by default).
 
 
 ## Routines

@@ -104,7 +104,6 @@ export default defineConfig({
 				},
 				{
 					label: 'Examples',
-					link: '/examples',
 					items: [
 						{ label: "Overview", link: '/examples/my-workflow/overview' },
 						{ label: 'My Daily Workflow', link: '/examples/my-workflow/daily' },

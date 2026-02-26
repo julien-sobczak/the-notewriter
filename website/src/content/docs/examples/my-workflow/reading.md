@@ -4,9 +4,9 @@ title: My Reading Workflow
 
 ## While Reading
 
-I read almost all my books using my Boox Note Air4C. I highlight every sentence that resonates (in case of doubt, I highlight and postpone the decision to keep it when importing my notes). I annotate most of my notes: a short note using my own words to rephrase the key idea, "+ flashcard" when I think a flashcard may be relevant, "+ merge" when the note must be merged with the previous highlight.
+I read almost all my books using my Boox Note Air4C. I highlight every sentence that resonates (in case of doubt, I highlight and postpone the decision to keep it when importing my notes). I annotate most of my notes: a short sentence using my own words to rephrase the key idea, "+ flashcard" when I think a flashcard may be relevant, "+ merge" when the note must be merged with the previous highlight, etc.
 
-My reading notes are automatically synchronized to Google Drive using the Boox support.
+My reading notes are automatically synchronized to Google Drive using the native Boox support.
 
 ## After Every Reading
 
@@ -29,13 +29,61 @@ I append the new read book into my reading list:
 * 2026-01-01: _The Let Them Theory_
 ```
 
-I write a custom hook (present in `.nt/hooks/blog_library.py`) that commit a JSON document containing the note items to my blog repository (see [here](TODO)):
+I wrote a custom hook (present in `.nt/hooks/blog_library`, which is a binary build from a small Go program defined in the same Git repository) that commit a JSON document containing all items to my blog repository (see [here](https://github.com/julien-sobczak/blog-astro/blob/main/src/components/readings.json)):
 
 ```json
-TODO snippet
+{
+  "books": [
+    {
+      "title": "Winnie the Pooh",
+      "author": "A. A. Milne",
+      "isbn": "978-0525444435",
+      "publication_year": 1926,
+      "read_date": "2025-10-06",
+      "tags": [
+        "reading"
+      ],
+      "rating": 10
+    },
+    {
+      "title": "The Te of Piglet",
+      "author": "Benjamin Hoff",
+      "isbn": "978-0525934967",
+      "publication_year": 1992,
+      "read_date": "2025-10-08",
+      "tags": [
+        "living"
+      ],
+      "rating": 9
+    },
+    {
+      "title": "Code: The Hidden Language",
+      "author": "Charles Petzold",
+      "isbn": "978-0137909100",
+      "publication_year": 2022,
+      "read_date": "2025-10-19",
+      "tags": [
+        "programming"
+      ],
+      "rating": 9
+    },
+    {
+      "title": "Perennial Seller",
+      "author": "Ryan Holiday",
+      "isbn": "9781782833185",
+      "publication_year": 2017,
+      "read_date": "2025-10-22",
+      "tags": [
+        "doing"
+      ],
+      "rating": 10
+    },
+  ]
+}
 ```
 
-The file is then statically imported in MDX (my blog is written using [Astro](https://astro.build/)) and a custom React component render the list of all my readings. No need to edit my blog when adding a new read book. Using hooks make possible to automate some tasks so that recurring tasks only takes a few minutes.
+The file is then statically imported in MDX (my blog is written using [Astro](https://astro.build/)) and a [custom React component](https://github.com/julien-sobczak/blog-astro/blob/main/src/components/ReadingList.jsx) renders the list of all my readings. No need to edit my blog when adding a new read book. Using hooks make possible to automate some recurring tasks that only takes a few minutes but are done too often.
+
 
 ### Initialize the Markdown file
 
@@ -164,7 +212,7 @@ tags: being
 
 The next step is to retrieve the notes pushed by my Boox device. I installed the Google Drive desktop application. I also have a Python script `boox2notes.py` in my `notes` repository.
 
-When run, the script lists reading notes file present in the Google Drive directory where Boox pushed its files. When a file is selected, the script converts the content from Boox-specific HTML to Markdown compatible with _The NoteWriter_ and asks for the target file (`references/book/the-let-them-theory.md`) on your example:
+When run, the script lists my reading notes file present in the Google Drive directory where Boox pushed its files. When a file is selected, the script converts the content from Boox-specific HTML to Markdown compatible with _The NoteWriter_ and asks for the target file (`references/book/the-let-them-theory.md`) on your example:
 
 ```md
 # The Let Them Theory
@@ -287,13 +335,13 @@ For every gathered note, I reevaluate the note:
 
 * **Is it still relevant**? Sometimes I don't remember why I highlight a passage. I don't know why it resonates. I remove the note.
   * If I added a comment "+ flashcard", I reconsider if I really want the information in my long-term memory. Sometimes, I don't. Sometimes, I haven't anticipate the flashcard but when rereading the note, it becomes obvious and I create it.
-* **Where does the note fit in my second brain**? The most insightful ideas deserves to be rewritten in my own words and lands in a more actionable notebook than just some reference notes. Two options:
+* **Where does the note fit in my second brain**? The most insightful ideas deserve to be rewritten in my own words and lands in a more actionable notebook than just some reference notes. Two options:
   * The directory `skills/` where I have a Markdown file for every skill: `learning.md`, `psychology.md`, `parenting.md`, etc. These files contains everything I consider essential to master the skill. For example, after reading a productivity book, if I found an interesting principle, I create an additional note inside this file. Notes under `references/` are kept for references and are optional if I need to study a particular topic.
   * The directory `thoughts/` where I have a Markdown file for every general topic: `on-aging.md`, `on-doing.md`, etc. These files are the closest to what I consider my commonplace book.
 
 ## After Great Books
 
-I do not write a review for every book I read. I prefer to write about book that I really want to recommend.
+I do not write a review for every book I read. I prefer to write about books that I really want to recommend.
 
 Therefore, for my great books, I add a new note of type `BookReview` at the end of the file in `references/book` and write my review along my reading notes.
 
@@ -321,10 +369,6 @@ I use a snippet in VS Code to quickly insert a new book review:
 ```
 
 I then simply enter `bookreview`, press Tab, complete the placeholders and I'm ready to write my review.
-
-```md
-
-```
 
 A hook `blog_review` is defined on the definition of my custom type `BookReview`:
 
@@ -394,12 +438,38 @@ local nt = import 'nt.libsonnet';
 }
 ```
 
-The custom hook `blog_review` (present in `.nt/hooks/blog_review.py`) uses the GitHub GraphQL API to commit a new file in my blog repository (similarly to the previous hook `blog_library`). The result:
+The custom hook `blog_review` (present in `.nt/hooks/blog_review`) uses the GitHub GraphQL API to commit a new file in my blog repository (similarly to the previous hook `blog_library`). The result:
 
 ```md
-TODO
+---
+slug: 2026/01/21/the-let-them-theory
+title: "Book Review: The Let Them Theory: A Life-Changing Tool That Millions of People Can't Stop Talking About"
+shortTitle: "The Let Them Theory"
+author: Julien Sobczak
+date: 2026-01-21
+subject: ""
+headline: "Let Them read the book. Let Me read the book."
+note: 17
+stars: 4
+recommendation: 9
+tags: ["being"]
+topics: []
+bookCover: "/posts_resources/covers/the-let-them-theory.jpg"
+bookAuthors: "Mel Robbins"
+bookIsbn: '9781401971366'
+---
+
+Mel Robbins has a gift for capturing simple ideas that make a huge difference when applied consistently.
+
+Following _The 5 Second Rule_ and _The High 5 Habit_, she now introduces _The Let Them Theory_. While I found _The 5 Second Rule_ interesting but repetitive, _The Let Them Theory_ uses the same formula but with much better results. Because the _Let Them Theory_ is so widely applicable and as every context raises different questions, this book didn't feel as repetitive.
+
+The core ideas aren't new; focusing on what you can control is a hallmark of ancient philosophies like Stoicism. However, the way Mel Robbins presents these ideas makes them accessible to a larger audience. By putting of lot of herself -- her personal stories, her failures, and her anecdotes -- she makes it easy for the reader to relate.
+
+The book works. The topic is so relevant that you will find yourself thinking about it even when you aren't reading it.
+
+I enjoyed reading it. Every chapter brought new perspectives, even on topics I was familiar with. I found the chapters on adult friendship particularly insightful. It's the kind of book I would have loved to have read years ago while discovering the complexities of modern adulthood.
+
+_The Let Them Theory_ is easily one of the best self-help books published recently. By letting them, you finally find the focus to be who you really are.
 ```
 
-TODO screenshot juliensobczak.com
-
-
+The blog post is tehn published using GitHub Actions and made available online.

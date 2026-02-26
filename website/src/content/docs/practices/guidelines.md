@@ -41,13 +41,13 @@ Examples:
 (Inspiration: _The Productivity Project_, by Chris Bailey)
 
 
-## Use schemas to impose minimal structure over notes
+## Use types to impose minimal structure over notes
 
-_The NoteWriter_ is a thinking tool, not an archival tool. The only motivation to keep your notes is to use them later to act. Schemas are useful to ensure your notes stay maintainable.
+_The NoteWriter_ is a thinking tool, not an archival tool. The only motivation to keep your notes is to use them later to act. Note types are useful to ensure your notes stay maintainable.
 
 :::caution
 
-Schemas must be used sparingly. You must find the right balance between chaos and rigidity, i.e., between notes that are hard to use (or find) and notes that are too cumbersome to write.
+Custom types must be used sparingly. You must find the right balance between chaos and rigidity, i.e., between notes that are hard to use (or find) and notes that are too cumbersome to write.
 
 :::
 
@@ -66,7 +66,7 @@ The best system I encountered is the PARA system, introduce by Tiago Forte. Only
 * **R**esource: Topics that may be useful in the future (ex: to advance projects)
 * **A**rchive: Inactive items from above categories (simply delete them if your repository is backed by Git)
 
-I use a [modified version](./my-workflow.md) of this system.
+I use a [modified version](../examples/my-workflow/overview) of this system.
 
 (Source: _Bulding a Second Brain_, by Tiago Forte)
 
@@ -82,5 +82,5 @@ Find the right balance when organizing your notes:
 
 ## Use Common Notes
 
-* Create a "TODO: Maintenance List" note with `#low-energy`, `#low-attention` tasks you can delay and bulk once per week.
-* Create an "Note: Accomplishments List" note with achievements to remind you how much productive you are.
+* Create a note `Todo: Maintenance List` with `#low-energy`, `#low-attention` tasks you can delay and bulk once per week.
+* Create a note `List: Accomplishments List` with achievements to remind you how much productive you are.

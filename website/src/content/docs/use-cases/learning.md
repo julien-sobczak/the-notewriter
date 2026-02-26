@@ -76,6 +76,4 @@ For example, when reviewing a flashcard in the desktop application, an operation
 :::tip[Under the hood]
 
 Operations are an example of [Conflict-free replicated data type](https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type) (CRDT) supporting concurrent updates (ex: studying the same flashcard on different devices). The algorithm automatically resolves any inconsistencies (the last write wins, which means if a flashcards is studied twice, the last review wins and the other is ignored).
-
-TODO nt cat-file <operation-id>
 :::
