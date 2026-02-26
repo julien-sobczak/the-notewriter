@@ -16,6 +16,7 @@ build:
 	go build --tags "fts5" -o build/ntanki cmd/nt-anki/*.go
 	go build --tags "fts5" -o build/ntbook cmd/nt-book/*.go
 	go build --tags "fts5" -o build/ntvault cmd/nt-vault/*.go
+	go build --tags "fts5" -o build/ntjournal cmd/nt-journal/*.go
 
 fix:
 	go build --tags "fts5" -o build/nt cmd/nt/*.go

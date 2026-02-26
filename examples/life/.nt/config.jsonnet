@@ -245,31 +245,31 @@ local srsAlgorithmSettings = {
   journals: [
     {
       name: 'My Diary',
-      path: 'journal/${year}/${year}-${month}-${day}.md',
-      defaultContent: 'Journal: ${year}-${month}-${day}',
+      path: 'journal/{{ year }}/{{ year }}-{{ month }}-{{ day }}.md',
+      defaultContent: 'Journal: {{ year }}-{{ month }}-{{ day }}',
       routines: [
         {
           name: 'Morning Routine',
           template: |||
             # 💪 Affirmation
 
-            <Affirmation wikilink="journaling#List: Affirmations" tags="success,optimism" />
+            {{ affirmation "journaling#List: Affirmations" }}
 
             # 😘 Gratitude Journal
 
             3 things I appreciate:
 
-            * <Input />
-            * <Input />
-            * <Input />
+            * {{ input }}
+            * {{ input }}
+            * {{ input }}
 
             # 🤔 Prompt
 
-            <Prompt wikilink="journaling#List: Prompts" />
+            {{ prompt "journaling#List: Prompts" }}
 
             # 🎯 My BIG thing for today
 
-            <Input />
+            {{ input }}
           |||,
         },
         {
@@ -277,13 +277,13 @@ local srsAlgorithmSettings = {
           template: |||
             # ❓ How was my day? Why?
 
-            <Input />
+            {{ input }}
 
             # 📋 3 tasks to complete tomorrow:
 
-            * [ ] <Input />
-            * [ ] <Input />
-            * [ ] <Input />
+            * [ ] {{ input }}
+            * [ ] {{ input }}
+            * [ ] {{ input }}
           |||,
         },
       ],
