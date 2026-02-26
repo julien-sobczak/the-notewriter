@@ -24,7 +24,8 @@ local srsAlgorithmSettings = {
 
 {
   // A unique identifier for this notes collection.
-  // Used in database keys and remote sync operations.
+  // Important when opening different repositories
+  // in the same instance of The NoteWriter Desktop.
   slug: 'my-notes',
 
   // Attribute definitions used in notes' front matter or inline.
@@ -33,7 +34,7 @@ local srsAlgorithmSettings = {
 
     // Example: author name (useful on quotes and books).
     name: {
-      // The attribute key used in front matter (e.g., `name: Alice`).
+      // The attribute key used when declaring the attribute (e.g., `name: Alice`).
       name: "name",
       // Alternative keys that resolve to the same attribute.
       aliases: ["author"],
@@ -60,26 +61,26 @@ local srsAlgorithmSettings = {
       type: "string",
       format: "yyyy-mm-dd",
       inherit: true,
-      // When true, this attribute marks the note as a "memory"
-      // (e.g., a book you have read).
+      // The desktop application will remind you of this event every year.
       memory: true,
     },
 
     // Example: attribute with a fixed set of allowed values.
     rating: {
       name: "rating",
-      type: "string",
-      // Only these values are accepted by the linter.
-      allowedValues: ["★", "★★", "★★★", "★★★★", "★★★★★"],
+      type: "integer",
+      // Minimum and maximum accepted values.
+      min: 1,
+      max: 5,
       // Value assumed when the attribute is absent.
-      defaultValue: "★★★",
-      // Map shorthand notations to their canonical values.
+      defaultValue: 3,
+      // Map shorthand notations to their canonical integer values.
       shorthands: {
-        "1": "★",
-        "2": "★★",
-        "3": "★★★",
-        "4": "★★★★",
-        "5": "★★★★★",
+        "★":     1,
+        "★★":    2,
+        "★★★":   3,
+        "★★★★":  4,
+        "★★★★★": 5,
       },
     },
 
@@ -109,8 +110,8 @@ local srsAlgorithmSettings = {
           name: "rating",
           // Attribute is accepted but not required.
           required: false,
-          // When false, the attribute must appear in front matter,
-          // not inline in the note body.
+          // When true, the attribute appears on individual list
+          // items, not on the note itself.
           inline: false,
         },
       ],
@@ -195,7 +196,8 @@ local srsAlgorithmSettings = {
     ],
   },
 
-  // Named queries used by commands such as `nt quote` or `nt remind`.
+  // Named queries saved in the desktop application to avoid
+  // re-entering the same searches.
   queries: {
 
     // Show a random quote on startup.
