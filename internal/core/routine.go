@@ -9,6 +9,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
 )
 
@@ -47,10 +48,14 @@ func GenerateRoutineContent(routine *ConfigRoutine) (string, error) {
 			return "_Take a moment to clear your mind by capturing your unfiltered thoughts, feelings, and morning reflections before the day begins._"
 		},
 		"affirmation": func(wikilink string) (string, error) {
-			return randomItemText(wikilink, false)
+			return randomItemText(wikilink)
 		},
 		"prompt": func(wikilink string) (string, error) {
-			return randomItemText(wikilink, true)
+			text, err := randomItemText(wikilink)
+			if err != nil {
+				return "", err
+			}
+			return text + "\n\n_Write your reflection_", nil
 		},
 	}
 
@@ -65,9 +70,9 @@ func GenerateRoutineContent(routine *ConfigRoutine) (string, error) {
 	return buf.String(), nil
 }
 
-// randomItemText picks a random item from the note identified by wikilink, strips
-// attributes and tags, and optionally appends a reflection prompt.
-func randomItemText(wikilink string, withReflection bool) (string, error) {
+// randomItemText picks a random item from the note identified by wikilink and strips
+// attributes and tags from the item text.
+func randomItemText(wikilink string) (string, error) {
 	note, err := CurrentRepository().FindNoteByWikilink(wikilink)
 	if err != nil {
 		return "", fmt.Errorf("querying note %q: %w", wikilink, err)
@@ -85,11 +90,7 @@ func randomItemText(wikilink string, withReflection bool) (string, error) {
 		StripOnlyAttributes(),
 	).TrimSpace()
 
-	result := stripped.String()
-	if withReflection {
-		result += "\n\n_Write your reflection_"
-	}
-	return result, nil
+	return stripped.String(), nil
 }
 
 // AppendRoutineToJournal appends the edited routine content to the appropriate journal file.
@@ -97,7 +98,7 @@ func randomItemText(wikilink string, withReflection bool) (string, error) {
 // All headings in editedContent are shifted so that template level-1 headings become
 // sub-headings (level 3) of the ## RoutineName section header.
 // Returns the absolute path of the journal file.
-func AppendRoutineToJournal(journal *ConfigJournal, routineName, editedContent string) (string, error) {
+func AppendRoutineToJournal(journal *ConfigJournal, routine *ConfigRoutine, editedContent string) (string, error) {
 	// Resolve the journal file path
 	relPath, err := EvaluateJournalPath(journal.Path)
 	if err != nil {
@@ -120,11 +121,12 @@ func AppendRoutineToJournal(journal *ConfigJournal, routineName, editedContent s
 		}
 	}
 
-	// Shift headings: template level-1 headings become level-3 sub-headings
-	shiftedContent := shiftHeadings(strings.TrimSpace(editedContent), 3)
+	// Shift headings so template level-1 headings become level-3 sub-headings
+	trimmed := strings.TrimSpace(editedContent)
+	shiftedContent := markdown.Document(trimmed).MustTransform(markdown.ShiftHeadings(2))
 
 	// Build the section to append (ensure a blank line before the ## header)
-	section := fmt.Sprintf("\n## %s\n\n%s\n", routineName, shiftedContent)
+	section := fmt.Sprintf("\n## %s\n\n%s\n", routine.Name, shiftedContent)
 
 	// Append to the journal file
 	f, err := os.OpenFile(absPath, os.O_APPEND|os.O_WRONLY, 0644)
@@ -138,52 +140,3 @@ func AppendRoutineToJournal(journal *ConfigJournal, routineName, editedContent s
 	return absPath, nil
 }
 
-// shiftHeadings shifts all Markdown headings so that the minimum heading level
-// in content becomes targetMinLevel. Other headings are shifted by the same amount.
-// Lines that are not headings are left unchanged.
-func shiftHeadings(content string, targetMinLevel int) string {
-	lines := strings.Split(content, "\n")
-
-	// Find the minimum heading level present in the content
-	minLevel := -1
-	for _, line := range lines {
-		level := markdownHeadingLevel(line)
-		if level > 0 && (minLevel == -1 || level < minLevel) {
-			minLevel = level
-		}
-	}
-	if minLevel == -1 {
-		return content // no headings found, nothing to shift
-	}
-
-	shift := targetMinLevel - minLevel
-	if shift <= 0 {
-		return content // already at or below target level
-	}
-
-	var result []string
-	for _, line := range lines {
-		level := markdownHeadingLevel(line)
-		if level > 0 {
-			newLevel := level + shift
-			// Rebuild the heading with the new level
-			result = append(result, strings.Repeat("#", newLevel)+line[level:])
-		} else {
-			result = append(result, line)
-		}
-	}
-	return strings.Join(result, "\n")
-}
-
-// markdownHeadingLevel returns the heading level (1–6) of a Markdown heading line,
-// or 0 if the line is not a heading.
-func markdownHeadingLevel(line string) int {
-	i := 0
-	for i < len(line) && line[i] == '#' {
-		i++
-	}
-	if i > 0 && i <= 6 && i < len(line) && line[i] == ' ' {
-		return i
-	}
-	return 0
-}

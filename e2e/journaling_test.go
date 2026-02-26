@@ -26,7 +26,7 @@ func TestJournaling(t *testing.T) {
 							Name: "Morning Routine",
 							Template: `# 💪 Affirmation
 
-{{ input }}
+{{ affirmation "journaling#List: Affirmations" }}
 
 # 🎯 My BIG thing for today
 
@@ -37,7 +37,7 @@ func TestJournaling(t *testing.T) {
 							Name: "Shutdown Routine",
 							Template: `# ❓ How was my day? Why?
 
-{{ input }}
+{{ prompt "journaling#List: Prompts" }}
 
 # 📋 3 tasks to complete tomorrow:
 
@@ -52,15 +52,39 @@ func TestJournaling(t *testing.T) {
 		}),
 	)
 
+	// Set up note files with list items for affirmation and prompt functions
+	tr.WriteFile("journaling.md", `# Journaling
+
+## List: Affirmations
+
+* All I need is within me right now.
+* I am grateful for this new day.
+* I have the power to create positive change.
+
+## List: Prompts
+
+* How can I make today meaningful?
+* What am I most excited about this week?
+* What is one thing I can do today to move closer to my goals?
+`)
+
+	_, err := CurrentRepository().Add(AnyPath)
+	require.NoError(t, err)
+	err = CurrentRepository().Commit(false)
+	require.NoError(t, err)
+
 	journal := CurrentConfigFile().Journals[0]
+	morningRoutine := &journal.Routines[0]
+	shutdownRoutine := &journal.Routines[1]
 
 	// --- Scenario 1: Morning Routine creates the journal file ---
 
-	morningContent, err := GenerateRoutineContent(&journal.Routines[0])
+	morningContent, err := GenerateRoutineContent(morningRoutine)
 	require.NoError(t, err)
-	assert.Contains(t, morningContent, "_Your Answer_")
+	// Affirmation should have been replaced by a list item
+	assert.NotContains(t, morningContent, `{{ affirmation`)
 
-	absPath1, err := AppendRoutineToJournal(journal, journal.Routines[0].Name, morningContent)
+	absPath1, err := AppendRoutineToJournal(journal, morningRoutine, morningContent)
 	require.NoError(t, err)
 
 	expectedPath1 := filepath.Join(tr.Root, "journal/2026/2026-02-26.md")
@@ -81,11 +105,13 @@ func TestJournaling(t *testing.T) {
 
 	// --- Scenario 2: Shutdown Routine appends to the same file ---
 
-	shutdownContent, err := GenerateRoutineContent(&journal.Routines[1])
+	shutdownContent, err := GenerateRoutineContent(shutdownRoutine)
 	require.NoError(t, err)
-	assert.Contains(t, shutdownContent, "_Your Answer_")
+	// Prompt should have been replaced and have reflection placeholder
+	assert.NotContains(t, shutdownContent, `{{ prompt`)
+	assert.Contains(t, shutdownContent, "_Write your reflection_")
 
-	absPath2, err := AppendRoutineToJournal(journal, journal.Routines[1].Name, shutdownContent)
+	absPath2, err := AppendRoutineToJournal(journal, shutdownRoutine, shutdownContent)
 	require.NoError(t, err)
 
 	// Same file as morning routine
@@ -108,10 +134,10 @@ func TestJournaling(t *testing.T) {
 
 	tr.FastForward(24 * time.Hour)
 
-	morningContentDay2, err := GenerateRoutineContent(&journal.Routines[0])
+	morningContentDay2, err := GenerateRoutineContent(morningRoutine)
 	require.NoError(t, err)
 
-	absPath3, err := AppendRoutineToJournal(journal, journal.Routines[0].Name, morningContentDay2)
+	absPath3, err := AppendRoutineToJournal(journal, morningRoutine, morningContentDay2)
 	require.NoError(t, err)
 
 	expectedPath3 := filepath.Join(tr.Root, "journal/2026/2026-02-27.md")

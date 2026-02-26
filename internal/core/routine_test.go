@@ -45,8 +45,7 @@ func TestGenerateRoutineContent(t *testing.T) {
 		}
 		content, err := GenerateRoutineContent(routine)
 		require.NoError(t, err)
-		assert.Contains(t, content, "_Your Answer_")
-		assert.Contains(t, content, "# Heading")
+		assert.Equal(t, "# Heading\n\n_Your Answer_\n", content)
 	})
 
 	t.Run("morningpages function", func(t *testing.T) {
@@ -79,46 +78,86 @@ func TestShiftHeadings(t *testing.T) {
 		DefaultContent: "# Journal {{ date }}",
 		Routines: []ConfigRoutine{
 			{
-				Name:     "Morning Routine",
-				Template: "# 💪 Affirmation\n\n{{ input }}\n\n# 😘 Gratitude\n\n* {{ input }}\n",
+				Name: "Morning Routine",
+				Template: `# 💪 Affirmation
+
+{{ input }}
+
+# 😘 Gratitude
+
+* {{ input }}
+`,
+			},
+			{
+				Name: "Shutdown Routine",
+				Template: `# ❓ How was my day?
+
+{{ input }}
+`,
 			},
 		},
 	}
 
 	t.Run("headings are shifted to level 3", func(t *testing.T) {
 		// Generate and append a routine
-		content := "# 💪 Affirmation\n\n_Your Answer_\n\n# 😘 Gratitude\n\n* _Your Answer_"
-		absPath, err := AppendRoutineToJournal(journal, "Morning Routine", content)
+		content := `# 💪 Affirmation
+
+_Your Answer_
+
+# 😘 Gratitude
+
+* _Your Answer_`
+		morningRoutine := &journal.Routines[0]
+		absPath, err := AppendRoutineToJournal(journal, morningRoutine, content)
 		require.NoError(t, err)
 
 		data, err := os.ReadFile(absPath)
 		require.NoError(t, err)
-		fileContent := string(data)
+		assert.Equal(t, `# Journal 2026-02-26
 
-		// Journal file should have been created with defaultContent
-		assert.Contains(t, fileContent, "# Journal 2026-02-26")
-		// Routine section header at level 2
-		assert.Contains(t, fileContent, "## Morning Routine")
-		// Template headings shifted to level 3
-		assert.Contains(t, fileContent, "### 💪 Affirmation")
-		assert.Contains(t, fileContent, "### 😘 Gratitude")
-		// Input placeholders present
-		assert.Contains(t, fileContent, "_Your Answer_")
+## Morning Routine
+
+### 💪 Affirmation
+
+_Your Answer_
+
+### 😘 Gratitude
+
+* _Your Answer_
+
+`, string(data))
 	})
 
 	t.Run("second append uses same file", func(t *testing.T) {
-		content := "# ❓ How was my day?\n\n_Your Answer_"
-		absPath, err := AppendRoutineToJournal(journal, "Shutdown Routine", content)
+		content := `# ❓ How was my day?
+
+_Your Answer_`
+		shutdownRoutine := &journal.Routines[1]
+		absPath, err := AppendRoutineToJournal(journal, shutdownRoutine, content)
 		require.NoError(t, err)
 
 		data, err := os.ReadFile(absPath)
 		require.NoError(t, err)
-		fileContent := string(data)
+		assert.Equal(t, `# Journal 2026-02-26
 
-		// Both routines should be in the file
-		assert.Contains(t, fileContent, "## Morning Routine")
-		assert.Contains(t, fileContent, "## Shutdown Routine")
-		assert.Contains(t, fileContent, "### ❓ How was my day?")
+## Morning Routine
+
+### 💪 Affirmation
+
+_Your Answer_
+
+### 😘 Gratitude
+
+* _Your Answer_
+
+
+## Shutdown Routine
+
+### ❓ How was my day?
+
+_Your Answer_
+
+`, string(data))
 	})
 }
 
@@ -134,10 +173,13 @@ func TestAppendRoutineToJournal_NewDay(t *testing.T) {
 		},
 	}
 
-	content := "# Task\n\n_Your Answer_"
+	morningRoutine := &journal.Routines[0]
+	content := `# Task
+
+_Your Answer_`
 
 	// Day 1
-	absPath1, err := AppendRoutineToJournal(journal, "Morning Routine", content)
+	absPath1, err := AppendRoutineToJournal(journal, morningRoutine, content)
 	require.NoError(t, err)
 	assert.True(t, strings.HasSuffix(absPath1, "2026-02-26.md"))
 	require.FileExists(t, absPath1)
@@ -146,7 +188,7 @@ func TestAppendRoutineToJournal_NewDay(t *testing.T) {
 	tr.FastForward(24 * time.Hour)
 
 	// Day 2 should create a new file
-	absPath2, err := AppendRoutineToJournal(journal, "Morning Routine", content)
+	absPath2, err := AppendRoutineToJournal(journal, morningRoutine, content)
 	require.NoError(t, err)
 	assert.True(t, strings.HasSuffix(absPath2, "2026-02-27.md"))
 	require.FileExists(t, absPath2)

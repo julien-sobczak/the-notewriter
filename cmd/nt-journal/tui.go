@@ -72,7 +72,7 @@ func runInteractiveMode() {
 	editedContent := string(data)
 
 	// Step 6: Append to journal file
-	absPath, err := core.AppendRoutineToJournal(journal, routine.Name, editedContent)
+	absPath, err := core.AppendRoutineToJournal(journal, routine, editedContent)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error appending routine to journal: %v\n", err)
 		os.Exit(1)
