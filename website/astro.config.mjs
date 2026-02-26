@@ -124,6 +124,7 @@ export default defineConfig({
 					label: 'Reference',
 					items: [
 						{ label: 'Syntax', link: '/reference/syntax' },
+						{ label: 'Configuration', link: '/reference/configuration' },
 						{ label: 'Internals', link: '/reference/internals' },
 						{
 							label: "Commands",
