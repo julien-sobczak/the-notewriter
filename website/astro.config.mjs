@@ -145,6 +145,7 @@ export default defineConfig({
 									items: [
 										{ label: "nt-vault", link: '/reference/commands/nt-vault' },
 										{ label: "nt-anki", link: '/reference/commands/nt-anki' },
+										{ label: "nt-journal", link: '/reference/commands/nt-journal' },
 										{ label: "nt-book", link: '/reference/commands/nt-book' },
 									],
 								},
