@@ -361,11 +361,17 @@ func (n *Note) update(packFile *PackFile, f *File, parsedNote *ParsedNote) {
 		n.RelativePath = f.RelativePath
 		stale = true
 	}
-
+	if n.RelativePath != parsedNote.RelativePath {
+		n.RelativePath = parsedNote.RelativePath
+		stale = true
+	}
+	if n.Type != parsedNote.Type {
+		n.Type = parsedNote.Type
+		stale = true
+	}
 	if n.Title != parsedNote.Title {
 		n.Title = parsedNote.Title
 		n.ShortTitle = parsedNote.ShortTitle
-		n.Type = parsedNote.Type
 		stale = true
 	}
 	if n.Body != parsedNote.Body {
