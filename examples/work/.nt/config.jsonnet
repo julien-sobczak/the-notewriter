@@ -51,8 +51,8 @@ local nt = import 'nt.libsonnet';
   journals: [
     {
       name: 'Work Diary',
-      path: 'journal/${year}/${year}-${month}-${day}.md',
-      defaultContent: '# Journal: ${year}-${month}-${day}',
+      path: 'journal/{{ year }}/{{ year }}-{{ month }}-{{ day }}.md',
+      defaultContent: '# Journal: {{ year }}-{{ month }}-{{ day }}',
     },
   ],
 
