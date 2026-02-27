@@ -1,5 +1,5 @@
 ---
-title: My Writing Workflow
+title: My Journaling Workflow
 ---
 
 **TODO**

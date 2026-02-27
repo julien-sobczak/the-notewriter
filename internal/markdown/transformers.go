@@ -172,7 +172,40 @@ func AlignHeadings() DocumentTransformer {
 	}
 }
 
-// StripCodeBlocks removes code blocks from a Markdown document.
+// ShiftHeadings shifts all heading levels in a document by the given amount.
+// A positive shift increases the heading level (e.g., # becomes ## when shift=1).
+// Headings that would exceed level 6 are capped at level 6.
+func ShiftHeadings(shift int) DocumentTransformer {
+	return func(document Document) (Document, error) {
+		if shift == 0 {
+			return document, nil
+		}
+		var res bytes.Buffer
+		it := document.Iterator()
+		for it.HasNext() {
+			line := it.Next()
+			ok, headingTitle, level := line.IsHeading()
+			if ok {
+				newLevel := level + shift
+				if newLevel < 1 {
+					newLevel = 1
+				}
+				if newLevel > 6 {
+					newLevel = 6
+				}
+				res.WriteString(strings.Repeat("#", newLevel))
+				res.WriteString(" ")
+				res.WriteString(headingTitle)
+				it.SkipHeading()
+			} else {
+				res.WriteString(line.Text)
+			}
+			res.WriteString("\n")
+		}
+		return Document(res.String()), nil
+	}
+}
+
 func StripCodeBlocks() DocumentTransformer {
 	return func(document Document) (Document, error) {
 		var newLines []string

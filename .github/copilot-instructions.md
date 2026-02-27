@@ -125,7 +125,7 @@ nt gc                # Garbage collection
 
 ### Note Format
 
-Notes are Markdown files with YAML frontmatter:
+Notes are Markdown files with YAML Front Matter:
 
 ```markdown
 ---
