@@ -1,10 +1,10 @@
 # nt-vault
 
-A tool to encrypt and decrypt markdown files using AES-256 encryption, inspired by ansible-vault.
+A tool to encrypt and decrypt Markdown files using AES-256 encryption, inspired by ansible-vault.
 
 ## Overview
 
-`nt-vault` allows you to securely encrypt sensitive markdown notes so that they can be stored in version control (like GitHub) without exposing private information. The encrypted files remain valid markdown files with a special frontmatter indicating they are encrypted.
+`nt-vault` allows you to securely encrypt sensitive Markdown notes so that they can be stored in version control (like GitHub) without exposing private information. The encrypted files remain valid Markdown files with a special Front Matter indicating they are encrypted.
 
 
 ## Setup
@@ -43,7 +43,7 @@ nt-vault create path/to/secret-note.md
 
 ### Encrypt an Existing File
 
-Encrypts a plaintext markdown file in-place:
+Encrypts a plaintext Markdown file in-place:
 
 ```bash
 nt-vault encrypt path/to/note.md
@@ -81,7 +81,7 @@ nt-vault view path/to/encrypted-note.md
 
 ## Encrypted File Format
 
-Encrypted files are valid markdown files with the following structure:
+Encrypted files are valid Markdown files with the following structure:
 
 ```markdown
 ---
@@ -97,7 +97,7 @@ hmac: <base64-encoded-hmac>
 ```
 
 The file contains:
-- **YAML frontmatter** with encryption metadata
+- **YAML Front Matter** with encryption metadata
 - **encrypted** flag set to `true`
 - **version** of the encryption format
 - **algorithm** used (AES256 with GCM mode)

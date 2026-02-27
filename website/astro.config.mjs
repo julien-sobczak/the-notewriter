@@ -117,6 +117,7 @@ export default defineConfig({
 					label: 'Best Practices',
 					items: [
 						{ label: 'Guidelines', link: '/practices/guidelines' },
+						{ label: 'Git', link: '/practices/git' },
 						{ label: 'VS Code', link: '/practices/vs-code' },
 					],
 				},

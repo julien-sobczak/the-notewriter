@@ -29,13 +29,12 @@ Remotes are declared inside the `.nt/config` file. Several remote implementation
 * `file`
 * `s3`
 
-**TODO** complete
 
 ## Examples
 
 * Push all commits not present in the remote ref:
 
-        $ nt push
+      $ nt push
 
 ## See Also
 
