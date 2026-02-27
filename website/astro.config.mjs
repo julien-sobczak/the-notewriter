@@ -140,6 +140,14 @@ export default defineConfig({
 								{ label: "nt gc", link: '/reference/commands/nt-gc' },
 								{ label: "nt lint", link: '/reference/commands/nt-lint' },
 								{ label: "nt cat-file", link: '/reference/commands/nt-cat-file' },
+								{
+									label: "Extras",
+									items: [
+										{ label: "nt-vault", link: '/reference/commands/nt-vault' },
+										{ label: "nt-anki", link: '/reference/commands/nt-anki' },
+										{ label: "nt-book", link: '/reference/commands/nt-book' },
+									],
+								},
 							],
 						}
 					]
