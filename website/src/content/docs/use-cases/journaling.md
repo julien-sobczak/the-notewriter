@@ -80,31 +80,31 @@ Routines can be defined in `config.jsonnet`:
   journal: [
     {
       name: 'My Diary',
-      path: 'journal/${year}/${year}-${month}-${day}.md',
-      defaultContent: '# Journal: ${year}-${month}-${day}',
+      path: 'journal/{{ year }}/{{ year }}-{{ month }}-{{ day }}.md',
+      defaultContent: '# Journal: {{ year }}-{{ month }}-{{ day }}',
       routines: [
         {
           name: 'Morning Routine',
           template: |||
             # 💪 Affirmation
 
-            <Affirmation wikilink="journaling#List: Affirmations" tags="success,optimism" />
+            {{ affirmation "journaling#List: Affirmations" }}
 
             # 😘 Gratitude Journal
 
             3 things I appreciate:
 
-            * <Input />
-            * <Input />
-            * <Input />
+            * {{ input }}
+            * {{ input }}
+            * {{ input }}
 
             # 🤔 Prompt
 
-            <Prompt wikilink="journaling#List: Prompts" />
+            {{ prompt "journaling#List: Prompts" }}
 
             # 🎯 My BIG thing for today
 
-            <Input />
+            {{ input }}
           |||,
         },
         {
@@ -112,13 +112,13 @@ Routines can be defined in `config.jsonnet`:
           template: |||
             # ❓ How was my day? Why?
 
-            <Input />
+            {{ input }}
 
             # 📋 3 tasks to complete tomorrow:
 
-            * [ ] <Input />
-            * [ ] <Input />
-            * [ ] <Input />
+            * [ ] {{ input }}
+            * [ ] {{ input }}
+            * [ ] {{ input }}
           |||,
         },
       ],
@@ -129,8 +129,8 @@ Routines can be defined in `config.jsonnet`:
 
 Routines will be appended to your journal entry specified using these attributes:
 
-* `path`: A template to the path of note containing the daily journal entry. Ex: `journal/${year}/${year}-${month}-${day}.md`
-* `defaultContent`: The default content for this note if the file doesn't exist. Ex: `# Journal: ${year}-${month}-${day}` will define the file title.
+* `path`: A template to the path of note containing the daily journal entry. Ex: `journal/{{ year }}/{{ year }}-{{ month }}-{{ day }}.md`
+* `defaultContent`: The default content for this note if the file doesn't exist. Ex: `# Journal: {{ year }}-{{ month }}-{{ day }}` will define the file title.
 
 Several routines could be defined. For example:
 

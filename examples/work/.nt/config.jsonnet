@@ -3,22 +3,22 @@ local nt = import 'nt.libsonnet';
 {
   slug: 'work',
   attributes: nt.DefaultAttributes,
-  noteTypes: nt.DefaultNoteTypes + {
+  noteTypes: nt.DefaultNoteTypes {
     // Reference for reference notes
-    Reference: nt.DefaultNoteTypes.Note + {
-      name: "Reference",
+    Reference: nt.DefaultNoteTypes.Note {
+      name: 'Reference',
     },
     // Project overview
-    Overview: self.Note + {
-      name: "Overview",
+    Overview: self.Note {
+      name: 'Overview',
     },
     // Checklist for list of items to review
-    Checklist: nt.DefaultNoteTypes.List + {
-      name: "Checklist",
+    Checklist: nt.DefaultNoteTypes.List {
+      name: 'Checklist',
     },
     // Cheatsheet presents "How to..." solutions
-    Cheatsheet: self.Note + {
-      name: "Cheatsheet",
+    Cheatsheet: self.Note {
+      name: 'Cheatsheet',
     },
   },
 
@@ -51,14 +51,14 @@ local nt = import 'nt.libsonnet';
   journals: [
     {
       name: 'Work Diary',
-      path: 'journal/${year}/${year}-${month}-${day}.md',
-      defaultContent: 'Journal: ${year}-${month}-${day}',
+      path: 'journal/{{ year }}/{{ year }}-{{ month }}-{{ day }}.md',
+      defaultContent: '# Journal: {{ year }}-{{ month }}-{{ day }}',
     },
   ],
 
   decks: [
     {
-      name: "Work",
+      name: 'Work',
       // Matches all flashcards with default settings
     },
   ],

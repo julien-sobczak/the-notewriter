@@ -782,8 +782,8 @@ func TestParseConfigFile(t *testing.T) {
 	journals: [
 		{
 			name: "My Diary",
-			path: "journal/${year}/${year}-${month}-${day}.md",
-			defaultContent: "# Journal: ${year}-${month}-${day}",
+			path: "journal/{{ year }}/{{ year }}-{{ month }}-{{ day }}.md",
+			defaultContent: "# Journal: {{ year }}-{{ month }}-{{ day }}",
 			routines: [
 				{
 					name: "Morning Routine",
@@ -806,8 +806,8 @@ func TestParseConfigFile(t *testing.T) {
 		require.Len(t, cfg.Journals, 1)
 		journal := cfg.Journals[0]
 		assert.Equal(t, "My Diary", journal.Name)
-		assert.Equal(t, "journal/${year}/${year}-${month}-${day}.md", journal.Path)
-		assert.Equal(t, "# Journal: ${year}-${month}-${day}", journal.DefaultContent)
+		assert.Equal(t, "journal/{{ year }}/{{ year }}-{{ month }}-{{ day }}.md", journal.Path)
+		assert.Equal(t, "# Journal: {{ year }}-{{ month }}-{{ day }}", journal.DefaultContent)
 		require.Len(t, journal.Routines, 2)
 		assert.Equal(t, "Morning Routine", journal.Routines[0].Name)
 		assert.Equal(t, "# Good morning", journal.Routines[0].Template)

@@ -416,7 +416,7 @@ type ConfigNoteType struct {
 
 // Check validates the note type configuration.
 func (c *ConfigNoteType) Check() error {
-		if c == nil {
+	if c == nil {
 		return nil
 	}
 	// Check for invalid regex pattern
@@ -482,7 +482,6 @@ func (c ConfigDecks) ApplyDefaults() {
 	}
 }
 
-
 // ConfigFileSchema defines the structure of a file's Markdown schema
 type ConfigFileSchema struct {
 	Body *ConfigHeadingSchema `json:"body,omitempty"` // Body structure validation rules
@@ -500,7 +499,7 @@ type ConfigHeadingSchema struct {
 
 // Check validates the heading schema configuration.
 func (c *ConfigHeadingSchema) Check() error {
-		if c == nil {
+	if c == nil {
 		return nil
 	}
 	if c.Match != "" {
@@ -531,7 +530,7 @@ type ConfigFileType struct {
 
 // Check validates the file type configuration.
 func (c *ConfigFileType) Check() error {
-		if c == nil {
+	if c == nil {
 		return nil
 	}
 	// Check for invalid regex pattern
@@ -548,13 +547,14 @@ func (c *ConfigFileType) Check() error {
 	}
 	return nil
 }
+
 type ConfigLinter struct {
 	Rules []*ConfigLinterRule `json:"rules"` // List of rules to apply to notes
 }
 type ConfigLinterRule struct {
-	Name     string `json:"name"`
-	Args     []any  `json:"args"`
-	Query    string `json:"query,omitempty"` // Optional query to restrict which notes are concerned
+	Name  string `json:"name"`
+	Args  []any  `json:"args"`
+	Query string `json:"query,omitempty"` // Optional query to restrict which notes are concerned
 }
 
 func (c *ConfigLinter) Check() error {
@@ -573,7 +573,7 @@ func (c *ConfigLinter) ApplyDefaults() {}
 
 // Check validates the linter rule configuration.
 func (c *ConfigLinterRule) Check() error {
-		if c == nil {
+	if c == nil {
 		return nil
 	}
 	// Check rule name is known
@@ -581,7 +581,6 @@ func (c *ConfigLinterRule) Check() error {
 	if !ok {
 		return fmt.Errorf("unknown lint rule %q", c.Name)
 	}
-
 
 	// Check query is valid
 	if c.Query != "" {
@@ -625,7 +624,7 @@ type ConfigDeck struct {
 
 // Check validates the deck configuration.
 func (c *ConfigDeck) Check() error {
-		if c == nil {
+	if c == nil {
 		return nil
 	}
 	if c.Query != "" {
@@ -640,6 +639,7 @@ func (c *ConfigDeck) Check() error {
 	}
 	return nil
 }
+
 type ConfigQuery struct {
 	Title string   `json:"title"`
 	Query string   `json:"query"`
@@ -648,7 +648,7 @@ type ConfigQuery struct {
 
 // Check validates the query syntax.
 func (c *ConfigQuery) Check() error {
-		if c == nil {
+	if c == nil {
 		return nil
 	}
 	if c.Query != "" {
@@ -659,6 +659,7 @@ func (c *ConfigQuery) Check() error {
 	}
 	return nil
 }
+
 type ConfigReference struct {
 	Title    string `json:"title"`    // Ex: "A book"
 	Manager  string `json:"manager"`  // Ex: "zotero"
@@ -668,9 +669,9 @@ type ConfigReference struct {
 
 // Check validates the reference configuration.
 func (c *ConfigReference) Check() error {
-		if c == nil {
+	if c == nil {
 		return nil
-}
+	}
 	// Only path and template supports Go Templating
 	_, err := reference.ParseTemplate(c.Path)
 	if err != nil {
@@ -761,8 +762,34 @@ type ConfigRoutine struct {
 	Template string `json:"template"`
 }
 
+func (c *ConfigRoutine) Check() error {
+	if c.Template != "" {
+		_, err := template.New(c.Name).Parse(c.Template)
+		if err != nil {
+			return fmt.Errorf("invalid template for routine %q: %v", c.Name, err)
+		}
+	}
+	return nil
+}
+
 func (c *ConfigJournal) Check() error {
-	// IMPROVEMENT: validate template syntax
+	if c.Path != "" {
+		_, err := template.New(c.Name).Parse(c.Path)
+		if err != nil {
+			return fmt.Errorf("invalid template for journal path %q: %v", c.Path, err)
+		}
+	}
+	if c.DefaultContent != "" {
+		_, err := template.New(c.Name).Parse(c.DefaultContent)
+		if err != nil {
+			return fmt.Errorf("invalid template for journal default content %q: %v", c.DefaultContent, err)
+		}
+	}
+	for _, routine := range c.Routines {
+		if err := routine.Check(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
