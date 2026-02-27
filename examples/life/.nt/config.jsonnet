@@ -6,144 +6,144 @@ local srsAlgorithmSettings = {
 
 {
   slug: 'life',
-  attributes: nt.DefaultAttributes + {
+  attributes: nt.DefaultAttributes {
     date: {
-      name: "date",
-      type: "string",
-      format: "yyyy-mm-dd",
+      name: 'date',
+      type: 'string',
+      format: 'yyyy-mm-dd',
       inherit: true,
     },
     // Identify the author (useful on quotes)
     name: {
-      name: "name",
-      aliases: ["author"],
-      type: "string",
-      format: "markdown",
-      inherit: true, // Often declared in Front Matter
+      name: 'name',
+      aliases: ['author'],
+      type: 'string',
+      format: 'markdown',
+      inherit: true,  // Often declared in Front Matter
     },
     occupation: {
-      name: "occupation",
-      type: "string",
-      format: "markdown",
-      inherit: true, // Often declared in Front Matter
+      name: 'occupation',
+      type: 'string',
+      format: 'markdown',
+      inherit: true,  // Often declared in Front Matter
     },
 
     // Book
     isbn: {
-      name: "isbn",
-      type: "string",
-      format: "isbn",
-      inherit: true, // Often declared in Front Matter
+      name: 'isbn',
+      type: 'string',
+      format: 'isbn',
+      inherit: true,  // Often declared in Front Matter
     },
 
     // Project
     draft: {
-      name: "draft",
-      type: "bool",
+      name: 'draft',
+      type: 'bool',
       inherit: false,
     },
 
     // Readings
     read_date: {
-      name: "read_date",
-      type: "string", # Avoid type "date" to not dump a full date as timestamp
-      format: "yyyy-mm-dd",
-      inherit: true, // Often declared in Front Matter
-      memory: true, // Used to mark this note as memory
+      name: 'read_date',
+      type: 'string',  // Avoid type "date" to not dump a full date as timestamp
+      format: 'yyyy-mm-dd',
+      inherit: true,  // Often declared in Front Matter
+      memory: true,  // Used to mark this note as memory
     },
     rating: {
-      name: "rating",
-      type: "string",
-      allowedValues: ["★", "★★", "★★★", "★★★★", "★★★★★"],
-      defaultValue: "★★★",
+      name: 'rating',
+      type: 'string',
+      allowedValues: ['★', '★★', '★★★', '★★★★', '★★★★★'],
+      defaultValue: '★★★',
       shorthands: {
-        "★": "★",
-        "★★": "★★",
-        "★★★": "★★★",
-        "★★★★": "★★★★",
-        "★★★★★": "★★★★★",
+        '★': '★',
+        '★★': '★★',
+        '★★★': '★★★',
+        '★★★★': '★★★★',
+        '★★★★★': '★★★★★',
       },
     },
   },
 
-  noteTypes: nt.DefaultNoteTypes + {
+  noteTypes: nt.DefaultNoteTypes {
     // Customize default note types
-    Quote: nt.DefaultNoteTypes.Quote + {
+    Quote: nt.DefaultNoteTypes.Quote {
       // Override to enforce a few attributes
       attributes: [
         {
-          name: "name",
+          name: 'name',
           required: true,
         },
         {
-          name: "occupation",
+          name: 'occupation',
           required: true,
         },
       ],
     },
-    Artwork: nt.DefaultNoteTypes.Artwork + {
+    Artwork: nt.DefaultNoteTypes.Artwork {
       attributes: [
         {
-          name: "artist",
+          name: 'artist',
         },
         {
-          name: "year",
+          name: 'year',
         },
       ],
     },
 
     // Declare custom types for specific uses
-    Reference: nt.DefaultNoteTypes.Note + {
-      name: "Reference",
+    Reference: nt.DefaultNoteTypes.Note {
+      name: 'Reference',
     },
     // Synopsis presents the project overview (= the initial idea)
-    Synopsis: self.Note + {
-      name: "Synopsis",
+    Synopsis: self.Note {
+      name: 'Synopsis',
     },
-    Idea: self.Note + {
-      name: "Idea",
+    Idea: self.Note {
+      name: 'Idea',
     },
     // Cheatsheet presents "How to..." solutions
-    Cheatsheet: self.Note + {
-      name: "Cheatsheet",
+    Cheatsheet: self.Note {
+      name: 'Cheatsheet',
     },
     // BookReview is a note reviewing a book
-    BookReview: self.Note + {
-      name: "BookReview",
+    BookReview: self.Note {
+      name: 'BookReview',
       attributes: [
         {
           // ISBN is required to identify the book (often inherited from the book reference)
-          name: "isbn",
+          name: 'isbn',
           required: true,
         },
         {
           // Omitted the attribute is not allowed to prevent a review from being published before it's ready
-          name: "draft",
+          name: 'draft',
           required: true,
         },
         {
           // Rating of the book
-          name: "rating",
+          name: 'rating',
           required: true,
         },
         {
           // Date when the book was read
-          name: "read_date",
+          name: 'read_date',
           required: true,
         },
       ],
     },
     // ReadingList is a list of books (read, to read, dnf, etc.)
-    ReadingList: nt.DefaultNoteTypes.Note + {
-      name: "ReadingList",
+    ReadingList: nt.DefaultNoteTypes.Note {
+      name: 'ReadingList',
       attributes: [
         {
-          name: "rating",
+          name: 'rating',
           optional: true,
           inline: false,
         },
       ],
-      processors: ["list-items"],
+      processors: ['list-items'],
     },
   },
 
@@ -157,51 +157,51 @@ local srsAlgorithmSettings = {
       nt.LintRules.NoExtensionWikilink(),
       nt.LintRules.NoAmbiguousWikilink(),
       nt.LintRules.NoOrphanFlashcard(),
-      nt.LintRules.RequireTagIf("type:Quote", [
-        "focusing",
-        "reading",
-        "understanding",
-        "knowing",
-        "learning",
-        "mastering",
-        "doing",
-        "being",
-        "reflecting",
-        "living",
-        "suffering",
-        "loving",
-        "problem-solving",
-        "thinking",
-        "programming",
-        "planning",
-        "writing",
-        "note-taking",
-        "aging",
-        "dying",
-      ])
+      nt.LintRules.RequireTagIf('type:Quote', [
+        'focusing',
+        'reading',
+        'understanding',
+        'knowing',
+        'learning',
+        'mastering',
+        'doing',
+        'being',
+        'reflecting',
+        'living',
+        'suffering',
+        'loving',
+        'problem-solving',
+        'thinking',
+        'programming',
+        'planning',
+        'writing',
+        'note-taking',
+        'aging',
+        'dying',
+      ]),
     ],
   },
 
   queries: {
     // Show random quote at startup
     dailyQuote: {
-      title: "Daily Quote",
-      query: "path:resources/books type:Quote",
-      tags: ["daily-quote"],
+      title: 'Daily Quote',
+      query: 'path:resources/books type:Quote',
+      tags: ['daily-quote'],
     },
     // A few custom queries to review some notes regularly
     favoriteQuotes: {
-      title: "Favorite Quotes",
-      query: "#favorite type:Quote",
-      tags: ["daily-quote"],
+      title: 'Favorite Quotes',
+      query: '#favorite type:Quote',
+      tags: ['daily-quote'],
     },
     unpublishedReviews: {
-      title: "Unpublished Book Reviews",
-      query: "@draft:true type:BookReview",
+      title: 'Unpublished Book Reviews',
+      query: '@draft:true type:BookReview',
     },
     myNextBook: {
-      title: "Reading List",
-      query: "type:ReadingList",
+      title: 'Reading List',
+      query: 'type:ReadingList',
     },
 
     // Configure sources of inspiration
@@ -246,7 +246,7 @@ local srsAlgorithmSettings = {
     {
       name: 'My Diary',
       path: 'journal/{{ year }}/{{ year }}-{{ month }}-{{ day }}.md',
-      defaultContent: 'Journal: {{ year }}-{{ month }}-{{ day }}',
+      defaultContent: '# Journal: {{ year }}-{{ month }}-{{ day }}',
       routines: [
         {
           name: 'Morning Routine',
@@ -292,46 +292,46 @@ local srsAlgorithmSettings = {
 
   decks: [
     {
-      name: "Skills",
-      query: "path:resources/skills",
+      name: 'Skills',
+      query: 'path:resources/skills',
       newFlashcardsPerDay: 10,
       algorithmSettings: srsAlgorithmSettings,
     },
     {
-      name: "General",
+      name: 'General',
       // Every other flashcards that didn't match above decks
       newFlashcardsPerDay: 10,
       algorithmSettings: srsAlgorithmSettings,
-    }
+    },
   ],
 
   books: [
     {
-      title: "Reflections on Life",
-      subtitle: "Modern Wisdom from Timeless Quotes",
-      format: ["markdown"],
-      author: ["Various"],
-      language: "en",
+      title: 'Reflections on Life',
+      subtitle: 'Modern Wisdom from Timeless Quotes',
+      format: ['markdown'],
+      author: ['Various'],
+      language: 'en',
       chapters: [
         {
-          title: "On Being",
-          query: "path:thoughts/on-being",
-          icon: "thoughts/medias/on-being.png",
+          title: 'On Being',
+          query: 'path:thoughts/on-being',
+          icon: 'thoughts/medias/on-being.png',
         },
         {
-          title: "On Doing",
-          query: "path:thoughts/on-doing",
-          icon: "thoughts/medias/on-doing.png",
+          title: 'On Doing',
+          query: 'path:thoughts/on-doing',
+          icon: 'thoughts/medias/on-doing.png',
         },
         {
-          title: "On Learning",
-          query: "path:thoughts/on-learning",
-          icon: "thoughts/medias/on-learning.png",
+          title: 'On Learning',
+          query: 'path:thoughts/on-learning',
+          icon: 'thoughts/medias/on-learning.png',
         },
         {
-          title: "On Thinking",
-          query: "path:thoughts/on-thinking",
-          icon: "thoughts/medias/on-thinking.png",
+          title: 'On Thinking',
+          query: 'path:thoughts/on-thinking',
+          icon: 'thoughts/medias/on-thinking.png',
         },
       ],
     },

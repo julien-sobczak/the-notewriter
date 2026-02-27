@@ -59,4 +59,5 @@ install: build
 	cp build/ntanki /Users/julien/go/bin/nt-anki
 	cp build/ntbook /Users/julien/go/bin/nt-book
 	cp build/ntvault /Users/julien/go/bin/nt-vault
+	cp build/ntjournal /Users/julien/go/bin/nt-journal
 # NB: The command `go install --tags "fts5" cmd/nt/*.go` builds an invalid main executable instead of a `nt` file
