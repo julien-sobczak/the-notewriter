@@ -757,3 +757,40 @@ section.faq {
 	/* Reset padding/box-sizing */
 	box-sizing: border-box;
 }
+
+
+@media (max-width: 767px) {
+	/*
+	 * IMPROVEMENT: The landing page wasn't designed in mobile-first,
+	 * so we need to override some styles for smaller screens.
+	 * It would be better to redesign the landing page with a mobile-first
+	 * approach.
+	 */
+
+	/* Adjust some styles for smaller screens */
+	[data-has-hero] .tagline {
+
+		/* Make the buttons stack vertically */
+		nav ul {
+			flex-direction: column;
+			gap: 1rem;
+		}
+
+	}
+
+	/* Make the quote section full-width to avoid small margins */
+	[data-has-hero] figure.quote {
+		border-radius: 0;
+		position: relative;
+		left: 50%;
+		right: 50%;
+		margin-left: -50vw;
+		margin-right: -50vw;
+		width: 100vw !important;
+	}
+
+	[data-has-hero] #logo-character-stack {
+		display: none;
+	}
+
+}
