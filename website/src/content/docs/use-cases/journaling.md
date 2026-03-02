@@ -140,33 +140,33 @@ Several routines could be defined. For example:
   template: |||
     # 💪 Affirmation
 
-    <Affirmation wikilink="journaling#List: Affirmations" tags="success,optimism" />
+    {{ affirmation "journaling#List: Affirmations" }}
 
     # 😘 Gratitude Journal
 
     3 things I appreciate:
 
-    * <Input />
-    * <Input />
-    * <Input />
+    * {{ input }}
+    * {{ input }}
+    * {{ input }}
 
     # 🤔 Prompt
 
-    <Prompt wikilink="journaling#List: Prompts" />
+    {{ prompt wikilink="journaling#List: Prompts" }}
 
     # 🎯 My BIG thing for today
 
-    <Input />
+    {{ input }}
     |||,
 },
 ```
 
 A routine is defined by its `name` and a `template`. A template is the text that will be rendered with placeholders for the user to enter:
 
-* `<Input />`: A text input to answer a question, write a line, etc.
-* `<Affirmation wikilink="journaling#List: Affirmations" />`: Render an affirmation selected in a list note identified by the attribute `wikilink`. The optional attribute `tags` can be used to filter affirmations.
-* `<Prompt wikilink="journaling#List: Prompts" tags="doing" />`: Render a prompt and a text input to write your reflection on it. The optional attribute `tags` can be used to filter prompts.
-* `<MorningPages throwAway />`: Render a textarea to fill your morning pages. The optional attribute `throwAways` can be used to not append the result in the final journal entry.
+* `{{ input }}`: A text input to answer a question, write a line, etc.
+* `{{ affirmation wikilink="journaling#List: Affirmations" }}`: Render an affirmation selected in a list note identified by the attribute `wikilink`.
+* `{{ prompt wikilink="journaling#List: Prompts" }}`: Render a prompt and a text input to write your reflection on it.
+* `{{ morningpages }}`: Render an input to fill your morning pages.
 
 Example of notes for affirmations and prompts:
 

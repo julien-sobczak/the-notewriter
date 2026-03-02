@@ -230,30 +230,30 @@ local srsAlgorithmSettings = {
       // Display name shown when selecting a journal.
       name: 'My Diary',
       // File path template for new journal entries.
-      // Supported variables: ${year}, ${month}, ${day}.
-      path: 'journal/${year}/${year}-${month}-${day}.md',
+      // Supported custom functions: year, month, day, date.
+      path: 'journal/{{ year }}/{{year}}-{{month}}-{{day}}.md',
       // Default heading inserted when a new entry is created.
-      defaultContent: 'Journal: ${year}-${month}-${day}',
+      defaultContent: 'Journal: {{year}}-{{month}}-{{day}}',
       // Routines are recurring templates appended to a journal entry.
       routines: [
         {
           // Name shown when choosing a routine to insert.
           name: 'Morning Routine',
-          // Multiline template using Jsonnet text blocks (|||).
-          // Supported XML-like components:
-          //   <Input />                       - free-text input prompt
-          //   <Affirmation wikilink="..." />  - random affirmation
-          //   <Prompt wikilink="..." />       - random writing prompt
+          // Multiline Go template using Jsonnet text blocks (|||).
+          // Supported custom functions:
+          //   {{ input }}                     - free-text input prompt
+          //   {{ affirmation "<wikilink>" }}  - random affirmation
+          //   {{ prompt "<wikilink>" }}       - random writing prompt
           template: |||
             # 🎯 My BIG thing for today
 
-            <Input />
+            {{ input }}
 
             # 😘 Gratitude Journal
 
-            * <Input />
-            * <Input />
-            * <Input />
+            * {{ input }}
+            * {{ input }}
+            * {{ input }}
           |||,
         },
       ],
