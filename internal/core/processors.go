@@ -117,6 +117,7 @@ func GeneratorProcessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, erro
 	filename := note.Attributes.CastValueAsString("file")
 	interpreter := note.Attributes.CastValueAsString("interpreter")
 
+	var cmdName string
 	var cmdArgs []string
 
 	if interpreter != "" {
@@ -125,7 +126,7 @@ func GeneratorProcessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, erro
 			return nil, fmt.Errorf("interpreter %q doesn't exist in generator %q", interpreter, note.ShortTitle)
 		}
 
-		cmdArgs = append(cmdArgs, interpreter)
+		cmdName = interpreter
 	}
 
 	if filename != "" { // External
@@ -155,14 +156,12 @@ func GeneratorProcessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, erro
 		scriptLanguage := script.Language
 		scriptContent := script.Source
 
-		if scriptLanguage == "" {
-			return nil, fmt.Errorf("missing language in code block inside generator %q", note.ShortTitle)
-		}
-
-		// Expect the Markdown language
 		if interpreter == "" {
 			// Ex: "python" but doesn't overridde if interpreter is set (ex: "python3")
-			cmdArgs = append(cmdArgs, scriptLanguage)
+			if scriptLanguage == "" {
+				return nil, fmt.Errorf("missing language or attribute `'interpreter' for code block in generator %q", note.ShortTitle)
+			}
+			cmdName = scriptLanguage
 		}
 
 		scriptPath, err := os.CreateTemp("", "ntscript")
@@ -177,7 +176,7 @@ func GeneratorProcessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, erro
 
 	CurrentLogger().Infof("Running generator command: %s", strings.Join(cmdArgs, " "))
 
-	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+	cmd := exec.Command(cmdName, cmdArgs...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -198,7 +197,6 @@ func GeneratorProcessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, erro
 	if err := os.WriteFile(mdPath.Name(), stdout.Bytes(), 0644); err != nil {
 		return nil, fmt.Errorf("unable to write temporary Markdown file for generator %q: %w", note.ShortTitle, err)
 	}
-
 
 	mdFile, err := markdown.ParseFile(mdPath.Name())
 	if err != nil {

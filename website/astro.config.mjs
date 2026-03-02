@@ -71,8 +71,7 @@ export default defineConfig({
 						{ label: 'Attributes', link: '/user-guide/attributes' },
 						{ label: 'Tags', link: '/user-guide/tags' },
 						{ label: 'Note Types', link: '/user-guide/note-types' },
-						// TODO file types with their Markdown schemas
-						// { label: 'File Types', link: '/user-guide/file-types' },
+						{ label: 'File Types', link: '/user-guide/file-types' },
 						{ label: 'Links', link: '/user-guide/links' },
 						{ label: 'Linter', link: '/user-guide/linter' },
 						{
@@ -88,6 +87,7 @@ export default defineConfig({
 						},
 						{ label: 'Hooks', link: '/user-guide/hooks' },
 						{ label: 'Remotes', link: '/user-guide/remotes' },
+						{ label: 'Generators', link: '/user-guide/generators' },
 					],
 				},
 				{
@@ -108,8 +108,8 @@ export default defineConfig({
 						{ label: "Overview", link: '/examples/my-workflow/overview' },
 						{ label: 'My Daily Workflow', link: '/examples/my-workflow/daily' },
 						{ label: 'My Reading Workflow', link: '/examples/my-workflow/reading' },
-						{ label: 'My Writing Workflow', link: '/examples/my-workflow/writing' },
 						// IMPROVEMENT add more example workflows
+						// { label: 'My Writing Workflow', link: '/examples/my-workflow/writing' },
 						// { label: 'My Journaling Workflow', link: '/examples/my-workflow/writing' },
 					],
 				},

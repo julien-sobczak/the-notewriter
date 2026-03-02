@@ -175,3 +175,65 @@ Processors are additional logic to execute on a parsed note. Another example is 
 ```
 
 The proprocessor `flashcard-extractor` is responsible to extract the front/back cards. You can create your own custom flashcard types by reusing the same processor.
+
+
+## Master Notes
+
+_The NoteWriter_ supports a special predefined note type called `Master`.
+
+Master notes are designed to dynamically generate a note based on other notes present in the same file, based on a Go template embedded in the master note. For example, we have a Markdown file with a list of ideas for a fictive touch typing application:
+
+```md
+# Ideas
+
+## Idea: Custom Content Import
+
+Allow users to import their own Git repositories or text files for personalized practice sessions.
+
+## Idea: Audio Feedback
+
+Add optional sound effects for keystrokes, errors, and achievements to enhance the typing experience.
+
+## Idea: Keyboard Layout Support
+
+Support multiple keyboard layouts (Dvorak, Colemak, etc.) and provide layout-specific training exercises.
+```
+
+We may declared a new master note to generate a note listing all ideas:
+
+````md
+# Ideas
+
+## Master: Ideas
+
+```gotemplate
+{{- range query "type:Idea" }}
+- {{ .ShortTitle }}
+{{- end }}
+```
+...
+````
+
+When running `nt add`,
+
+1. The script block is executed. The custom function `query` is used to filter notes defined in this file. We are only looking for notes of type `Idea`.
+2. The output of the script is parsed as if it was present in the original file.
+
+For this specific example, the master note is equivalent to:
+
+```md
+## Note: Ideas
+
+- Custom Content Import
+- Audio Feedback
+- Keyboard Layout Support
+```
+
+Except that this master note will be automatically updated when new ideas are appending to the note files.
+
+
+:::tip
+
+Use master notes instead of creating a note from a list of existing ones.
+
+:::
