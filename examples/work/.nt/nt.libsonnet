@@ -128,6 +128,11 @@
             shorthand: '⭐',
             preserveShorthand: false,
         },
+        ephemeral: {
+            name: 'ephemeral',
+            shorthand: '🗑️',
+            preserveShorthand: false,
+        },
     },
 
     // Declare default note types

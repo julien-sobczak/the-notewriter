@@ -343,23 +343,24 @@ local makeHeading = nt.Schema.makeHeading;
           template: |||
             # 💪 Affirmation
 
-            {{ affirmation "journaling#List: Affirmations" }}
+            {{ randomListItem "journaling#List: Affirmations" }}
 
-            # 😘 Gratitude Journal
+            # 😘 🗑️ Gratitude Journal
 
             3 things I appreciate:
 
-            * {{ input }}
-            * {{ input }}
-            * {{ input }}
+            * _Thing 1_
+            * _Thing 2_
+            * _Thing 3_
 
             # 🤔 Prompt
 
-            {{ prompt "journaling#List: Prompts" }}
+            {{ randomListItem "journaling#List: Prompts" }}
+            _Your Answer_
 
             # 🎯 My BIG thing for today
 
-            {{ input }}
+            _Your Answer_
           |||,
         },
         {
@@ -367,13 +368,13 @@ local makeHeading = nt.Schema.makeHeading;
           template: |||
             # ❓ How was my day? Why?
 
-            {{ input }}
+            👍/👎
 
             # 📋 3 tasks to complete tomorrow:
 
-            * [ ] {{ input }}
-            * [ ] {{ input }}
-            * [ ] {{ input }}
+            * [ ] _Task 1_
+            * [ ] _Task 2_
+            * [ ] _Task 3_
           |||,
         },
       ],

@@ -71,6 +71,13 @@ func runInteractiveMode() {
 	}
 	editedContent := string(data)
 
+	// Post-process: strip ephemeral sections
+	editedContent, err = core.ProcessEditedMarkdown(editedContent)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error processing edited content: %v\n", err)
+		os.Exit(1)
+	}
+
 	// Step 6: Append to journal file
 	absPath, err := core.AppendRoutineToJournal(journal, routine, editedContent)
 	if err != nil {
