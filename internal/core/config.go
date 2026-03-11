@@ -104,7 +104,10 @@ func (c ConfigTags) Check() error {
 }
 
 func (c ConfigTags) ApplyDefaults() {
-	for _, tag := range c {
+	for key, tag := range c {
+		if tag.Name == "" {
+			tag.Name = key
+		}
 		tag.ApplyDefaults()
 	}
 }
@@ -472,7 +475,10 @@ func (c *ConfigNoteType) ApplyDefaults() {
 }
 
 func (c ConfigNoteTypes) ApplyDefaults() {
-	for _, noteType := range c {
+	for key, noteType := range c {
+		if noteType.Name == "" {
+			noteType.Name = key
+		}
 		noteType.ApplyDefaults()
 	}
 }
@@ -484,7 +490,10 @@ func (c *ConfigFileType) ApplyDefaults() {
 }
 
 func (c ConfigFileTypes) ApplyDefaults() {
-	for _, fileType := range c {
+	for key, fileType := range c {
+		if fileType.Name == "" {
+			fileType.Name = key
+		}
 		fileType.ApplyDefaults()
 	}
 }
@@ -1537,7 +1546,10 @@ func ParseConfigFile(jsonnetPath string) (*ConfigFile, error) {
 }
 
 func (c ConfigAttributes) ApplyDefaults() {
-	for _, attribute := range c {
+	for key, attribute := range c {
+		if attribute.Name == "" {
+			attribute.Name = key
+		}
 		attribute.ApplyDefaults()
 	}
 	// Add reserved attributes
