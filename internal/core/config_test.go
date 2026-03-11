@@ -656,6 +656,58 @@ func TestParseConfigFile(t *testing.T) {
 		assert.Contains(t, fileType.Pattern, "^Reading:")
 	})
 
+	t.Run("Config with names inferred from map keys", func(t *testing.T) {
+		configPath := MustWriteTempFile(t, "config.jsonnet", `
+{
+	tags: {
+		important: {
+			shorthand: "!",
+		},
+	},
+	attributes: {
+		rating: {
+			type: "integer",
+		},
+	},
+	noteTypes: {
+		Idea: {},
+	},
+	fileTypes: {
+		Reading: {
+			processors: ["toc"],
+		},
+	},
+}`)
+
+		cfg, err := ParseConfigFile(configPath)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+
+		// Tag name should be inferred from map key
+		tag, ok := cfg.Tags["important"]
+		require.True(t, ok)
+		assert.Equal(t, "important", tag.Name)
+
+		// Attribute name should be inferred from map key
+		attr, ok := cfg.Attributes["rating"]
+		require.True(t, ok)
+		assert.Equal(t, "rating", attr.Name)
+
+		// NoteType name should be inferred from map key
+		noteType, ok := cfg.NoteTypes["Idea"]
+		require.True(t, ok)
+		assert.Equal(t, "Idea", noteType.Name)
+		// Pattern should be built from the inferred name
+		assert.Contains(t, noteType.Pattern, "^Idea:")
+
+		// FileType name should be inferred from map key
+		fileType, ok := cfg.FileTypes["Reading"]
+		require.True(t, ok)
+		assert.Equal(t, "Reading", fileType.Name)
+		// Pattern should be built from the inferred name
+		assert.Contains(t, fileType.Pattern, "^Reading:")
+	})
+
 	t.Run("Config with invalid jsonnet", func(t *testing.T) {
 		configPath := MustWriteTempFile(t, "config.jsonnet", `{ invalid: [ }`)
 
