@@ -70,6 +70,16 @@ local makeHeading = nt.Schema.makeHeading;
         },
       ],
     },
+    // Project-specific note types
+    Synopsis: nt.DefaultNoteTypes.Note {
+      name: 'Synopsis',
+    },
+    Idea: nt.DefaultNoteTypes.Note {
+      name: 'Idea',
+    },
+    Task: nt.DefaultNoteTypes.Note {
+      name: 'Task',
+    },
   },
 
   fileTypes: nt.DefaultFileTypes {
@@ -98,6 +108,50 @@ local makeHeading = nt.Schema.makeHeading;
             makeHeading(matchType='^(Note|Quote|Flashcard)$', required=true, allowMultiple=true),
           ]),
           makeHeading(matchType='^Review$', required=false, allowMultiple=false),
+        ]),
+      },
+    },
+    Project: {
+      name: 'Project',
+      attributes: [
+        {
+          name: 'source',  // Must be a GitHub repo URL
+          required: true,
+        },
+      ],
+      schema: {
+        body: makeHeading(children=[
+          makeHeading(
+            matchType='^Synopsis$',
+            allowMultiple=false
+          ),
+          makeHeading(
+            matchType='^List$',
+            required=false,
+            allowMultiple=true
+          ),
+          makeHeading(
+            match='^Tasks$',
+            allowMultiple=false,
+            children=[
+              makeHeading(
+                matchType='^(Master|Task)$',
+                required=true,
+                allowMultiple=true
+              ),
+            ]
+          ),
+          makeHeading(
+            match='^Ideas$',
+            allowMultiple=false,
+            children=[
+              makeHeading(
+                matchType='^(Master|Idea)$',
+                required=true,
+                allowMultiple=true
+              ),
+            ]
+          ),
         ]),
       },
     },

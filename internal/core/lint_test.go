@@ -384,51 +384,70 @@ func TestCheckAttributes(t *testing.T) {
 func TestCheckSchema(t *testing.T) {
 	tr := NewTestRepository(t, FromGoldenDirNamed("TestLint"))
 
-	file := tr.ParseFile("check-schema/reading-valid.md")
-	violations, err := CheckSchema(file)
-	require.NoError(t, err)
-	require.Empty(t, violations)
+	t.Run("Reading", func(t *testing.T) {
+		file := tr.ParseFile("check-schema/reading-valid.md")
+		violations, err := CheckSchema(file)
+		require.NoError(t, err)
+		require.Empty(t, violations)
 
-	file = tr.ParseFile("check-schema/reading-valid-no-review.md")
-	violations, err = CheckSchema(file)
-	require.NoError(t, err)
-	require.Empty(t, violations)
+		file = tr.ParseFile("check-schema/reading-valid-no-review.md")
+		violations, err = CheckSchema(file)
+		require.NoError(t, err)
+		require.Empty(t, violations)
 
-	file = tr.ParseFile("check-schema/reading-valid-no-notes.md")
-	violations, err = CheckSchema(file)
-	require.NoError(t, err)
-	require.Empty(t, violations)
+		file = tr.ParseFile("check-schema/reading-valid-no-notes.md")
+		violations, err = CheckSchema(file)
+		require.NoError(t, err)
+		require.Empty(t, violations)
 
-	file = tr.ParseFile("check-schema/reading-invalid-unexpected-type.md")
-	violations, err = CheckSchema(file)
-	require.NoError(t, err)
-	require.Len(t, violations, 1)
-	require.ElementsMatch(t, []*Violation{
-		{
-			Name:         "check-schema",
-			Message:      `section "Todo: Backlog" does not match the schema`,
-			RelativePath: "check-schema/reading-invalid-unexpected-type.md",
-			Line:         17,
-		},
-	}, violations)
+		file = tr.ParseFile("check-schema/reading-invalid-unexpected-type.md")
+		violations, err = CheckSchema(file)
+		require.NoError(t, err)
+		require.Len(t, violations, 1)
+		require.ElementsMatch(t, []*Violation{
+			{
+				Name:         "check-schema",
+				Message:      `section "Todo: Backlog" does not match the schema`,
+				RelativePath: "check-schema/reading-invalid-unexpected-type.md",
+				Line:         17,
+			},
+		}, violations)
 
-	file = tr.ParseFile("check-schema/reading-invalid-multiple-reviews.md")
-	violations, err = CheckSchema(file)
-	require.NoError(t, err)
-	require.Len(t, violations, 1)
-	require.ElementsMatch(t, []*Violation{
-		{
-			Name:         "check-schema",
-			Message:      `multiple headings matching allowed schema heading(@type=~^Review$)`,
-			RelativePath: "check-schema/reading-invalid-multiple-reviews.md",
-			Line:         0,
-		},
-	}, violations)
+		file = tr.ParseFile("check-schema/reading-invalid-multiple-reviews.md")
+		violations, err = CheckSchema(file)
+		require.NoError(t, err)
+		require.Len(t, violations, 1)
+		require.ElementsMatch(t, []*Violation{
+			{
+				Name:         "check-schema",
+				Message:      `multiple headings matching allowed schema heading(@type=~^Review$)`,
+				RelativePath: "check-schema/reading-invalid-multiple-reviews.md",
+				Line:         0,
+			},
+		}, violations)
+	})
 
-	file = tr.ParseFile("check-schema/generator-notes.md")
-	violations, err = CheckSchema(file)
-	require.NoError(t, err)
-	require.Empty(t, violations)
+	t.Run("Generators", func(t *testing.T) {
+		file := tr.ParseFile("check-schema/generator-notes.md")
+		violations, err := CheckSchema(file)
+		require.NoError(t, err)
+		require.Empty(t, violations)
+	})
+
+	t.Run("Project", func(t *testing.T) {
+		file := tr.ParseFile("check-schema/project-invalid-additional-note-type.md")
+		violations, err := CheckSchema(file)
+		require.NoError(t, err)
+		require.Len(t, violations, 1)
+		require.ElementsMatch(t, []*Violation{
+			{
+				Name:         "check-schema",
+				Message:      `section "Note: Unexpected Note" does not match the schema`,
+				RelativePath: "check-schema/project-invalid-additional-note-type.md",
+				Line:         50,
+			},
+		}, violations)
+	})
 }
 
 func TestRequireFlashcardSlug(t *testing.T) {
@@ -468,7 +487,7 @@ func TestNoOrphanFlashcard(t *testing.T) {
 func TestNoOrphanFlashcardNoDecks(t *testing.T) {
 	// Reset the inventory to test the no-decks scenario
 	deckQueriesInventoryOnce.Reset()
-	
+
 	tr := NewTestRepository(t, FromGoldenDirNamed("TestLint"), WithConfigFileOverride(func(c *ConfigFile) {
 		// Remove all decks to test the no-decks scenario
 		c.Decks = make(ConfigDecks, 0)

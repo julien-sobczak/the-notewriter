@@ -2,6 +2,7 @@
 /database.db
 /database.db-journal
 /objects/
+/wal/
 /index
 /refs/
 /.config.json

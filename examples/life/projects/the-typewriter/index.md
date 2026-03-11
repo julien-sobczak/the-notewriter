@@ -19,9 +19,9 @@ The application tracks progress, provides detailed statistics, and adapts diffic
 * [GitHub Repository](https://github.com/julien-sobczak/the-typewriter/ "#go/the-typewriter/github")
 * [GitHub Section](https://github.com/julien-sobczak/the-typewriter/${section:[issues,pulls,actions,...]} "#go/the-typewriter/github-section")
 
-# Tasks
+## Tasks
 
-## Master: Backlog
+### Master: Backlog
 
 ```gotemplate
 {{- range query "type:Task" }}
@@ -29,45 +29,45 @@ The application tracks progress, provides detailed statistics, and adapts diffic
 {{- end }}
 ```
 
-## Task: Setup Electron Project Structure 🚨
+### Task: Setup Electron Project Structure 🚨
 
 Initialize the Electron application with React integration. Set up the basic window management, IPC communication, and development environment.
 
-## Task: Implement Git Repository Integration ❗️
+### Task: Implement Git Repository Integration ❗️
 
 Create functionality to clone and parse Git repositories. Extract code files and prepare them for typing exercises.
 
-## Task: Build ePub Parser ❗️
+### Task: Build ePub Parser ❗️
 
 Implement ePub file parsing to extract text content. Handle various ePub formats and preserve basic formatting.
 
-## Task: Design Typing Interface 🔼
+### Task: Design Typing Interface 🔼
 
 Create the main typing interface with syntax highlighting for code, real-time error detection, and smooth scrolling.
 
-## Task: Implement Statistics Tracking 🔼
+### Task: Implement Statistics Tracking 🔼
 
 Build a system to track WPM (words per minute), accuracy, common mistakes, and progress over time. Create data visualization components.
 
-## Task: Add User Settings and Preferences 🔽
+### Task: Add User Settings and Preferences 🔽
 
 Implement settings for theme, font size, difficulty level, and content preferences.
 
-## Task: Create Progress Dashboard 🔼
+### Task: Create Progress Dashboard 🔼
 
 Design and implement a dashboard showing user progress, achievements, and recommendations.
 
-## Task: Write Unit Tests 🔼
+### Task: Write Unit Tests 🔼
 
 Create comprehensive test coverage for core functionality using Jest and React Testing Library.
 
-## Task: Package Application for Distribution 🔽
+### Task: Package Application for Distribution 🔽
 
 Set up electron-builder to create installers for Windows, macOS, and Linux.
 
-# Ideas
+## Ideas
 
-## Master: Ideas Box
+### Master: Ideas Box
 
 ```gotemplate
 {{- range query "type:Idea" }}
@@ -75,15 +75,14 @@ Set up electron-builder to create installers for Windows, macOS, and Linux.
 {{- end }}
 ```
 
-## Idea: Custom Content Import
+### Idea: Custom Content Import
 
 Allow users to import their own Git repositories or text files for personalized practice sessions.
 
-## Idea: Audio Feedback
+### Idea: Audio Feedback
 
 Add optional sound effects for keystrokes, errors, and achievements to enhance the typing experience.
 
-## Idea: Keyboard Layout Support
+### Idea: Keyboard Layout Support
 
 Support multiple keyboard layouts (Dvorak, Colemak, etc.) and provide layout-specific training exercises.
-

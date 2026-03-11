@@ -53,6 +53,7 @@ A schema could also defined to enforce some structure on the file. Since there i
 
 ```jsonnet
 local nt = import 'nt.libsonnet';
+local makeHeading = nt.Schema.makeHeading;
 {
     fileTypes: nt.DefaultFileTypes + {
         "Reading": {

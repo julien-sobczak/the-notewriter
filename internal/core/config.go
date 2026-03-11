@@ -41,6 +41,7 @@ const DefaultGitIgnore = `
 /database.db-journal
 /objects/
 /index
+/wal/
 /refs/
 /.config.json
 `
@@ -521,11 +522,12 @@ func (c *ConfigHeadingSchema) Check() error {
 }
 
 type ConfigFileType struct {
-	Name       string                `json:"name"`
-	Pattern    string                `json:"pattern,omitempty"`    // Regex to match file titles
-	Attributes []ConfigTypeAttribute `json:"attributes,omitempty"` // Required/optional attributes
-	Schema     *ConfigFileSchema     `json:"schema,omitempty"`     // Markdown schema definition for validation
-	Processors []string              `json:"processors"`           // Additional logic to run after parsing a file
+	Name          string                `json:"name"`
+	Pattern       string                `json:"pattern,omitempty"`       // Regex to match file titles
+	Attributes    []ConfigTypeAttribute `json:"attributes,omitempty"`    // Required/optional attributes
+	Schema        *ConfigFileSchema     `json:"schema,omitempty"`        // Markdown schema definition for validation
+	Processors    []string              `json:"processors"`              // Additional logic to run after parsing a file
+	DeskTemplates []string              `json:"deskTemplates,omitempty"` // Optional desk templates to use when opening a file of this type
 }
 
 // Check validates the file type configuration.
@@ -989,6 +991,31 @@ func (c *ConfigFile) Check() error {
 		if err := c.FileTypes.Check(); err != nil {
 			errs = append(errs, err)
 		}
+		// Check cross-references
+		for _, fileType := range c.FileTypes {
+			if len(fileType.DeskTemplates) > 0 {
+				for _, deskTemplate := range fileType.DeskTemplates {
+					if deskTemplate == "" {
+						errs = append(errs, fmt.Errorf("file type %q has an empty desk template reference", fileType.Name))
+						continue
+					}
+					var deskFound *ConfigDesk
+					for _, desk := range c.Desks {
+						if desk.Name == deskTemplate {
+							deskFound = desk
+							break
+						}
+					}
+					if deskFound == nil {
+						errs = append(errs, fmt.Errorf("file type %q references unknown desk template %q", fileType.Name, deskTemplate))
+						continue
+					}
+					if deskFound.Template != true {
+						errs = append(errs, fmt.Errorf("file type %q references desk template %q which is not marked as a template", fileType.Name, deskTemplate))
+					}
+				}
+			}
+		}
 	}
 	if c.Attributes != nil {
 		if err := c.Attributes.Check(); err != nil {
@@ -1030,6 +1057,7 @@ func (c *ConfigFile) Check() error {
 			errs = append(errs, err)
 		}
 	}
+
 	return errors.Join(errs...)
 }
 

@@ -4,6 +4,8 @@ local srsAlgorithmSettings = {
   easeFactor: 2.5,
 };
 
+local makeHeading = nt.Schema.makeHeading;
+
 {
   slug: 'life',
   attributes: nt.DefaultAttributes {
@@ -146,6 +148,92 @@ local srsAlgorithmSettings = {
       processors: ['list-items'],
     },
   },
+
+  fileTypes: nt.DefaultFileTypes {
+    Project: {
+      name: 'Project',
+      attributes: [
+        {
+          name: 'source',  // Must be a GitHub repo URL
+          required: true,
+        },
+      ],
+      deskTemplates: ['Project Template'],
+      schema: {
+        body: makeHeading(children=[
+          makeHeading(
+            matchType='^Synopsis$',
+            allowMultiple=false
+          ),
+          makeHeading(
+            matchType='^List$',
+            required=false,
+            allowMultiple=true
+          ),
+          makeHeading(
+            match='^Tasks$',
+            allowMultiple=false,
+            children=[
+              makeHeading(
+                matchType='^(Master|Task)$',
+                required=true,
+                allowMultiple=true
+              ),
+            ]
+          ),
+          makeHeading(
+            match='^Ideas$',
+            allowMultiple=false,
+            children=[
+              makeHeading(
+                matchType='^(Master|Idea)$',
+                required=true,
+                allowMultiple=true
+              ),
+            ]
+          ),
+        ]),
+      },
+    },
+  },
+
+  desks: [
+    {
+      name: 'Project Template',
+      description: 'Visualize your project',
+      template: true,
+      root: {
+        layout: 'vertical',
+        elements: [
+          {
+            layout: 'horizontal',
+            elements: [
+              {
+                name: 'Synopsis',
+                query: 'type:Synopsis',
+                view: 'single',
+              },
+              {
+                name: 'Lists',
+                query: 'type:List',
+                view: 'list',
+              },
+            ],
+          },
+          {
+            name: 'Tasks',
+            query: 'type:Tasks',
+            view: 'grid',
+          },
+          {
+            name: 'Ideas',
+            query: 'type:Master @title:Ideas',
+            view: 'single',
+          },
+        ],
+      },
+    },
+  ],
 
   linter: {
     rules: [
