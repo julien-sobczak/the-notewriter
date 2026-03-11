@@ -14,6 +14,24 @@
     // Some reserved attributes (ex: "references" for link management) are
     // automatically added and override this configuration.
     DefaultAttributes: {
+        // General
+        date: {
+            name: "date",
+            type: "string",
+            format: "yyyy-mm-dd",
+            inherit: true, // Subnotes in journal inherit the date of the journal
+        },
+        // Flashcards Management
+        ease_factor: {
+            description: "SRS Ease Factor",
+            type: "float",
+        },
+        interest_factor: {
+            description: "SRS Interest Factor",
+            type: "float",
+        },
+
+        // Tasks Management
         due: {
             name: "due",
             description: "Due date",
@@ -87,6 +105,28 @@
             format: "yyyy-mm-dd",
             inherit: true, // Often declared in Front Matter
             memory: true, // Used to mark this note as memory
+        },
+    },
+
+    // Declare default tags with special meaning for The NoteWriter.
+    DefaultTags: {
+        ignore: {
+            name: 'ignore',
+            shorthand: '🚫',
+            preserveShorthand: false,
+        },
+        suspended: {
+            name: 'suspended',
+        },
+        secure: {
+            name: 'secure',
+            shorthand: '🔒',
+            preserveShorthand: false,
+        },
+        bookmark: {
+            name: 'bookmark',
+            shorthand: '⭐',
+            preserveShorthand: false,
         },
     },
 

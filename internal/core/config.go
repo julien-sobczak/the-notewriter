@@ -89,6 +89,32 @@ type ConfigAttributes map[string]*ConfigAttribute
 type ConfigNoteTypes map[string]*ConfigNoteType
 type ConfigFileTypes map[string]*ConfigFileType
 
+// ConfigTag defines a tag with an optional shorthand notation.
+type ConfigTag struct {
+	Name              string `json:"name"`
+	Shorthand         string `json:"shorthand,omitempty"`
+	PreserveShorthand *bool  `json:"preserveShorthand,omitempty"`
+}
+
+// ConfigTags is a map of tag name to ConfigTag definition.
+type ConfigTags map[string]*ConfigTag
+
+func (c ConfigTags) Check() error {
+	return nil
+}
+
+func (c ConfigTags) ApplyDefaults() {
+	for _, tag := range c {
+		tag.ApplyDefaults()
+	}
+}
+
+func (c *ConfigTag) ApplyDefaults() {
+	if c.PreserveShorthand == nil {
+		c.PreserveShorthand = BoolPointer(true) // Default: keep shorthand in output
+	}
+}
+
 func (c ConfigAttributes) Check() error {
 	for _, value := range c {
 		if err := value.Check(); err != nil {
@@ -137,6 +163,7 @@ type ConfigFile struct {
 	Core *ConfigCore `json:"core"`
 
 	Attributes ConfigAttributes `json:"attributes"`
+	Tags       ConfigTags       `json:"tags"`
 	NoteTypes  ConfigNoteTypes  `json:"noteTypes"`
 	FileTypes  ConfigFileTypes  `json:"fileTypes"`
 
@@ -1533,6 +1560,11 @@ func (c *ConfigFile) ApplyDefaults() {
 		c.Attributes = make(ConfigAttributes)
 	}
 	c.Attributes.ApplyDefaults()
+
+	if c.Tags == nil {
+		c.Tags = make(ConfigTags)
+	}
+	c.Tags.ApplyDefaults()
 
 	if c.NoteTypes == nil {
 		c.NoteTypes = make(ConfigNoteTypes)

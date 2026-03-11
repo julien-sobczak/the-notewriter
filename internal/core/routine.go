@@ -139,4 +139,3 @@ func AppendRoutineToJournal(journal *ConfigJournal, routine *ConfigRoutine, edit
 	}
 	return absPath, nil
 }
-

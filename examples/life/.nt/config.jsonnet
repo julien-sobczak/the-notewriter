@@ -68,6 +68,8 @@ local makeHeading = nt.Schema.makeHeading;
     },
   },
 
+  tags: nt.DefaultTags,
+
   noteTypes: nt.DefaultNoteTypes {
     // Customize default note types
     Quote: nt.DefaultNoteTypes.Quote {

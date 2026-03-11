@@ -3,6 +3,7 @@ local nt = import 'nt.libsonnet';
 {
   slug: 'work',
   attributes: nt.DefaultAttributes,
+  tags: nt.DefaultTags,
   noteTypes: nt.DefaultNoteTypes {
     // Reference for reference notes
     Reference: nt.DefaultNoteTypes.Note {

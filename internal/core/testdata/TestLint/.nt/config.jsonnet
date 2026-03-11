@@ -41,6 +41,8 @@ local makeHeading = nt.Schema.makeHeading;
     },
   },
 
+  tags: nt.DefaultTags,
+
   noteTypes: nt.DefaultNoteTypes {
     Quote: nt.DefaultNoteTypes.Quote {
       attributes: [

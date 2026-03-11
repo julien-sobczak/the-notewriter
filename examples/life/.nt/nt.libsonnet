@@ -108,6 +108,28 @@
         },
     },
 
+    // Declare default tags with special meaning for The NoteWriter.
+    DefaultTags: {
+        ignore: {
+            name: 'ignore',
+            shorthand: '🚫',
+            preserveShorthand: false,
+        },
+        suspended: {
+            name: 'suspended',
+        },
+        secure: {
+            name: 'secure',
+            shorthand: '🔒',
+            preserveShorthand: false,
+        },
+        bookmark: {
+            name: 'bookmark',
+            shorthand: '⭐',
+            preserveShorthand: false,
+        },
+    },
+
     // Declare default note types
     DefaultNoteTypes: {
         // Prefedefined objects = types with custom logic in The NoteWriter when processing them

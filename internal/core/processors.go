@@ -371,10 +371,11 @@ func parseListItemWithIndent(line string, lineNumber int) *listItemWithIndent {
 
 	// Extract tags, attributes, and emojis
 	configAttributes := CurrentConfigFile().Attributes
-	tags, attributes, emojis := ExtractAllTagsAndAttributesAndEmojis(doc, configAttributes)
+	configTags := CurrentConfigFile().Tags
+	tags, attributes, emojis := ExtractAllTagsAndAttributesAndEmojis(doc, configAttributes, configTags)
 
 	// Filter tags and attributes but keep emojis (and preservable shorthands)
-	trimmedText := doc.MustTransform(StripTagsAndAttributes(configAttributes))
+	trimmedText := doc.MustTransform(StripTagsAndAttributes(configAttributes, configTags))
 
 	// Remove optional task checkbox
 	checkboxPattern := regexp.MustCompile(`^\[([ xX])\]\s*`)

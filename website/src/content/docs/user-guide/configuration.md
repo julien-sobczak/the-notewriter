@@ -14,11 +14,12 @@ local nt = import 'nt.libsonnet';
 
 {
     attributes: nt.DefaultAttributes,
+    tags: nt.DefaultTags,
     noteTypes: nt.DefaultNoteTypes,
 }
 ```
 
-The default configuration declares the default note types and attributes defined in the library file `.nt/nt.libsonnet` also generated during `nt init`. You can safely ignore this file for now.
+The default configuration declares the default note types, attributes, and tags defined in the library file `.nt/nt.libsonnet` also generated during `nt init`. You can safely ignore this file for now.
 
 As you will discover in this guide, _The NoteWriter_ is strongly opionated but there are too many good reasons to write notes that _The NoteWriter_ is also highly configurable. We will update this configuration in the following pages to take your notes to the next level. Editing the configuration is not fun but it will allows us to properly manage repositories with thousands of notes and do more with our notes.
 

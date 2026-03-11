@@ -10,11 +10,11 @@ import (
 
 // Line represents a line in a Markdown document
 type Line struct {
-	Text string
-	Number int // 1-based line number
+	Text            string
+	Number          int // 1-based line number
 	InsideCodeBlock bool
-	Prev *Line
-	Next *Line
+	Prev            *Line
+	Next            *Line
 }
 
 // Lines represents a collection of lines
@@ -120,7 +120,7 @@ func (m Document) Lines() Lines {
 				lineInBlock = true
 				blockBackticks = backticksCount
 			} else if backticksCount >= blockBackticks {
-				lineInBlock = true // Still inside the code block
+				lineInBlock = true  // Still inside the code block
 				insideBlock = false // but next line will be outside
 				blockBackticks = 0
 			}
