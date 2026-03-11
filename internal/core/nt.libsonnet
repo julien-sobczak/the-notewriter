@@ -125,7 +125,7 @@
         },
         bookmark: {
             name: 'bookmark',
-            shorthand: '🏷️',
+            shorthand: '⭐',
             preserveShorthand: false,
         },
     },

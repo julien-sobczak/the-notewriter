@@ -42,7 +42,7 @@ _The NoteWriter_ reserves a few tags with built-in meanings:
 |-----|-------------|
 | `#ignore` | Exclude the file or note from all processing |
 | `#suspended` | Suspend a flashcard from SRS review |
-| `#secure` | Mark a file or note as sensitive (excluded from remote synchronization) |
+| `#secure` | Ensure the file was encrypted using `nt-vault` when adding it using `nt add` |
 | `#bookmark` | Mark a note as a bookmark |
 
 ## Shorthand Tags
@@ -71,9 +71,9 @@ The `DefaultTags` already contains shorthands for the special tags:
 |-----|-----------|
 | `#ignore` | 🚫 |
 | `#secure` | 🔒 |
-| `#bookmark` | 🏷️ |
+| `#bookmark` | ⭐ |
 
-With this configuration, writing `⭐` in a heading or list item is equivalent to adding `#favorite`:
+With this configuration, writing `⭐` in a heading or list item is equivalent to adding `#bookmark`:
 
 ```md
 ## Note: My Favorite Book ⭐
@@ -81,6 +81,4 @@ With this configuration, writing `⭐` in a heading or list item is equivalent t
 Content here...
 ```
 
-The `preserveShorthand` property controls whether the shorthand symbol is kept in the rendered output:
-- `preserveShorthand: true` (default): The emoji remains visible in the title
-- `preserveShorthand: false`: The emoji is stripped from the title after the tag is extracted
+The `preserveShorthand` property controls whether the shorthand symbol must be kept in the rendered Markdown (shorthands are preserved by default, use `false` to strip them).

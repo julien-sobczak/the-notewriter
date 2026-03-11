@@ -40,9 +40,11 @@ func NewTagSet(tags []string) TagSet {
 	return NewEmptyTagSet().Merge(tags)
 }
 
-// NewTagSetFromText extracts tags from a text.
-func NewTagSetFromText(content string) TagSet {
-	return ExtractTags(markdown.Document(content))
+// NewTagSetFromText extracts tags from a text, including those defined via shorthands.
+func NewTagSetFromText(content string, configAttributes ConfigAttributes, configTags ConfigTags) TagSet {
+	tags := ExtractTags(markdown.Document(content))
+	_, shorthandTags := ExtractShorthands(markdown.Document(content), configAttributes, configTags)
+	return tags.Merge(shorthandTags)
 }
 
 func (t TagSet) Merge(tagSets ...TagSet) TagSet {
@@ -963,7 +965,7 @@ func ExtractShorthands(doc markdown.Document, configAttributes ConfigAttributes,
 }
 
 // StripShorthands removes shorthands from text only if marked as non-preservable.
-func StripShorthands(tags ConfigTags, attributes ConfigAttributes) markdown.DocumentTransformer {
+func StripShorthands(attributes ConfigAttributes, tags ConfigTags) markdown.DocumentTransformer {
 	return func(document markdown.Document) (markdown.Document, error) {
 		modifiedText := string(document)
 
@@ -1031,16 +1033,13 @@ func StripShorthands(tags ConfigTags, attributes ConfigAttributes) markdown.Docu
 func ExtractAllTagsAndAttributesAndEmojis(doc markdown.Document, configAttributes ConfigAttributes, configTags ConfigTags) (TagSet, AttributeSet, EmojiSet) {
 	content := string(doc)
 
-	tags := NewTagSetFromText(content)
-	_, shorthandTags := ExtractShorthands(doc, configAttributes, configTags)
-	tags = tags.Merge(shorthandTags)
-
+	tags := NewTagSetFromText(content, configAttributes, configTags)
 	attributes := NewAttributeSetFromText(content, configAttributes, configTags)
 	attributes = attributes.AddTags(tags)
 
 	trimmedText := doc.MustTransform(
 		StripTags(),
-		StripAttributes(configTags, configAttributes)).
+		StripAttributes(configAttributes, configTags)).
 		TrimSpace()
 	emojis := NewEmojiSetFromText(string(trimmedText))
 
@@ -1099,11 +1098,11 @@ func StripOnlyAttributes() markdown.DocumentTransformer {
 }
 
 // StripAttributes removes all attributes from a text.
-func StripAttributes(tags ConfigTags, attributes ConfigAttributes) markdown.DocumentTransformer {
+func StripAttributes(attributes ConfigAttributes, tags ConfigTags) markdown.DocumentTransformer {
 	return func(document markdown.Document) (markdown.Document, error) {
 		return document.MustTransform(
 			StripOnlyAttributes(),
-			StripShorthands(tags, attributes),
+			StripShorthands(attributes, tags),
 		).TrimSpace(), nil
 	}
 }
