@@ -281,8 +281,8 @@ func NewAttributeSetFromMarkdown(md *markdown.File) (AttributeSet, error) {
 }
 
 // NewAttributeSetFromText extracts attributes from a text.
-func NewAttributeSetFromText(content string, configAttributes ConfigAttributes) AttributeSet {
-	return ExtractAttributes(markdown.Document(content), configAttributes)
+func NewAttributeSetFromText(content string, configAttributes ConfigAttributes, configTags ConfigTags) AttributeSet {
+	return ExtractAttributes(markdown.Document(content), configAttributes, configTags)
 }
 
 // SetIfMissing creates a new AttributeSet with the attribute set only if it is not already present.
@@ -889,16 +889,17 @@ func ExtractOnlyAttributes(doc markdown.Document, configAttributes ConfigAttribu
 }
 
 // ExtractAttributes extracts all attributes from a text (including tags and shorthands)
-func ExtractAttributes(doc markdown.Document, configAttributes ConfigAttributes) AttributeSet {
+func ExtractAttributes(doc markdown.Document, configAttributes ConfigAttributes, configTags ConfigTags) AttributeSet {
 	attributes := ExtractOnlyAttributes(doc, configAttributes)
 	tags := ExtractTags(doc)
-	attributes = attributes.AddTags(tags)
-	shorthandAttributes := ExtractShorthands(doc, configAttributes)
+	shorthandAttributes, shorthandTags := ExtractShorthands(doc, configAttributes, configTags)
+	allTags := tags.Merge(shorthandTags)
+	attributes = attributes.AddTags(allTags)
 	return attributes.Merge(shorthandAttributes)
 }
 
-// ExtractShorthands extracts shorthand attributes from a string
-func ExtractShorthands(doc markdown.Document, configAttributes ConfigAttributes) AttributeSet {
+// ExtractShorthands extracts shorthand attributes and tags from a string
+func ExtractShorthands(doc markdown.Document, configAttributes ConfigAttributes, configTags ConfigTags) (AttributeSet, TagSet) {
 	content := string(doc)
 
 	shorthandAttributes := make(AttributeSet)
@@ -947,11 +948,22 @@ func ExtractShorthands(doc markdown.Document, configAttributes ConfigAttributes)
 	// Cast (ensure the tags attribute is an array too)
 	shorthandAttributes = shorthandAttributes.CastOrIgnore(configAttributes)
 
-	return shorthandAttributes
+	// Extract tag shorthands
+	var shorthandTags TagSet
+	for _, tag := range configTags {
+		if tag.Shorthand == "" {
+			continue
+		}
+		if strings.Contains(content, tag.Shorthand) {
+			shorthandTags = append(shorthandTags, tag.Name)
+		}
+	}
+
+	return shorthandAttributes, shorthandTags
 }
 
 // StripShorthands removes shorthands from text only if marked as non-preservable.
-func StripShorthands(attributes ConfigAttributes) markdown.DocumentTransformer {
+func StripShorthands(tags ConfigTags, attributes ConfigAttributes) markdown.DocumentTransformer {
 	return func(document markdown.Document) (markdown.Document, error) {
 		modifiedText := string(document)
 
@@ -996,6 +1008,19 @@ func StripShorthands(attributes ConfigAttributes) markdown.DocumentTransformer {
 			}
 		}
 
+		// Strip tag shorthands that are not preserved
+		for _, tag := range tags {
+			if tag.PreserveShorthand == nil || *tag.PreserveShorthand {
+				continue
+			}
+			if tag.Shorthand == "" {
+				continue
+			}
+			if strings.Contains(modifiedText, tag.Shorthand) {
+				modifiedText = strings.ReplaceAll(modifiedText, tag.Shorthand, "")
+			}
+		}
+
 		// Clean up consecutive spaces and trim
 		modifiedText = strings.TrimSpace(regexp.MustCompile(`\s+`).ReplaceAllString(modifiedText, " "))
 
@@ -1003,16 +1028,19 @@ func StripShorthands(attributes ConfigAttributes) markdown.DocumentTransformer {
 	}
 }
 
-func ExtractAllTagsAndAttributesAndEmojis(doc markdown.Document, configAttributes ConfigAttributes) (TagSet, AttributeSet, EmojiSet) {
+func ExtractAllTagsAndAttributesAndEmojis(doc markdown.Document, configAttributes ConfigAttributes, configTags ConfigTags) (TagSet, AttributeSet, EmojiSet) {
 	content := string(doc)
 
 	tags := NewTagSetFromText(content)
-	attributes := NewAttributeSetFromText(content, configAttributes)
+	_, shorthandTags := ExtractShorthands(doc, configAttributes, configTags)
+	tags = tags.Merge(shorthandTags)
+
+	attributes := NewAttributeSetFromText(content, configAttributes, configTags)
 	attributes = attributes.AddTags(tags)
 
 	trimmedText := doc.MustTransform(
 		StripTags(),
-		StripAttributes(configAttributes)).
+		StripAttributes(configTags, configAttributes)).
 		TrimSpace()
 	emojis := NewEmojiSetFromText(string(trimmedText))
 
@@ -1071,11 +1099,11 @@ func StripOnlyAttributes() markdown.DocumentTransformer {
 }
 
 // StripAttributes removes all attributes from a text.
-func StripAttributes(attributes ConfigAttributes) markdown.DocumentTransformer {
+func StripAttributes(tags ConfigTags, attributes ConfigAttributes) markdown.DocumentTransformer {
 	return func(document markdown.Document) (markdown.Document, error) {
 		return document.MustTransform(
 			StripOnlyAttributes(),
-			StripShorthands(attributes),
+			StripShorthands(tags, attributes),
 		).TrimSpace(), nil
 	}
 }

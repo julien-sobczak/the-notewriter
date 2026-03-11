@@ -275,14 +275,14 @@ func ParseFile(md *markdown.File, mdParent *markdown.File) (*ParsedFile, error) 
 	}
 
 	// Extract tags and attributes from shortTitle
-	titleAttributes := ExtractAttributes(shortTitle, CurrentConfigFile().Attributes)
+	titleAttributes := ExtractAttributes(shortTitle, CurrentConfigFile().Attributes, CurrentConfigFile().Tags)
 
 	// Merge title attributes into fileAttributes
 	fileAttributes = fileAttributes.Merge(titleAttributes)
 
 	// Strip tags and attributes from titles
-	title = title.MustTransform(StripTagsAndAttributes(CurrentConfigFile().Attributes))
-	shortTitle = shortTitle.MustTransform(StripTagsAndAttributes(CurrentConfigFile().Attributes))
+	title = title.MustTransform(StripTagsAndAttributes(CurrentConfigFile().Tags, CurrentConfigFile().Attributes))
+	shortTitle = shortTitle.MustTransform(StripTagsAndAttributes(CurrentConfigFile().Tags, CurrentConfigFile().Attributes))
 
 	// Extract/Generate slug
 	relativePath := CurrentRepository().GetFileRelativePath(md.AbsolutePath)
@@ -423,12 +423,13 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		}
 
 		configAttributes := CurrentConfigFile().Attributes
+		configTags := CurrentConfigFile().Tags
 
 		// Determine the attributes
 		noteTags, noteAttributes := ExtractBlockTagsAndAttributes(noteBody, configAttributes)
 
 		// Extract tags and attributes from shortTitle
-		titleAttributes := ExtractAttributes(shortTitle, configAttributes)
+		titleAttributes := ExtractAttributes(shortTitle, configAttributes, configTags)
 
 		// Add title tags to noteTags
 		noteTags = noteTags.Merge(titleAttributes.Tags())
@@ -437,8 +438,8 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		noteAttributes = noteAttributes.Merge(titleAttributes)
 
 		// Update titles by removing shorthands, tags, and attributes
-		title = title.MustTransform(StripTagsAndAttributes(configAttributes))
-		shortTitle = shortTitle.MustTransform(StripTagsAndAttributes(configAttributes))
+		title = title.MustTransform(StripTagsAndAttributes(configTags, configAttributes))
+		shortTitle = shortTitle.MustTransform(StripTagsAndAttributes(configTags, configAttributes))
 
 		// Ignore ignorabled notes
 		if noteTags.Includes("ignore") {
@@ -787,9 +788,9 @@ func (p *ParsedNote) extractReminders() ([]*ParsedReminder, error) {
 			submatch := reList.FindStringSubmatch(line.Text)
 			if submatch != nil {
 				// Reminder for a list element
-				textTitle := p.ShortTitle.MustTransform(StripTagsAndAttributes(CurrentConfigFile().Attributes))
+				textTitle := p.ShortTitle.MustTransform(StripTagsAndAttributes(CurrentConfigFile().Tags, CurrentConfigFile().Attributes))
 				textItem := markdown.Document(submatch[1])
-				textItem = textItem.MustTransform(StripTagsAndAttributes(CurrentConfigFile().Attributes))
+				textItem = textItem.MustTransform(StripTagsAndAttributes(CurrentConfigFile().Tags, CurrentConfigFile().Attributes))
 				description = textTitle + " / " + textItem
 			}
 
@@ -826,7 +827,7 @@ func (p *ParsedNote) extractMemories() ([]*ParsedMemory, error) {
 			}
 
 			if !occurredAt.IsZero() {
-				cleanedText := p.ShortTitle.MustTransform(StripTagsAndAttributes(CurrentConfigFile().Attributes))
+				cleanedText := p.ShortTitle.MustTransform(StripTagsAndAttributes(CurrentConfigFile().Tags, CurrentConfigFile().Attributes))
 				memory := &ParsedMemory{
 					Text:       cleanedText,
 					OccurredAt: occurredAt,
@@ -869,8 +870,8 @@ func (p *ParsedNote) extractMemoriesFromListItem(item *ListItem) []*ParsedMemory
 			}
 
 			if !occurredAt.IsZero() {
-				textTitle := p.ShortTitle.MustTransform(StripTagsAndAttributes(CurrentConfigFile().Attributes))
-				textItem := item.Text.MustTransform(StripTagsAndAttributes(CurrentConfigFile().Attributes))
+				textTitle := p.ShortTitle.MustTransform(StripTagsAndAttributes(CurrentConfigFile().Tags, CurrentConfigFile().Attributes))
+				textItem := item.Text.MustTransform(StripTagsAndAttributes(CurrentConfigFile().Tags, CurrentConfigFile().Attributes))
 				text := textTitle + " / " + textItem
 				memory := &ParsedMemory{
 					Text:       text,
@@ -1003,11 +1004,11 @@ func (p *ParsedNote) FindMemoryByText(text markdown.Document) (*ParsedMemory, bo
 }
 
 // StripTagsAndAttributes removes all tags and attributes from a NoteWriter note.
-func StripTagsAndAttributes(attributes ConfigAttributes) markdown.DocumentTransformer {
+func StripTagsAndAttributes(tags ConfigTags, attributes ConfigAttributes) markdown.DocumentTransformer {
 	return func(doc markdown.Document) (markdown.Document, error) {
 		return doc.MustTransform(
 			StripTags(),
-			StripAttributes(attributes)).
+			StripAttributes(tags, attributes)).
 			TrimSpace(), nil
 	}
 }
@@ -1052,7 +1053,6 @@ func RelativePath(rootPath, absolutePath string) string {
 func StripSubNotesTransformer(document markdown.Document) (markdown.Document, error) {
 	// The current implementation traverses the lines until finding the first sub-note
 	it := document.Iterator()
-
 
 	// Skip top note heading
 	for it.HasNext() {
@@ -1189,10 +1189,10 @@ func (n *ParsedNote) Matches(query *Query) bool {
 }
 
 // SimplifyMarkdown simplifies a Markdown document by removing all tags, attributes and emphasis.
-func SimplifyMarkdown(configAttributes ConfigAttributes) markdown.DocumentTransformer {
+func SimplifyMarkdown(configTags ConfigTags, configAttributes ConfigAttributes) markdown.DocumentTransformer {
 	return func(doc markdown.Document) (markdown.Document, error) {
 		return doc.MustTransform(
-			StripTagsAndAttributes(configAttributes),
+			StripTagsAndAttributes(configTags, configAttributes),
 			markdown.StripEmphasis(),
 		), nil
 	}

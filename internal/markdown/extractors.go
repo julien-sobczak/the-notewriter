@@ -29,7 +29,7 @@ func (m Document) SplitByHorizontalRules() []Document {
 		text := strings.TrimSpace(line.Text)
 
 		// Blank lines around the horizontal rule are strongly recommended for compatibility.
-		if line.IsHorizontalRule() && line.HasPrev() && line.Prev.IsBlank() && line.HasNext() && line.Next.IsBlank(){
+		if line.IsHorizontalRule() && line.HasPrev() && line.Prev.IsBlank() && line.HasNext() && line.Next.IsBlank() {
 			results = append(results, Document(content.String()).TrimSpace())
 			content.Reset()
 			continue

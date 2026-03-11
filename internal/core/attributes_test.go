@@ -951,9 +951,9 @@ func TestShorthands(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Test extraction
-			actualText, err := test.text.Transform(StripShorthands(configAttributes))
+			actualText, err := test.text.Transform(StripShorthands(nil, configAttributes))
 			require.NoError(t, err)
-			actualAttributes := ExtractShorthands(test.text, configAttributes)
+			actualAttributes, _ := ExtractShorthands(test.text, configAttributes, nil)
 			assert.Equal(t, test.expectedText, actualText)
 			assert.Equal(t, test.expectedAttributes, actualAttributes)
 		})
@@ -1009,10 +1009,120 @@ func TestExtractAllTagsAndAttributesAndEmojis(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			actualTags, actualAttributes, actualEmojis := ExtractAllTagsAndAttributesAndEmojis(test.text, configAttributes)
+			actualTags, actualAttributes, actualEmojis := ExtractAllTagsAndAttributesAndEmojis(test.text, configAttributes, nil)
 			assert.Equal(t, test.expectedTags, actualTags)
 			assert.Equal(t, test.expectedAttributes, actualAttributes)
 			assert.Equal(t, test.expectedEmojis, actualEmojis)
+		})
+	}
+}
+
+func TestTagShorthands(t *testing.T) {
+	configTags := ConfigTags{
+		"ignore": &ConfigTag{
+			Name:              "ignore",
+			Shorthand:         "🚫",
+			PreserveShorthand: BoolPointer(false),
+		},
+		"bookmark": &ConfigTag{
+			Name:              "bookmark",
+			Shorthand:         "🏷️",
+			PreserveShorthand: BoolPointer(false),
+		},
+		"secure": &ConfigTag{
+			Name:              "secure",
+			Shorthand:         "🔒",
+			PreserveShorthand: BoolPointer(true), // Keep in output
+		},
+	}
+	configAttributes := ConfigAttributes{}
+
+	tests := []struct {
+		name         string
+		text         markdown.Document
+		expectedText markdown.Document
+		expectedTags TagSet
+	}{
+		{
+			name:         "Tag shorthand removed",
+			text:         "My secret note 🚫",
+			expectedText: "My secret note",
+			expectedTags: TagSet{"ignore"},
+		},
+		{
+			name:         "Tag shorthand preserved",
+			text:         "My secure note 🔒",
+			expectedText: "My secure note 🔒",
+			expectedTags: TagSet{"secure"},
+		},
+		{
+			name:         "Multiple tag shorthands",
+			text:         "A bookmarked ignored item 🏷️ 🚫",
+			expectedText: "A bookmarked ignored item",
+			expectedTags: TagSet{"bookmark", "ignore"},
+		},
+		{
+			name:         "No tag shorthand",
+			text:         "A normal note",
+			expectedText: "A normal note",
+			expectedTags: TagSet(nil),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Test extraction
+			actualText, err := test.text.Transform(StripShorthands(configTags, configAttributes))
+			require.NoError(t, err)
+			_, actualTags := ExtractShorthands(test.text, configAttributes, configTags)
+			assert.Equal(t, test.expectedText, actualText)
+			assert.ElementsMatch(t, test.expectedTags, actualTags)
+		})
+	}
+}
+
+func TestExtractAllTagsAndAttributesAndEmojisWithTagShorthands(t *testing.T) {
+	configAttributes := ConfigAttributes{
+		"status": &ConfigAttribute{
+			Name: "status",
+			Type: "string",
+			Shorthands: map[string]any{
+				"🕒": "in-progress",
+			},
+			PreserveShorthand: BoolPointer(false),
+		},
+	}
+	configTags := ConfigTags{
+		"ignore": &ConfigTag{
+			Name:              "ignore",
+			Shorthand:         "🚫",
+			PreserveShorthand: BoolPointer(false),
+		},
+	}
+
+	tests := []struct {
+		name               string
+		text               markdown.Document
+		expectedTags       TagSet
+		expectedAttributes AttributeSet
+	}{
+		{
+			name:         "Tag shorthand adds tag",
+			text:         "My task 🕒 🚫",
+			expectedTags: TagSet{"ignore"},
+			expectedAttributes: AttributeSet{
+				"status": "in-progress",
+				"tags":   []string{"ignore"},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actualTags, actualAttributes, _ := ExtractAllTagsAndAttributesAndEmojis(test.text, configAttributes, configTags)
+			assert.ElementsMatch(t, test.expectedTags, actualTags)
+			assert.Equal(t, test.expectedAttributes["status"], actualAttributes["status"])
+			assert.ElementsMatch(t, test.expectedAttributes["tags"], actualAttributes["tags"])
 		})
 	}
 }

@@ -86,12 +86,11 @@ print("Hello from Python!")
 	})
 }
 
-
 func TestLine(t *testing.T) {
 
 	t.Run("IsHeading_Basic", func(t *testing.T) {
 		tests := []struct {
-			lines     markdown.Document
+			lines    markdown.Document
 			expected bool
 		}{
 			{lines: "# Heading 1", expected: true},
