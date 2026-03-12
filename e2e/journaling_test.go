@@ -26,24 +26,25 @@ func TestJournaling(t *testing.T) {
 							Name: "Morning Routine",
 							Template: `# 💪 Affirmation
 
-{{ affirmation "journaling#List: Affirmations" }}
+{{ randomListItem "journaling#List: Affirmations" }}
 
 # 🎯 My BIG thing for today
 
-{{ input }}
+_Your Answer_
 `,
 						},
 						{
 							Name: "Shutdown Routine",
 							Template: `# ❓ How was my day? Why?
 
-{{ prompt "journaling#List: Prompts" }}
+{{ randomListItem "journaling#List: Prompts" }}
+_Your Answer_
 
 # 📋 3 tasks to complete tomorrow:
 
-* [ ] {{ input }}
-* [ ] {{ input }}
-* [ ] {{ input }}
+* [ ] _Task 1_
+* [ ] _Task 2_
+* [ ] _Task 3_
 `,
 						},
 					},
@@ -52,7 +53,7 @@ func TestJournaling(t *testing.T) {
 		}),
 	)
 
-	// Set up note files with list items for affirmation and prompt functions
+	// Set up note files with list items for randomListItem function
 	tr.WriteFile("journaling.md", `# Journaling
 
 ## List: Affirmations
@@ -81,8 +82,8 @@ func TestJournaling(t *testing.T) {
 
 	morningContent, err := GenerateRoutineContent(morningRoutine)
 	require.NoError(t, err)
-	// Affirmation should have been replaced by a list item
-	assert.NotContains(t, morningContent, `{{ affirmation`)
+	// randomListItem should have been replaced by a list item
+	assert.NotContains(t, morningContent, `{{ randomListItem`)
 
 	absPath1, err := AppendRoutineToJournal(journal, morningRoutine, morningContent)
 	require.NoError(t, err)
@@ -107,9 +108,8 @@ func TestJournaling(t *testing.T) {
 
 	shutdownContent, err := GenerateRoutineContent(shutdownRoutine)
 	require.NoError(t, err)
-	// Prompt should have been replaced and have reflection placeholder
-	assert.NotContains(t, shutdownContent, `{{ prompt`)
-	assert.Contains(t, shutdownContent, "_Write your reflection_")
+	// randomListItem should have been replaced by a list item
+	assert.NotContains(t, shutdownContent, `{{ randomListItem`)
 
 	absPath2, err := AppendRoutineToJournal(journal, shutdownRoutine, shutdownContent)
 	require.NoError(t, err)

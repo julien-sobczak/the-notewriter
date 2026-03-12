@@ -38,34 +38,14 @@ func TestEvaluateJournalPath(t *testing.T) {
 func TestGenerateRoutineContent(t *testing.T) {
 	NewTestRepository(t)
 
-	t.Run("input function", func(t *testing.T) {
+	t.Run("plain template without functions", func(t *testing.T) {
 		routine := &ConfigRoutine{
 			Name:     "Test",
-			Template: "# Heading\n\n{{ input }}\n",
+			Template: "# Heading\n\n_Your Answer_\n",
 		}
 		content, err := GenerateRoutineContent(routine)
 		require.NoError(t, err)
 		assert.Equal(t, "# Heading\n\n_Your Answer_\n", content)
-	})
-
-	t.Run("morningpages function", func(t *testing.T) {
-		routine := &ConfigRoutine{
-			Name:     "Test",
-			Template: "{{ morningpages }}\n",
-		}
-		content, err := GenerateRoutineContent(routine)
-		require.NoError(t, err)
-		assert.Contains(t, content, "_Take a moment to clear your mind")
-	})
-
-	t.Run("multiple inputs", func(t *testing.T) {
-		routine := &ConfigRoutine{
-			Name:     "Test",
-			Template: "* {{ input }}\n* {{ input }}\n* {{ input }}\n",
-		}
-		content, err := GenerateRoutineContent(routine)
-		require.NoError(t, err)
-		assert.Equal(t, 3, strings.Count(content, "_Your Answer_"))
 	})
 }
 
@@ -81,18 +61,18 @@ func TestShiftHeadings(t *testing.T) {
 				Name: "Morning Routine",
 				Template: `# 💪 Affirmation
 
-{{ input }}
+_Your Answer_
 
 # 😘 Gratitude
 
-* {{ input }}
+* _Your Answer_
 `,
 			},
 			{
 				Name: "Shutdown Routine",
 				Template: `# ❓ How was my day?
 
-{{ input }}
+_Your Answer_
 `,
 			},
 		},
@@ -169,7 +149,7 @@ func TestAppendRoutineToJournal_NewDay(t *testing.T) {
 		Path:           "journal/{{ year }}-{{ month }}-{{ day }}.md",
 		DefaultContent: "# Journal {{ date }}",
 		Routines: []ConfigRoutine{
-			{Name: "Morning Routine", Template: "# Task\n\n{{ input }}\n"},
+			{Name: "Morning Routine", Template: "# Task\n\n_Your Answer_\n"},
 		},
 	}
 
@@ -203,4 +183,70 @@ _Your Answer_`
 	root := CurrentConfig().RootDirectory
 	assert.Equal(t, filepath.Join(root, "journal/2026-02-26.md"), absPath1)
 	assert.Equal(t, filepath.Join(root, "journal/2026-02-27.md"), absPath2)
+}
+
+func TestProcessEditedMarkdown(t *testing.T) {
+	NewTestRepository(t)
+
+	t.Run("no ephemeral sections", func(t *testing.T) {
+		content := `# 💪 Affirmation
+
+Some affirmation text
+
+# 🎯 My BIG thing for today
+
+_Your Answer_`
+
+		result, err := ProcessEditedMarkdown(content)
+		require.NoError(t, err)
+		assert.Equal(t, content, result)
+	})
+
+	t.Run("strip section with ephemeral shorthand", func(t *testing.T) {
+		content := `# 💪 Affirmation
+
+Some affirmation text
+
+# 😘 🗑️ Gratitude Journal
+
+3 things I appreciate:
+
+* _Thing 1_
+* _Thing 2_
+* _Thing 3_
+
+# 🎯 My BIG thing for today
+
+_Your Answer_`
+
+		result, err := ProcessEditedMarkdown(content)
+		require.NoError(t, err)
+		assert.Equal(t, `# 💪 Affirmation
+
+Some affirmation text
+
+# 🎯 My BIG thing for today
+
+_Your Answer_`, result)
+	})
+
+	t.Run("strip section with ephemeral tag name", func(t *testing.T) {
+		content := "# 💪 Affirmation\n\nSome affirmation text\n\n# 😘 `#ephemeral` Gratitude Journal\n\n3 things I appreciate:\n\n* _Thing 1_\n\n# 🎯 My BIG thing for today\n\n_Your Answer_"
+
+		result, err := ProcessEditedMarkdown(content)
+		require.NoError(t, err)
+		assert.Equal(t, `# 💪 Affirmation
+
+Some affirmation text
+
+# 🎯 My BIG thing for today
+
+_Your Answer_`, result)
+	})
+
+	t.Run("empty content", func(t *testing.T) {
+		result, err := ProcessEditedMarkdown("")
+		require.NoError(t, err)
+		assert.Equal(t, "", result)
+	})
 }

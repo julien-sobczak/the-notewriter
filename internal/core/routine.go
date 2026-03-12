@@ -11,6 +11,7 @@ import (
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
 
 // EvaluateJournalPath evaluates a path or content template using date functions
@@ -41,21 +42,8 @@ func journalDateFuncs() template.FuncMap {
 // returns the generated content ready for the user to edit.
 func GenerateRoutineContent(routine *ConfigRoutine) (string, error) {
 	funcMap := template.FuncMap{
-		"input": func() string {
-			return "_Your Answer_"
-		},
-		"morningpages": func() string {
-			return "_Take a moment to clear your mind by capturing your unfiltered thoughts, feelings, and morning reflections before the day begins._"
-		},
-		"affirmation": func(wikilink string) (string, error) {
+		"randomListItem": func(wikilink string) (string, error) {
 			return randomItemText(wikilink)
-		},
-		"prompt": func(wikilink string) (string, error) {
-			text, err := randomItemText(wikilink)
-			if err != nil {
-				return "", err
-			}
-			return text + "\n\n_Write your reflection_", nil
 		},
 	}
 
@@ -138,4 +126,52 @@ func AppendRoutineToJournal(journal *ConfigJournal, routine *ConfigRoutine, edit
 		return "", fmt.Errorf("writing to journal file: %w", err)
 	}
 	return absPath, nil
+}
+
+// ProcessEditedMarkdown processes the user edited content to remove section that must not be saved to the journal.
+func ProcessEditedMarkdown(content string) (string, error) {
+	file, err := markdown.ParseRaw(strings.NewReader(content), markdown.FileInfo{})
+	if err != nil {
+		return "", fmt.Errorf("parsing markdown content: %w", err)
+	}
+
+	sections, err := file.GetSections()
+	if err != nil {
+		return "", fmt.Errorf("getting sections: %w", err)
+	}
+
+	cfg := CurrentConfig().ConfigFile
+
+	// Collect the line ranges to strip (1-based, inclusive).
+	type lineRange struct{ start, end int }
+	var toStrip []lineRange
+	for _, section := range sections {
+		tags := NewTagSetFromText(string(section.HeadingText), cfg.Attributes, cfg.Tags)
+		if tags.Includes("ephemeral") {
+			toStrip = append(toStrip, lineRange{section.BodyLineStart, section.BodyLineEnd})
+		}
+	}
+
+	if len(toStrip) == 0 {
+		return content, nil
+	}
+
+	// Rebuild content omitting stripped line ranges.
+	bodyLines := strings.Split(content, "\n")
+	var result []string
+	for i, line := range bodyLines {
+		lineNum := i + 1 // 1-based
+		stripped := false
+		for _, r := range toStrip {
+			if lineNum >= r.start && lineNum <= r.end {
+				stripped = true
+				break
+			}
+		}
+		if !stripped {
+			result = append(result, line)
+		}
+	}
+
+	return strings.TrimRight(text.SquashBlankLines(strings.Join(result, "\n")), "\n"), nil
 }
