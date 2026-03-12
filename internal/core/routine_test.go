@@ -186,6 +186,8 @@ _Your Answer_`
 }
 
 func TestProcessEditedMarkdown(t *testing.T) {
+	NewTestRepository(t)
+
 	t.Run("no ephemeral sections", func(t *testing.T) {
 		content := `# 💪 Affirmation
 
@@ -219,33 +221,27 @@ _Your Answer_`
 
 		result, err := ProcessEditedMarkdown(content)
 		require.NoError(t, err)
-		assert.Contains(t, result, "# 💪 Affirmation")
-		assert.Contains(t, result, "# 🎯 My BIG thing for today")
-		assert.NotContains(t, result, "# 😘 🗑️ Gratitude Journal")
-		assert.NotContains(t, result, "_Thing 1_")
-	})
-
-	t.Run("strip section with ephemeral tag name", func(t *testing.T) {
-		content := `# 💪 Affirmation
+		assert.Equal(t, `# 💪 Affirmation
 
 Some affirmation text
 
-# 😘 #ephemeral Gratitude Journal
-
-3 things I appreciate:
-
-* _Thing 1_
-
 # 🎯 My BIG thing for today
 
-_Your Answer_`
+_Your Answer_`, result)
+	})
+
+	t.Run("strip section with ephemeral tag name", func(t *testing.T) {
+		content := "# 💪 Affirmation\n\nSome affirmation text\n\n# 😘 `#ephemeral` Gratitude Journal\n\n3 things I appreciate:\n\n* _Thing 1_\n\n# 🎯 My BIG thing for today\n\n_Your Answer_"
 
 		result, err := ProcessEditedMarkdown(content)
 		require.NoError(t, err)
-		assert.Contains(t, result, "# 💪 Affirmation")
-		assert.Contains(t, result, "# 🎯 My BIG thing for today")
-		assert.NotContains(t, result, "Gratitude Journal")
-		assert.NotContains(t, result, "_Thing 1_")
+		assert.Equal(t, `# 💪 Affirmation
+
+Some affirmation text
+
+# 🎯 My BIG thing for today
+
+_Your Answer_`, result)
 	})
 
 	t.Run("empty content", func(t *testing.T) {

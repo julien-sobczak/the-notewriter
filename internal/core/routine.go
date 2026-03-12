@@ -11,29 +11,8 @@ import (
 
 	"github.com/julien-sobczak/the-notewriter/internal/markdown"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
-
-// ephemeralTagShorthand is the shorthand for the ephemeral tag used to mark sections
-// that should be stripped after the user edits the routine content.
-const ephemeralTagShorthand = "🗑️"
-
-// hasEphemeralTag returns true if the heading text contains the ephemeral tag shorthand
-// (🗑️) or the tag name #ephemeral as a standalone tag (followed by whitespace or end of string).
-func hasEphemeralTag(heading string) bool {
-	if strings.Contains(heading, ephemeralTagShorthand) {
-		return true
-	}
-	// Match #ephemeral as a standalone tag: must be at start or preceded by whitespace,
-	// and followed by whitespace or end of string.
-	idx := strings.Index(heading, "#ephemeral")
-	if idx < 0 {
-		return false
-	}
-	before := idx == 0 || heading[idx-1] == ' ' || heading[idx-1] == '\t'
-	after := idx+len("#ephemeral") == len(heading) ||
-		heading[idx+len("#ephemeral")] == ' ' || heading[idx+len("#ephemeral")] == '\t'
-	return before && after
-}
 
 // EvaluateJournalPath evaluates a path or content template using date functions
 // (year, month, day, date) and returns the resulting string.
@@ -149,10 +128,7 @@ func AppendRoutineToJournal(journal *ConfigJournal, routine *ConfigRoutine, edit
 	return absPath, nil
 }
 
-// ProcessEditedMarkdown strips any Markdown sections whose heading contains the
-// ephemeral tag shorthand (🗑️) or the tag name #ephemeral.
-// This is used to remove sections that were only shown as prompts during editing
-// but should not be saved to the journal.
+// ProcessEditedMarkdown processes the user edited content to remove section that must not be saved to the journal.
 func ProcessEditedMarkdown(content string) (string, error) {
 	file, err := markdown.ParseRaw(strings.NewReader(content), markdown.FileInfo{})
 	if err != nil {
@@ -164,12 +140,14 @@ func ProcessEditedMarkdown(content string) (string, error) {
 		return "", fmt.Errorf("getting sections: %w", err)
 	}
 
+	cfg := CurrentConfig().ConfigFile
+
 	// Collect the line ranges to strip (1-based, inclusive).
 	type lineRange struct{ start, end int }
 	var toStrip []lineRange
 	for _, section := range sections {
-		heading := string(section.HeadingText)
-		if hasEphemeralTag(heading) {
+		tags := NewTagSetFromText(string(section.HeadingText), cfg.Attributes, cfg.Tags)
+		if tags.Includes("ephemeral") {
 			toStrip = append(toStrip, lineRange{section.BodyLineStart, section.BodyLineEnd})
 		}
 	}
@@ -195,20 +173,5 @@ func ProcessEditedMarkdown(content string) (string, error) {
 		}
 	}
 
-	// Collapse multiple consecutive blank lines left after stripping.
-	var collapsed []string
-	blankCount := 0
-	for _, line := range result {
-		if strings.TrimSpace(line) == "" {
-			blankCount++
-			if blankCount <= 1 {
-				collapsed = append(collapsed, line)
-			}
-		} else {
-			blankCount = 0
-			collapsed = append(collapsed, line)
-		}
-	}
-
-	return strings.TrimRight(strings.Join(collapsed, "\n"), "\n"), nil
+	return strings.TrimRight(text.SquashBlankLines(strings.Join(result, "\n")), "\n"), nil
 }
