@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFlashcards(t *testing.T) {
+func TestEditingFlashcards(t *testing.T) {
 	tr := NewTestRepository(t,
 		WithFreezeNow(),
 		WithFile("learning.md", `
@@ -120,4 +120,100 @@ func TestFlashcards(t *testing.T) {
 		"interval":    1,
 		"ease_factor": 2500,
 	}, flashcardRote.Settings)
+}
+
+func TestAutomatingFlashcards(t *testing.T) {
+	tr := NewTestRepository(t,
+		WithFile("english.md", `
+## Generator: Expressions
+
+‛@interpreter: python3‛
+
+‛‛‛python
+import re
+
+expressions = {
+    "processus en place" : "process in place",
+    "flux de travail" : "workflow",
+    "retour sur investissement" : "return on investment",
+}
+
+def generate_slug(text):
+    return re.sub(r'[^a-z0-9]+', '-', text.lower()).strip('-')
+
+def print_flashcards(expressions):
+    for key, value in expressions.items():
+        slug = generate_slug(value)
+        flashcard = f"""
+# Flashcard: Translate _"{value}"_
+
+**Translate** _{key}_
+
+---
+
+**{value}**
+
+"""
+        print(flashcard)
+
+print_flashcards(expressions)
+‛‛‛
+		`))
+
+	_, err := CurrentRepository().Add(AnyPath)
+	require.NoError(t, err)
+	err = CurrentRepository().Commit(true)
+	require.NoError(t, err)
+
+	// Check the generated flashcards
+	require.Equal(t, 3, tr.CountFlashcards())
+	flashcard, err := CurrentRepository().FindFlashcardByShortTitle("Translate _\"process in place\"_")
+	require.NoError(t, err)
+	require.NotNil(t, flashcard)
+	assert.Equal(t, "**Translate** _processus en place_", flashcard.Front.String())
+	assert.Equal(t, "**process in place**", flashcard.Back.String())
+
+	tr.WriteFile("english.md", `
+## Generator: Expressions
+
+‛@interpreter: python3‛
+
+‛‛‛python
+import re
+
+expressions = {
+    "processus en place" : "process in place",
+    "flux de travail" : "workflow",
+    "retour sur investissement" : "return on investment",
+	"période d'essai" : "probationary period",
+}
+
+def print_flashcards(expressions):
+    for key, value in expressions.items():
+        slug = re.sub(r'[^a-z0-9]+', '-', value.lower()).strip('-')
+        flashcard = f"""
+# Flashcard: Translate _"{value}"_
+
+**Translate** _{key}_
+
+---
+
+**{value}**
+
+"""
+        print(flashcard)
+
+print_flashcards(expressions)
+‛‛‛
+		`)
+	_, err = CurrentRepository().Add(AnyPath)
+	require.NoError(t, err)
+	err = CurrentRepository().Commit(true)
+	require.NoError(t, err)
+
+	// Check the new flashcard has been added and prior ones preserved
+	require.Equal(t, 4, tr.CountFlashcards())
+	flashcard, err = CurrentRepository().FindFlashcardByShortTitle("Translate _\"probationary period\"_")
+	require.NoError(t, err)
+	require.NotNil(t, flashcard)
 }

@@ -67,7 +67,7 @@ Set up electron-builder to create installers for Windows, macOS, and Linux.
 
 ## Ideas
 
-### Master: Ideas Box
+### Master: Ideas
 
 ```gotemplate
 {{- range query "type:Idea" }}

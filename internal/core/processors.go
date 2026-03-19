@@ -202,6 +202,8 @@ func GeneratorProcessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, erro
 	if err != nil {
 		return nil, err
 	}
+	mdFile.AbsolutePath = file.AbsolutePath // Use the same absolute path as the generator note
+	// Useful to preserve slugs and resolve relative links correctly in the generated content
 	generatedFile, err := ParseFile(mdFile, nil)
 	if err != nil {
 		return nil, err
@@ -210,6 +212,7 @@ func GeneratorProcessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, erro
 	// Use original line number to make easy to jump to the generator note
 	for _, generatedNote := range generatedFile.Notes {
 		generatedNote.Line = note.Line
+		generatedNote.Generated = true
 	}
 
 	return generatedFile.Notes, nil

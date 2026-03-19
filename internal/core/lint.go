@@ -229,6 +229,11 @@ func MinLinesBetweenNotes(file *ParsedFile, query *Query, args []any) ([]*Violat
 	lines := file.Markdown.Lines()
 
 	for i, note := range file.Notes {
+		if note.Generated {
+			// Skip generated notes as they don't exist in the original file
+			// and thus can't be expected to have blank lines before them.
+			continue
+		}
 		if i == 0 {
 			// No need to check space before the first note. Only between successive notes
 			continue
@@ -267,6 +272,11 @@ func MaxLinesBetweenNotes(file *ParsedFile, query *Query, args []any) ([]*Violat
 	lines := file.Markdown.Lines()
 
 	for _, note := range file.Notes {
+		if note.Generated {
+			// Skip generated notes as they don't exist in the original file
+			// and thus can't be expected to have blank lines before them.
+			continue
+		}
 		countBlankLinesBefore := 0
 
 		j := 1

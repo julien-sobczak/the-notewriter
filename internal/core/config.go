@@ -249,7 +249,11 @@ func (c ConfigDesks) Check() error {
 	}
 	return errors.Join(errs...)
 }
-func (c ConfigDesks) ApplyDefaults() {}
+func (c ConfigDesks) ApplyDefaults() {
+	for _, desk := range c {
+		desk.ApplyDefaults()
+	}
+}
 
 func (c ConfigJournals) Check() error {
 	var errs []error
@@ -749,7 +753,7 @@ type ConfigDesk struct {
 	OID         string `json:"oid,omitempty"`         // A static identifier will be determined from the name if empty
 	Name        string `json:"name"`                  // The name must be unique
 	Description string `json:"description,omitempty"` // Optional description
-	Root        Block  `json:"root"`                  // Root block of the desk
+	Root        *Block `json:"root"`                  // Root block of the desk
 	Template    bool   `json:"template,omitempty"`    // True to indicate this is a template for new desks
 }
 
@@ -761,13 +765,19 @@ func (c *ConfigDesk) Check() error {
 	return c.Root.Check()
 }
 
+func (c *ConfigDesk) ApplyDefaults() {
+	if c.Root != nil {
+		c.Root.ApplyDefaults()
+	}
+}
+
 type Block struct {
 	OID      string    `json:"oid,omitempty"`      // Unique identifier inside a single desk
 	Name     string    `json:"name,omitempty"`     // Optional block name
 	Layout   string    `json:"layout"`             // container | horizontal | vertical
 	View     string    `json:"view,omitempty"`     // single | grid | list | free
 	Size     string    `json:"size,omitempty"`     // Percentage of this block on parent size
-	Elements []Block   `json:"elements,omitempty"` // For horizontal/vertical blocks
+	Elements []*Block  `json:"elements,omitempty"` // For horizontal/vertical blocks
 	Query    string    `json:"query,omitempty"`    // For container blocks
 	NoteOIDs []oid.OID `json:"noteOids,omitempty"` // For container blocks - direct references to specific notes
 }
@@ -787,6 +797,19 @@ func (c *Block) Check() error {
 		}
 	}
 	return nil
+}
+
+func (c *Block) ApplyDefaults() {
+	if c.Layout == "" {
+		c.Layout = BlockLayoutContainer
+	}
+	if c.View == "" {
+		c.View = BlockViewGrid
+	}
+	// Apply defaults recursively
+	for _, element := range c.Elements {
+		element.ApplyDefaults()
+	}
 }
 
 type ConfigJournal struct {
@@ -1513,6 +1536,12 @@ var ReservedAttributes = map[string]ConfigAttribute{
 		Format:  "markdown",
 		Inherit: BoolPointer(false),
 	},
+
+	"desks": {
+		Name:    "desks",
+		Type:    "string[]",
+		Inherit: BoolPointer(false),
+	},
 }
 
 func ParseConfigFile(jsonnetPath string) (*ConfigFile, error) {
@@ -1597,6 +1626,11 @@ func (c *ConfigFile) ApplyDefaults() {
 		c.Linter = &ConfigLinter{}
 	}
 	c.Linter.ApplyDefaults()
+
+	if c.Desks == nil {
+		c.Desks = make(ConfigDesks, 0)
+	}
+	c.Desks.ApplyDefaults()
 }
 
 func parseIgnoreFile(content string) (*IgnoreFile, error) {

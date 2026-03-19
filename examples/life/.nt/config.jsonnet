@@ -160,7 +160,7 @@ local makeHeading = nt.Schema.makeHeading;
           required: true,
         },
       ],
-      deskTemplates: ['Project Template'],
+      deskTemplates: ['Project Overview', 'Project Backlog'],
       schema: {
         body: makeHeading(children=[
           makeHeading(
@@ -201,7 +201,7 @@ local makeHeading = nt.Schema.makeHeading;
 
   desks: [
     {
-      name: 'Project Template',
+      name: 'Project Overview',
       description: 'Visualize your project',
       template: true,
       root: {
@@ -224,7 +224,7 @@ local makeHeading = nt.Schema.makeHeading;
           },
           {
             name: 'Tasks',
-            query: 'type:Tasks',
+            query: 'type:Task',
             view: 'grid',
           },
           {
@@ -233,6 +233,25 @@ local makeHeading = nt.Schema.makeHeading;
             view: 'single',
           },
         ],
+      },
+    },
+    {
+      name: 'Project Backlog',
+      description: 'Manage your project backlog',
+      template: true,
+      root: {
+        name: 'Tasks',
+        query: 'type:Task',
+        view: 'grid',
+      },
+    },
+    {
+      name: 'The NoteWriter',
+      description: 'Ideas',
+      root: {
+        name: 'Ideas',
+        query: 'type:Master @title:Ideas',
+        view: 'single',
       },
     },
   ],

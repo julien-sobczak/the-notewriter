@@ -1,5 +1,6 @@
 ---
 source: https://github.com/julien-sobczak/the-notewriter
+desks: The NoteWriter
 ---
 
 # Project: The NoteWriter
@@ -69,7 +70,7 @@ Expand test coverage with integration tests that validate end-to-end workflows a
 
 ## Ideas
 
-### Master: Ideas Box
+### Master: Ideas
 
 ```gotemplate
 {{- range query "type:Idea" }}
