@@ -168,6 +168,120 @@ Blablabla`,
 		require.Nil(t, c)
 	})
 
+	t.Run("Apply defaults", func(t *testing.T) {
+
+		dir := populate(t, map[string]any{
+			".nt/config.jsonnet": `
+{
+  desks: [
+    {
+      name: 'Project Overview',
+      description: 'Visualize your project',
+      template: true,
+      root: {
+        layout: 'vertical',
+		showActions: false,
+        elements: [
+          {
+            layout: 'horizontal',
+			showComment: false,
+            elements: [
+              {
+                name: 'Synopsis',
+                query: 'type:Synopsis',
+                view: 'single',
+              },
+              {
+			    showActions: true,
+                name: 'Lists',
+                query: 'type:List',
+                view: 'list',
+				showAttributes: false,
+              },
+            ],
+          },
+          {
+            name: 'Tasks',
+            query: 'type:Task',
+            view: 'grid',
+			showBody: false,
+			showAttributes: false,
+			showTags: false,
+          },
+          {
+            name: 'Ideas',
+            query: 'type:Master @title:Ideas',
+            view: 'single',
+			showTitle: false
+          },
+        ],
+      },
+    },
+  ],
+}`,
+		})
+
+		c, err := ReadConfigFromDirectory(dir)
+		require.NoError(t, err)
+		require.NotNil(t, c)
+
+		require.Len(t, c.ConfigFile.Desks, 1)
+		singleDesk := c.ConfigFile.Desks[0]
+		assert.Equal(t, "Project Overview", singleDesk.Name)
+		// Root
+		assert.False(t, *singleDesk.Root.ShowActions)
+		assert.True(t, *singleDesk.Root.ShowBody)
+		assert.True(t, *singleDesk.Root.ShowTitle)
+		assert.True(t, *singleDesk.Root.ShowComment)
+		assert.True(t, *singleDesk.Root.ShowAttributes)
+		assert.True(t, *singleDesk.Root.ShowTags)
+
+		require.Len(t, singleDesk.Root.Elements, 3)
+		block1 := singleDesk.Root.Elements[0]
+		block2 := singleDesk.Root.Elements[1]
+		block3 := singleDesk.Root.Elements[2]
+
+		// Block 1
+		assert.False(t, *block1.ShowActions)
+		assert.True(t, *block1.ShowBody)
+		assert.True(t, *block1.ShowTitle)
+		assert.False(t, *block1.ShowComment)
+		assert.True(t, *block1.ShowAttributes)
+		assert.True(t, *block1.ShowTags)
+		require.Len(t, block1.Elements, 2)
+		block1_1 := block1.Elements[0]
+		block1_2 := block1.Elements[1]
+		// Block 1.1
+		assert.False(t, *block1_1.ShowActions) // Inherited from root
+		assert.True(t, *block1_1.ShowBody)
+		assert.True(t, *block1_1.ShowTitle)
+		assert.False(t, *block1_1.ShowComment) // Overriden
+		assert.True(t, *block1_1.ShowAttributes)
+		assert.True(t, *block1_1.ShowTags)
+		// Block 1.2
+		assert.True(t, *block1_2.ShowActions) // Overriden
+		assert.True(t, *block1_2.ShowBody)
+		assert.True(t, *block1_2.ShowTitle)
+		assert.False(t, *block1_2.ShowComment)    // Inherited from block 1
+		assert.False(t, *block1_2.ShowAttributes) // Overriden
+		assert.True(t, *block1_2.ShowTags)
+
+		// Block 2
+		assert.False(t, *block2.ShowActions) // Inherited from root
+		assert.False(t, *block2.ShowBody)    // Overriden
+		assert.True(t, *block2.ShowTitle)
+		assert.True(t, *block2.ShowComment)
+		assert.False(t, *block2.ShowAttributes) // Overriden
+		assert.False(t, *block2.ShowTags)       // Overriden
+
+		// Block 3
+		assert.False(t, *block3.ShowActions)
+		assert.True(t, *block3.ShowBody)
+		assert.False(t, *block3.ShowTitle) // Overriden
+		assert.True(t, *block3.ShowComment)
+		assert.True(t, *block3.ShowAttributes)
+		assert.True(t, *block3.ShowTags)
+	})
 }
 
 func TestCheckConfig(t *testing.T) {

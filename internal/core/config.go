@@ -767,7 +767,7 @@ func (c *ConfigDesk) Check() error {
 
 func (c *ConfigDesk) ApplyDefaults() {
 	if c.Root != nil {
-		c.Root.ApplyDefaults()
+		c.Root.ApplyDefaults(nil)
 	}
 }
 
@@ -780,6 +780,13 @@ type Block struct {
 	Elements []*Block  `json:"elements,omitempty"` // For horizontal/vertical blocks
 	Query    string    `json:"query,omitempty"`    // For container blocks
 	NoteOIDs []oid.OID `json:"noteOids,omitempty"` // For container blocks - direct references to specific notes
+	// Rendering props for container blocks (inherited by child blocks if not specified)
+	ShowActions    *bool `json:"showActions,omitempty"`
+	ShowTitle      *bool `json:"showTitle,omitempty"`
+	ShowBody       *bool `json:"showBody,omitempty"`
+	ShowComment    *bool `json:"showComment,omitempty"`
+	ShowAttributes *bool `json:"showAttributes,omitempty"`
+	ShowTags       *bool `json:"showTags,omitempty"`
 }
 
 // Check validates the block configuration including nested blocks.
@@ -799,16 +806,58 @@ func (c *Block) Check() error {
 	return nil
 }
 
-func (c *Block) ApplyDefaults() {
+func (c *Block) ApplyDefaults(parent *Block) {
 	if c.Layout == "" {
 		c.Layout = BlockLayoutContainer
 	}
 	if c.View == "" {
 		c.View = BlockViewGrid
 	}
+	if c.ShowActions == nil {
+		if parent != nil {
+			c.ShowActions = parent.ShowActions
+		} else {
+			c.ShowActions = BoolPointer(true)
+		}
+	}
+	if c.ShowBody == nil {
+		if parent != nil {
+			c.ShowBody = parent.ShowBody
+		} else {
+			c.ShowBody = BoolPointer(true)
+		}
+	}
+	if c.ShowTitle == nil {
+		if parent != nil {
+			c.ShowTitle = parent.ShowTitle
+		} else {
+			c.ShowTitle = BoolPointer(true)
+		}
+	}
+	if c.ShowComment == nil {
+		if parent != nil {
+			c.ShowComment = parent.ShowComment
+		} else {
+			c.ShowComment = BoolPointer(true)
+		}
+	}
+	if c.ShowAttributes == nil {
+		if parent != nil {
+			c.ShowAttributes = parent.ShowAttributes
+		} else {
+			c.ShowAttributes = BoolPointer(true)
+		}
+	}
+	if c.ShowTags == nil {
+		if parent != nil {
+			c.ShowTags = parent.ShowTags
+		} else {
+			c.ShowTags = BoolPointer(true)
+		}
+	}
 	// Apply defaults recursively
 	for _, element := range c.Elements {
-		element.ApplyDefaults()
+		element.ApplyDefaults(c)
 	}
 }
 

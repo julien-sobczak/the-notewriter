@@ -21,7 +21,7 @@ The application tracks progress, provides detailed statistics, and adapts diffic
 
 ## Tasks
 
-### Master: Backlog
+### Master: Backlog `#bookmark`
 
 ```gotemplate
 {{- range query "type:Task" }}

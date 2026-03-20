@@ -206,6 +206,7 @@ local makeHeading = nt.Schema.makeHeading;
       template: true,
       root: {
         layout: 'vertical',
+        showActions: false,
         elements: [
           {
             layout: 'horizontal',
@@ -243,6 +244,10 @@ local makeHeading = nt.Schema.makeHeading;
         name: 'Tasks',
         query: 'type:Task',
         view: 'grid',
+        showActions: false,
+        showComment: false,
+        showAttributes: false,
+        showTags: false,
       },
     },
     {
@@ -252,6 +257,8 @@ local makeHeading = nt.Schema.makeHeading;
         name: 'Ideas',
         query: 'type:Master @title:Ideas',
         view: 'single',
+        showAttributes: true,
+        showTags: true,
       },
     },
   ],

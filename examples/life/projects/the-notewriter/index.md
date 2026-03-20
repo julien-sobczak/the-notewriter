@@ -30,7 +30,7 @@ The tool is built in Go for performance and cross-platform compatibility, with a
 
 ## Tasks
 
-### Master: Backlog
+### Master: Backlog `#bookmark`
 
 ```gotemplate
 {{- range query "type:Task" }}
