@@ -866,6 +866,43 @@ func (r *Repository) GetRandomQuote() (*Note, error) {
 	return QueryNote(CurrentDB().Client(), `WHERE note_type = "Quote"`, "ORDER BY RANDOM() LIMIT 1")
 }
 
+// ToSQL converts a note query to its SQL representation to append to a where clause.
+func (q Query) ToSQL() string {
+	var querySQL strings.Builder
+	querySQL.WriteString("1=1 ") // useless but simplify the query building
+	if q.Slug != "" {
+		querySQL.WriteString(fmt.Sprintf("AND note.slug = '%s' ", q.Slug))
+	}
+	if len(q.Types) > 0 {
+		var typesSQL []string
+		for _, noteType := range q.Types {
+			typesSQL = append(typesSQL, fmt.Sprintf(`"%s"`, noteType))
+		}
+		querySQL.WriteString(fmt.Sprintf("AND note.note_type IN (%s) ", strings.Join(typesSQL, ",")))
+	}
+	if len(q.Tags) > 0 {
+		querySQL.WriteString("AND ( ")
+		for _, tag := range q.Tags {
+			querySQL.WriteString(fmt.Sprintf("  note.tags LIKE '%%%s%%' ", tag))
+		}
+		querySQL.WriteString(") ")
+	}
+	if len(q.Attributes) > 0 {
+		querySQL.WriteString("AND ( ")
+		for name, value := range q.Attributes {
+			querySQL.WriteString(fmt.Sprintf(`  json_extract(note.attributes, "$.%s") = "%s" `, name, value))
+		}
+		querySQL.WriteString(") ")
+	}
+	if q.Path != "" {
+		querySQL.WriteString(fmt.Sprintf("AND note.relative_path LIKE '%s' ", q.Path+"%"))
+	}
+	if len(q.Terms) > 0 {
+		querySQL.WriteString(fmt.Sprintf("AND note_fts MATCH '%s' ", strings.Join(q.Terms, " AND ")))
+	}
+	return querySQL.String()
+}
+
 // SearchNotes query notes to find the ones matching a list of criteria.
 //
 // Examples:
@@ -883,37 +920,7 @@ func (r *Repository) SearchNotes(q string) ([]*Note, error) {
 	querySQL.WriteString("FROM note_fts ")
 	querySQL.WriteString("JOIN note on note.oid = note_fts.oid ")
 	querySQL.WriteString("WHERE note.oid IS NOT NULL ") // useless but simplify the query building
-	if query.Slug != "" {
-		querySQL.WriteString(fmt.Sprintf("AND note.slug = '%s' ", query.Slug))
-	}
-	if len(query.Types) > 0 {
-		var typesSQL []string
-		for _, noteType := range query.Types {
-			typesSQL = append(typesSQL, fmt.Sprintf(`"%s"`, noteType))
-		}
-		querySQL.WriteString(fmt.Sprintf("AND note.note_type IN (%s) ", strings.Join(typesSQL, ",")))
-	}
-	if len(query.Tags) > 0 {
-		querySQL.WriteString("AND ( ")
-		for _, tag := range query.Tags {
-			querySQL.WriteString(fmt.Sprintf("  note.tags LIKE '%%%s%%' ", tag))
-		}
-		querySQL.WriteString(") ")
-	}
-	if len(query.Attributes) > 0 {
-		querySQL.WriteString("AND ( ")
-		for name, value := range query.Attributes {
-			querySQL.WriteString(fmt.Sprintf(`  json_extract(note.attributes, "$.%s") = "%s" `, name, value))
-		}
-		querySQL.WriteString(") ")
-	}
-	if query.Path != "" {
-		querySQL.WriteString(fmt.Sprintf("AND note.relative_path LIKE '%s' ", query.Path+"%"))
-	}
-	if len(query.Terms) > 0 {
-		querySQL.WriteString(fmt.Sprintf("AND note_fts MATCH '%s' ", strings.Join(query.Terms, " AND ")))
-	}
-
+	querySQL.WriteString(fmt.Sprintf("AND (%s)", query.ToSQL()))
 	querySQL.WriteString("ORDER BY rank LIMIT 10;")
 	CurrentLogger().Trace(querySQL.String())
 	queryFTS, err := CurrentDB().Client().Prepare(querySQL.String())
