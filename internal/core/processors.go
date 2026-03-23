@@ -490,7 +490,7 @@ func createQueryFunc(file *ParsedFile) func(string) []*ParsedNote {
 		}
 
 		// Fail if a filter path is declared
-		if query.Path != "" {
+		if len(query.Path) > 0 {
 			return []*ParsedNote{}
 		}
 

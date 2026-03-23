@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"regexp/syntax"
-	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -1162,29 +1161,68 @@ func (n *ParsedNote) Matches(query *Query) bool {
 			return false
 		}
 	}
-	if query.Path != "" {
-		if !strings.HasPrefix(n.RelativePath, query.Path) {
+	if len(query.Path) > 0 {
+		var hasPositive bool
+		positiveMatch := false
+		for _, cond := range query.Path {
+			if cond.IsNegated() {
+				if strings.HasPrefix(n.RelativePath, cond.Operand) {
+					return false // explicitly excluded
+				}
+			} else {
+				hasPositive = true
+				if strings.HasPrefix(n.RelativePath, cond.Operand) {
+					positiveMatch = true
+				}
+			}
+		}
+		if hasPositive && !positiveMatch {
 			return false
 		}
 	}
 	if len(query.Types) > 0 {
-		if !slices.Contains(query.Types, n.Type) {
+		var hasPositive bool
+		positiveMatch := false
+		for _, cond := range query.Types {
+			if cond.IsNegated() {
+				if n.Type == cond.Operand {
+					return false // explicitly excluded
+				}
+			} else {
+				hasPositive = true
+				if n.Type == cond.Operand {
+					positiveMatch = true
+				}
+			}
+		}
+		if hasPositive && !positiveMatch {
 			return false
 		}
 	}
 	if len(query.Tags) > 0 {
-		if !n.NoteTags.IncludesAll(query.Tags) {
-			return false
+		for _, cond := range query.Tags {
+			if cond.IsNegated() {
+				if n.NoteTags.Includes(cond.Operand) {
+					return false // explicitly excluded
+				}
+			} else {
+				if !n.NoteTags.Includes(cond.Operand) {
+					return false
+				}
+			}
 		}
 	}
 	if len(query.Attributes) > 0 {
-		for key, expectedValue := range query.Attributes {
+		for key, cond := range query.Attributes {
 			noteValue, ok := n.Attributes[key]
-			if !ok {
-				return false
-			}
-			if expectedValue == noteValue {
-				return false
+			if cond.IsNegated() {
+				if ok && noteValue == cond.Operand {
+					return false // explicitly excluded
+				}
+			} else {
+				if !ok || noteValue != cond.Operand {
+					return false
+				}
 			}
 		}
 	}

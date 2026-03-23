@@ -874,31 +874,68 @@ func (q Query) ToSQL() string {
 		querySQL.WriteString(fmt.Sprintf("AND note.slug = '%s' ", q.Slug))
 	}
 	if len(q.Types) > 0 {
-		var typesSQL []string
-		for _, noteType := range q.Types {
-			typesSQL = append(typesSQL, fmt.Sprintf(`"%s"`, noteType))
+		var posTypes []string
+		var negTypes []string
+		for _, cond := range q.Types {
+			if cond.IsNegated() {
+				negTypes = append(negTypes, fmt.Sprintf(`"%s"`, cond.Operand))
+			} else {
+				posTypes = append(posTypes, fmt.Sprintf(`"%s"`, cond.Operand))
+			}
 		}
-		querySQL.WriteString(fmt.Sprintf("AND note.note_type IN (%s) ", strings.Join(typesSQL, ",")))
+		if len(posTypes) > 0 {
+			querySQL.WriteString(fmt.Sprintf("AND note.note_type IN (%s) ", strings.Join(posTypes, ",")))
+		}
+		if len(negTypes) > 0 {
+			querySQL.WriteString(fmt.Sprintf("AND note.note_type NOT IN (%s) ", strings.Join(negTypes, ",")))
+		}
 	}
 	if len(q.Tags) > 0 {
-		querySQL.WriteString("AND ( ")
-		for _, tag := range q.Tags {
-			querySQL.WriteString(fmt.Sprintf("  note.tags LIKE '%%%s%%' ", tag))
+		for _, cond := range q.Tags {
+			if cond.IsNegated() {
+				querySQL.WriteString(fmt.Sprintf("AND note.tags NOT LIKE '%%%s%%' ", cond.Operand))
+			} else {
+				querySQL.WriteString(fmt.Sprintf("AND note.tags LIKE '%%%s%%' ", cond.Operand))
+			}
 		}
-		querySQL.WriteString(") ")
 	}
 	if len(q.Attributes) > 0 {
-		querySQL.WriteString("AND ( ")
-		for name, value := range q.Attributes {
-			querySQL.WriteString(fmt.Sprintf(`  json_extract(note.attributes, "$.%s") = "%s" `, name, value))
+		for name, cond := range q.Attributes {
+			if cond.IsNegated() {
+				// Include notes where the attribute is absent OR doesn't match (NULL != value is NULL in SQL, not TRUE)
+				querySQL.WriteString(fmt.Sprintf(`AND (json_extract(note.attributes, "$.%s") IS NULL OR json_extract(note.attributes, "$.%s") != "%s") `, name, name, cond.Operand))
+			} else {
+				querySQL.WriteString(fmt.Sprintf(`AND json_extract(note.attributes, "$.%s") = "%s" `, name, cond.Operand))
+			}
 		}
-		querySQL.WriteString(") ")
 	}
-	if q.Path != "" {
-		querySQL.WriteString(fmt.Sprintf("AND note.relative_path LIKE '%s' ", q.Path+"%"))
+	if len(q.Path) > 0 {
+		var posConditions []string
+		var negConditions []string
+		for _, cond := range q.Path {
+			if cond.IsNegated() {
+				negConditions = append(negConditions, fmt.Sprintf("note.relative_path NOT LIKE '%s'", cond.Operand+"%"))
+			} else {
+				posConditions = append(posConditions, fmt.Sprintf("note.relative_path LIKE '%s'", cond.Operand+"%"))
+			}
+		}
+		if len(posConditions) > 0 {
+			querySQL.WriteString(fmt.Sprintf("AND (%s) ", strings.Join(posConditions, " OR ")))
+		}
+		for _, neg := range negConditions {
+			querySQL.WriteString(fmt.Sprintf("AND %s ", neg))
+		}
 	}
 	if len(q.Terms) > 0 {
-		querySQL.WriteString(fmt.Sprintf("AND note_fts MATCH '%s' ", strings.Join(q.Terms, " AND ")))
+		var termOperands []string
+		for _, cond := range q.Terms {
+			if cond.IsNegated() {
+				termOperands = append(termOperands, fmt.Sprintf("NOT %s", cond.Operand))
+			} else {
+				termOperands = append(termOperands, cond.Operand)
+			}
+		}
+		querySQL.WriteString(fmt.Sprintf("AND note_fts MATCH '%s' ", strings.Join(termOperands, " AND ")))
 	}
 	return querySQL.String()
 }
