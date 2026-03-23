@@ -266,8 +266,8 @@ local srsAlgorithmSettings = {
       // Display name of the deck.
       name: "Skills",
       // Optional query restricting which flashcards belong to
-      // this deck. Decks are evaluated in order; each flashcard
-      // is assigned to the first matching deck.
+      // this deck. Make sure to define queries without overlap to avoid
+      // reviewing the same flashcard in different decks.
       query: "path:resources/skills",
       // Maximum number of new cards introduced per study session.
       newFlashcardsPerDay: 10,
