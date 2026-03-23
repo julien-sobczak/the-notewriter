@@ -417,6 +417,10 @@ func (r *Repository) FindFlashcardByShortTitle(shortTitle string) (*Flashcard, e
 	return QueryFlashcard(CurrentDB().Client(), `WHERE short_title = ?`, shortTitle)
 }
 
+func (r *Repository) FindFlashcardBySlug(slug string) (*Flashcard, error) {
+	return QueryFlashcard(CurrentDB().Client(), `WHERE slug = ?`, slug)
+}
+
 func (r *Repository) FindFlashcardByHash(hash string) (*Flashcard, error) {
 	return QueryFlashcard(CurrentDB().Client(), `WHERE hash = ?`, hash)
 }

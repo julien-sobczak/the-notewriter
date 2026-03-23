@@ -147,6 +147,8 @@ def print_flashcards(expressions):
         flashcard = f"""
 # Flashcard: Translate _"{value}"_
 
+‛@slug: {slug}‛
+
 **Translate** _{key}_
 
 ---
@@ -194,6 +196,8 @@ def print_flashcards(expressions):
         flashcard = f"""
 # Flashcard: Translate _"{value}"_
 
+‛@slug: {slug}‛
+
 **Translate** _{key}_
 
 ---
@@ -213,7 +217,28 @@ print_flashcards(expressions)
 
 	// Check the new flashcard has been added and prior ones preserved
 	require.Equal(t, 4, tr.CountFlashcards())
-	flashcard, err = CurrentRepository().FindFlashcardByShortTitle("Translate _\"probationary period\"_")
+	flashcard, err = CurrentRepository().FindFlashcardBySlug("probationary-period")
 	require.NoError(t, err)
 	require.NotNil(t, flashcard)
+
+	// Try to change the slugs
+	tr.ReplaceLine("english.md",
+		18,
+		"        slug = re.sub(r'[^a-z0-9]+', '-', value.lower()).strip('-')",
+		"        slug = 'english-' + re.sub(r'[^a-z0-9]+', '-', value.lower()).strip('-')",
+	)
+	_, err = CurrentRepository().Add(AnyPath)
+	require.NoError(t, err)
+	err = CurrentRepository().Commit(true)
+	require.NoError(t, err)
+
+	// We still must have the same flashcards (identified by their new slug)
+	// and old ones must have been deleted
+	require.Equal(t, 4, tr.CountFlashcards())
+	oldFlashcard, err := CurrentRepository().FindFlashcardBySlug("probationary-period")
+	require.NoError(t, err)
+	require.Nil(t, oldFlashcard) // Must no longer exist
+	newFlashcard, err := CurrentRepository().FindFlashcardBySlug("english-probationary-period")
+	require.NoError(t, err)
+	require.NotNil(t, newFlashcard) // Must exist with the new slug
 }

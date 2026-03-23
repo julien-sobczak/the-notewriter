@@ -378,6 +378,10 @@ func (n *Note) update(packFile *PackFile, f *File, parsedNote *ParsedNote) {
 		n.Body = parsedNote.Body
 		stale = true
 	}
+	if n.Slug != parsedNote.Slug {
+		n.Slug = parsedNote.Slug
+		stale = true
+	}
 	if n.Comment != parsedNote.Comment {
 		n.Comment = parsedNote.Comment
 		stale = true
