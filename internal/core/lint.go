@@ -551,12 +551,12 @@ func RequireFlashcardSlug(file *ParsedFile, query *Query, args []any) ([]*Violat
 	return violations, nil
 }
 
-// Keep an inventory of parsed deck queries to avoid reparsing for every file
-var deckQueriesInventory []*Query
+// Keep an inventory of parsed deck queries (name -> query) to avoid reparsing for every file
+var deckQueriesInventory map[string]*Query
 var deckQueriesInventoryOnce resync.Once
 
 func buildDeckQueriesInventory() {
-	deckQueriesInventory = make([]*Query, 0)
+	deckQueriesInventory = make(map[string]*Query)
 	decks := CurrentConfigFile().Decks
 	for _, deck := range decks {
 		if deck.Query != "" {
@@ -565,7 +565,7 @@ func buildDeckQueriesInventory() {
 				log.Printf("Warning: failed to parse deck query %q: %v", deck.Query, err)
 				continue
 			}
-			deckQueriesInventory = append(deckQueriesInventory, deckQuery)
+			deckQueriesInventory[deck.Name] = deckQuery
 		}
 	}
 }
@@ -607,37 +607,9 @@ func NoOrphanFlashcard(file *ParsedFile, query *Query, args []any) ([]*Violation
 	return violations, nil
 }
 
-// deckNamedQuery associates a deck name with its parsed query.
-type deckNamedQuery struct {
-	name  string
-	query *Query
-}
-
-// Keep an inventory of named deck queries to avoid reparsing for every file
-var overlappingDeckInventory []*deckNamedQuery
-var overlappingDeckInventoryOnce resync.Once
-
-func buildOverlappingDeckInventory() {
-	overlappingDeckInventory = make([]*deckNamedQuery, 0)
-	decks := CurrentConfigFile().Decks
-	for _, deck := range decks {
-		if deck.Query != "" {
-			deckQuery, err := ParseQuery(deck.Query)
-			if err != nil {
-				log.Printf("Warning: failed to parse deck query %q: %v", deck.Query, err)
-				continue
-			}
-			overlappingDeckInventory = append(overlappingDeckInventory, &deckNamedQuery{
-				name:  deck.Name,
-				query: deckQuery,
-			})
-		}
-	}
-}
-
 // NoOverlappingDeck implements the rule "no-overlapping-deck".
 func NoOverlappingDeck(file *ParsedFile, query *Query, args []any) ([]*Violation, error) {
-	overlappingDeckInventoryOnce.Do(buildOverlappingDeckInventory)
+	deckQueriesInventoryOnce.Do(buildDeckQueriesInventory)
 
 	var violations []*Violation
 
@@ -650,13 +622,14 @@ func NoOverlappingDeck(file *ParsedFile, query *Query, args []any) ([]*Violation
 
 			// Find all decks that match this note
 			var matchingDecks []string
-			for _, item := range overlappingDeckInventory {
-				if item.query.MatchesParsed(note) {
-					matchingDecks = append(matchingDecks, item.name)
+			for name, deckQuery := range deckQueriesInventory {
+				if deckQuery.MatchesParsed(note) {
+					matchingDecks = append(matchingDecks, name)
 				}
 			}
 
 			if len(matchingDecks) > 1 {
+				slices.Sort(matchingDecks)
 				violations = append(violations, &Violation{
 					Name:         "no-overlapping-deck",
 					Message:      fmt.Sprintf("flashcard %q matches multiple decks: %s", note.Title, strings.Join(matchingDecks, ", ")),

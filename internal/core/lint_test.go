@@ -509,7 +509,7 @@ func TestNoOrphanFlashcardNoDecks(t *testing.T) {
 
 func TestNoOverlappingDeck(t *testing.T) {
 	// Reset the inventory to avoid interference from other tests
-	overlappingDeckInventoryOnce.Reset()
+	deckQueriesInventoryOnce.Reset()
 
 	tr := NewTestRepository(t, FromGoldenDirNamed("TestLint"))
 
