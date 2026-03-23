@@ -40,12 +40,14 @@ Rules have no severity to make sure that violations are fixed instead of accumul
 | `no-duplicate-slug` | Enforce no duplicate slugs between notes across files | - |
 | `no-implicit-slug-on-flashcard` | Enforce explicit slugs on flashcards to preverse study history on rewriting | - |
 | `min-lines-between-notes` | Enforce a minimum number of lines between notes | <ul><li><code>int</code> The number of lines</li></ul> |
-|	`max-lines-between-notes` | Enforce a maximum number of lines between notes | <ul><li><code>int</code> The number of lines</li></ul> |
-|	`no-dangling-media` | Path to media files must exist | - |
-|	`no-dead-wikilink` | Links between notes must exist | - |
-|	`no-extension-wikilink` | No extension in wikilinks | - |
-|	`no-ambiguous-wikilink` | No ambiguity in wikilinks | - |
-|	`require-tag-if` | At least one tag on notes matching the query must match | <ul><li><code>string</code> A query to match notes</li><li><code>string[]</code> A list of tags</li></ul> |
+| `max-lines-between-notes` | Enforce a maximum number of lines between notes | <ul><li><code>int</code> The number of lines</li></ul> |
+| `no-dangling-media` | Path to media files must exist | - |
+| `no-dead-wikilink` | Links between notes must exist | - |
+| `no-extension-wikilink` | No extension in wikilinks | - |
+| `no-ambiguous-wikilink` | No ambiguity in wikilinks | - |
+| `no-orphan-flashcard` | Ensure flashcards are assigned to a deck | - |
+| `no-overlapping-deck` | Ensure no flashcard is assigned to multiple decks | - |
+| `require-tag-if` | At least one tag on notes matching the query must match | <ul><li><code>string</code> A query to match notes</li><li><code>string[]</code> A list of tags</li></ul> |
 
 
 ### `no-empty-title`
@@ -398,6 +400,114 @@ Example (with violations highlighted):
 
 Use the rule `no-ambiguous-wikilink` to ensure links are explicit and can be followed properly.
 
+:::
+
+
+
+### `no-orphan-flashcard`
+
+Configuration:
+
+```jsonnet title=config.jsonnet
+local nt = import 'nt.libsonnet';
+{
+        linter: {
+                rules: [
+                    nt.LintRules.NoOrphanFlashcard(),
+                ],
+        }
+}
+```
+
+Example (with violations highlighted):
+
+```md {3}
+# Example
+
+## Flashcard: Orphan
+
+This flashcard is not assigned to any deck.
+
+## Flashcard: In Deck
+
+`#math`
+
+This flashcard is assigned to a deck.
+```
+
+Where decks are declared like this in `config.jsonnet`:
+
+```jsonnet
+{
+  decks: [
+    {
+      name: 'Math',
+      query: '#math',
+    },
+    {
+      name: 'Science',
+      query: '#science',
+    },
+  ],
+}
+```
+
+:::tip
+Use the rule `no-orphan-flashcard` to ensure all flashcards are assigned to a deck for proper study management.
+:::
+
+### `no-overlapping-deck`
+
+Configuration:
+
+```jsonnet title=config.jsonnet
+local nt = import 'nt.libsonnet';
+{
+        linter: {
+                rules: [
+                    nt.LintRules.NoOverlappingDeck(),
+                ],
+        }
+}
+```
+
+Example (with violations highlighted):
+
+```md {5}
+# Example
+
+## Flashcard: Overlapping Decks
+
+`#math` `#science`
+
+This flashcard is assigned to multiple decks, which is not allowed.
+
+## Flashcard: Single Deck
+
+`#math`
+
+This flashcard is correctly assigned to a single deck.
+```
+
+Where decks are declared like this in `config.jsonnet`:
+
+```jsonnet
+{
+  decks: [
+    {
+      name: 'Math',
+      query: '#math',
+    },
+    {
+      name: 'Science',
+      query: '#science',
+    },
+  ],
+}
+```
+
+:::tip
+Use the rule `no-overlapping-deck` to ensure each flashcard is assigned to only one deck, preventing ambiguity during study sessions.
 :::
 
 ### `require-tag-if`
