@@ -68,14 +68,23 @@ func TestParseQuery(t *testing.T) {
 		q := `#favorite keyword1 type:note type:flashcard @title:"Note Title" path:"projects/toto" "keyword 2" #life-changing @name:Epictectus`
 		query, err := ParseQuery(q)
 		require.NoError(t, err)
-		assert.Equal(t, "projects/toto", query.Path)
-		assert.EqualValues(t, []string{"note", "flashcard"}, query.Types)
-		assert.EqualValues(t, []string{"favorite", "life-changing"}, query.Tags)
-		assert.EqualValues(t, map[string]any{
-			"title": "Note Title",
-			"name":  "Epictectus",
+		assert.EqualValues(t, []QueryCondition{{Operator: "=", Operand: "projects/toto"}}, query.Path)
+		assert.EqualValues(t, []QueryCondition{
+			{Operator: "=", Operand: "note"},
+			{Operator: "=", Operand: "flashcard"},
+		}, query.Types)
+		assert.EqualValues(t, []QueryCondition{
+			{Operator: "=", Operand: "favorite"},
+			{Operator: "=", Operand: "life-changing"},
+		}, query.Tags)
+		assert.EqualValues(t, map[string]QueryCondition{
+			"title": {Operator: "=", Operand: "Note Title"},
+			"name":  {Operator: "=", Operand: "Epictectus"},
 		}, query.Attributes)
-		assert.EqualValues(t, []string{"keyword1", "keyword 2"}, query.Terms)
+		assert.EqualValues(t, []QueryCondition{
+			{Operator: "=", Operand: "keyword1"},
+			{Operator: "=", Operand: "keyword 2"},
+		}, query.Terms)
 	})
 
 	t.Run("Invalid", func(t *testing.T) {
@@ -87,29 +96,78 @@ func TestParseQuery(t *testing.T) {
 		q := `path:thoughts/on-learning.md`
 		query, err := ParseQuery(q)
 		require.NoError(t, err)
-		assert.Equal(t, "thoughts/on-learning.md", query.Path)
+		assert.EqualValues(t, []QueryCondition{{Operator: "=", Operand: "thoughts/on-learning.md"}}, query.Path)
 	})
 
 	t.Run("PathWithQuotesAndSpaces", func(t *testing.T) {
 		q := `path:"thoughts with spaces/on-learning.md"`
 		query, err := ParseQuery(q)
 		require.NoError(t, err)
-		assert.Equal(t, "thoughts with spaces/on-learning.md", query.Path)
+		assert.EqualValues(t, []QueryCondition{{Operator: "=", Operand: "thoughts with spaces/on-learning.md"}}, query.Path)
 	})
 
 	t.Run("NestedTagsWithSlash", func(t *testing.T) {
 		q := `#todo/read #project/personal/goals`
 		query, err := ParseQuery(q)
 		require.NoError(t, err)
-		assert.EqualValues(t, []string{"todo/read", "project/personal/goals"}, query.Tags)
+		assert.EqualValues(t, []QueryCondition{
+			{Operator: "=", Operand: "todo/read"},
+			{Operator: "=", Operand: "project/personal/goals"},
+		}, query.Tags)
 	})
 
 	t.Run("MixedPathsAndTags", func(t *testing.T) {
 		q := `#todo/read path:projects/learning.md #done/completed path:"with spaces/file.md"`
 		query, err := ParseQuery(q)
 		require.NoError(t, err)
-		assert.Equal(t, "with spaces/file.md", query.Path) // Last path wins
-		assert.EqualValues(t, []string{"todo/read", "done/completed"}, query.Tags)
+		assert.EqualValues(t, []QueryCondition{
+			{Operator: "=", Operand: "projects/learning.md"},
+			{Operator: "=", Operand: "with spaces/file.md"},
+		}, query.Path)
+		assert.EqualValues(t, []QueryCondition{
+			{Operator: "=", Operand: "todo/read"},
+			{Operator: "=", Operand: "done/completed"},
+		}, query.Tags)
+	})
+
+	t.Run("NegationOnPath", func(t *testing.T) {
+		q := `-path:/top/sub/directory +path:/top`
+		query, err := ParseQuery(q)
+		require.NoError(t, err)
+		assert.EqualValues(t, []QueryCondition{
+			{Operator: "<>", Operand: "/top/sub/directory"},
+			{Operator: "=", Operand: "/top"},
+		}, query.Path)
+	})
+
+	t.Run("NegationOnType", func(t *testing.T) {
+		q := `-type:Note type:Flashcard`
+		query, err := ParseQuery(q)
+		require.NoError(t, err)
+		assert.EqualValues(t, []QueryCondition{
+			{Operator: "<>", Operand: "Note"},
+			{Operator: "=", Operand: "Flashcard"},
+		}, query.Types)
+	})
+
+	t.Run("NegationOnTag", func(t *testing.T) {
+		q := `#favorite -#archived`
+		query, err := ParseQuery(q)
+		require.NoError(t, err)
+		assert.EqualValues(t, []QueryCondition{
+			{Operator: "=", Operand: "favorite"},
+			{Operator: "<>", Operand: "archived"},
+		}, query.Tags)
+	})
+
+	t.Run("NegationOnTerm", func(t *testing.T) {
+		q := `golang -deprecated`
+		query, err := ParseQuery(q)
+		require.NoError(t, err)
+		assert.EqualValues(t, []QueryCondition{
+			{Operator: "=", Operand: "golang"},
+			{Operator: "<>", Operand: "deprecated"},
+		}, query.Terms)
 	})
 
 }

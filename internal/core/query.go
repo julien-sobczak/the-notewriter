@@ -7,19 +7,31 @@ import (
 	"unicode"
 )
 
+// QueryCondition represents a single condition in a query with an optional operator.
+// The operator is "=" by default (or when the prefix "+" is present) and "<>" when the prefix "-" is present.
+type QueryCondition struct {
+	Operator string // "=" (positive/default) or "<>" (negation with "-" prefix)
+	Operand  string // The value to match
+}
+
+// IsNegated returns true if this condition is a negation (NOT) condition.
+func (c QueryCondition) IsNegated() bool {
+	return c.Operator == "<>"
+}
+
 type Query struct {
 	Slug       string
-	Types      []string
-	Tags       []string
-	Attributes map[string]any
-	Path       string
-	Terms      []string
+	Types      []QueryCondition
+	Tags       []QueryCondition
+	Attributes map[string]QueryCondition
+	Path       []QueryCondition
+	Terms      []QueryCondition
 }
 
 // NewQuery instantiates a new query.
 func NewQuery() *Query {
 	return &Query{
-		Attributes: make(map[string]any),
+		Attributes: make(map[string]QueryCondition),
 	}
 }
 
@@ -36,7 +48,22 @@ func ParseQuery(q string) (*Query, error) {
 		if token == scanner.EOF {
 			return result, nil
 		}
-		switch s.TokenText() {
+
+		// Check for operator prefix: "-" means negation ("<>"), "+" means positive ("=")
+		operator := "="
+		tokenText := s.TokenText()
+		if tokenText == "-" || tokenText == "+" {
+			if tokenText == "-" {
+				operator = "<>"
+			}
+			token = s.Scan()
+			if token == scanner.EOF {
+				return nil, errors.New("unexpected EOF after operator prefix")
+			}
+			tokenText = s.TokenText()
+		}
+
+		switch tokenText {
 
 		case "slug":
 			// Slug
@@ -74,7 +101,7 @@ func ParseQuery(q string) (*Query, error) {
 			if typeToken == scanner.EOF {
 				return nil, errors.New("unexpected EOF when a type value was expected")
 			}
-			result.Types = append(result.Types, s.TokenText())
+			result.Types = append(result.Types, QueryCondition{Operator: operator, Operand: s.TokenText()})
 
 		case "path":
 			// Path
@@ -92,7 +119,10 @@ func ParseQuery(q string) (*Query, error) {
 
 			// If the path starts with quotes, it's a quoted path - just remove the quotes
 			if strings.HasPrefix(pathValue, `"`) {
-				result.Path = strings.TrimRight(strings.TrimLeft(pathValue, `"`), `"`)
+				result.Path = append(result.Path, QueryCondition{
+					Operator: operator,
+					Operand:  strings.TrimRight(strings.TrimLeft(pathValue, `"`), `"`),
+				})
 			} else {
 				// For unquoted paths, continue reading tokens to build the full path
 				// This handles cases like: path:thoughts/on-learning.md
@@ -113,7 +143,7 @@ func ParseQuery(q string) (*Query, error) {
 						break
 					}
 				}
-				result.Path = pathBuilder.String()
+				result.Path = append(result.Path, QueryCondition{Operator: operator, Operand: pathBuilder.String()})
 			}
 
 		case "#":
@@ -140,7 +170,7 @@ func ParseQuery(q string) (*Query, error) {
 					break
 				}
 			}
-			result.Tags = append(result.Tags, tag)
+			result.Tags = append(result.Tags, QueryCondition{Operator: operator, Operand: tag})
 
 		case "@":
 			// Attribute
@@ -159,12 +189,15 @@ func ParseQuery(q string) (*Query, error) {
 			if attributeValueToken == scanner.EOF {
 				return nil, errors.New("unexpected EOF when an attribute value was expected")
 			}
-			result.Attributes[attributeName] = strings.TrimRight(strings.TrimLeft(s.TokenText(), `"`), `"`)
+			result.Attributes[attributeName] = QueryCondition{
+				Operator: operator,
+				Operand:  strings.TrimRight(strings.TrimLeft(s.TokenText(), `"`), `"`),
+			}
 
 		default:
 			// Term
-			term := strings.TrimRight(strings.TrimLeft(s.TokenText(), `"`), `"`)
-			result.Terms = append(result.Terms, term)
+			term := strings.TrimRight(strings.TrimLeft(tokenText, `"`), `"`)
+			result.Terms = append(result.Terms, QueryCondition{Operator: operator, Operand: term})
 		}
 	}
 }
@@ -173,32 +206,53 @@ func ParseQuery(q string) (*Query, error) {
 func (q *Query) MatchesParsed(note *ParsedNote) bool {
 	// Check type filter
 	if len(q.Types) > 0 {
-		found := false
-		for _, t := range q.Types {
-			if note.Type == t {
-				found = true
-				break
+		// Positive types: note must match at least one positive type condition
+		// Negative types: note must not match any negative type condition
+		var hasPositive bool
+		positiveMatch := false
+		for _, cond := range q.Types {
+			if cond.IsNegated() {
+				if note.Type == cond.Operand {
+					return false // explicitly excluded
+				}
+			} else {
+				hasPositive = true
+				if note.Type == cond.Operand {
+					positiveMatch = true
+				}
 			}
 		}
-		if !found {
+		if hasPositive && !positiveMatch {
 			return false
 		}
 	}
 
 	// Check tag filter
 	if len(q.Tags) > 0 {
-		for _, tag := range q.Tags {
-			if !note.NoteTags.Includes(tag) {
-				return false
+		for _, cond := range q.Tags {
+			if cond.IsNegated() {
+				if note.NoteTags.Includes(cond.Operand) {
+					return false // explicitly excluded
+				}
+			} else {
+				if !note.NoteTags.Includes(cond.Operand) {
+					return false
+				}
 			}
 		}
 	}
 
 	// Check attribute filter
-	for attrName, attrValue := range q.Attributes {
+	for attrName, cond := range q.Attributes {
 		noteAttrValue, exists := note.Attributes[attrName]
-		if !exists || noteAttrValue != attrValue {
-			return false
+		if cond.IsNegated() {
+			if exists && noteAttrValue == cond.Operand {
+				return false // explicitly excluded
+			}
+		} else {
+			if !exists || noteAttrValue != cond.Operand {
+				return false
+			}
 		}
 	}
 
@@ -207,12 +261,39 @@ func (q *Query) MatchesParsed(note *ParsedNote) bool {
 		return false
 	}
 
+	// Check path filter
+	if len(q.Path) > 0 {
+		var hasPositive bool
+		positiveMatch := false
+		for _, cond := range q.Path {
+			if cond.IsNegated() {
+				if strings.HasPrefix(note.RelativePath, cond.Operand) {
+					return false // explicitly excluded
+				}
+			} else {
+				hasPositive = true
+				if strings.HasPrefix(note.RelativePath, cond.Operand) {
+					positiveMatch = true
+				}
+			}
+		}
+		if hasPositive && !positiveMatch {
+			return false
+		}
+	}
+
 	// Check terms (search in title and body)
 	if len(q.Terms) > 0 {
 		searchText := strings.ToLower(note.Title.String() + " " + note.Body.String())
-		for _, term := range q.Terms {
-			if !strings.Contains(searchText, strings.ToLower(term)) {
-				return false
+		for _, cond := range q.Terms {
+			if cond.IsNegated() {
+				if strings.Contains(searchText, strings.ToLower(cond.Operand)) {
+					return false // explicitly excluded
+				}
+			} else {
+				if !strings.Contains(searchText, strings.ToLower(cond.Operand)) {
+					return false
+				}
 			}
 		}
 	}

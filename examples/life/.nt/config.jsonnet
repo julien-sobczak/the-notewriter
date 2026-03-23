@@ -302,7 +302,7 @@ local makeHeading = nt.Schema.makeHeading;
     // Show random quote at startup
     dailyQuote: {
       title: 'Daily Quote',
-      query: 'path:resources/books type:Quote',
+      query: 'path:references/books type:Quote',
       tags: ['daily-quote'],
     },
     // A few custom queries to review some notes regularly
@@ -416,7 +416,7 @@ local makeHeading = nt.Schema.makeHeading;
     },
     {
       name: 'General',
-      // Every other flashcards that didn't match above decks
+      query: '-path:resources/skills',
       newFlashcardsPerDay: 10,
       algorithmSettings: srsAlgorithmSettings,
     },
