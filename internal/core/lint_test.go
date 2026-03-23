@@ -506,3 +506,23 @@ func TestNoOrphanFlashcardNoDecks(t *testing.T) {
 		},
 	}, violations)
 }
+
+func TestNoOverlappingDeck(t *testing.T) {
+	// Reset the inventory to avoid interference from other tests
+	deckQueriesInventoryOnce.Reset()
+
+	tr := NewTestRepository(t, FromGoldenDirNamed("TestLint"))
+
+	file := tr.ParseFile("no-overlapping-deck.md")
+
+	violations, err := NoOverlappingDeck(file, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, []*Violation{
+		{
+			Name:         "no-overlapping-deck",
+			RelativePath: "no-overlapping-deck.md",
+			Message:      "flashcard \"Flashcard: Matching both decks\" matches multiple decks: Deck1, Deck2",
+			Line:         21,
+		},
+	}, violations)
+}

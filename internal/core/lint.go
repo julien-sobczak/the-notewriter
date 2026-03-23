@@ -101,6 +101,9 @@ var LintRulesFn = map[string]LintRule{
 
 	// Flashcards must match at least one deck
 	"no-orphan-flashcard": NoOrphanFlashcard,
+
+	// Flashcards must not match more than one deck
+	"no-overlapping-deck": NoOverlappingDeck,
 }
 
 /* Rules */
@@ -548,12 +551,12 @@ func RequireFlashcardSlug(file *ParsedFile, query *Query, args []any) ([]*Violat
 	return violations, nil
 }
 
-// Keep an inventory of parsed deck queries to avoid reparsing for every file
-var deckQueriesInventory []*Query
+// Keep an inventory of parsed deck queries (name -> query) to avoid reparsing for every file
+var deckQueriesInventory map[string]*Query
 var deckQueriesInventoryOnce resync.Once
 
 func buildDeckQueriesInventory() {
-	deckQueriesInventory = make([]*Query, 0)
+	deckQueriesInventory = make(map[string]*Query)
 	decks := CurrentConfigFile().Decks
 	for _, deck := range decks {
 		if deck.Query != "" {
@@ -562,7 +565,7 @@ func buildDeckQueriesInventory() {
 				log.Printf("Warning: failed to parse deck query %q: %v", deck.Query, err)
 				continue
 			}
-			deckQueriesInventory = append(deckQueriesInventory, deckQuery)
+			deckQueriesInventory[deck.Name] = deckQuery
 		}
 	}
 }
@@ -594,6 +597,42 @@ func NoOrphanFlashcard(file *ParsedFile, query *Query, args []any) ([]*Violation
 				violations = append(violations, &Violation{
 					Name:         "no-orphan-flashcard",
 					Message:      fmt.Sprintf("flashcard %q does not match any deck", note.Title),
+					RelativePath: file.RelativePath,
+					Line:         note.Line,
+				})
+			}
+		}
+	}
+
+	return violations, nil
+}
+
+// NoOverlappingDeck implements the rule "no-overlapping-deck".
+func NoOverlappingDeck(file *ParsedFile, query *Query, args []any) ([]*Violation, error) {
+	deckQueriesInventoryOnce.Do(buildDeckQueriesInventory)
+
+	var violations []*Violation
+
+	for _, note := range file.Notes {
+		if len(note.Flashcards) > 0 {
+			// Skip if the flashcard has the "suspended" tag
+			if note.NoteTags.Includes("suspended") {
+				continue
+			}
+
+			// Find all decks that match this note
+			var matchingDecks []string
+			for name, deckQuery := range deckQueriesInventory {
+				if deckQuery.MatchesParsed(note) {
+					matchingDecks = append(matchingDecks, name)
+				}
+			}
+
+			if len(matchingDecks) > 1 {
+				slices.Sort(matchingDecks)
+				violations = append(violations, &Violation{
+					Name:         "no-overlapping-deck",
+					Message:      fmt.Sprintf("flashcard %q matches multiple decks: %s", note.Title, strings.Join(matchingDecks, ", ")),
 					RelativePath: file.RelativePath,
 					Line:         note.Line,
 				})
