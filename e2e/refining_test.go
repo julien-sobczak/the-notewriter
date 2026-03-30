@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestTagsAndAttributes verifies that inline tags and attributes defined in note titles
+// TestEnrichingWithMetadata verifies that inline tags and attributes defined in note titles
 // and note bodies are correctly parsed, merged with frontmatter attributes, and stored.
-func TestTagsAndAttributes(t *testing.T) {
-	NewTestRepository(t,
+func TestEnrichingWithMetadata(t *testing.T) {
+	tr := NewTestRepository(t,
 		WithFreezeNow(),
 		WithFile("notes.md", `
 ---
@@ -43,7 +43,7 @@ Both tags and attributes can appear together in the note body.
 	require.NoError(t, err)
 
 	// Verify that 3 notes were indexed
-	require.Equal(t, 3, CountNotes(t))
+	require.Equal(t, 3, tr.CountNotes())
 
 	// Note with inline tags in body: tags from frontmatter + note-level tags must be merged
 	noteTags, err := CurrentRepository().FindNoteByPathAndTitle("notes.md", "Note: Inline Tags")
@@ -67,9 +67,9 @@ Both tags and attributes can appear together in the note body.
 	assert.Equal(t, "1991", noteCombined.Attributes["year"])
 }
 
-// TestAsciidocCharacterReplacement verifies that AsciiDoc character sequences are replaced
+// TestWritingSyntaxSugar verifies that AsciiDoc character sequences are replaced
 // in note bodies but preserved inside code blocks and inline code spans.
-func TestAsciidocCharacterReplacement(t *testing.T) {
+func TestWritingSyntaxSugar(t *testing.T) {
 	NewTestRepository(t,
 		WithFreezeNow(),
 		WithFile("chars.md", `
@@ -130,12 +130,11 @@ i--
 	assert.Contains(t, body, "```c\ni--\n```")
 }
 
-// TestCodeBlocksWithVariableBackticks verifies that code blocks delimited by 3, 4, or 5
+// TestWritingUsingSnippets verifies that code blocks delimited by 3, 4, or 5
 // backticks are correctly recognized, that AsciiDoc substitutions are not applied inside
 // them, and that a block with more backticks can safely contain a fence with fewer backticks.
-func TestCodeBlocksWithVariableBackticks(t *testing.T) {
-	NewTestRepository(t,
-		WithFreezeNow(),
+func TestWritingUsingSnippets(t *testing.T) {
+	tr := NewTestRepository(t,
 		WithFile("codeblocks.md", `
 # Code Blocks
 
@@ -185,7 +184,7 @@ AsciiDoc chars like --> and (TM) must not be replaced.
 	err = CurrentRepository().Commit(false)
 	require.NoError(t, err)
 
-	require.Equal(t, 3, CountNotes(t))
+	require.Equal(t, 3, tr.CountNotes())
 
 	// Three-backtick code block
 	noteThree, err := CurrentRepository().FindNoteByPathAndTitle("codeblocks.md", "Note: Three Backticks")
@@ -226,9 +225,9 @@ AsciiDoc chars like --> and (TM) must not be replaced.
 	assert.Contains(t, bodyFive, "(TM)")
 }
 
-// TestGotoLinks verifies that goto links in different formats (simple, hierarchical, with title)
+// TestSavingImportantURLs verifies that goto links in different formats (simple, hierarchical, with title)
 // are correctly extracted and stored in the database.
-func TestGotoLinks(t *testing.T) {
+func TestSavingImportantURLs(t *testing.T) {
 	tr := NewTestRepository(t,
 		WithFreezeNow(),
 		WithFile("resources.md", `
@@ -296,10 +295,10 @@ Project links:
 	assert.Equal(t, "Issues Tracker", gotoIssues.Title)
 }
 
-// TestTOCGenerator verifies that a file tagged with "toc" produces an automatic table of
+// TestWritingLongDoc verifies that a file tagged with "toc" produces an automatic table of
 // contents note containing wikilinks to typed sections and titles for untyped parent
 // sections, while excluding sections that have no typed child notes.
-func TestTOCGenerator(t *testing.T) {
+func TestWritingLongDoc(t *testing.T) {
 	tr := NewTestRepository(t,
 		WithFreezeNow(),
 		WithFile("toc.md", `
@@ -378,12 +377,4 @@ This section has no typed children and should not appear in the TOC.
 	// Sections without any typed children must NOT appear in the TOC
 	assert.NotContains(t, tocBody, "Introduction", "Introduction section should not appear in TOC")
 	assert.NotContains(t, tocBody, "Empty Section", "Empty Section should not appear in TOC")
-}
-
-// CountNotes is a helper that returns the total note count and fails the test if an error occurs.
-func CountNotes(t *testing.T) int {
-	t.Helper()
-	count, err := CurrentRepository().CountNotes()
-	require.NoError(t, err)
-	return count
 }
