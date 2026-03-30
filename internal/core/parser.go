@@ -409,7 +409,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 	// Pre-pass: collect attributes/tags from non-note sections so they can be
 	// inherited by child notes (e.g., `## Language `#language`` passes #language
 	// down to notes nested within that section).
-	nonNoteSectionAttributes := make(map[*markdown.Section]AttributeSet)
+	headingAttributes := make(map[*markdown.Section]AttributeSet)
 	for i := range sections {
 		section := sections[i]
 		_, _, supported := CurrentConfigFile().MatchNoteType(string(section.HeadingText))
@@ -427,7 +427,7 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 			attrs = attrs.Merge(bodyAttrs)
 		}
 		if len(attrs) > 0 {
-			nonNoteSectionAttributes[section] = attrs
+			headingAttributes[section] = attrs
 		}
 	}
 
@@ -520,9 +520,10 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 					// Ex: "## Note: Parent Note"
 					parentTitles = append(parentTitles, shortTitle)
 				} else {
-					// Ex: "## Not a note" — collect any attributes/tags defined on this heading
+					// Ex: "## Not a note" 
+					// Collect to inherit any attributes defined on this heading
 					parentTitles = append(parentTitles, otherSection.HeadingText)
-					if attrs, ok := nonNoteSectionAttributes[otherSection]; ok {
+					if attrs, ok := headingAttributes[otherSection]; ok {
 						parentHeadingAttributes = parentHeadingAttributes.Merge(attrs)
 					}
 				}

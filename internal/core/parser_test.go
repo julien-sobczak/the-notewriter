@@ -767,7 +767,7 @@ Another note without a code block.
 		require.Len(t, parsedFile.Notes, 1)
 		note = parsedFile.Notes[0]
 
-		assert.True(t, note.Attributes.Tags().Includes("language"), "expected #language tag from grandparent heading")
+		assert.True(t, note.Attributes.Tags().Includes("language"), "expected #language tag from heading")
 		assert.True(t, note.Attributes.Tags().Includes("history"), "expected #history tag from parent heading")
 
 		// Test that note's own attributes take precedence over parent heading attributes
