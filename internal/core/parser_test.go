@@ -721,6 +721,76 @@ Another note without a code block.
 		// Only the body is post-processed. Therefore, medias are replaced by <media> tags only inside it.
 	})
 
+	t.Run("Parent Heading Attributes", func(t *testing.T) {
+		// Tags and attributes defined on non-note Markdown headings must be
+		// inherited by child notes nested within that heading.
+		tr := core.NewTestRepository(t)
+		tr.WriteFile("go.md", `
+# Go
+
+## Language ‛#language‛
+
+‛@source: https://go.dev/tour/welcome/1‛
+
+### Note: Golang History ‛#history‛
+
+[Golang](https://go.dev/doc/ "#go/go") was designed at Google in 2007.
+`)
+
+		parsedFile := tr.ParseFile("go.md")
+
+		require.Len(t, parsedFile.Notes, 1)
+		note := parsedFile.Notes[0]
+
+		// Note's own tag must be present
+		assert.True(t, note.Attributes.Tags().Includes("history"))
+		// Parent section's tag must be inherited
+		assert.True(t, note.Attributes.Tags().Includes("language"))
+		// Parent section's attribute must be inherited
+		assert.Equal(t, "https://go.dev/tour/welcome/1", note.Attributes["source"])
+
+		// Test nested parent headings: tags from multiple levels must all be inherited
+		tr.WriteFile("nested.md", `
+# Notes
+
+## Language ‛#language‛
+
+### History ‛#history‛
+
+#### Note: Golang Creators
+
+[Golang](https://go.dev/doc/) was designed by Robert Griesemer, Rob Pike, and Ken Thompson.
+`)
+
+		parsedFile = tr.ParseFile("nested.md")
+
+		require.Len(t, parsedFile.Notes, 1)
+		note = parsedFile.Notes[0]
+
+		assert.True(t, note.Attributes.Tags().Includes("language"), "expected #language tag from heading")
+		assert.True(t, note.Attributes.Tags().Includes("history"), "expected #history tag from parent heading")
+
+		// Test that note's own attributes take precedence over parent heading attributes
+		tr.WriteFile("priority.md", `
+# Notes
+
+## Section ‛@source: parent-source‛
+
+### Note: Child Note
+
+‛@source: child-source‛
+
+Child note has its own source attribute.
+`)
+
+		parsedFile = tr.ParseFile("priority.md")
+
+		require.Len(t, parsedFile.Notes, 1)
+		note = parsedFile.Notes[0]
+
+		assert.Equal(t, "child-source", note.Attributes["source"], "note's own attribute should override parent heading's attribute")
+	})
+
 	t.Run("Title Attributes", func(t *testing.T) {
 		// Test the new functionality for extracting tags and attributes from titles
 		tr := core.NewTestRepository(t)

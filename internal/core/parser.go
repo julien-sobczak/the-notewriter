@@ -403,6 +403,34 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		return nil, nil
 	}
 
+	configAttributes := CurrentConfigFile().Attributes
+	configTags := CurrentConfigFile().Tags
+
+	// Pre-pass: collect attributes/tags from non-note sections so they can be
+	// inherited by child notes (e.g., `## Language `#language`` passes #language
+	// down to notes nested within that section).
+	headingAttributes := make(map[*markdown.Section]AttributeSet)
+	for i := range sections {
+		section := sections[i]
+		_, _, supported := CurrentConfigFile().MatchNoteType(string(section.HeadingText))
+		if supported {
+			continue
+		}
+		// Extract attributes from the section heading (e.g., tags in backticks)
+		attrs := ExtractAttributes(section.HeadingText, configAttributes, configTags)
+		// Extract block tags/attributes from the section body (excluding sub-notes)
+		sectionContent := section.ContentText.MustTransform(StripSubNotesTransformer)
+		sectionBody := sectionContent.ExtractLines(2, -1) // Trim heading
+		if !sectionBody.IsBlank() {
+			bodyTags, bodyAttrs := ExtractBlockTagsAndAttributes(sectionBody, configAttributes)
+			attrs = attrs.AddTags(bodyTags)
+			attrs = attrs.Merge(bodyAttrs)
+		}
+		if len(attrs) > 0 {
+			headingAttributes[section] = attrs
+		}
+	}
+
 	for _, section := range sections {
 
 		// Determine the titles
@@ -422,9 +450,6 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 			// skip sections without text (= category to organize notes, not really free notes)
 			continue
 		}
-
-		configAttributes := CurrentConfigFile().Attributes
-		configTags := CurrentConfigFile().Tags
 
 		// Determine the attributes
 		noteTags, noteAttributes := ExtractBlockTagsAndAttributes(noteBody, configAttributes)
@@ -486,6 +511,8 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 		}
 		// Find possible parent sections
 		var parentTitles []markdown.Document
+		// Collect attributes from all parent non-note sections (e.g., `## Language `#language``)
+		parentHeadingAttributes := NewEmptyAttributeSet()
 		for _, otherSection := range sections {
 			if otherSection.Includes(*section) {
 				sectionTitle := otherSection.HeadingText.String()
@@ -493,13 +520,20 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 					// Ex: "## Note: Parent Note"
 					parentTitles = append(parentTitles, shortTitle)
 				} else {
-					// Ex: "## Not a note"
+					// Ex: "## Not a note" 
+					// Collect to inherit any attributes defined on this heading
 					parentTitles = append(parentTitles, otherSection.HeadingText)
+					if attrs, ok := headingAttributes[otherSection]; ok {
+						parentHeadingAttributes = parentHeadingAttributes.Merge(attrs)
+					}
 				}
 			}
 		}
 
 		body, comment := postProcessedNoteBody.ExtractComment()
+
+		// Add parent heading tags to noteTags
+		noteTags = noteTags.Merge(parentHeadingAttributes.Tags())
 
 		// Determine attributes
 		attributes := FilterNonInheritableAttributes(p.FileAttributes)
@@ -507,6 +541,8 @@ func (p *ParsedFile) extractNotes() ([]*ParsedNote, error) {
 			parentAttributes := FilterNonInheritableAttributes(parentNote.Attributes)
 			attributes = attributes.Merge(parentAttributes)
 		}
+		// Merge parent heading attributes (lower priority than note's own attributes)
+		attributes = attributes.Merge(parentHeadingAttributes)
 		attributes = attributes.Merge(noteAttributes)
 		// Append hooks defined on the note type
 		if noteType.Hooks != nil {
