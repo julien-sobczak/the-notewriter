@@ -154,7 +154,8 @@ A four-backtick block can contain three-backtick fences:
 Here is a code block inside:
 
 ‛‛‛python
-print("hello")
+if true:
+    print("hello")
 ‛‛‛
 
 And (C) stays as-is here too.
@@ -206,7 +207,7 @@ AsciiDoc chars like --> and (TM) must not be replaced.
 	assert.Contains(t, bodyFour, "````markdown")
 	// The three-backtick fence nested inside is preserved verbatim
 	assert.Contains(t, bodyFour, "```python")
-	assert.Contains(t, bodyFour, `print("hello")`)
+	assert.Contains(t, bodyFour, `   print("hello")`) // Identation must be preserved
 	// AsciiDoc substitution must NOT have been applied inside the outer code block
 	assert.Contains(t, bodyFour, "(C) stays as-is here too.")
 

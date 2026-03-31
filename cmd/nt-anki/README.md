@@ -31,6 +31,9 @@ nt-anki import english.apkg skills/english.md --media-dir medias
 ## Workflow
 
 1. Export a Anki deck (from main screen) or a subset of your notes (from browser screen).
+
+![Use older versions support](./anki-export.png)
+
 2. Run `nt-anki --ignore-scheduling` to check the generated Markdown first.
 3. Reset the changes using `git restore`
 4. Rerun `nt-anki` to save reviews and generate the packfile.

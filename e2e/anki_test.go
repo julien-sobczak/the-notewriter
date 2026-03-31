@@ -171,7 +171,7 @@ A 4-wheel vehicle to drive on the road
 
 ### Flashcard: Untitled ‛@cid: 1761228454050‛ ‛@slug: anki-1761228454050‛ ‛#english‛ ‛#word‛
 
-Synomym of _?
+Synomym of _car_?
 
 ---
 
@@ -199,7 +199,7 @@ a small person that always plays
 
 ### Flashcard: Untitled ‛@cid: 1761228487387‛ ‛@slug: anki-1761228487387‛ ‛#english‛ ‛#word‛
 
-Synomym of _?
+Synomym of _kid_?
 
 ---
 
@@ -217,7 +217,11 @@ Synomym of _?
 
 ## Flashcard: Untitled ‛@cid: 1761228593304‛ ‛@slug: anki-1761228593304‛ ‛#software‛
 
-Find the **application name**:<br><br>![Anki-icon.svg](./Anki-icon.svg)
+Find the **application name**:
+
+
+
+![Anki-icon.svg](./Anki-icon.svg)
 
 ---
 

@@ -10,19 +10,21 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
 // Collection represents the extracted Anki collection data
 type Collection struct {
-	TempDir string
-	DB      *sql.DB
-	Notes   []*Note
-	Cards   []*Card
-	Reviews []*Review
-	Models  []*Model
-	Media   map[string]string // media ID -> filename
+	TempDir   string
+	DB        *sql.DB
+	Notes     []*Note
+	Cards     []*Card
+	Reviews   []*Review
+	Models    []*Model
+	Media     map[string]string // media ID -> filename
+	CreatedAt time.Time         // Unix timestamp from col.crt
 }
 
 // Note represents a note from the Anki database
@@ -107,6 +109,15 @@ func ExtractCollection(apkgPath string) (*Collection, error) {
 		TempDir: tempDir,
 		DB:      db,
 	}
+
+	// Load crt (created at) from col table
+	var crt int64
+	err = db.QueryRow("SELECT crt FROM col").Scan(&crt)
+	if err != nil {
+		collection.Close()
+		return nil, fmt.Errorf("failed to read collection creation time: %w", err)
+	}
+	collection.CreatedAt = time.Unix(crt, 0)
 
 	// Load media mapping
 	if err := collection.loadMedia(); err != nil {

@@ -88,16 +88,17 @@ func (i *Importer) Import() (string, error) {
 			review := &core.FlashcardReview{
 				Confidence: 60, // Good = moderate-high confidence (could be mapped from ankiReview.Ease if needed)
 				Duration:   time.Duration(ankiReview.Time) * time.Millisecond,
-				DueAt:      getDueAtForCard(card),
+				DueAt:      getDueAtForCard(card, i.Collection.CreatedAt),
 				Algorithm:  "anki-sm-2",
 				Settings: map[string]any{
-					"cid":     card.ID,
-					"ease":    ankiReview.Ease,
-					"ivl":     ankiReview.Ivl,
-					"lastIvl": ankiReview.LastIvl,
-					"factor":  ankiReview.Factor,
-					"time":    ankiReview.Time,
-					"type":    ankiReview.Type,
+					"algorithm": "anki-sm-2",
+					"cid":       card.ID,
+					"ease":      ankiReview.Ease,
+					"ivl":       ankiReview.Ivl,
+					"lastIvl":   ankiReview.LastIvl,
+					"factor":    ankiReview.Factor,
+					"time":      ankiReview.Time,
+					"type":      ankiReview.Type,
 				},
 			}
 
@@ -118,13 +119,14 @@ func (i *Importer) Import() (string, error) {
 }
 
 // Helper to get DueAt from anki.Card
-func getDueAtForCard(card *Card) time.Time {
+// getDueAtForCard returns the due date for a card, using baseTimestamp as the reference for days-based due values.
+func getDueAtForCard(card *Card, collectionTimestamp time.Time) time.Time {
 	// If Due is a timestamp (e.g. > 10^9), treat as unix seconds
 	if card.Due > 1000000000 {
 		return time.Unix(int64(card.Due), 0)
 	}
-	// Otherwise treat as days from last card modification time
-	return time.Unix(card.Mod, 0).Add(time.Duration(card.Due) * 24 * time.Hour)
+	// Otherwise treat as days from collection creation (crt)
+	return collectionTimestamp.Add(time.Duration(card.Due) * 24 * time.Hour)
 }
 
 // convertNote converts an Anki note and its cards to markdown format
@@ -286,25 +288,38 @@ func (i *Importer) htmlToMarkdown(html string) (string, []string) {
 	text := html
 	var mediaFiles []string
 
+	// Convert &nbsp; to space
+	text = strings.ReplaceAll(text, "&nbsp;", " ")
+
+	// Replace code blocks
+	text = regexp.MustCompile(`(?s)<pre><code>(.*?)</code></pre>`).ReplaceAllString(text, "\n```\n$1\n```\n")
+
+	// Convert arcane newlines to real newlines
+	text = regexp.MustCompile(`<div><br></div>`).ReplaceAllString(text, "\n\n")
+	text = regexp.MustCompile(`<br\s*/?>`).ReplaceAllString(text, "\n\n")
+
+	// Convert simple newlines to real newlines (Anki sometimes uses <div> for newlines without <br>)
+	text = regexp.MustCompile(`<div>(.*?)</div>`).ReplaceAllString(text, "${1}\n\n")
+
 	// Convert <b> and <strong> to **
-	text = regexp.MustCompile(`<b>(.*?)</b>`).ReplaceAllString(text, `**$1**`)
-	text = regexp.MustCompile(`<strong>(.*?)</strong>`).ReplaceAllString(text, `**$1**`)
+	text = regexp.MustCompile(`<b>(.*?)</b>`).ReplaceAllString(text, `**${1}**`)
+	text = regexp.MustCompile(`<strong>(.*?)</strong>`).ReplaceAllString(text, `**${1}**`)
 
 	// Convert <i> and <em> to _
-	text = regexp.MustCompile(`<i>(.*?)</i>`).ReplaceAllString(text, `_$1_`)
-	text = regexp.MustCompile(`<em>(.*?)</em>`).ReplaceAllString(text, `_$1_`)
+	text = regexp.MustCompile(`<i>(.*?)</i>`).ReplaceAllString(text, `_${1}_`)
+	text = regexp.MustCompile(`<em>(.*?)</em>`).ReplaceAllString(text, `_${1}_`)
 
 	// Process media references (e.g., <img src="filename.jpg">)
 	text, mediaFiles = i.processMediaReferences(text)
 
 	// Note: Other HTML tags are left intact as specified
 
-	return text, mediaFiles
+	return strings.TrimSpace(text), mediaFiles
 }
 
 // processMediaReferences converts Anki media references to markdown
 func (i *Importer) processMediaReferences(text string) (string, []string) {
-	var mediaFiles []string
+	mediaFiles := []string{}
 
 	// Match <img src="filename">
 	imgRe := regexp.MustCompile(`<img[^>]*src=["']([^"']+)["'][^>]*>`)
