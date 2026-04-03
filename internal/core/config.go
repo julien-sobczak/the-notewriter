@@ -1357,12 +1357,12 @@ func CurrentConfig() *Config {
 	configOnce.Do(func() {
 		var err error
 		configSingleton, err = ReadConfigFromDirectory(currentHome())
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Unable to read current configuration: %v\n", err)
+		if errors.Is(err, ErrMissingConfigurationDir) {
+			fmt.Fprintln(os.Stderr, "fatal: not a NoteWriter repository (or any of the parent directories): .nt")
 			os.Exit(1)
 		}
-		if configSingleton == nil {
-			fmt.Fprintln(os.Stderr, "fatal: not a NoteWriter repository (or any of the parent directories): .nt")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to read current configuration: %v\n", err)
 			os.Exit(1)
 		}
 	})
@@ -1449,6 +1449,10 @@ func currentHome() string {
 	return cwd
 }
 
+// ErrMissingConfigurationDir is returned by ReadConfigFromDirectory when no .nt
+// directory can be located in the given path or any of its parent directories.
+var ErrMissingConfigurationDir = errors.New("not a NoteWriter repository (or any of the parent directories): .nt")
+
 // ReadConfigFromDirectory loads the configuration by searching for a .nt directory in the given directory
 // or any parent directories. It fails if a directory already exists.
 func ReadConfigFromDirectory(path string) (*Config, error) {
@@ -1463,17 +1467,17 @@ func ReadConfigFromDirectory(path string) (*Config, error) {
 	for {
 		i++
 		if i > maxDepth {
-			return nil, nil
+			return nil, ErrMissingConfigurationDir
 		}
 		if rootPath == homePath {
-			return nil, nil
+			return nil, ErrMissingConfigurationDir
 		}
 		ntPath := filepath.Join(rootPath, ".nt")
 		_, err := os.Stat(ntPath)
 		if os.IsNotExist(err) {
 			if len(strings.Split(rootPath, string(os.PathSeparator))) <= 2 {
 				// Root directory detected
-				return nil, nil
+				return nil, ErrMissingConfigurationDir
 			}
 			rootPath = filepath.Clean(filepath.Join(rootPath, ".."))
 		} else if err != nil {
@@ -1696,7 +1700,10 @@ func parseIgnoreFile(content string) (*IgnoreFile, error) {
 
 // InitConfigFromDirectory creates the .nt configuration directory with default files including .ntignore.
 func InitConfigFromDirectory(path string, options ConfigOptions) (*Config, error) {
-	currentConfig, _ := ReadConfigFromDirectory(path)
+	currentConfig, err := ReadConfigFromDirectory(path)
+	if err != nil && !errors.Is(err, ErrMissingConfigurationDir) {
+		return nil, fmt.Errorf("failed to check for existing configuration: %v", err)
+	}
 	if currentConfig != nil {
 		// Do not override current configuration
 		return nil, fmt.Errorf("current configuration detected: %s", currentConfig.RootDirectory)
@@ -1708,7 +1715,7 @@ func InitConfigFromDirectory(path string, options ConfigOptions) (*Config, error
 		return nil, err
 	}
 
-	err := InitConfigFileFromDirectory(path, options)
+	err = InitConfigFileFromDirectory(path, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init config file: %v", err)
 	}
