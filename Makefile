@@ -3,14 +3,23 @@
 GO_FILES = $(shell find . -name "*.go" | grep -v .go | uniq)
 GO_PACKAGES = $(shell go list ./... | grep -v .go)
 APP_NAME = github.com/julien-sobczak/the-notewriter
-APP_VERSION = $(shell git rev-parse HEAD)
+
+# Extract the current Git tag (or commit hash if no tag exists)
+VERSION := $(shell git describe --tags --always --dirty)
+# Get the short Git commit hash
+COMMIT := $(shell git rev-parse --short HEAD)
+# Get the current date in UTC
+BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+# Construct the linker flags
+LDFLAGS := -ldflags="-X 'main.Version=$(VERSION)' -X 'main.Commit=$(COMMIT)' -X 'main.BuildDate=$(BUILD_DATE)'"
 
 
 deps:
 	go install github.com/hhatto/gocloc/cmd/gocloc@latest
 
 build:
-	go build --tags "fts5" -ldflags "-X main.Version=$(APP_VERSION)" -o build/nt cmd/nt/*.go
+	go build --tags "fts5" $(LDFLAGS) -o build/nt cmd/nt/*.go
 	go build --tags "fts5" -o build/ntlite cmd/ntlite/*.go
 	go build --tags "fts5" -o build/ntreference cmd/nt-reference/*.go
 	go build --tags "fts5" -o build/ntanki cmd/nt-anki/*.go

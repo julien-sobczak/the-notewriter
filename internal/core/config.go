@@ -1799,6 +1799,16 @@ func (c *Config) Check() error {
 	return c.ConfigFile.Check()
 }
 
+// CheckIfPresent validates the configuration only if the config file exists.
+// This is useful when a command can run both inside and outside a repository.
+func (c *Config) CheckIfPresent() error {
+	ntConfigPath := filepath.Join(c.RootDirectory, ".nt", "config.jsonnet")
+	if _, err := os.Stat(ntConfigPath); os.IsNotExist(err) {
+		return nil
+	}
+	return c.Check()
+}
+
 func (c *Config) GetGeneratedPath() string {
 	return filepath.Join(c.RootDirectory, ".nt", ".config.json")
 }
