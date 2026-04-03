@@ -10,7 +10,7 @@ deps:
 	go install github.com/hhatto/gocloc/cmd/gocloc@latest
 
 build:
-	go build --tags "fts5" -o build/nt cmd/nt/*.go
+	go build --tags "fts5" -ldflags "-X main.Version=$(APP_VERSION)" -o build/nt cmd/nt/*.go
 	go build --tags "fts5" -o build/ntlite cmd/ntlite/*.go
 	go build --tags "fts5" -o build/ntreference cmd/nt-reference/*.go
 	go build --tags "fts5" -o build/ntanki cmd/nt-anki/*.go
