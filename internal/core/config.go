@@ -1336,13 +1336,6 @@ func (p PathSpecs) Match(path string) bool {
 // How many parent directories to traverse before considering a directory as not a nt repository
 const maxDepth = 10
 
-// SRS
-const (
-	DefaultSRSBoostFactor = 100
-	DefaultSRSAlgorithm   = "nt-0"
-	DefaultSRSEaseFactor  = 2.5
-)
-
 type Config struct {
 	// Absolute top directory containing the .nt sub-directory
 	RootDirectory string

@@ -44,6 +44,7 @@ func TestEditingFlashcards(t *testing.T) {
 	dueAt := clock.Now().Add(24 * time.Hour)
 	packFile, err := NewPackFileFromOperations([]*Operation{
 		NewOperationReviewFlashcard(flashcardRote.OID, FlashcardReview{
+			Algorithm:  DefaultSRSAlgorithm,
 			Confidence: 60, // Good = moderate-high confidence
 			Duration:   50 * time.Millisecond,
 			DueAt:      dueAt,
@@ -97,6 +98,7 @@ func TestEditingFlashcards(t *testing.T) {
 	// Review a flashcard
 	oldDueAt := clock.Now().Add(-24 * time.Hour)
 	oldOperation := NewOperationReviewFlashcard(flashcardRote.OID, FlashcardReview{
+		Algorithm:  DefaultSRSAlgorithm,
 		Confidence: 80, // Easy = high confidence
 		Duration:   150 * time.Millisecond,
 		DueAt:      oldDueAt,

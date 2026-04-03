@@ -111,13 +111,10 @@ func ExtractCollection(apkgPath string) (*Collection, error) {
 	}
 
 	// Load crt (created at) from col table
-	var crt int64
-	err = db.QueryRow("SELECT crt FROM col").Scan(&crt)
-	if err != nil {
+	if err := collection.loadCreationDate(); err != nil {
 		collection.Close()
 		return nil, fmt.Errorf("failed to read collection creation time: %w", err)
 	}
-	collection.CreatedAt = time.Unix(crt, 0)
 
 	// Load media mapping
 	if err := collection.loadMedia(); err != nil {
@@ -160,6 +157,18 @@ func (c *Collection) Close() error {
 	if c.TempDir != "" {
 		os.RemoveAll(c.TempDir)
 	}
+	return nil
+}
+
+// loadCreationDate loads the collection creation time
+func (c *Collection) loadCreationDate() error {
+	var crt int64
+	err := c.DB.QueryRow("SELECT crt FROM col").Scan(&crt)
+	if err != nil {
+		c.Close()
+		return fmt.Errorf("failed to read collection creation time: %w", err)
+	}
+	c.CreatedAt = time.Unix(crt, 0)
 	return nil
 }
 

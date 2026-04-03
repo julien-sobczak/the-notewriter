@@ -307,6 +307,41 @@ Back
 		}, flashcard2)
 	})
 
+	t.Run("Basic syntax", func(t *testing.T) {
+		file := &core.ParsedFile{}
+		note := &core.ParsedNote{
+			Title:      markdown.Document("Flashcard: Basic"),
+			ShortTitle: markdown.Document("Basic"),
+			Slug:       "flashcard-basic",
+			Body: markdown.Document(text.UnescapeTestContent(`
+‛‛‛go
+if err != nil {
+	// How to end abruptly the program?
+}
+‛‛‛
+
+---
+
+‛‛‛go
+if err != nil {
+	log.Fatal("An error occurred: ", err)
+}
+‛‛‛
+`)),
+		}
+		notes, err := core.FlashcardExtractorProcessor(file, note)
+		require.NoError(t, err)
+
+		// We must have a flashcard extracted with the code blocks as front and back
+		require.Len(t, notes, 1)
+		note = notes[0]
+		require.Len(t, note.Flashcards, 1)
+		flashcard := note.Flashcards[0]
+
+		assert.Equal(t, "```go\nif err != nil {\n\t// How to end abruptly the program?\n}\n```", flashcard.Front.String())
+		assert.Equal(t, "```go\nif err != nil {\n\tlog.Fatal(\"An error occurred: \", err)\n}\n```", flashcard.Back.String())
+	})
+
 }
 
 func TestListItemsProcessor(t *testing.T) {

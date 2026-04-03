@@ -16,9 +16,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const DefaultEaseFactor = 2.5  // Same as Anki
-const MinEaseFactor = 1.3      // Same as Anki
-const DefaultFirstInterval = 1 // day
+const DefaultSRSAlgorithm = "nt-boring"
+const DefaultSRSEaseFactor = 2.5  // Same as Anki
+const MinSRSEaseFactor = 1.3      // Same as Anki
+const DefaultSRSFirstInterval = 1 // day
+const DefaultSRSBoostFactor = 100
 
 type CardType int
 
@@ -602,6 +604,10 @@ type FlashcardReview struct {
 
 // Review updates the flashcard following a review.
 func (f *Flashcard) Review(studiedAt time.Time, review *FlashcardReview) {
+	if review.Algorithm != DefaultSRSAlgorithm {
+		// Ignore reviews from other algorithms for now
+		return
+	}
 	if !f.StudiedAt.IsZero() && f.StudiedAt.After(studiedAt) {
 		// The studiedAt timestamp is in the past. Ignore this review.
 		return

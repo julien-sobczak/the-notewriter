@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -12,6 +13,9 @@ import (
 	"github.com/julien-sobczak/the-notewriter/pkg/filesystem"
 	"github.com/julien-sobczak/the-notewriter/pkg/oid"
 )
+
+const defaultEaseFactor = 2.5                   // Default ease factor for cards without the field "factor" defined
+var defaultSteps = []string{"1m", "10m", "24h"} // Default steps for learning queue
 
 // Importer handles the conversion of Anki collections to NoteWriter format
 type Importer struct {
@@ -83,32 +87,10 @@ func (i *Importer) Import() (string, error) {
 	for _, card := range i.Collection.Cards {
 		// Build all reviews for these cards
 		cardReviews := reviewsByCard[card.ID]
-		for _, ankiReview := range cardReviews {
-			// Build the review
-			review := &core.FlashcardReview{
-				Confidence: 60, // Good = moderate-high confidence (could be mapped from ankiReview.Ease if needed)
-				Duration:   time.Duration(ankiReview.Time) * time.Millisecond,
-				DueAt:      getDueAtForCard(card, i.Collection.CreatedAt),
-				Algorithm:  "anki-sm-2",
-				Settings: map[string]any{
-					"algorithm": "anki-sm-2",
-					"cid":       card.ID,
-					"ease":      ankiReview.Ease,
-					"ivl":       ankiReview.Ivl,
-					"lastIvl":   ankiReview.LastIvl,
-					"factor":    ankiReview.Factor,
-					"time":      ankiReview.Time,
-					"type":      ankiReview.Type,
-				},
-			}
-
-			// Build the operation
-			flashcardOID := oid.NewFromString("anki-" + fmt.Sprint(card.ID))
-			op := core.NewOperationReviewFlashcard(flashcardOID, *review)
-			op.Timestamp = time.UnixMilli(ankiReview.ID)
-			operations = append(operations, op)
-		}
+		cardOperations := AnkiReviewsToOperations(i.Collection.CreatedAt, card, cardReviews)
+		operations = append(operations, cardOperations...)
 	}
+
 	// Create packfile
 	packFile, err := core.NewPackFileFromOperations(operations)
 	if err != nil {
@@ -118,15 +100,126 @@ func (i *Importer) Import() (string, error) {
 	return packFile.ObjectPath(), nil
 }
 
-// Helper to get DueAt from anki.Card
-// getDueAtForCard returns the due date for a card, using baseTimestamp as the reference for days-based due values.
-func getDueAtForCard(card *Card, collectionTimestamp time.Time) time.Time {
+// AnkiReviewsToOperations converts Anki reviews for a card to TheNoteWriter operations,
+// including an additional operation to continue the SRS history with the new algorithm.
+func AnkiReviewsToOperations(collectionCreatedAt time.Time, card *Card, ankiReviews []*Review) []*core.Operation {
+	// The list of all reviews for this card)
+	var operations []*core.Operation
+
+	var lastReview *core.FlashcardReview
+	var lastReviewTimestamp time.Time
+	for _, ankiReview := range ankiReviews {
+		// Build the review
+		review := &core.FlashcardReview{
+			Algorithm:  "anki-sm-2",
+			Confidence: AnkiEaseToConfidence(ankiReview.Ease), // Good = moderate-high confidence (could be mapped from ankiReview.Ease if needed)
+			Duration:   time.Duration(ankiReview.Time) * time.Millisecond,
+			DueAt:      AnkiDueToDueAt(card.Due, collectionCreatedAt),
+			Settings: map[string]any{
+				"cid":     card.ID,
+				"ease":    ankiReview.Ease,
+				"ivl":     ankiReview.Ivl,
+				"lastIvl": ankiReview.LastIvl,
+				"factor":  ankiReview.Factor,
+				"time":    ankiReview.Time,
+				"type":    ankiReview.Type,
+			},
+		}
+
+		// Build the operation
+		flashcardOID := oid.NewFromString("anki-" + fmt.Sprint(card.ID))
+		reviewedAt := AnkiIDToTimestamp(ankiReview.ID).UTC()
+		op := core.NewOperationReviewFlashcardAt(flashcardOID, *review, reviewedAt)
+		operations = append(operations, op)
+
+		// Memorize the last review to convert to TheNoteWriter's SRS algorithm
+		if lastReviewTimestamp.Before(op.Timestamp) {
+			lastReviewTimestamp = op.Timestamp
+			lastReview = review
+		}
+	}
+
+	// Append an additional operation compatible with TheNoteWriter SRS algorithm
+	if lastReview != nil {
+
+		repetitions := len(ankiReviews) // Total number of reviews for this card
+
+		// Map Anki's SM-2 review data to TheNoteWriter's SRS settings to continue the study history using the new algorithm
+		newSettings := make(map[string]any)
+		newSettings["repetitions"] = repetitions
+
+		if lastReview.Settings["type"] == 0 { // Learning queue
+			// If the last review is in the learning queue, we can't reliably convert new algorithm
+			newSettings["queue"] = "learning"
+			if repetitions < len(defaultSteps) {
+				newSettings["step"] = repetitions - 1 // Map directly to the step based on the number of reviews, as it's likely the user is progressing through the steps
+				newSettings["interval"] = defaultSteps[repetitions-1]
+			} else {
+				// Default to the last step as we can't reliably determine the current step
+				newSettings["step"] = len(defaultSteps) - 1
+				newSettings["interval"] = defaultSteps[len(defaultSteps)-1]
+			}
+			newSettings["easeFactor"] = defaultEaseFactor
+		} else { // Reviewing Queue
+			newSettings["queue"] = "reviewing"
+			newSettings["interval"] = fmt.Sprintf("%dd", lastReview.Settings["ivl"].(int))
+			factor, err := strconv.ParseFloat(fmt.Sprintf("%d", lastReview.Settings["factor"]), 64)
+			if err != nil {
+				factor = defaultEaseFactor
+			}
+			newSettings["easeFactor"] = factor / 1000.0
+		}
+		review := &core.FlashcardReview{
+			Algorithm:  core.DefaultSRSAlgorithm, // Force new algorithm
+			Confidence: lastReview.Confidence,
+			Duration:   lastReview.Duration,
+			DueAt:      lastReview.DueAt,
+			// Map Anki SM-2 settings to TheNoteWriter SRS settings to continue the study history using the new algorithm
+			Settings: newSettings,
+		}
+
+		// Build the operation
+		flashcardOID := oid.NewFromString("anki-" + fmt.Sprint(card.ID))
+		reviewedAt := lastReviewTimestamp.Add(1 * time.Second) // Add a small delay to ensure it's after the last review (Last write wins),
+		op := core.NewOperationReviewFlashcardAt(flashcardOID, *review, reviewedAt)
+		operations = append(operations, op)
+	}
+
+	return operations
+}
+
+// AnkiIDToTimestamp converts an Anki review ID (which is a timestamp in milliseconds) to a time.Time
+func AnkiIDToTimestamp(ankiID int64) time.Time {
+	if ankiID > 1000000000000 { // milliseconds?
+		return time.UnixMilli(ankiID)
+	}
+	return time.Unix(ankiID, 0) // seconds
+}
+
+// AnkiEaseToConfidence maps Anki's ease values to a confidence score for TheNoteWriter
+func AnkiEaseToConfidence(ease int) int {
+	switch ease {
+	case 1: // Again
+		return 0
+	case 2: // Hard
+		return 30
+	case 3: // Good
+		return 60
+	case 4: // Easy
+		return 90
+	default:
+		return 0
+	}
+}
+
+// AnkiDueToDueAt returns the due date for a card, using collectionTimestamp as the reference for days-based due values.
+func AnkiDueToDueAt(ankiDue int, collectionTimestamp time.Time) time.Time {
 	// If Due is a timestamp (e.g. > 10^9), treat as unix seconds
-	if card.Due > 1000000000 {
-		return time.Unix(int64(card.Due), 0)
+	if ankiDue > 1000000000 {
+		return time.Unix(int64(ankiDue), 0)
 	}
 	// Otherwise treat as days from collection creation (crt)
-	return collectionTimestamp.Add(time.Duration(card.Due) * 24 * time.Hour)
+	return collectionTimestamp.Add(time.Duration(ankiDue) * 24 * time.Hour)
 }
 
 // convertNote converts an Anki note and its cards to markdown format

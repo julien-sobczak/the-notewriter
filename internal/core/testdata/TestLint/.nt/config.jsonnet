@@ -180,7 +180,7 @@ local makeHeading = nt.Schema.makeHeading;
       boostFactor: 100,
       newFlashcardsPerDay: 10,
       maxFlashcardsPerDay: 50,
-      algorithm: 'nt-0',
+      algorithm: 'nt-boring',
     },
     {
       name: 'Deck2',
@@ -188,7 +188,7 @@ local makeHeading = nt.Schema.makeHeading;
       boostFactor: 100,
       newFlashcardsPerDay: 10,
       maxFlashcardsPerDay: 50,
-      algorithm: 'nt-0',
+      algorithm: 'nt-boring',
     },
   ],
 

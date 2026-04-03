@@ -185,6 +185,7 @@ Guido van Rossum
 		require.NoError(t, err)
 		require.NotNil(t, flashcard)
 		flashcard.Review(firstStudyAt, &FlashcardReview{
+			Algorithm:  DefaultSRSAlgorithm,
 			Confidence: 80, // Easy = high confidence
 			Duration:   1 * time.Second,
 			DueAt:      firstStudyAt.Add(24 * time.Hour),
@@ -205,6 +206,7 @@ Guido van Rossum
 		// Review again
 		secondStudyAt := firstStudyAt.Add(1 * time.Hour)
 		flashcard.Review(secondStudyAt, &FlashcardReview{
+			Algorithm:  DefaultSRSAlgorithm,
 			Confidence: 30, // Hard = low confidence
 			Duration:   2 * time.Second,
 			DueAt:      secondStudyAt.Add(1 * time.Hour),

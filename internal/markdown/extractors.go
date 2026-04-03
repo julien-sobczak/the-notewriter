@@ -26,7 +26,7 @@ func (m Document) SplitByHorizontalRules() []Document {
 	iterator := m.Iterator()
 	for iterator.HasNext() {
 		line := iterator.Next()
-		text := strings.TrimSpace(line.Text)
+		text := line.Text
 
 		// Blank lines around the horizontal rule are strongly recommended for compatibility.
 		if line.IsHorizontalRule() && line.HasPrev() && line.Prev.IsBlank() && line.HasNext() && line.Next.IsBlank() {

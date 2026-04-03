@@ -72,6 +72,7 @@ func TestNewOperations(t *testing.T) {
 	t.Run("ReviewFlashcard", func(t *testing.T) {
 		oid := oid.OID("42d74d967d9b4e989502647ac510777ca1e22f4a")
 		review := FlashcardReview{
+			Algorithm:  DefaultSRSAlgorithm,
 			Confidence: 60, // Good = moderate-high confidence
 			Duration:   500 * time.Millisecond,
 			DueAt:      clock.Now().Add(24 * time.Hour),

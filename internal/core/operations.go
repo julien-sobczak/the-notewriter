@@ -79,11 +79,16 @@ func NewOperationCompleteReminder(reminderOID oid.OID) *Operation {
 
 // NewOperationReviewFlashcard creates a new operation to review a flashcard.
 func NewOperationReviewFlashcard(flashcardOID oid.OID, review FlashcardReview) *Operation {
+	return NewOperationReviewFlashcardAt(flashcardOID, review, clock.Now())
+}
+
+// NewOperationReviewFlashcardAt creates a new operation to review a flashcard at a specific timestamp.
+func NewOperationReviewFlashcardAt(flashcardOID oid.OID, review FlashcardReview, timestamp time.Time) *Operation {
 	return &Operation{
 		OID:       oid.New(),
 		ObjectOID: flashcardOID,
 		Name:      "review-flashcard",
-		Timestamp: clock.Now(),
+		Timestamp: timestamp,
 		Extras:    map[string]any{"review": review},
 	}
 }
@@ -126,8 +131,8 @@ func (o *Operation) ModificationTime() time.Time {
 	return o.Timestamp
 }
 
-func (o *Operation) String() string {
-	return fmt.Sprintf("Operation %s on object %q", o.Name, o.OID)
+func (o Operation) String() string {
+	return fmt.Sprintf("Operation %s on object %q", o.Name, o.ObjectOID)
 }
 
 /* Operation functions */
