@@ -164,7 +164,7 @@ Blablabla`,
 		})
 
 		c, err := ReadConfigFromDirectory(filepath.Join(dir, "journal"))
-		require.NoError(t, err)
+		require.ErrorIs(t, err, ErrMissingConfigurationDir)
 		require.Nil(t, c)
 	})
 

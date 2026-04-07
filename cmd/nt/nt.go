@@ -34,7 +34,9 @@ var rootCmd = &cobra.Command{
 		}
 	},
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		if cmd.Name() != "init" {
+		if cmd.Name() == "version" {
+			CheckConfigIfPresent()
+		} else if cmd.Name() != "init" {
 			// Ignore when configuration doesn't still exist
 			CheckConfig()
 		}
@@ -55,6 +57,10 @@ var rootCmd = &cobra.Command{
 		}
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		if cmd.Name() == "version" {
+			SaveConfigIfPresent()
+			return
+		}
 		if cmd.Name() != "init" {
 			// Ignore when configuration doesn't still exist
 			SaveConfig()
