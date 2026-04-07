@@ -409,6 +409,7 @@ func (r *Repository) Add(paths PathSpecs) (*AddResult, error) {
 	db := CurrentDB()
 
 	var traversedPaths []string
+	var editedPaths []string
 	var referencedMediaPaths []string // List of media paths present in Markdown files
 	var packFilesToUpsert []*PackFile
 	var packFilesToDelete []*PackFile
@@ -489,6 +490,8 @@ func (r *Repository) Add(paths PathSpecs) (*AddResult, error) {
 			return err
 		}
 
+		editedPaths = append(editedPaths, relativePath)
+
 		// Start with medias (more error-prone) => Better to fail with minimal side-effects
 		for _, parsedMedia := range parsedFile.Medias {
 			// Check if media has already been processed
@@ -545,8 +548,27 @@ func (r *Repository) Add(paths PathSpecs) (*AddResult, error) {
 
 	// Walk the index to identify old files
 	err = db.Index().Walk(paths, func(entry *IndexEntry, objects []*IndexObject, blobs []*IndexBlob) error {
-		// Process medias only when adding all files ("nt add .")
-		if !entry.MarkdownBased() { // medias
+		if entry.Kind != PackFileKindObjects { // Ignore packfiles containing operations
+			return nil
+		}
+		if entry.NeverCommitted() { // Ignore newly staged packfiles
+			return nil
+		}
+
+		if entry.MarkdownBased() {
+			deleted := !slices.Contains(traversedPaths, entry.RelativePath)
+			updated := slices.Contains(editedPaths, entry.RelativePath)
+			if deleted || updated {
+				// The files hasn't been found (= deleted) or a new version has been staged (= updated).
+				// We can safely delete the old pack file.
+				packFile, err := CurrentIndex().ReadPackFile(entry.PackFileOID)
+				if err != nil {
+					return err
+				}
+				packFilesToDelete = append(packFilesToDelete, packFile)
+			}
+		} else { // medias
+			// Process medias only when adding all files ("nt add .")
 			if !paths.MatchAll() {
 				// We may not have found reference to a media in the processed markdown files
 				// but some markdown files outside the path specs may still reference it.
@@ -555,14 +577,6 @@ func (r *Repository) Add(paths PathSpecs) (*AddResult, error) {
 			}
 
 			if !slices.Contains(referencedMediaPaths, entry.RelativePath) {
-				packFile, err := CurrentIndex().ReadPackFile(entry.PackFileOID)
-				if err != nil {
-					return err
-				}
-				packFilesToDelete = append(packFilesToDelete, packFile)
-			}
-		} else { // Markdown files
-			if !slices.Contains(traversedPaths, entry.RelativePath) {
 				packFile, err := CurrentIndex().ReadPackFile(entry.PackFileOID)
 				if err != nil {
 					return err

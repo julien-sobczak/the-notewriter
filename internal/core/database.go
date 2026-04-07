@@ -190,8 +190,9 @@ func (db *DB) UpsertPackFiles(packFiles ...*PackFile) error {
 				// Save the operation in the database
 				// Reread the object from SQL database to have metadata too
 				indexObject := CurrentIndex().GetPackFileObject(operation.ObjectOID)
-				if !ok {
-					return fmt.Errorf("object %s is not present in index for operation %s", operation.ObjectOID, operation.OID)
+				if indexObject == nil {
+					CurrentLogger().Warnf("Object %s not found in index for operation %s. This can happen if the operation is applied after a file has been edited or deleted.", operation.ObjectOID, operation.OID)
+					continue
 				}
 				obj, err := db.ReadObject(indexObject.OID, indexObject.Kind)
 				if err != nil {

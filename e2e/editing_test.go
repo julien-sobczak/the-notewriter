@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	. "github.com/julien-sobczak/the-notewriter/internal/core" // Required to import testing utilities
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -378,4 +379,74 @@ This section has no typed children and should not appear in the TOC.
 	// Sections without any typed children must NOT appear in the TOC
 	assert.NotContains(t, tocBody, "Introduction", "Introduction section should not appear in TOC")
 	assert.NotContains(t, tocBody, "Empty Section", "Empty Section should not appear in TOC")
+}
+
+func TestManagingList(t *testing.T) {
+	/*
+	 * This test migrates a note to a list and verifies that all items are correctly
+	 * extracted with their attributes, then adds a new item to the list and verifies
+	 * that it is correctly added.
+	 */
+	tr := NewTestRepository(t,
+		WithFreezeNow(),
+		WithFile("readings.md", text.UnescapeTestContent(`
+# My Readings
+
+## Note: Read Books
+
+* ‛@read_date: 2026-02-15‛ _Efficient Go_ ★★☆☆☆ ‛@author: Bartlomiej Plotka‛ ‛@isbn: 978-1098105716‛
+  * Not as useful as _Systems Performance_ by Brendan Gregg.
+* ‛@read_date: 2026-03-03‛: _The Product-Minded Engineer_ ★★★★★ ‛@author: Drew Hoskins‛
+* ‛@read_date: 2026-03-10‛: _Working Effectively with Unit Tests_ ★★★☆☆ ‛@author: Jay Fields‛ ‛@isbn: 978-1503242708‛
+  * If _XUnit Test Patterns_ gives you the full toolbox for mastering unit testing, _Working Effectively with Unit Tests_ provides an opiniated approach to use those tools in practice.
+* ‛@read_date: 2026-03-16‛: _The Imagination Emporium_ ★★★☆☆ ‛@author: Duncan Wardle‛ ‛@isbn: 1637553617‛
+* ‛@read_date: 2025-03-25‛: _On the Shortness of Life_ ★★★★☆ ‛@author: Seneca‛ ‛@isbn: 978-1985208728‛
+  * It's always eye-opening to understand that people have always operated the same way and "modern" problems aren't so. A short read that's best appreciated if you are already familiar with Stoic philosophy.`)))
+
+	_, err := CurrentRepository().Add(AnyPath)
+	require.NoError(t, err)
+	err = CurrentRepository().Commit(true)
+	require.NoError(t, err)
+
+	// No items must have been extract when using the type "Note"
+	note := tr.FindNoteByPathAndTitle("readings.md", "Note: Read Books")
+	require.Empty(t, note.Items)
+
+	// Change the type to "List" and verify that all items are correctly extracted with their attributes
+	tr.ReplaceLine("readings.md", 4, "## Note: Read Books", "## List: Read Books")
+
+	_, err = CurrentRepository().Add(AnyPath)
+	require.NoError(t, err)
+	err = CurrentRepository().Commit(true)
+	require.NoError(t, err)
+
+	// Reread the notes
+	updatedNote := tr.FindNoteByPathAndTitle("readings.md", "List: Read Books")
+	require.NotNil(t, updatedNote)
+	require.Len(t, updatedNote.Items.Children, 5)
+	oldNumberOfItems := len(updatedNote.Items.Children)
+
+	// The old note must no longer exist
+	oldNote, err := CurrentRepository().FindNoteByPathAndTitle("readings.md", "Note: Read Books")
+	require.NoError(t, err) // But...
+	require.Nil(t, oldNote)
+
+	// Let's try to complete the list
+	tr.AppendLines("readings.md", text.UnescapeTestContent(`
+* ‛@read_date: 2025-12-20‛ _The Art of Spending Money_ ★★★★★ 👍 ‛@author: Morgan Housel‛ ‛@isbn: 9780593716632‛
+  * One of my favorite books.
+	`))
+
+	_, err = CurrentRepository().Add(AnyPath)
+	require.NoError(t, err)
+	err = CurrentRepository().Commit(true)
+	require.NoError(t, err)
+
+	// The new item must have been added to the list
+	finalNote := tr.FindNoteByPathAndTitle("readings.md", "List: Read Books")
+	require.NotNil(t, finalNote)
+	require.Len(t, finalNote.Items.Children, oldNumberOfItems+1)
+	assert.Equal(t, "_The Art of Spending Money_ ★★★★★ 👍", finalNote.Items.Children[oldNumberOfItems].Text.String())
+
+	assert.Equal(t, 1, tr.CountNotes()) // We have only worked with a single note
 }

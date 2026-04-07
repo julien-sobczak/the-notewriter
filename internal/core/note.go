@@ -841,6 +841,10 @@ func (r *Repository) FindNoteByPathAndTitle(relativePath string, title string) (
 	return QueryNote(CurrentDB().Client(), `WHERE relative_path = ? AND title = ?`, "", relativePath, title)
 }
 
+func (r *Repository) FindNoteByPathAndLongTitle(relativePath string, longTitle string) (*Note, error) {
+	return QueryNote(CurrentDB().Client(), `WHERE relative_path = ? AND long_title = ?`, "", relativePath, longTitle)
+}
+
 func (r *Repository) FindMatchingNote(parsedNote *ParsedNote) (*Note, error) {
 	// Try by slug
 	note, _ := r.FindNoteBySlug(parsedNote.Slug)

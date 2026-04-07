@@ -6,6 +6,7 @@ import (
 
 	. "github.com/julien-sobczak/the-notewriter/internal/core" // Required to import testing utilities
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -13,16 +14,20 @@ import (
 func TestEditingFlashcards(t *testing.T) {
 	tr := NewTestRepository(t,
 		WithFreezeNow(),
-		WithFile("learning.md", `
+		WithFile("learning.md", text.UnescapeTestContent(`
 # Learning
 
 ## Flashcard: Rote Memorization
+
+‛@slug: rote-memorization‛
 
 [{c1::Rote memorization}] is a technique for learning information through repetition and recall.
 
 ## Flashcard: Spaced Repetition
 
-[{c1::Spaced repetition}] is a technique that involves reviewing information at increasing intervals to enhance retention.`))
+‛@slug: spaced-repetition‛
+
+[{c1::Spaced repetition}] is a technique that involves reviewing information at increasing intervals to enhance retention.`)))
 
 	_, err := CurrentRepository().Add(AnyPath)
 	require.NoError(t, err)
@@ -71,17 +76,21 @@ func TestEditingFlashcards(t *testing.T) {
 
 	// Edit the flashcard text
 	tr.FastForward(1 * time.Hour) // Force a new timestamp
-	tr.WriteFile("learning.md", `
+	tr.WriteFile("learning.md", text.UnescapeTestContent(`
 # Learning
 
 ## Flashcard: Rote Memorization
+
+‛@slug: rote-memorization‛
 
 [{c1::Rote memorization}] is a **learning technique** using repetition and recall.
 
 ## Flashcard: Spaced Repetition
 
+‛@slug: spaced-repetition‛
+
 [{c1::Spaced repetition}] is a **learning technique** using increasing intervals to enhance retention.
-		`)
+		`))
 	_, err = CurrentRepository().Add(AnyPath)
 	require.NoError(t, err)
 	err = CurrentRepository().Commit(false)
@@ -110,7 +119,8 @@ func TestEditingFlashcards(t *testing.T) {
 	oldOperation.Timestamp = clock.Now().Add(-48 * time.Hour) // Old review
 	packFile, err = NewPackFileFromOperations([]*Operation{oldOperation})
 	require.NoError(t, err)
-	CurrentDB().UpsertPackFiles(packFile)
+	err = CurrentDB().UpsertPackFiles(packFile)
+	require.NoError(t, err)
 
 	// Reread the flashcard
 	flashcardRote, err = CurrentRepository().FindFlashcardByShortTitle("Rote Memorization")
@@ -122,6 +132,24 @@ func TestEditingFlashcards(t *testing.T) {
 		"interval":    1,
 		"ease_factor": 2500,
 	}, flashcardRote.Settings)
+
+	// Try to delete the flashcards and replay the operations (must fail silently)
+	tr.DeleteFile("learning.md")
+	_, err = CurrentRepository().Add(AnyPath)
+	require.NoError(t, err)
+	err = CurrentRepository().Commit(false)
+	require.NoError(t, err)
+
+	// The flashcards must no longer exist
+	flashcardRote, err = CurrentRepository().FindFlashcardByShortTitle("Rote Memorization")
+	require.NoError(t, err)
+	require.Nil(t, flashcardRote)
+	flashcardSRS, err = CurrentRepository().FindFlashcardByShortTitle("Spaced Repetition")
+	require.NoError(t, err)
+	require.Nil(t, flashcardSRS)
+
+	err = CurrentDB().UpsertPackFiles(packFile)
+	require.NoError(t, err)
 }
 
 func TestAutomatingFlashcards(t *testing.T) {

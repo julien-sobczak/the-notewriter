@@ -382,8 +382,15 @@ func (tr *TestRepository) FindFlashcardByShortTitle(shortTitle string) *Flashcar
 	return flashcard
 }
 
-func (tr *TestRepository) FindNoteByPathAndTitle(relativePath, longTitle string) *Note {
-	note, err := CurrentRepository().FindNoteByPathAndTitle(relativePath, longTitle)
+func (tr *TestRepository) FindNoteByPathAndTitle(relativePath, title string) *Note {
+	note, err := CurrentRepository().FindNoteByPathAndTitle(relativePath, title)
+	require.NoError(tr.t, err)
+	require.NotNil(tr.t, note)
+	return note
+}
+
+func (tr *TestRepository) FindNoteByPathAndLongTitle(relativePath, longTitle string) *Note {
+	note, err := CurrentRepository().FindNoteByPathAndLongTitle(relativePath, longTitle)
 	require.NoError(tr.t, err)
 	require.NotNil(tr.t, note)
 	return note

@@ -434,6 +434,11 @@ func (i *Index) Unstage(packFiles ...*PackFile) error {
 		entry := i.GetEntry(packFile.FileRelativePath)
 		if entry == nil {
 			// Nothing to remove
+			continue
+		}
+		if entry.Staged {
+			// The entry has been edited
+			continue
 		}
 		entry.SetTombstone()
 	}

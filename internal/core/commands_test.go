@@ -781,7 +781,7 @@ tags: go
 		resultAdd, err = CurrentRepository().Add(AnyPath)
 		require.NoError(t, err)
 		require.Len(t, resultAdd.Upserted, 2) // Both content changed = new pack files
-		require.Len(t, resultAdd.Deleted, 0)
+		require.Len(t, resultAdd.Deleted, 1)  // The go.md entry has now a tombstone
 
 		err = CurrentRepository().Commit(true)
 		require.NoError(t, err)
