@@ -250,7 +250,6 @@ func TestCommandAdd(t *testing.T) {
 
 		// Add again with --force: the file should be reparsed even without mtime change
 		CurrentConfig().Force = true
-		defer func() { CurrentConfig().Force = false }()
 
 		result, err = CurrentRepository().Add(PathSpecs{"go.md"})
 		require.NoError(t, err)

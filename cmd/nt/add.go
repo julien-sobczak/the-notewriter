@@ -9,7 +9,7 @@ import (
 )
 
 func init() {
-	addCmd.Flags().BoolVar(&addForce, "force", false, "Force reparsing of Markdown files regardless of mtime")
+	addCmd.Flags().BoolVarP(&addForce, "force", "f", false, "Force reparsing of Markdown files regardless of mtime")
 	rootCmd.AddCommand(addCmd)
 }
 
