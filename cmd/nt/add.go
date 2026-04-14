@@ -9,8 +9,11 @@ import (
 )
 
 func init() {
+	addCmd.Flags().BoolVar(&addForce, "force", false, "Force reparsing of Markdown files regardless of mtime")
 	rootCmd.AddCommand(addCmd)
 }
+
+var addForce bool
 
 var addCmd = &cobra.Command{
 	Use:   "add",
@@ -22,6 +25,8 @@ var addCmd = &cobra.Command{
 		}
 
 		CheckConfig()
+
+		core.CurrentConfig().Force = addForce
 
 		_, err := core.CurrentRepository().Add(argsToPathSpecs(args))
 		if err != nil {

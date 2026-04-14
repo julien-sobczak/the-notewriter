@@ -1351,6 +1351,9 @@ type Config struct {
 
 	// Toggle this flag to skip some side-effects
 	DryRun bool
+
+	// Toggle this flag to force reparsing of Markdown files regardless of mtime
+	Force bool
 }
 
 func CurrentConfig() *Config {
