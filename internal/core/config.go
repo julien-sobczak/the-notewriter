@@ -1351,6 +1351,9 @@ type Config struct {
 
 	// Toggle this flag to skip some side-effects
 	DryRun bool
+
+	// Toggle this flag to force the CLI to force a command (ex: parsing unmodified files again)
+	Force bool
 }
 
 func CurrentConfig() *Config {

@@ -478,7 +478,7 @@ func (r *Repository) Add(paths PathSpecs) (*AddResult, error) {
 				mdParentFileModified = false
 			}
 		}
-		if !mdFileModified && !mdParentFileModified {
+		if !CurrentConfig().Force && !mdFileModified && !mdParentFileModified {
 			// Nothing changed = Nothing to parse
 			CurrentLogger().Debug("👌 Markdown file was not modified since last pack file")
 			return nil

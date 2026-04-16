@@ -233,6 +233,29 @@ func TestCommandAdd(t *testing.T) {
 		assert.Len(t, idx.Blobs, 4)
 	})
 
+	t.Run("Force", func(t *testing.T) {
+		NewTestRepository(t, FromGoldenDirNamed("TestMinimal"))
+
+		// First add + commit
+		_, err := CurrentRepository().Add(PathSpecs{"go.md"})
+		require.NoError(t, err)
+		err = CurrentRepository().Commit(true)
+		require.NoError(t, err)
+
+		// Add again without any file change: nothing should be staged
+		result, err := CurrentRepository().Add(PathSpecs{"go.md"})
+		require.NoError(t, err)
+		assert.Empty(t, result.Upserted)
+		assert.Empty(t, result.Deleted)
+
+		// Add again with --force: the file should be reparsed even without mtime change
+		CurrentConfig().Force = true
+
+		result, err = CurrentRepository().Add(PathSpecs{"go.md"})
+		require.NoError(t, err)
+		assert.NotEmpty(t, result.Upserted)
+	})
+
 }
 
 func TestCommandReset(t *testing.T) {
