@@ -662,13 +662,17 @@ func NewPackFileFromParsedFile(parsedFile *ParsedFile) (*PackFile, error) {
 
 	// Check first if a previous execution already created the pack file
 	// (ex: the command was aborted with Ctrl+C and restarted)
-	existingPackFile, err := CurrentDB().ReadPackFileOnDisk(packFileOID)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return nil, err
-	}
-	if existingPackFile != nil {
-		CurrentLogger().Debug("👍 Found existing pack file")
-		return existingPackFile, nil
+	if CurrentConfig().Force {
+		CurrentLogger().Warn("⛔ Existing pack file are regenerated because --force flag is set")
+	} else {
+		existingPackFile, err := CurrentDB().ReadPackFileOnDisk(packFileOID)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+		if existingPackFile != nil {
+			CurrentLogger().Debug("👍 Found existing pack file")
+			return existingPackFile, nil
+		}
 	}
 
 	packFile := &PackFile{
