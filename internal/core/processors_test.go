@@ -88,13 +88,28 @@ func TestQuoteRewriterProcessor(t *testing.T) {
 		},
 		{
 			name:         "Empty lines are included if present in the middle of a quote",
-			inputBody:    "First line\n>\nThird line",
+			inputBody:    "First line\n\nThird line",
 			expectedBody: "> First line\n>\n> Third line",
 		},
 		{
-			name:         "Already quoted lines remain unchanged",
+			name: "Attribution is appended if attributes are present",
+			inputAttributes: map[string]any{
+				"name":        "Jean Doe",
+				"occupation":  "writer",
+				"nationality": "French",
+			},
+			inputBody:    "This is a regular line\n\nAnother regular line",
+			expectedBody: "> This is a regular line\n>\n> Another regular line\n>\n> ― Jean Doe, French writer",
+		},
+		{
+			name:         "Empty lines are included if present in the middle of a quote",
+			inputBody:    "First line\n\nThird line",
+			expectedBody: "> First line\n>\n> Third line",
+		},
+		{
+			name:         "Already quoted lines block further rewriting",
 			inputBody:    "> Already quoted\nNot quoted",
-			expectedBody: "> Already quoted\n> Not quoted",
+			expectedBody: "> Already quoted\nNot quoted",
 		},
 		{
 			name:         "Tags/attributes lines are not quoted",

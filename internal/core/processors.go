@@ -72,38 +72,41 @@ func ExtractDateFromTitle(input markdown.Document) (string, bool) {
 
 // QuoteRewriterProcessor rewrites the quotes in the note body to use the Markdown syntax (sugar syntax).
 func QuoteRewriterProcessor(file *ParsedFile, note *ParsedNote) ([]*ParsedNote, error) {
-	lines := strings.Split(note.Body.String(), "\n")
-	var rewrittenLines []string
+	var res bytes.Buffer
 
-	insideQuote := false
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-
-		if trimmed != "" && !OnlyTagsAndAttributes(trimmed) && !strings.HasPrefix(trimmed, ">") {
-			rewrittenLines = append(rewrittenLines, "> "+line)
-			insideQuote = true
-		} else {
-			if insideQuote {
-				// The quote is complete. Add the attribution
-				attribution := note.Attributes.Attribution()
-				if attribution != "" {
-					rewrittenLines = append(rewrittenLines, ">") // Force a newline to put the attribution on a new line
-					rewrittenLines = append(rewrittenLines, "> "+attribution)
-				}
+	isRewriting := false
+	for _, line := range note.Body.Lines() {
+		if line.InsideCodeBlock {
+			res.WriteString(line.Text + "\n")
+			continue
+		}
+		// Only tags and attributes?
+		if !line.IsBlank() && regexBlockTagAttributesLine.MatchString(line.Text) {
+			res.WriteString(line.Text + "\n")
+			continue
+		}
+		if !line.IsBlank() { // Found the first quote line
+			if _, ok := line.IsBlockquote(); ok {
+				// Already a blockquote! Abort rewriting to avoid breaking existing blockquotes
+				return []*ParsedNote{note}, nil
 			}
-			insideQuote = false
-			rewrittenLines = append(rewrittenLines, line)
+			res.WriteString("> " + line.Text + "\n")
+			isRewriting = true
 		}
-	}
-	if insideQuote {
-		attribution := note.Attributes.Attribution()
-		if attribution != "" {
-			rewrittenLines = append(rewrittenLines, ">") // Force a newline to put the attribution on a new line
-			rewrittenLines = append(rewrittenLines, "> "+attribution)
+		if line.IsBlank() && isRewriting {
+			res.WriteString(">\n")
+		} else if line.IsBlank() {
+			res.WriteString("\n")
 		}
 	}
 
-	note.Body = markdown.Document(strings.Join(rewrittenLines, "\n"))
+	attribution := note.Attributes.Attribution()
+	if attribution != "" {
+		res.WriteString(">\n")
+		res.WriteString("> " + attribution)
+	}
+
+	note.Body = markdown.Document(res.String()).TrimSpace()
 	return []*ParsedNote{note}, nil
 }
 

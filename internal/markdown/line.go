@@ -176,6 +176,15 @@ func (l Line) IsTopHeading() bool {
 	return isHeading && level == 1
 }
 
+// IsBlockquote returns the text of the blockquote and true if the line is a blockquote
+func (l Line) IsBlockquote() (string, bool) {
+	if !strings.HasPrefix(l.Text, ">") {
+		return l.Text, false
+	}
+	return strings.TrimSpace(strings.TrimPrefix(l.Text, ">")), true
+}
+
+// IsHeading returns true if the line is a heading, along with the heading text and level (1-6)
 func (l Line) IsHeading() (bool, string, int) {
 	// Test first alternate heading styles
 	if !l.IsBlank() && l.HasNext() {
