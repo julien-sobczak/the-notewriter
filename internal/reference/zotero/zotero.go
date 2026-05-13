@@ -186,12 +186,10 @@ func (m *Manager) Search(query string) ([]reference.Result, error) {
 	req.Header.Set("Content-Type", "text/plain")
 	res, err := client.Do(req)
 	if err != nil {
-		curlCmd, _ := text.RequestToCurl(req)
-		return nil, &reference.FetchError{Err: fmt.Errorf("error making HTTP request: %w", err), Cmd: curlCmd}
+		return nil, &reference.FetchError{Err: fmt.Errorf("error making HTTP request: %w", err), Cmd: text.MustRequestToCurl(req)}
 	}
 	if res.StatusCode != http.StatusOK {
-		curlCmd, _ := text.RequestToCurl(req)
-		return nil, &reference.FetchError{Err: fmt.Errorf("unexpected HTTP response code: %d", res.StatusCode), Cmd: curlCmd}
+		return nil, &reference.FetchError{Err: fmt.Errorf("unexpected HTTP response code: %d", res.StatusCode), Cmd: text.MustRequestToCurl(req)}
 	}
 	defer res.Body.Close()
 	body, err := io.ReadAll(res.Body)

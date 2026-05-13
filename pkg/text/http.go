@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 )
@@ -47,4 +48,13 @@ func RequestToCurl(req *http.Request) (string, error) {
 	}
 
 	return curlCmd.String(), nil
+}
+
+// MustRequestToCurl is like RequestToCurl but calls log.Fatal if an error occurs.
+func MustRequestToCurl(req *http.Request) string {
+	cmd, err := RequestToCurl(req)
+	if err != nil {
+		log.Fatalf("failed to generate curl command: %v", err)
+	}
+	return cmd
 }

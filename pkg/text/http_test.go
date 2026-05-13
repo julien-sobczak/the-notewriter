@@ -11,6 +11,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestMustRequestToCurl(t *testing.T) {
+	t.Run("valid request", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, "https://example.com/api", nil)
+		require.NoError(t, err)
+
+		cmd := MustRequestToCurl(req)
+		assert.Equal(t, "curl -X 'GET' 'https://example.com/api'", cmd)
+	})
+}
+
 func TestRequestToCurl(t *testing.T) {
 	t.Run("GET request", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodGet, "https://www.googleapis.com/books/v1/volumes?q=good+inside", nil)

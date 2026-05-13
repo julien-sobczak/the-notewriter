@@ -135,12 +135,10 @@ func (m *Manager) search(query string) (QueryResponse, error) {
 	}
 	res, err := client.Do(req)
 	if err != nil {
-		curlCmd, _ := text.RequestToCurl(req)
-		return QueryResponse{}, &reference.FetchError{Err: fmt.Errorf("error making HTTP request: %w", err), Cmd: curlCmd}
+		return QueryResponse{}, &reference.FetchError{Err: fmt.Errorf("error making HTTP request: %w", err), Cmd: text.MustRequestToCurl(req)}
 	}
 	if res.StatusCode != http.StatusOK {
-		curlCmd, _ := text.RequestToCurl(req)
-		return QueryResponse{}, &reference.FetchError{Err: fmt.Errorf("wrong status code for HTTP request: %d", res.StatusCode), Cmd: curlCmd}
+		return QueryResponse{}, &reference.FetchError{Err: fmt.Errorf("wrong status code for HTTP request: %d", res.StatusCode), Cmd: text.MustRequestToCurl(req)}
 	}
 	var response QueryResponse
 	err = json.NewDecoder(res.Body).Decode(&response)
@@ -159,12 +157,10 @@ func (m *Manager) get(pageID int) (*ParseResponse, error) {
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		curlCmd, _ := text.RequestToCurl(req)
-		return nil, &reference.FetchError{Err: fmt.Errorf("error making HTTP request: %w", err), Cmd: curlCmd}
+		return nil, &reference.FetchError{Err: fmt.Errorf("error making HTTP request: %w", err), Cmd: text.MustRequestToCurl(req)}
 	}
 	if resp.StatusCode != http.StatusOK {
-		curlCmd, _ := text.RequestToCurl(req)
-		return nil, &reference.FetchError{Err: fmt.Errorf("wrong status code for HTTP request: %d", resp.StatusCode), Cmd: curlCmd}
+		return nil, &reference.FetchError{Err: fmt.Errorf("wrong status code for HTTP request: %d", resp.StatusCode), Cmd: text.MustRequestToCurl(req)}
 	}
 
 	defer resp.Body.Close()
