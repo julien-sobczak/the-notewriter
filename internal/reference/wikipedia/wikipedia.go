@@ -121,10 +121,12 @@ func (m *Manager) search(query string) QueryResponse {
 	res, err := http.Get(requestURL)
 	if err != nil {
 		fmt.Printf("Error making HTTP request: %v\n", err)
+		fmt.Printf("\nTry running the command manually:\n\n     $ %s\n", reference.FormatCurlCommand("GET", requestURL))
 		os.Exit(1)
 	}
 	if res.StatusCode != http.StatusOK {
 		fmt.Printf("Wrong status code for HTTP request: %v\n", res.StatusCode)
+		fmt.Printf("\nTry running the command manually:\n\n     $ %s\n", reference.FormatCurlCommand("GET", requestURL))
 		os.Exit(1)
 	}
 	var response QueryResponse
@@ -141,10 +143,12 @@ func (m *Manager) get(pageID int) *ParseResponse {
 	resp, err := http.Get(requestURL)
 	if err != nil {
 		fmt.Printf("Error making HTTP request: %v\n", err)
+		fmt.Printf("\nTry running the command manually:\n\n     $ %s\n", reference.FormatCurlCommand("GET", requestURL))
 		os.Exit(1)
 	}
 	if resp.StatusCode != http.StatusOK {
 		fmt.Printf("Wrong status code for HTTP request: %v\n", resp.StatusCode)
+		fmt.Printf("\nTry running the command manually:\n\n     $ %s\n", reference.FormatCurlCommand("GET", requestURL))
 		os.Exit(1)
 	}
 

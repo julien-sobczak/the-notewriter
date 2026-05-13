@@ -14,6 +14,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// FormatCurlCommand returns a curl command string for the given HTTP method and URL.
+// It is used to help users debug failed HTTP requests.
+func FormatCurlCommand(method, url string) string {
+	return fmt.Sprintf("curl -X%s %q", strings.ToUpper(method), url)
+}
+
 type Result interface {
 	Description() string
 	Attributes() map[string]any
