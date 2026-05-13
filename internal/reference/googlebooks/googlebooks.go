@@ -8,13 +8,18 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"time"
 
 	"github.com/julien-sobczak/the-notewriter/internal/reference"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
 
 const (
 	// How many results to return in maximum
 	maxResults = 5
+
+	// Default timeout for HTTP requests
+	defaultTimeout = 10 * time.Second
 )
 
 // Module query structure
@@ -97,15 +102,23 @@ func (m *Manager) Search(query string) ([]reference.Result, error) {
 	}
 
 	requestURL := fmt.Sprintf("%s/volumes?q=%s", m.BaseURL, url.QueryEscape(q))
-	res, err := http.Get(requestURL)
+	client := &http.Client{Timeout: defaultTimeout}
+	req, err := http.NewRequest(http.MethodGet, requestURL, nil)
 	if err != nil {
+		fmt.Printf("Error creating HTTP request for %s: %s\n", requestURL, err)
+		os.Exit(1)
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		curlCmd, _ := text.RequestToCurl(req)
 		fmt.Printf("Error making HTTP request: %s\n", err)
-		fmt.Printf("\nTry running the command manually:\n\n     $ %s\n", reference.FormatCurlCommand("GET", requestURL))
+		fmt.Printf("\nTry running the command manually:\n\n     $ %s\n", curlCmd)
 		os.Exit(1)
 	}
 	if res.StatusCode != http.StatusOK {
+		curlCmd, _ := text.RequestToCurl(req)
 		fmt.Printf("Wrong status code for HTTP request: %v\n", res.StatusCode)
-		fmt.Printf("\nTry running the command manually:\n\n     $ %s\n", reference.FormatCurlCommand("GET", requestURL))
+		fmt.Printf("\nTry running the command manually:\n\n     $ %s\n", curlCmd)
 		os.Exit(1)
 	}
 

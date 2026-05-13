@@ -8,13 +8,18 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/julien-sobczak/the-notewriter/internal/reference"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
 
 const (
 	// How many Wikipedia pages to traverse
 	maxResults = 3
+
+	// Default timeout for HTTP requests
+	defaultTimeout = 10 * time.Second
 )
 
 // Module query structure
@@ -118,15 +123,23 @@ func (m *Manager) Search(query string) ([]reference.Result, error) {
 
 func (m *Manager) search(query string) QueryResponse {
 	requestURL := fmt.Sprintf("%s/w/api.php?action=query&list=search&srsearch=%s&utf8=&format=json", m.BaseURL, url.QueryEscape(query))
-	res, err := http.Get(requestURL)
+	client := &http.Client{Timeout: defaultTimeout}
+	req, err := http.NewRequest(http.MethodGet, requestURL, nil)
 	if err != nil {
+		fmt.Printf("Error creating HTTP request for %s: %v\n", requestURL, err)
+		os.Exit(1)
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		curlCmd, _ := text.RequestToCurl(req)
 		fmt.Printf("Error making HTTP request: %v\n", err)
-		fmt.Printf("\nTry running the command manually:\n\n     $ %s\n", reference.FormatCurlCommand("GET", requestURL))
+		fmt.Printf("\nTry running the command manually:\n\n     $ %s\n", curlCmd)
 		os.Exit(1)
 	}
 	if res.StatusCode != http.StatusOK {
+		curlCmd, _ := text.RequestToCurl(req)
 		fmt.Printf("Wrong status code for HTTP request: %v\n", res.StatusCode)
-		fmt.Printf("\nTry running the command manually:\n\n     $ %s\n", reference.FormatCurlCommand("GET", requestURL))
+		fmt.Printf("\nTry running the command manually:\n\n     $ %s\n", curlCmd)
 		os.Exit(1)
 	}
 	var response QueryResponse
@@ -140,15 +153,23 @@ func (m *Manager) search(query string) QueryResponse {
 
 func (m *Manager) get(pageID int) *ParseResponse {
 	requestURL := fmt.Sprintf("%s/w/api.php?action=parse&contentmodel=text&pageid=%d&prop=wikitext&format=json", m.BaseURL, pageID)
-	resp, err := http.Get(requestURL)
+	client := &http.Client{Timeout: defaultTimeout}
+	req, err := http.NewRequest(http.MethodGet, requestURL, nil)
 	if err != nil {
+		fmt.Printf("Error creating HTTP request for %s: %v\n", requestURL, err)
+		os.Exit(1)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		curlCmd, _ := text.RequestToCurl(req)
 		fmt.Printf("Error making HTTP request: %v\n", err)
-		fmt.Printf("\nTry running the command manually:\n\n     $ %s\n", reference.FormatCurlCommand("GET", requestURL))
+		fmt.Printf("\nTry running the command manually:\n\n     $ %s\n", curlCmd)
 		os.Exit(1)
 	}
 	if resp.StatusCode != http.StatusOK {
+		curlCmd, _ := text.RequestToCurl(req)
 		fmt.Printf("Wrong status code for HTTP request: %v\n", resp.StatusCode)
-		fmt.Printf("\nTry running the command manually:\n\n     $ %s\n", reference.FormatCurlCommand("GET", requestURL))
+		fmt.Printf("\nTry running the command manually:\n\n     $ %s\n", curlCmd)
 		os.Exit(1)
 	}
 

@@ -96,36 +96,6 @@ func (r MapResult) Attributes() map[string]any {
 	return r
 }
 
-func TestFormatCurlCommand(t *testing.T) {
-	tests := []struct {
-		method   string
-		url      string
-		expected string
-	}{
-		{
-			method:   "GET",
-			url:      "https://www.googleapis.com/books/v1/volumes?q=good+inside",
-			expected: `curl -XGET "https://www.googleapis.com/books/v1/volumes?q=good+inside"`,
-		},
-		{
-			method:   "get",
-			url:      "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=Nelson+Mandela",
-			expected: `curl -XGET "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=Nelson+Mandela"`,
-		},
-		{
-			method:   "POST",
-			url:      "http://localhost:1969/search",
-			expected: `curl -XPOST "http://localhost:1969/search"`,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.method+" "+tt.url, func(t *testing.T) {
-			actual := reference.FormatCurlCommand(tt.method, tt.url)
-			assert.Equal(t, tt.expected, actual)
-		})
-	}
-}
-
 func TestEvaluateTemplate(t *testing.T) {
 	tests := []struct {
 		name     string
