@@ -187,11 +187,11 @@ func (m *Manager) Search(query string) ([]reference.Result, error) {
 	res, err := client.Do(req)
 	if err != nil {
 		curlCmd, _ := text.RequestToCurl(req)
-		return nil, fmt.Errorf("error making HTTP request: %w\n\nTry running the command manually:\n\n     $ %s", err, curlCmd)
+		return nil, &reference.FetchError{Err: fmt.Errorf("error making HTTP request: %w", err), Cmd: curlCmd}
 	}
 	if res.StatusCode != http.StatusOK {
 		curlCmd, _ := text.RequestToCurl(req)
-		return nil, fmt.Errorf("unexpected HTTP response code: %d\n\nTry running the command manually:\n\n     $ %s", res.StatusCode, curlCmd)
+		return nil, &reference.FetchError{Err: fmt.Errorf("unexpected HTTP response code: %d", res.StatusCode), Cmd: curlCmd}
 	}
 	defer res.Body.Close()
 	body, err := io.ReadAll(res.Body)

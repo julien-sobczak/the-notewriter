@@ -14,6 +14,21 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// FetchError is returned when an HTTP request fails. It contains the original
+// error and a ready-to-run curl command for manual debugging.
+type FetchError struct {
+	Err error
+	Cmd string
+}
+
+func (e *FetchError) Error() string {
+	return e.Err.Error()
+}
+
+func (e *FetchError) Unwrap() error {
+	return e.Err
+}
+
 type Result interface {
 	Description() string
 	Attributes() map[string]any

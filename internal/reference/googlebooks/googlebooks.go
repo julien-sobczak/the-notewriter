@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"regexp"
 	"time"
 
@@ -105,28 +104,22 @@ func (m *Manager) Search(query string) ([]reference.Result, error) {
 	client := &http.Client{Timeout: defaultTimeout}
 	req, err := http.NewRequest(http.MethodGet, requestURL, nil)
 	if err != nil {
-		fmt.Printf("Error creating HTTP request for %s: %s\n", requestURL, err)
-		os.Exit(1)
+		return nil, fmt.Errorf("error creating HTTP request for %s: %w", requestURL, err)
 	}
 	res, err := client.Do(req)
 	if err != nil {
 		curlCmd, _ := text.RequestToCurl(req)
-		fmt.Printf("Error making HTTP request: %s\n", err)
-		fmt.Printf("\nTry running the command manually:\n\n     $ %s\n", curlCmd)
-		os.Exit(1)
+		return nil, &reference.FetchError{Err: fmt.Errorf("error making HTTP request: %w", err), Cmd: curlCmd}
 	}
 	if res.StatusCode != http.StatusOK {
 		curlCmd, _ := text.RequestToCurl(req)
-		fmt.Printf("Wrong status code for HTTP request: %v\n", res.StatusCode)
-		fmt.Printf("\nTry running the command manually:\n\n     $ %s\n", curlCmd)
-		os.Exit(1)
+		return nil, &reference.FetchError{Err: fmt.Errorf("wrong status code for HTTP request: %d", res.StatusCode), Cmd: curlCmd}
 	}
 
 	var response QueryResponse
 	err = json.NewDecoder(res.Body).Decode(&response)
 	if err != nil {
-		fmt.Printf("Error unmarshalling query JSON response: %v\n", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("error unmarshalling query JSON response: %w", err)
 	}
 
 	var results []reference.Result

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -53,6 +54,10 @@ var newCmd = &cobra.Command{
 		}
 		results, err := manager.Search(input)
 		if err != nil {
+			var fetchErr *reference.FetchError
+			if errors.As(err, &fetchErr) {
+				log.Fatalf("%v\n\nTry running the command manually:\n\n     $ %s\n", fetchErr.Err, fetchErr.Cmd)
+			}
 			log.Fatal(err)
 		}
 		if len(results) == 0 {
