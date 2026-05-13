@@ -6,15 +6,19 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"regexp"
+	"time"
 
 	"github.com/julien-sobczak/the-notewriter/internal/reference"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
 
 const (
 	// How many results to return in maximum
 	maxResults = 5
+
+	// Default timeout for HTTP requests
+	defaultTimeout = 10 * time.Second
 )
 
 // Module query structure
@@ -97,21 +101,23 @@ func (m *Manager) Search(query string) ([]reference.Result, error) {
 	}
 
 	requestURL := fmt.Sprintf("%s/volumes?q=%s", m.BaseURL, url.QueryEscape(q))
-	res, err := http.Get(requestURL)
+	client := &http.Client{Timeout: defaultTimeout}
+	req, err := http.NewRequest(http.MethodGet, requestURL, nil)
 	if err != nil {
-		fmt.Printf("Error making HTTP request: %s\n", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("error creating HTTP request for %s: %w", requestURL, err)
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, &reference.FetchError{Err: fmt.Errorf("error making HTTP request: %w", err), Cmd: text.MustRequestToCurl(req)}
 	}
 	if res.StatusCode != http.StatusOK {
-		fmt.Printf("Wrong status code for HTTP request: %v\n", res.StatusCode)
-		os.Exit(1)
+		return nil, &reference.FetchError{Err: fmt.Errorf("wrong status code for HTTP request: %d", res.StatusCode), Cmd: text.MustRequestToCurl(req)}
 	}
 
 	var response QueryResponse
 	err = json.NewDecoder(res.Body).Decode(&response)
 	if err != nil {
-		fmt.Printf("Error unmarshalling query JSON response: %v\n", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("error unmarshalling query JSON response: %w", err)
 	}
 
 	var results []reference.Result

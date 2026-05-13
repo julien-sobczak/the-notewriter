@@ -6,15 +6,19 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
+	"time"
 
 	"github.com/julien-sobczak/the-notewriter/internal/reference"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
 
 const (
 	// How many Wikipedia pages to traverse
 	maxResults = 3
+
+	// Default timeout for HTTP requests
+	defaultTimeout = 10 * time.Second
 )
 
 // Module query structure
@@ -90,7 +94,10 @@ func (m *Manager) Ready() (bool, error) {
 func (m *Manager) Search(query string) ([]reference.Result, error) {
 	var results []reference.Result
 	// Search for Wikipedia pages
-	queryResponse := m.search(query)
+	queryResponse, err := m.search(query)
+	if err != nil {
+		return nil, err
+	}
 
 	for i, queryResult := range queryResponse.Query.Results {
 		if i > maxResults {
@@ -99,7 +106,10 @@ func (m *Manager) Search(query string) ([]reference.Result, error) {
 		}
 
 		// Retrieve Wikipedia page content
-		pageResponse := m.get(queryResult.PageID)
+		pageResponse, err := m.get(queryResult.PageID)
+		if err != nil {
+			return nil, err
+		}
 
 		// Load the HTML document
 		infobox := parseWikitext(pageResponse.Parse.RawText())
@@ -116,43 +126,48 @@ func (m *Manager) Search(query string) ([]reference.Result, error) {
 	return results, nil
 }
 
-func (m *Manager) search(query string) QueryResponse {
+func (m *Manager) search(query string) (QueryResponse, error) {
 	requestURL := fmt.Sprintf("%s/w/api.php?action=query&list=search&srsearch=%s&utf8=&format=json", m.BaseURL, url.QueryEscape(query))
-	res, err := http.Get(requestURL)
+	client := &http.Client{Timeout: defaultTimeout}
+	req, err := http.NewRequest(http.MethodGet, requestURL, nil)
 	if err != nil {
-		fmt.Printf("Error making HTTP request: %v\n", err)
-		os.Exit(1)
+		return QueryResponse{}, fmt.Errorf("error creating HTTP request for %s: %w", requestURL, err)
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		return QueryResponse{}, &reference.FetchError{Err: fmt.Errorf("error making HTTP request: %w", err), Cmd: text.MustRequestToCurl(req)}
 	}
 	if res.StatusCode != http.StatusOK {
-		fmt.Printf("Wrong status code for HTTP request: %v\n", res.StatusCode)
-		os.Exit(1)
+		return QueryResponse{}, &reference.FetchError{Err: fmt.Errorf("wrong status code for HTTP request: %d", res.StatusCode), Cmd: text.MustRequestToCurl(req)}
 	}
 	var response QueryResponse
 	err = json.NewDecoder(res.Body).Decode(&response)
 	if err != nil {
-		fmt.Printf("Error unmarshalling query JSON response: %v\n", err)
-		os.Exit(1)
+		return QueryResponse{}, fmt.Errorf("error unmarshalling query JSON response: %w", err)
 	}
-	return response
+	return response, nil
 }
 
-func (m *Manager) get(pageID int) *ParseResponse {
+func (m *Manager) get(pageID int) (*ParseResponse, error) {
 	requestURL := fmt.Sprintf("%s/w/api.php?action=parse&contentmodel=text&pageid=%d&prop=wikitext&format=json", m.BaseURL, pageID)
-	resp, err := http.Get(requestURL)
+	client := &http.Client{Timeout: defaultTimeout}
+	req, err := http.NewRequest(http.MethodGet, requestURL, nil)
 	if err != nil {
-		fmt.Printf("Error making HTTP request: %v\n", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("error creating HTTP request for %s: %w", requestURL, err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, &reference.FetchError{Err: fmt.Errorf("error making HTTP request: %w", err), Cmd: text.MustRequestToCurl(req)}
 	}
 	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("Wrong status code for HTTP request: %v\n", resp.StatusCode)
-		os.Exit(1)
+		return nil, &reference.FetchError{Err: fmt.Errorf("wrong status code for HTTP request: %d", resp.StatusCode), Cmd: text.MustRequestToCurl(req)}
 	}
 
 	defer resp.Body.Close()
 
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
-		os.Exit(1)
+		return nil, fmt.Errorf("error reading response body: %w", err)
 	}
 	// Debug:
 	// fmt.Println(string(b))
@@ -160,10 +175,9 @@ func (m *Manager) get(pageID int) *ParseResponse {
 	var response ParseResponse
 	err = json.NewDecoder(strings.NewReader(string(b))).Decode(&response)
 	if err != nil {
-		fmt.Printf("Error unmarshalling parse JSON response: %v\n", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("error unmarshalling parse JSON response: %w", err)
 	}
-	return &response
+	return &response, nil
 }
 
 /* Helpers */

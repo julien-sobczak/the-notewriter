@@ -18,11 +18,15 @@ import (
 
 	"github.com/julien-sobczak/the-notewriter/internal/reference"
 	"github.com/julien-sobczak/the-notewriter/pkg/clock"
+	"github.com/julien-sobczak/the-notewriter/pkg/text"
 )
 
 const (
 	// How long to wait for Zotero Translation Server to start before reporting failure
 	maxStartingTime = 60 * time.Second // The container is slow but one minute must be enough
+
+	// Default timeout for HTTP requests
+	defaultTimeout = 10 * time.Second
 
 	// How many query to try before declaring the service as bugged
 	maxAppempts = 3
@@ -174,7 +178,7 @@ func (m *Manager) Search(query string) ([]reference.Result, error) {
 	}
 
 	// Ex: curl -XPOST http://localhost:1969/search -H 'Content-Type: text/plain' -d '0525538836' | jq .
-	client := &http.Client{}
+	client := &http.Client{Timeout: defaultTimeout}
 	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/search", m.BaseURL), strings.NewReader(query))
 	if err != nil {
 		return nil, err
@@ -182,10 +186,10 @@ func (m *Manager) Search(query string) ([]reference.Result, error) {
 	req.Header.Set("Content-Type", "text/plain")
 	res, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, &reference.FetchError{Err: fmt.Errorf("error making HTTP request: %w", err), Cmd: text.MustRequestToCurl(req)}
 	}
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected HTTP response code: %d", res.StatusCode)
+		return nil, &reference.FetchError{Err: fmt.Errorf("unexpected HTTP response code: %d", res.StatusCode), Cmd: text.MustRequestToCurl(req)}
 	}
 	defer res.Body.Close()
 	body, err := io.ReadAll(res.Body)
